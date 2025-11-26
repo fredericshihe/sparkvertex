@@ -54,7 +54,7 @@ export default function Hero() {
         .order('created_at', { ascending: false });
 
       if (data && data.length > 0) {
-        const mappedCards = data.map((item, index) => {
+        const mappedCards = data.map((item: any, index) => {
           const colors = [
             "from-purple-500 to-pink-500",
             "from-blue-500 to-cyan-500",
