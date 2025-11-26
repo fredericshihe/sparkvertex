@@ -10,12 +10,27 @@ export const getPreviewContent = (content: string | null) => {
   const viewportMeta = '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">';
   
   const injectedStyle = `<style>
-    * { -webkit-tap-highlight-color: transparent; }
-    body { margin: 0; padding: 0; overflow-x: hidden; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; width: 100vw; height: 100vh; background-color: #ffffff; }
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    html { width: 100%; height: 100%; overflow: hidden; }
+    body { 
+      margin: 0; 
+      padding: 0; 
+      width: 100%; 
+      height: 100%; 
+      overflow-x: hidden; 
+      overflow-y: auto;
+      user-select: none; 
+      -webkit-user-select: none; 
+      -webkit-touch-callout: none; 
+      background-color: #ffffff;
+      /* Safe area handling */
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
     ::-webkit-scrollbar { width: 0px; background: transparent; }
     body { -ms-overflow-style: none; scrollbar-width: none; }
-    /* Ensure full height */
-    html, body { height: 100%; width: 100%; }
   </style>`;
   
   let newContent = content;

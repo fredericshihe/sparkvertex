@@ -28,9 +28,13 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
       );
     }
 
+    // Use Data URI for better compatibility with WeChat/WebViews
+    const previewContent = getPreviewContent(item.content);
+    const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(previewContent)}`;
+
     return (
       <iframe 
-        srcDoc={getPreviewContent(item.content)} 
+        src={dataUri}
         className="absolute inset-0 w-full h-full border-0 pointer-events-none bg-slate-900" 
         loading="lazy" 
         sandbox="allow-scripts"

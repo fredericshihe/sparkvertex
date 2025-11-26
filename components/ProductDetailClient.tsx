@@ -241,7 +241,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col pt-16">
+    <div className={`min-h-screen bg-slate-900 flex flex-col ${viewMode === 'app' ? 'pt-0' : 'pt-16'}`}>
       {/* Add to Home Screen Hint - Only show on mobile browser (not standalone) */}
       {showInstallHint && viewMode === 'app' && (
         <div className="md:hidden fixed top-0 left-0 w-full bg-brand-600 text-white text-xs px-4 py-2 z-[60] flex justify-between items-center animate-slide-down shadow-lg">
@@ -286,7 +286,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
               }`}></div>
 
               <iframe 
-                srcDoc={getPreviewContent(item.content || '')} 
+                src={`data:text/html;charset=utf-8,${encodeURIComponent(getPreviewContent(item.content || ''))}`}
                 className="w-full h-full border-0 bg-slate-900" 
                 sandbox="allow-scripts allow-pointer-lock allow-modals allow-same-origin allow-forms allow-popups allow-downloads"
                 allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; payment; fullscreen; picture-in-picture; display-capture; execution-while-not-rendered; execution-while-out-of-viewport"
