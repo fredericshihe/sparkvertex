@@ -41,13 +41,70 @@ export async function POST(request: Request) {
 
     const siliconFlowKey = process.env.SILICONFLOW_API_KEY;
     const openAiKey = process.env.OPENAI_API_KEY;
+    const deepseekKey = process.env.DEEPSEEK_API_KEY;
 
     // Construct Professional Prompt
     let finalPrompt = '';
-    if (title && description) {
-      finalPrompt = `App icon for "${title}". Context: ${description}. Style: iOS App Store style, rounded square, minimalist, flat design with subtle gradients. Subject: A single, clear, central symbolic object. Details: High resolution, vector graphics, 4k, vibrant colors. Negative: text, letters, words, realistic photos, complex details, messy, blurry, low quality.`;
-    } else {
-      finalPrompt = `mobile app icon representing ${prompt}, no text, no letters, no words, symbolic, abstract, edge to edge, full bleed, no padding, no margin, single large central shape, premium color palette, elegant, clean, flat vector style with subtle gradient, high quality, 4k, square, full fill`;
+    
+    // 1. Try to use DeepSeek to generate the optimized prompt first
+    if (deepseekKey && (title && description)) {
+      try {
+        console.log('Using DeepSeek to optimize icon prompt...');
+        const deepseekResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${deepseekKey}`
+          },
+          body: JSON.stringify({
+            model: "deepseek-chat",
+            messages: [
+              {
+                role: "system",
+                content: `You are an expert Icon Designer. Your task is to generate a clean, high-contrast app icon prompt based on the user's input. The output must be suitable for a 512x512 resolution, meaning details must be bold and simple.
+
+# Analysis & Strategy
+1.  **Extract Keyword:** Identify the single most representative object (e.g., "Rocket", "Pen", "Shield").
+2.  **Simplification:** Discard background scenery or tiny details. Focus on the object.
+3.  **Composition:** The object must be centered with clear padding from the edges to allow for rounded corner cropping.
+
+# Prompt Generation
+Generate the image prompt using this strict format:
+
+"Mobile app icon for '{App Title}', [Core Object] in the center. Style: Modern 3D minimalist, smooth matte texture. Lighting: Soft studio light, single light source. Colors: [Vibrant Color] gradient background, white or contrasting object. Composition: Centered, bold shapes, high readability at small sizes. Resolution: High definition, sharp edges. No text, no fine details, no complex background."
+
+# Execution
+Output ONLY the generated prompt string. Do not include any other text.`
+              },
+              {
+                role: "user",
+                content: `App Name: ${title}\nDescription: ${description}`
+              }
+            ],
+            temperature: 0.7
+          })
+        });
+
+        if (deepseekResponse.ok) {
+          const data = await deepseekResponse.json();
+          const generatedContent = data.choices?.[0]?.message?.content?.trim();
+          if (generatedContent) {
+            finalPrompt = generatedContent.replace(/^"|"$/g, ''); // Remove quotes if present
+            console.log('DeepSeek generated prompt:', finalPrompt);
+          }
+        }
+      } catch (err) {
+        console.error('DeepSeek prompt generation failed:', err);
+      }
+    }
+
+    // Fallback if DeepSeek failed or not available
+    if (!finalPrompt) {
+      if (title && description) {
+        finalPrompt = `Mobile app icon for "${title}", ${description} in the center. Style: Modern 3D minimalist, smooth matte texture. Lighting: Soft studio light, single light source. Colors: Vibrant gradient background, white or contrasting object. Composition: Centered, bold shapes, high readability at small sizes. Resolution: High definition, sharp edges. No text, no fine details, no complex background.`;
+      } else {
+        finalPrompt = `Mobile app icon for "${prompt}", ${prompt} in the center. Style: Modern 3D minimalist, smooth matte texture. Lighting: Soft studio light, single light source. Colors: Vibrant gradient background, white or contrasting object. Composition: Centered, bold shapes, high readability at small sizes. Resolution: High definition, sharp edges. No text, no fine details, no complex background.`;
+      }
     }
 
     // 1. Try SiliconFlow (Flux-1-schnell) - Priority

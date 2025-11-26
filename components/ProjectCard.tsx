@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Item } from '@/types/supabase';
 import { getPreviewContent } from '@/lib/preview';
 import { QRCodeSVG } from 'qrcode.react';
@@ -17,13 +17,45 @@ interface ProjectCardProps {
 
 export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onDelete }: ProjectCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        // Only render when visible or close to viewport
+        setIsVisible(entry.isIntersecting);
+      },
+      { 
+        rootMargin: '100px', // Preload margin
+        threshold: 0.01
+      }
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+
+    return () => {
+      if (cardRef.current) {
+        observer.unobserve(cardRef.current);
+      }
+    };
+  }, []);
 
   const generatePreviewHtml = (item: Item) => {
     if (!item.content) {
       return (
         <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-700 to-slate-800'} opacity-20 flex items-center justify-center`}>
           <i className="fa-solid fa-code text-4xl text-white/50"></i>
+        </div>
+      );
+    }
+
+    if (!isVisible) {
+      return (
+        <div className="absolute inset-0 bg-slate-800 flex items-center justify-center">
+          <div className="w-6 h-6 border-2 border-slate-600 border-t-brand-500 rounded-full animate-spin"></div>
         </div>
       );
     }
@@ -43,10 +75,23 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
 
   return (
     <div 
+      ref={cardRef}
       className={`h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 touch-manipulation ${isFlipped ? 'flipped' : ''}`} 
       onClick={() => onClick(item.id)}
       onMouseLeave={() => setIsFlipped(false)}
     >
+      {/* Mobile Flip Toggle - Top Center */}
+      <div 
+        className="absolute top-0 left-1/2 -translate-x-1/2 z-40 md:hidden flex items-center justify-center cursor-pointer bg-slate-900/90 backdrop-blur-md border border-white/10 border-t-0 rounded-b-xl px-4 py-2 text-xs text-white shadow-lg transition-colors active:bg-slate-800"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsFlipped(!isFlipped);
+        }}
+      >
+        <i className={`fa-solid ${isFlipped ? 'fa-rotate-left' : 'fa-qrcode'} mr-1.5`}></i> 
+        {isFlipped ? '返回' : '扫码'}
+      </div>
+
       <div className="flip-card-inner relative w-full h-full transition-all duration-500" style={{ transformStyle: 'preserve-3d' }}>
         {/* Front */}
         <div className="flip-card-front absolute inset-0 w-full h-full rounded-2xl overflow-hidden border border-slate-700/50 bg-slate-800 shadow-lg flex flex-col" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(0deg)' }}>
