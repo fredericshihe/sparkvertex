@@ -3,9 +3,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
+import { useToast } from '@/context/ToastContext';
 
 export default function PaymentModal() {
   const { isPaymentModalOpen, closePaymentModal, paymentItem } = useModal();
+  const { info } = useToast();
   const [qrUrl, setQrUrl] = useState('');
   const [orderId, setOrderId] = useState<string | null>(null);
   const [remarkCode, setRemarkCode] = useState<string>('');
@@ -20,6 +22,14 @@ export default function PaymentModal() {
     }
     return () => cleanup();
   }, [isPaymentModalOpen, paymentItem]);
+
+  useEffect(() => {
+    if (qrUrl && isPaymentModalOpen && status === 'waiting') {
+      if (window.innerWidth < 768) {
+        info('长按二维码可保存图片到相册', 2000);
+      }
+    }
+  }, [qrUrl, isPaymentModalOpen, status]);
 
   const cleanup = () => {
     if (pollingInterval) clearInterval(pollingInterval);
@@ -191,6 +201,12 @@ export default function PaymentModal() {
             <div className="w-64 h-64 mx-auto bg-white rounded-xl p-2 mb-6">
               <img src={qrUrl} className="w-full h-full object-contain" alt="Payment QR" />
             </div>
+
+            {/* Mobile Hint */}
+            <p className="text-xs text-slate-500 text-center -mt-4 mb-6 md:hidden animate-pulse">
+                <i className="fa-regular fa-hand-point-up mr-1"></i>
+                长按二维码可保存图片
+            </p>
 
             <button 
               onClick={handleBuyerConfirm}

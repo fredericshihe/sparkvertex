@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
+import { useToast } from '@/context/ToastContext';
 
 export default function RewardModal() {
   const { isRewardModalOpen, closeRewardModal, rewardAuthorId } = useModal();
+  const { info } = useToast();
   const [qrUrl, setQrUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [authorName, setAuthorName] = useState('');
@@ -15,6 +17,15 @@ export default function RewardModal() {
       fetchAuthorQR(rewardAuthorId);
     }
   }, [isRewardModalOpen, rewardAuthorId]);
+
+  useEffect(() => {
+    if (qrUrl && isRewardModalOpen) {
+      // Simple check for mobile to show toast
+      if (window.innerWidth < 768) {
+        info('长按二维码可保存图片到相册', 2000);
+      }
+    }
+  }, [qrUrl, isRewardModalOpen]);
 
   const fetchAuthorQR = async (authorId: string) => {
     setLoading(true);
@@ -69,6 +80,14 @@ export default function RewardModal() {
             </div>
           )}
         </div>
+
+        {/* Mobile Hint */}
+        {qrUrl && (
+            <p className="text-xs text-slate-500 text-center -mt-4 mb-6 md:hidden animate-pulse">
+                <i className="fa-regular fa-hand-point-up mr-1"></i>
+                长按二维码可保存图片
+            </p>
+        )}
 
         <button 
             onClick={closeRewardModal}
