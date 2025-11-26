@@ -186,9 +186,14 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   // Detect if running in standalone mode (PWA)
   const [isStandalone, setIsStandalone] = useState(false);
   const [showInstallHint, setShowInstallHint] = useState(false);
+  const [isWeChat, setIsWeChat] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Detect WeChat
+      const ua = navigator.userAgent.toLowerCase();
+      setIsWeChat(ua.includes('micromessenger'));
+
       const checkStandalone = () => {
         const isStandaloneMode = 
           window.matchMedia('(display-mode: standalone)').matches || 
@@ -205,8 +210,11 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
         }
 
         // Only show hint if NOT standalone and NOT dismissed previously
+        // And if we are in app mode (e.g. scanned from QR code)
         const dismissed = localStorage.getItem('pwa_hint_dismissed');
-        setShowInstallHint(!isStandaloneMode && !dismissed);
+        if (!isStandaloneMode && !dismissed && viewMode === 'app') {
+            setShowInstallHint(true);
+        }
       };
 
       // Initial check
@@ -217,7 +225,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
       
       return () => window.removeEventListener('resize', checkStandalone);
     }
-  }, []);
+  }, [viewMode]);
 
   const dismissHint = () => {
     setShowInstallHint(false);
@@ -242,11 +250,42 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
 
   return (
     <div className={`min-h-screen bg-slate-900 flex flex-col ${viewMode === 'app' ? 'pt-0' : 'pt-16'}`}>
+      {/* WeChat Overlay Hint */}
+      {isWeChat && (
+        <div className="fixed inset-0 z-[10000] bg-slate-900/95 flex flex-col items-center justify-center p-8 text-center animate-fade-in">
+            <div className="absolute top-4 right-6 animate-bounce">
+                <i className="fa-solid fa-arrow-up-long text-4xl text-white"></i>
+            </div>
+            <div className="w-20 h-20 bg-brand-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-brand-500/30">
+                <i className="fa-brands fa-weixin text-4xl text-white"></i>
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-4">请在浏览器中打开</h2>
+            <p className="text-slate-300 mb-8 leading-relaxed">
+                微信内置浏览器不支持部分高级功能。
+                <br/>
+                请点击右上角 <i className="fa-solid fa-ellipsis"></i> 选择
+                <br/>
+                <span className="text-brand-400 font-bold">"在浏览器打开"</span> 以获得最佳体验。
+            </p>
+            <div className="text-sm text-slate-500">
+                SparkVertex App Experience
+            </div>
+        </div>
+      )}
+
       {/* Add to Home Screen Hint - Only show on mobile browser (not standalone) */}
-      {showInstallHint && viewMode === 'app' && (
-        <div className="md:hidden fixed top-0 left-0 w-full bg-brand-600 text-white text-xs px-4 py-2 z-[60] flex justify-between items-center animate-slide-down shadow-lg">
-            <span>点击浏览器分享 <i className="fa-solid fa-arrow-up-from-bracket mx-1"></i> 添加到主屏幕以全屏运行</span>
-            <button onClick={dismissHint}><i className="fa-solid fa-xmark"></i></button>
+      {showInstallHint && viewMode === 'app' && !isWeChat && (
+        <div className="md:hidden fixed top-0 left-0 w-full bg-brand-600 text-white text-xs px-4 py-3 z-[9999] flex justify-between items-center animate-slide-down shadow-lg safe-area-top-padding">
+            <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i className="fa-solid fa-mobile-screen text-white"></i>
+                </div>
+                <div className="flex flex-col">
+                    <span className="font-bold text-sm">添加到主屏幕</span>
+                    <span className="text-[10px] opacity-80">点击浏览器分享 <i className="fa-solid fa-arrow-up-from-bracket mx-0.5"></i> 即可全屏运行</span>
+                </div>
+            </div>
+            <button onClick={dismissHint} className="w-8 h-8 flex items-center justify-center bg-black/10 rounded-full hover:bg-black/20 transition"><i className="fa-solid fa-xmark"></i></button>
         </div>
       )}
 
