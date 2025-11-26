@@ -797,6 +797,10 @@ export default function UploadPage() {
         error = result.error;
       } else {
         // Create new item
+        // 1. Check if item with same title already exists for this user to prevent 409
+        // Note: Ideally this should be handled by catching the 409 error, but Supabase JS client sometimes wraps it obscurely.
+        // Let's try to catch the specific error code below.
+        
         const result = await supabase.from('items').insert({
           title,
           description,
@@ -815,7 +819,13 @@ export default function UploadPage() {
         error = result.error;
       }
 
-      if (error) throw error;
+      if (error) {
+        // Handle 409 Conflict specifically
+        if (error.code === '23505' || error.message.includes('409')) {
+           throw new Error('发布失败：该作品标题已存在，请修改标题后重试。');
+        }
+        throw error;
+      }
 
       clearInterval(interval);
       setUploadProgress(100);

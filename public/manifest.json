@@ -3,7 +3,9 @@
   "short_name": "SparkVertex",
   "description": "Local-First Tools & Creative Space",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "icons": [

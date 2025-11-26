@@ -51,17 +51,22 @@ export default function Navbar() {
 
   const fetchUserAvatar = async (userId: string) => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('avatar_url')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
+      if (error) {
+        console.error('Error fetching avatar:', error);
+        return;
+      }
+
       if (data?.avatar_url) {
         setAvatarUrl(data.avatar_url);
       }
     } catch (error) {
-      console.error('Error fetching avatar:', error);
+      console.error('Unexpected error fetching avatar:', error);
     } finally {
       setIsLoadingAvatar(false);
     }

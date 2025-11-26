@@ -40,12 +40,24 @@ export default function Profile() {
   };
 
   const fetchProfile = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-    if (data) setProfile(data);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return;
+      }
+      
+      if (data) {
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Unexpected error fetching profile:', error);
+    }
   };
 
   const fetchCounts = async () => {
@@ -153,17 +165,27 @@ export default function Profile() {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      // Clear local storage manually to ensure token is removed
+    } catch (error) {
+      console.error('Unexpected error during logout:', error);
+    } finally {
+      // 1. Clear Supabase LocalStorage
       if (typeof window !== 'undefined') {
         Object.keys(window.localStorage).forEach(key => {
-          if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          if (key.startsWith('sb-')) {
             window.localStorage.removeItem(key);
           }
         });
       }
-    } catch (error) {
-      console.error('Unexpected error during logout:', error);
-    } finally {
+
+      // 2. Clear Cookies (Crucial for auth-helpers)
+      if (typeof document !== 'undefined') {
+        document.cookie.split(";").forEach((c) => {
+          document.cookie = c
+            .replace(/^ +/, "")
+            .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+        });
+      }
+
       setUser(null);
       window.location.href = '/';
     }
