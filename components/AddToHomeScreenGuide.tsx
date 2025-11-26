@@ -31,7 +31,7 @@ export default function AddToHomeScreenGuide({ isActive = true }: AddToHomeScree
   if (!showGuide) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[100] p-4 pointer-events-none flex justify-center pb-8">
+    <div className="fixed inset-x-0 bottom-0 z-[10000] p-4 pointer-events-none flex justify-center pb-8">
       <div className="bg-slate-900/90 backdrop-blur-md border border-brand-500/50 shadow-2xl shadow-brand-500/20 rounded-2xl p-4 max-w-sm w-full pointer-events-auto animate-bounce-in-up relative">
         <button 
           onClick={() => setShowGuide(false)}

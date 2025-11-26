@@ -306,6 +306,28 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
     }
   }, [viewMode]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (viewMode === 'app') {
+        document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.width = '100%';
+        document.body.style.height = '100%';
+      } else {
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
+        document.body.style.height = '';
+      }
+      return () => {
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
+        document.body.style.height = '';
+      };
+    }
+  }, [viewMode]);
+
   const dismissHint = () => {
     setShowInstallHint(false);
     localStorage.setItem('pwa_hint_dismissed', 'true');
@@ -367,7 +389,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
         {/* Preview Area / App Mode Container */}
         <div className={`
             transition-all duration-300 bg-slate-900 relative group flex flex-col
-            ${viewMode === 'app' ? 'fixed inset-0 z-[9999] w-screen h-[100dvh] overscroll-none touch-none' : 'h-[50vh] md:h-auto md:flex-grow'}
+            ${viewMode === 'app' ? 'fixed inset-0 z-[9999] w-screen h-[100dvh] overscroll-none touch-none bg-black' : 'h-[50vh] md:h-auto md:flex-grow'}
         `}>
           {/* Back Button (Only in App Mode & Not Standalone & Not Initial App Mode) */}
           {viewMode === 'app' && !isStandalone && initialMode !== 'app' && (
