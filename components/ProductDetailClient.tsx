@@ -334,11 +334,8 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   };
 
   const enterAppMode = () => {
-    setViewMode('app');
-    // Optional: Update URL without reload
-    const url = new URL(window.location.href);
-    url.searchParams.set('mode', 'app');
-    window.history.pushState({}, '', url);
+    // Force hard navigation to ensure browser picks up the correct manifest for PWA installation
+    window.location.href = `/p/${id}?mode=app`;
   };
 
   const exitAppMode = () => {

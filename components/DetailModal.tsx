@@ -248,9 +248,8 @@ export default function DetailModal() {
 
   const enterAppMode = () => {
     if (item) {
-      // Navigate to the standalone page with app mode to support "Add to Home Screen"
-      router.push(`/p/${item.id}?mode=app`);
-      closeDetailModal();
+      // Force hard navigation to ensure browser picks up the correct manifest for PWA installation
+      window.location.href = `/p/${item.id}?mode=app`;
     }
   };
 
