@@ -22,6 +22,12 @@ export default function LoginModal() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: {
+              full_name: email.split('@')[0],
+              username: email.split('@')[0],
+            },
+          },
         });
         if (error) throw error;
         setMessage('注册成功！请检查邮箱验证链接。');
