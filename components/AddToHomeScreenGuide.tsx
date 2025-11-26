@@ -2,11 +2,20 @@
 
 import { useState, useEffect } from 'react';
 
-export default function AddToHomeScreenGuide() {
+interface AddToHomeScreenGuideProps {
+  isActive?: boolean;
+}
+
+export default function AddToHomeScreenGuide({ isActive = true }: AddToHomeScreenGuideProps) {
   const [showGuide, setShowGuide] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
+    if (!isActive) {
+      setShowGuide(false);
+      return;
+    }
+
     // Check if running in standalone mode
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     
@@ -17,7 +26,7 @@ export default function AddToHomeScreenGuide() {
       setShowGuide(true);
       setIsIOS(/iPhone|iPad|iPod/i.test(navigator.userAgent));
     }
-  }, []);
+  }, [isActive]);
 
   if (!showGuide) return null;
 

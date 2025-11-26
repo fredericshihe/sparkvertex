@@ -15,9 +15,6 @@ export default function Navbar() {
   const searchParams = useSearchParams();
   const { openLoginModal, openFeedbackModal } = useModal();
 
-  // Hide Navbar in App Mode
-  if (searchParams.get('mode') === 'app') return null;
-
   useEffect(() => {
     const handleSession = (session: any) => {
       setUser(session?.user ?? null);
@@ -48,6 +45,9 @@ export default function Navbar() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Hide Navbar in App Mode
+  if (searchParams.get('mode') === 'app') return null;
 
   const fetchUserAvatar = async (userId: string) => {
     try {

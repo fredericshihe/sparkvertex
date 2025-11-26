@@ -60,7 +60,7 @@ export default function RootLayout({
             <Suspense fallback={<div className="h-16 bg-white/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-gray-100" />}>
               <Navbar />
             </Suspense>
-            <main className="min-h-screen pt-16">
+            <main className="min-h-screen">
               {children}
             </main>
             <Footer />

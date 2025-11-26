@@ -799,10 +799,22 @@ export default function UploadPage() {
     setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
-  const copyShareLink = () => {
+  const copyShareLink = async () => {
+    if (!publishedId) return;
     const url = `${window.location.origin}/explore?work=${publishedId}`;
-    navigator.clipboard.writeText(url);
-    toastSuccess('链接已复制！');
+    try {
+      await navigator.clipboard.writeText(url);
+      toastSuccess('链接已复制！');
+    } catch (err) {
+      console.error('Copy failed', err);
+      toastError('复制失败');
+    }
+  };
+
+  const goToDetail = () => {
+    if (publishedId) {
+      router.push(`/explore?work=${publishedId}`);
+    }
   };
 
   return (
@@ -1308,10 +1320,10 @@ export default function UploadPage() {
           </div>
 
           <div className="flex gap-4 justify-center">
-            <Link href="/explore" className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition">
+            <button onClick={() => router.push('/explore')} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition">
               返回探索
-            </Link>
-            <button onClick={copyShareLink} className="px-8 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold transition shadow-lg shadow-brand-500/30">
+            </button>
+            <button onClick={goToDetail} className="px-8 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold transition shadow-lg shadow-brand-500/30">
               分享作品
             </button>
           </div>

@@ -732,7 +732,18 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
       )}
 
       {/* Add to Home Screen Guide */}
-      {viewMode === 'app' && <AddToHomeScreenGuide />}
+      <AddToHomeScreenGuide isActive={viewMode === 'app'} />
+
+      {/* Exit App Mode Button - Floating (Only in App Mode) */}
+      {viewMode === 'app' && (
+        <button 
+          onClick={exitAppMode}
+          className="fixed top-4 left-4 z-[60] w-10 h-10 bg-black/50 backdrop-blur-md rounded-full text-white flex items-center justify-center hover:bg-black/70 transition border border-white/10 group"
+          title="返回详情"
+        >
+          <i className="fa-solid fa-chevron-left group-hover:-translate-x-0.5 transition-transform"></i>
+        </button>
+      )}
     </div>
   );
 }

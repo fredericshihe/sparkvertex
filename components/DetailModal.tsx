@@ -248,7 +248,9 @@ export default function DetailModal() {
 
   const enterAppMode = () => {
     if (item) {
-      setViewMode('app');
+      // Navigate to the standalone page with app mode to support "Add to Home Screen"
+      router.push(`/p/${item.id}?mode=app`);
+      closeDetailModal();
     }
   };
 
@@ -722,7 +724,7 @@ export default function DetailModal() {
       )}
 
       {/* Add to Home Screen Guide */}
-      {viewMode === 'app' && <AddToHomeScreenGuide />}
+      <AddToHomeScreenGuide isActive={viewMode === 'app'} />
     </div>
   );
 }

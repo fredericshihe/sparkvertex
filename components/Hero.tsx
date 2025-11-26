@@ -273,7 +273,7 @@ export default function Hero() {
   );
 
   return (
-    <div className="relative overflow-hidden min-h-[85vh] flex flex-col items-center justify-start pt-16 lg:justify-center lg:pt-0 perspective-1000">
+    <div className="relative overflow-hidden min-h-screen flex flex-col items-center justify-center perspective-1000">
       {/* Background Elements */}
       <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px] animate-pulse-slow pointer-events-none mix-blend-screen"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] animate-pulse-slow pointer-events-none mix-blend-screen" style={{ animationDelay: '2s' }}></div>
@@ -284,7 +284,7 @@ export default function Hero() {
       <div className="absolute bottom-40 right-[15%] text-8xl font-mono font-bold text-slate-800/30 -rotate-12 blur-[4px] animate-float-delayed pointer-events-none select-none">{`{}`}</div>
 
       {/* Main Hero Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 mt-10">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           
           {/* Left: Text Content */}
