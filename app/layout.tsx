@@ -32,6 +32,7 @@ import FeedbackModal from '@/components/FeedbackModal';
 import EditProfileModal from '@/components/EditProfileModal';
 import PaymentQRModal from '@/components/PaymentQRModal';
 import PaymentModal from '@/components/PaymentModal';
+import RewardModal from '@/components/RewardModal';
 import ManageOrdersModal from '@/components/ManageOrdersModal';
 import CityBackground from '@/components/CityBackground';
 import WeChatGuard from '@/components/WeChatGuard';
@@ -47,6 +48,7 @@ export default function RootLayout({
     <html lang="zh-CN">
       <head>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+        <link rel="icon" href="/logo.png" />
       </head>
       <body className={inter.className}>
         <WeChatGuard />
@@ -63,6 +65,7 @@ export default function RootLayout({
           <EditProfileModal />
           <PaymentQRModal />
           <PaymentModal />
+          <RewardModal />
             <ManageOrdersModal />
           </ModalProvider>
         </ToastProvider>

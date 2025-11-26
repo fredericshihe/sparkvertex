@@ -248,11 +248,20 @@ input, textarea, [contenteditable] {
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
     border-radius: 1rem;
+    /* Fix for jagged edges during 3D transform */
+    transform: translateZ(0); 
+    -webkit-transform: translateZ(0);
+    overflow: hidden;
+    /* Optional: helps with anti-aliasing on some browsers */
+    outline: 1px solid transparent;
+    /* Force hardware acceleration and clipping */
+    will-change: transform;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0); /* Another anti-aliasing trick */
 }
 .flip-card-back {
-    transform: rotateY(180deg);
+    transform: rotateY(180deg) translateZ(1px); /* Slight Z offset to prevent z-fighting */
+    -webkit-transform: rotateY(180deg) translateZ(1px);
     background-color: #1e293b;
-    overflow: hidden;
 }
 
 /* City Background Effect */

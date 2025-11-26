@@ -82,10 +82,17 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
             <Link href="/" className="flex items-center cursor-pointer mr-8">
-              <div className="flex-shrink-0">
-                <i className="fa-solid fa-toolbox text-brand-500 text-2xl mr-2"></i>
+              <div className="flex-shrink-0 flex items-center">
+                <img 
+                  src="/logo.png" 
+                  alt="Logo" 
+                  className="w-8 h-8 mr-2 object-contain mix-blend-screen" 
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
               </div>
-              <div>
+              <div className="flex items-center">
                 <span className="font-bold text-lg md:text-xl tracking-tight text-white">Spark<span className="text-brand-500">Vertex</span> 灵枢</span>
               </div>
             </Link>
@@ -93,7 +100,8 @@ export default function Navbar() {
               <div className="flex items-baseline space-x-4">
                 <Link href="/" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/')}`}>首页</Link>
                 <Link href="/why" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/why')}`}>核心理念</Link>
-                <Link href="/explore" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/explore')}`}><i className="fa-solid fa-lightbulb mr-1"></i> 灵枢广场</Link>
+                <Link href="/explore" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/explore')}`}>灵枢广场</Link>
+                <Link href="/guide" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/guide')}`}>开发流程</Link>
               </div>
             </div>
           </div>
@@ -139,8 +147,9 @@ export default function Navbar() {
           >
             <div className="px-4 pt-2 pb-4 space-y-1">
               <Link href="/" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-home w-6 text-center"></i> 首页</Link>
-              <Link href="/explore" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-lightbulb w-6 text-center"></i> 灵枢广场</Link>
               <Link href="/why" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-book w-6 text-center"></i> 核心理念</Link>
+              <Link href="/explore" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-lightbulb w-6 text-center"></i> 灵枢广场</Link>
+              <Link href="/guide" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-wand-magic-sparkles w-6 text-center"></i> 开发流程</Link>
               <button onClick={() => { toggleMobileMenu(); openFeedbackModal(); }} className="block w-full text-left px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-comment-dots w-6 text-center"></i> 问题反馈</button>
               <Link href="/upload" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-brand-400 hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-cloud-arrow-up w-6 text-center"></i> 上传作品</Link>
               <div className="border-t border-slate-800 my-2 pt-2">

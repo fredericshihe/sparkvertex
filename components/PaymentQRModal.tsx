@@ -82,7 +82,11 @@ export default function PaymentQRModal() {
           <i className="fa-solid fa-qrcode text-brand-500 mr-2"></i>
           收款码
         </h2>
-        <p className="text-sm text-slate-400 mb-6">上传您的微信/支付宝收款码，方便买家打赏</p>
+        <div className="text-sm text-slate-400 mb-6 space-y-1">
+            <p>上传您的微信/支付宝收款码，用于：</p>
+            <p className="text-slate-300">1. 接收付费源码的收益</p>
+            <p className="text-slate-300">2. 接受他人的打赏</p>
+        </div>
         
         <div 
           onClick={() => fileInputRef.current?.click()}

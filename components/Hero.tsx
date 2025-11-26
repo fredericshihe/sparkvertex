@@ -7,6 +7,14 @@ import { useModal } from '@/context/ModalContext';
 import { getPreviewContent } from '@/lib/preview';
 import { QRCodeSVG } from 'qrcode.react';
 
+const CARD_COLORS = [
+  "from-purple-500 to-pink-500",
+  "from-blue-500 to-cyan-500",
+  "from-orange-500 to-red-500",
+  "from-green-500 to-emerald-500",
+  "from-indigo-500 to-violet-500"
+];
+
 // Fallback data in case database is empty
 const DEMO_CARDS = [
   {
@@ -14,7 +22,7 @@ const DEMO_CARDS = [
     title: "AI 智能助手",
     description: "基于 GPT-4 的个人效率工具，支持语音对话和多模态输入。",
     tags: ["OpenAI", "Next.js", "Tailwind"],
-    color: "from-purple-500 to-pink-500",
+    color: CARD_COLORS[0],
     icon: "fa-robot",
     code: `const ai = new AI.Agent({
   model: 'gpt-4',
@@ -34,8 +42,10 @@ export default function Hero() {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [cards, setCards] = useState<any[]>(DEMO_CARDS);
+  const [isClient, setIsClient] = useState(false);
   
   useEffect(() => {
+    setIsClient(true);
     fetchRealItems();
   }, []);
 
@@ -55,20 +65,13 @@ export default function Hero() {
 
       if (data && data.length > 0) {
         const mappedCards = data.map((item: any, index) => {
-          const colors = [
-            "from-purple-500 to-pink-500",
-            "from-blue-500 to-cyan-500",
-            "from-orange-500 to-red-500",
-            "from-green-500 to-emerald-500",
-            "from-indigo-500 to-violet-500"
-          ];
           
           return {
             id: item.id,
             title: item.title,
             description: item.description,
             tags: item.tags || [],
-            color: colors[index % colors.length],
+            color: CARD_COLORS[index % CARD_COLORS.length],
             icon: 'fa-cube', // Default icon, not really used if we have preview
             code: item.prompt || item.content || `// No code preview available\n// ${item.title}`,
             content: item.content,
@@ -153,8 +156,124 @@ export default function Hero() {
     );
   };
 
+  const cardContent = (
+    <div className="relative group w-full max-w-md mx-auto" style={{ perspective: '1200px' }}>
+      {/* Glow Effect - Stacked for smooth transition */}
+      {CARD_COLORS.map((color) => (
+        <div 
+          key={color}
+          className={`absolute -inset-4 bg-gradient-to-r ${color} rounded-3xl blur-2xl transition-opacity duration-1000 will-change-[opacity] ${activeCard.color === color ? 'opacity-30 group-hover:opacity-60' : 'opacity-0'}`}
+        ></div>
+      ))}
+      
+      {/* Flip Card Container */}
+      <div 
+        className={`h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 ${isFlipped ? 'flipped' : ''}`} 
+        onClick={() => openDetailModal(activeCard.id, activeCard)}
+        onMouseEnter={() => { setIsHovering(true); setIsFlipped(true); }}
+        onMouseLeave={() => { setIsHovering(false); setIsFlipped(false); }}
+      >
+        <div className="flip-card-inner relative w-full h-full transition-all duration-700" style={{ transformStyle: 'preserve-3d' }}>
+          
+          {/* Front: Preview (Like ProjectCard) */}
+          <div className="flip-card-front absolute inset-0 w-full h-full rounded-2xl overflow-hidden border border-slate-700/50 bg-slate-800 shadow-2xl flex flex-col" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
+            
+            {/* Trigger Zone for Flip */}
+            <div 
+              className={`absolute top-0 left-1/2 -translate-x-1/2 z-20 px-4 py-1 bg-black/50 backdrop-blur text-[10px] text-slate-300 rounded-b-lg cursor-help hover:bg-brand-600 hover:text-white transition-all duration-300 flex items-center gap-1 ${!isFlipped ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 pointer-events-none'}`}
+              onMouseEnter={(e) => {
+                e.stopPropagation();
+                setIsFlipped(true);
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <i className="fa-solid fa-qrcode"></i> 扫码体验
+            </div>
+
+            <div className="h-44 relative bg-slate-900 overflow-hidden flex-shrink-0">
+              {generatePreviewHtml(activeCard?.content, activeCard?.color)}
+              
+              {/* AI Verified Badge */}
+              {(activeCard?.tags || []).includes('AI Verified') && (
+                <div className="absolute top-2 right-2 z-20">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(234,179,8,0.3)]">
+                    <i className="fa-solid fa-certificate"></i> AI 认证
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 text-left flex flex-col flex-grow">
+              <h3 className="font-bold text-white text-lg mb-1 truncate">{activeCard?.title || 'Loading...'}</h3>
+              <p className="text-slate-400 text-sm line-clamp-2 mb-3">{activeCard?.description || '...'}</p>
+              
+              <div className="flex-grow"></div>
+              
+              <div className="flex items-center justify-between pt-3 border-t border-slate-700/50">
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <img src={activeCard?.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeCard?.author || 'default'}`} className="w-5 h-5 rounded-full" alt="author" />
+                  <span className="truncate max-w-[80px]">{activeCard?.author || 'Unknown'}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex gap-2 text-xs text-slate-500">
+                    <span className="flex items-center gap-1"><i className="fa-solid fa-eye"></i> {activeCard?.page_views || 0}</span>
+                    <span className="flex items-center gap-1"><i className="fa-solid fa-heart"></i> {activeCard?.likes || 0}</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${activeCard?.price > 0 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
+                    {activeCard?.price > 0 ? '¥' + activeCard?.price : '免费'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Back: QR Code */}
+          <div className="flip-card-back absolute inset-0 w-full h-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-700/50 shadow-xl flex flex-col items-center justify-center relative" style={{ transform: 'rotateY(180deg)', backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
+            
+            {/* Prompt Background with Radial Mask */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none select-none flex items-center justify-center">
+               <div className="absolute inset-0 opacity-40" style={{ maskImage: 'radial-gradient(circle at center, black 30%, transparent 100%)' }}>
+                 <code className="text-[10px] text-slate-500/30 font-mono leading-3 break-all whitespace-pre-wrap block w-full h-full p-4">
+                  {activeCard?.code || (
+                    <>
+                      # Task {activeCard?.title} # Keywords {(activeCard?.tags || []).join(', ')}
+                      {/* Repeat content to fill background */}
+                      {(activeCard?.description || '').repeat(10)}
+                    </>
+                  )}
+                </code>
+               </div>
+               {/* Center Glow - Dynamic Color */}
+               <div className={`absolute w-40 h-40 bg-gradient-to-r ${activeCard.color} opacity-20 blur-3xl rounded-full`}></div>
+            </div>
+
+            {/* QR Code Content */}
+            <div className="relative z-10 flex flex-col items-center justify-center group-hover:scale-105 transition-transform duration-300">
+              <div className="bg-white p-1.5 rounded-lg shadow-2xl">
+                {isClient && (
+                  <QRCodeSVG 
+                    value={`${window.location.origin}/p/${activeCard?.id}?mode=app`}
+                    size={130}
+                    level="M"
+                    fgColor="#000000"
+                    bgColor="#ffffff"
+                  />
+                )}
+              </div>
+              <div className="text-center mt-3">
+                <div className="text-white font-bold text-sm mb-1 drop-shadow-md"><i className="fa-solid fa-mobile-screen-button mr-1"></i> 扫码即刻体验</div>
+                <div className="text-slate-400 text-[10px] drop-shadow-md">手机全屏模式运行</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="relative overflow-hidden min-h-[85vh] flex flex-col items-center justify-center perspective-1000">
+    <div className="relative overflow-hidden min-h-[85vh] flex flex-col items-center justify-start pt-16 lg:justify-center lg:pt-0 perspective-1000">
       {/* Background Elements */}
       <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px] animate-pulse-slow pointer-events-none mix-blend-screen"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] animate-pulse-slow pointer-events-none mix-blend-screen" style={{ animationDelay: '2s' }}></div>
@@ -227,6 +346,11 @@ export default function Hero() {
               </div>
             </div>
 
+            {/* Mobile Card Display */}
+            <div className="block lg:hidden mb-12 stagger-item" style={{ animationDelay: '0.25s' }}>
+              {cardContent}
+            </div>
+
             {/* CTA Buttons */}
             <div className="stagger-item flex flex-col sm:flex-row lg:justify-start justify-center gap-6 mb-20" style={{ animationDelay: '0.3s' }}>
               <Link href="/guide" className="group relative px-8 py-4 rounded-full bg-white text-slate-900 font-bold text-lg hover:bg-slate-100 transition duration-300 shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_40px_rgba(255,255,255,0.6)] overflow-hidden">
@@ -242,104 +366,8 @@ export default function Hero() {
           </div>
 
           {/* Right: Prompt Display */}
-          <div className="stagger-item mt-8 lg:mt-0" style={{ animationDelay: '0.4s' }}>
-            <div className="relative group w-full max-w-md mx-auto" style={{ perspective: '1200px' }}>
-              {/* Glow Effect */}
-              <div className={`absolute -inset-4 bg-gradient-to-r ${activeCard.color} rounded-3xl blur-2xl opacity-30 group-hover:opacity-60 transition duration-500`}></div>
-              
-              {/* Flip Card Container */}
-              <div 
-                className={`h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 ${isFlipped ? 'flipped' : ''}`} 
-                onClick={() => openDetailModal(activeCard.id, activeCard)}
-                onMouseEnter={() => { setIsHovering(true); setIsFlipped(true); }}
-                onMouseLeave={() => { setIsHovering(false); setIsFlipped(false); }}
-              >
-                <div className="flip-card-inner relative w-full h-full transition-all duration-700" style={{ transformStyle: 'preserve-3d' }}>
-                  
-                  {/* Front: Preview (Like ProjectCard) */}
-                  <div className="flip-card-front absolute inset-0 w-full h-full rounded-2xl overflow-hidden border border-slate-700/50 bg-slate-800 shadow-2xl flex flex-col" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
-                    
-                    {/* Trigger Zone for Flip */}
-                    <div 
-                      className={`absolute top-0 left-1/2 -translate-x-1/2 z-20 px-4 py-1 bg-black/50 backdrop-blur text-[10px] text-slate-300 rounded-b-lg cursor-help hover:bg-brand-600 hover:text-white transition-all duration-300 flex items-center gap-1 ${!isFlipped ? 'opacity-0 group-hover:opacity-100' : 'opacity-0 pointer-events-none'}`}
-                      onMouseEnter={(e) => {
-                        e.stopPropagation();
-                        setIsFlipped(true);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <i className="fa-solid fa-qrcode"></i> 扫码体验
-                    </div>
-
-                    <div className="h-44 relative bg-slate-900 overflow-hidden flex-shrink-0">
-                      {generatePreviewHtml(activeCard?.content, activeCard?.color)}
-                    </div>
-
-                    <div className="p-4 text-left flex flex-col flex-grow">
-                      <h3 className="font-bold text-white text-lg mb-1 truncate">{activeCard?.title || 'Loading...'}</h3>
-                      <p className="text-slate-400 text-sm line-clamp-2 mb-3">{activeCard?.description || '...'}</p>
-                      
-                      <div className="flex-grow"></div>
-                      
-                      <div className="flex items-center justify-between pt-3 border-t border-slate-700/50">
-                        <div className="flex items-center gap-2 text-xs text-slate-400">
-                          <img src={activeCard?.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeCard?.author || 'default'}`} className="w-5 h-5 rounded-full" alt="author" />
-                          <span className="truncate max-w-[80px]">{activeCard?.author || 'Unknown'}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="flex gap-2 text-xs text-slate-500">
-                            <span className="flex items-center gap-1"><i className="fa-solid fa-eye"></i> {activeCard?.page_views || 0}</span>
-                            <span className="flex items-center gap-1"><i className="fa-solid fa-heart"></i> {activeCard?.likes || 0}</span>
-                          </div>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${activeCard?.price > 0 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
-                            {activeCard?.price > 0 ? '¥' + activeCard?.price : '免费'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Back: QR Code */}
-                  <div className="flip-card-back absolute inset-0 w-full h-full rounded-2xl overflow-hidden bg-slate-950 border border-brand-500/50 shadow-xl shadow-brand-500/10 flex flex-col items-center justify-center relative" style={{ transform: 'rotateY(180deg)', backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
-                    
-                    {/* Prompt Background with Radial Mask */}
-                    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none flex items-center justify-center">
-                       <div className="absolute inset-0 opacity-40" style={{ maskImage: 'radial-gradient(circle at center, black 30%, transparent 100%)' }}>
-                         <code className="text-[10px] text-brand-200/50 font-mono leading-3 break-all whitespace-pre-wrap block w-full h-full p-4">
-                          {activeCard?.code || (
-                            <>
-                              # Task {activeCard?.title} # Keywords {(activeCard?.tags || []).join(', ')}
-                              {/* Repeat content to fill background */}
-                              {(activeCard?.description || '').repeat(10)}
-                            </>
-                          )}
-                        </code>
-                       </div>
-                       {/* Center Glow */}
-                       <div className="absolute w-40 h-40 bg-brand-500/20 blur-3xl rounded-full"></div>
-                    </div>
-
-                    {/* QR Code Content */}
-                    <div className="relative z-10 flex flex-col items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                      <div className="bg-white p-1.5 rounded-lg shadow-2xl">
-                        <QRCodeSVG 
-                          value={`${typeof window !== 'undefined' ? window.location.origin : ''}/p/${activeCard?.id}?mode=app`}
-                          size={130}
-                          level="M"
-                          fgColor="#000000"
-                          bgColor="#ffffff"
-                        />
-                      </div>
-                      <div className="text-center mt-3">
-                        <div className="text-brand-400 font-bold text-sm mb-1 drop-shadow-md"><i className="fa-solid fa-mobile-screen-button mr-1"></i> 扫码即刻体验</div>
-                        <div className="text-slate-400 text-[10px] drop-shadow-md">手机全屏模式运行</div>
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="hidden lg:block stagger-item mt-8 lg:mt-0" style={{ animationDelay: '0.4s' }}>
+            {cardContent}
           </div>
 
         </div>

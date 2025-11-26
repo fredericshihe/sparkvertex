@@ -47,7 +47,7 @@ export default function LoginModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100]">
+    <div className="fixed inset-0 z-[200]">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm touch-none" onClick={closeLoginModal}></div>
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl animate-float-up overscroll-contain">
         <div className="flex justify-between items-center mb-6">

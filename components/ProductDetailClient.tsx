@@ -8,6 +8,7 @@ import html2canvas from 'html2canvas';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useModal } from '@/context/ModalContext';
 import { getPreviewContent } from '@/lib/preview';
+import AddToHomeScreenGuide from '@/components/AddToHomeScreenGuide';
 
 interface ProductDetailClientProps {
   initialItem: Item;
@@ -24,7 +25,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(initialItem.likes || 0);
   const [showCopiedTip, setShowCopiedTip] = useState(false);
-  const { openLoginModal, openPaymentModal } = useModal();
+  const { openLoginModal, openPaymentModal, openRewardModal } = useModal();
   
   // View Mode: 'detail' (default) or 'app' (immersive)
   const [viewMode, setViewMode] = useState<'detail' | 'app'>(initialMode === 'app' ? 'app' : 'detail');
@@ -35,10 +36,60 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   const shareRef = useRef<HTMLDivElement>(null);
   const [shareImageUrl, setShareImageUrl] = useState<string>('');
 
+  const [qrIconDataUrl, setQrIconDataUrl] = useState<string>('');
+  // Logo Data URL for Share Card
+  const [logoDataUrl, setLogoDataUrl] = useState<string>('');
+  const [defaultIconDataUrl, setDefaultIconDataUrl] = useState<string>('');
+
+  useEffect(() => {
+    const loadAssets = async () => {
+        try {
+            // Load Logo
+            const logoResponse = await fetch('/logo.png');
+            const logoBlob = await logoResponse.blob();
+            const logoReader = new FileReader();
+            logoReader.onloadend = () => setLogoDataUrl(logoReader.result as string);
+            logoReader.readAsDataURL(logoBlob);
+
+            // Load Default Icon
+            const iconResponse = await fetch('/icons/icon-512x512.png');
+            const iconBlob = await iconResponse.blob();
+            const iconReader = new FileReader();
+            iconReader.onloadend = () => setDefaultIconDataUrl(iconReader.result as string);
+            iconReader.readAsDataURL(iconBlob);
+        } catch (e) {
+            console.warn('Failed to load assets:', e);
+            setLogoDataUrl('/logo.png');
+            setDefaultIconDataUrl('/icons/icon-512x512.png');
+        }
+    };
+    loadAssets();
+  }, []);
+
   useEffect(() => {
     checkIfLiked(id);
     incrementViews(id);
   }, [id]);
+
+  useEffect(() => {
+    if (item?.icon_url) {
+        const toDataURL = async () => {
+            try {
+                const response = await fetch(item.icon_url!);
+                const blob = await response.blob();
+                const reader = new FileReader();
+                reader.onloadend = () => setQrIconDataUrl(reader.result as string);
+                reader.readAsDataURL(blob);
+            } catch (e) {
+                console.warn('Failed to load icon for QR:', e);
+                setQrIconDataUrl('/logo.png');
+            }
+        };
+        toDataURL();
+    } else {
+        setQrIconDataUrl('/logo.png');
+    }
+  }, [item?.icon_url]);
 
   const checkIfLiked = async (itemId: string) => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -57,6 +108,12 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
     // Optimistic update
     setItem(prev => ({ ...prev, page_views: (prev.page_views || 0) + 1 }));
 
+    // Validate UUID to prevent DB errors
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(itemId)) {
+        return;
+    }
+
     // Use RPC for secure increment
     // RLS policies prevent direct updates from non-authors, so we must use a Postgres Function
     const { error } = await supabase.rpc('increment_views', { item_id: itemId });
@@ -70,6 +127,12 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
     // Optimistic update
     setItem(prev => ({ ...prev, views: (prev.views || 0) + 1 }));
     
+    // Validate UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(itemId)) {
+        return;
+    }
+
     // Use RPC for secure increment (assuming you have a similar function for downloads)
     // If not, you should create one: create function increment_downloads(item_id uuid) ...
     const { error } = await supabase.rpc('increment_downloads', { item_id: itemId });
@@ -97,6 +160,17 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
     }
   };
 
+  const handleReward = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      openLoginModal();
+      return;
+    }
+    if (item?.author_id) {
+        openRewardModal(item.author_id);
+    }
+  };
+
   const handleShare = async () => {
     setShowShareModal(true);
     setGeneratingImage(true);
@@ -114,7 +188,9 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                     onclone: (clonedDoc) => {
                         const images = clonedDoc.getElementsByTagName('img');
                         for (let i = 0; i < images.length; i++) {
-                            images[i].crossOrigin = "anonymous";
+                            if (!images[i].src.startsWith('data:')) {
+                                images[i].crossOrigin = "anonymous";
+                            }
                         }
                     }
                 });
@@ -356,12 +432,28 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                   <div className="text-xs text-slate-500">{new Date(item.created_at || '').toLocaleDateString()}</div>
                 </div>
               </div>
-              <button 
-                onClick={handleShare}
-                className="text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-full font-bold transition border border-slate-700 flex items-center gap-1"
-              >
-                <i className="fa-solid fa-share-nodes"></i> 分享 App
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleReward}
+                  className="text-xs bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1.5 rounded-full font-bold transition shadow-lg shadow-orange-500/20 flex items-center gap-1 hover:from-yellow-600 hover:to-orange-600"
+                >
+                  <i className="fa-solid fa-gift"></i> 赏
+                </button>
+                <button 
+                  onClick={handleShare}
+                  className="text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-full font-bold transition border border-slate-700 flex items-center gap-1"
+                >
+                  {showCopiedTip ? (
+                    <>
+                      <i className="fa-solid fa-check"></i> 已复制
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-share-nodes"></i> 分享
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Stats Grid */}
@@ -462,7 +554,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
             
             <div className="relative z-10 bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full flex flex-col items-center animate-float-up shadow-2xl">
                 <div className="flex justify-between items-center w-full mb-4">
-                    <h3 className="text-lg font-bold text-white">分享 App</h3>
+                    <h3 className="text-lg font-bold text-white">分享</h3>
                     <button onClick={closeShareModal} className="text-slate-400 hover:text-white transition">
                         <i className="fa-solid fa-xmark text-xl"></i>
                     </button>
@@ -479,73 +571,59 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                     </div>
                 )}
                 
-                {/* The Card to Capture */}
-                <div className="relative w-full mb-6">
-                    {!shareImageUrl && (
-                        <div className="absolute inset-0 flex items-center justify-center z-20 bg-slate-900/50 backdrop-blur-sm rounded-xl">
-                            <i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500"></i>
-                        </div>
-                    )}
-                    
-                    {/* This div is what gets captured. */}
+                {/* Hidden Capture Area - Always rendered but off-screen */}
+                <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
                     <div 
                         ref={shareRef} 
-                        className={`${shareImageUrl ? 'hidden' : 'flex'} w-[375px] flex-col relative overflow-hidden bg-slate-950 text-white`}
+                        className="flex w-[375px] flex-col relative overflow-hidden bg-slate-950 text-white"
                         style={{ minHeight: '667px', fontFamily: 'sans-serif' }}
                     >
-                        {/* Elegant Background */}
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-900/40 via-slate-950 to-slate-950"></div>
+                        {/* Elegant Background - Simplified */}
+                        <div className="absolute inset-0 bg-slate-950"></div>
                         <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-black/50 to-transparent"></div>
 
                         {/* Main Content */}
                         <div className="relative z-10 flex flex-col h-full p-8">
                             
                             {/* Header: Brand */}
-                            <div className="flex items-center gap-2 mb-6 opacity-60">
-                                <i className="fa-solid fa-bolt text-brand-500"></i>
-                                <span className="font-bold tracking-widest text-xs uppercase">SparkVertex</span>
+                            <div className="flex items-center mb-6">
+                                <img 
+                                    src={logoDataUrl || "/logo.png"} 
+                                    className="w-8 h-8 object-contain mix-blend-screen mt-5" 
+                                    alt="Logo" 
+                                    crossOrigin="anonymous"
+                                />
+                                <span className="font-bold text-xl tracking-tight text-white ml-3">Spark<span className="text-brand-500">Vertex</span> 灵枢</span>
                             </div>
 
                             {/* App Icon - Centered & Elegant */}
-                            <div className="flex justify-center mb-10 mt-4">
+                            <div className="flex justify-center mb-6 mt-4">
                                 <div className="w-40 h-40 rounded-[2.5rem] bg-gradient-to-br from-brand-500 to-blue-600 shadow-2xl shadow-brand-500/30 flex items-center justify-center relative overflow-hidden border border-white/10 group">
-                                    {item.icon_url ? (
-                                        <img src={item.icon_url} className="w-full h-full object-cover" alt="App Icon" crossOrigin="anonymous" />
-                                    ) : (
-                                        <>
-                                            {/* Glossy Effect */}
-                                            <div className="absolute top-0 left-0 w-full h-1/2 bg-gradient-to-b from-white/20 to-transparent pointer-events-none"></div>
-                                            
-                                            {/* Icon Content */}
-                                            <div className="text-6xl font-bold text-white drop-shadow-lg select-none">
-                                                {item.title?.charAt(0).toUpperCase() || <i className="fa-solid fa-cube"></i>}
-                                            </div>
-                                            
-                                            {/* Decorative Elements */}
-                                            <div className="absolute -bottom-8 -right-8 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
-                                            <div className="absolute top-4 right-4 w-2 h-2 bg-white/30 rounded-full"></div>
-                                        </>
-                                    )}
+                                    <img 
+                                        src={item.icon_url || defaultIconDataUrl || "/icons/icon-512x512.png"} 
+                                        className="w-full h-full object-cover" 
+                                        alt="App Icon" 
+                                        crossOrigin={item.icon_url && !item.icon_url.startsWith('data:') ? "anonymous" : undefined}
+                                        onError={(e) => {
+                                            const target = e.target as HTMLImageElement;
+                                            const fallback = defaultIconDataUrl || "/icons/icon-512x512.png";
+                                            if (target.src !== fallback && !target.src.includes(fallback)) {
+                                                target.src = fallback;
+                                            }
+                                        }}
+                                    />
                                 </div>
                             </div>
 
                             {/* Info Section */}
                             <div className="mb-8">
-                                <h1 className="text-2xl font-bold text-white mb-3 leading-tight tracking-tight">
-                                    {item.title}
-                                </h1>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-slate-400">
-                                        <img 
-                                            src={item.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author}`} 
-                                            className="w-6 h-6 rounded-full bg-slate-800 object-cover border border-white/10"
-                                            crossOrigin="anonymous"
-                                        />
-                                        <span className="text-sm font-medium">{item.author}</span>
-                                    </div>
-                                    <div className="px-2 py-1 rounded text-[10px] font-bold bg-white/10 text-slate-300 border border-white/5">
-                                        {item.category || 'Web App'}
-                                    </div>
+                                <div className="flex items-center justify-center w-full px-2 mb-3">
+                                    <h1 className="text-2xl font-bold text-white tracking-tight whitespace-nowrap overflow-hidden text-ellipsis pb-2 leading-relaxed">
+                                        {item?.title ? item.title.split(/[-|:：]/)[0].replace(/[^\w\s\u4e00-\u9fa5]/g, '').trim() : ''}
+                                    </h1>
+                                </div>
+                                <div className="flex items-center justify-center w-full">
+                                    <span className="text-xs font-medium text-slate-400">开发者：{item?.author}</span>
                                 </div>
                             </div>
 
@@ -568,7 +646,6 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
 
                                 {/* App QR */}
                                 <div className="flex flex-col items-center text-center p-3 rounded-xl bg-brand-500/10 border border-brand-500/20 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-8 h-8 bg-brand-500/20 blur-xl rounded-full"></div>
                                     <div className="bg-white p-1.5 rounded-lg mb-3 shadow-lg relative">
                                         <QRCodeCanvas 
                                             value={getAppUrl()} 
@@ -576,12 +653,15 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                                             level={"M"}
                                             bgColor="#ffffff"
                                             fgColor="#000000"
+                                            imageSettings={{
+                                                src: qrIconDataUrl || "/logo.png",
+                                                x: undefined,
+                                                y: undefined,
+                                                height: 20,
+                                                width: 20,
+                                                excavate: true,
+                                            }}
                                         />
-                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                            <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm">
-                                                <i className="fa-solid fa-bolt text-brand-600 text-[10px]"></i>
-                                            </div>
-                                        </div>
                                     </div>
                                     <span className="text-xs font-bold text-brand-300 mb-0.5">全屏体验</span>
                                     <span className="text-[10px] text-brand-500/60 scale-90">添加到主屏幕</span>
@@ -589,10 +669,21 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    {/* Display Generated Image */}
-                    {shareImageUrl && (
-                        <img src={shareImageUrl} className="w-full rounded-xl shadow-2xl" alt="Share Card" />
+                {/* Display Area */}
+                <div className="relative w-full mb-6 flex justify-center min-h-[200px]">
+                    {generatingImage && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-slate-900/50 backdrop-blur-sm rounded-xl border border-slate-700/50">
+                            <i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500 mb-3"></i>
+                            <span className="text-slate-300 text-sm font-medium animate-pulse">正在生成分享卡片...</span>
+                        </div>
+                    )}
+                    
+                    {shareImageUrl ? (
+                        <img src={shareImageUrl} className="w-full rounded-xl shadow-2xl animate-fade-in" alt="Share Card" />
+                    ) : (
+                        <div className="w-full aspect-[375/667] bg-slate-800/50 rounded-xl"></div>
                     )}
                 </div>
 
@@ -613,8 +704,23 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                     <button 
                         onClick={() => {
                             const url = `${window.location.origin}/p/${item.id}`;
-                            navigator.clipboard.writeText(url);
-                            alert('链接已复制');
+                            try {
+                                if (navigator.clipboard && navigator.clipboard.writeText) {
+                                    navigator.clipboard.writeText(url).then(() => alert('链接已复制'));
+                                } else {
+                                    // Fallback for non-secure contexts
+                                    const textArea = document.createElement("textarea");
+                                    textArea.value = url;
+                                    document.body.appendChild(textArea);
+                                    textArea.select();
+                                    document.execCommand("copy");
+                                    document.body.removeChild(textArea);
+                                    alert('链接已复制');
+                                }
+                            } catch (err) {
+                                console.error('Failed to copy:', err);
+                                alert('复制失败，请手动复制');
+                            }
                         }}
                         className="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm"
                     >
@@ -624,6 +730,9 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
             </div>
         </div>
       )}
+
+      {/* Add to Home Screen Guide */}
+      {viewMode === 'app' && <AddToHomeScreenGuide />}
     </div>
   );
 }

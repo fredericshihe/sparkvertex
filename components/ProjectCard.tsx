@@ -18,16 +18,31 @@ interface ProjectCardProps {
 export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onDelete }: ProjectCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [isClient, setIsClient] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setIsClient(true);
+    
+    // Check if desktop (md breakpoint)
+    const isDesktop = window.innerWidth >= 768;
+
     const observer = new IntersectionObserver(
       ([entry]) => {
-        // Only render when visible or close to viewport
-        setIsVisible(entry.isIntersecting);
+        if (isDesktop) {
+          // Desktop: Load once and keep loaded for smoother scrolling
+          if (entry.isIntersecting) {
+            setIsVisible(true);
+            // Optional: Stop observing once loaded to save resources
+            if (cardRef.current) observer.unobserve(cardRef.current);
+          }
+        } else {
+          // Mobile: Toggle visibility to save memory (aggressive virtualization)
+          setIsVisible(entry.isIntersecting);
+        }
       },
       { 
-        rootMargin: '100px', // Preload margin
+        rootMargin: isDesktop ? '400px' : '100px', // Larger preload area on desktop
         threshold: 0.01
       }
     );
@@ -40,6 +55,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
       if (cardRef.current) {
         observer.unobserve(cardRef.current);
       }
+      observer.disconnect();
     };
   }, []);
 
@@ -169,12 +185,12 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
         </div>
 
         {/* Back (QR Code & Prompt Background) */}
-        <div className="flip-card-back absolute inset-0 w-full h-full rounded-2xl overflow-hidden bg-slate-900 border border-brand-500/50 shadow-xl shadow-brand-500/10 flex flex-col items-center justify-center relative" style={{ transform: 'rotateY(180deg)', backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
+        <div className="flip-card-back absolute inset-0 w-full h-full rounded-2xl overflow-hidden bg-slate-900 border border-slate-700/50 shadow-xl flex flex-col items-center justify-center relative" style={{ transform: 'rotateY(180deg)', backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
           
           {/* Prompt Background with Radial Mask */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none select-none flex items-center justify-center">
              <div className="absolute inset-0 opacity-40" style={{ maskImage: 'radial-gradient(circle at center, black 30%, transparent 100%)' }}>
-               <code className="text-[10px] text-brand-200/50 font-mono leading-3 break-all whitespace-pre-wrap block w-full h-full p-4">
+               <code className="text-[10px] text-slate-500/30 font-mono leading-3 break-all whitespace-pre-wrap block w-full h-full p-4">
                 {item.prompt || (
                   <>
                     # Task {item.title} # Keywords {(item.tags || []).join(', ')}
@@ -184,23 +200,25 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                 )}
               </code>
              </div>
-             {/* Center Glow */}
-             <div className="absolute w-40 h-40 bg-brand-500/20 blur-3xl rounded-full"></div>
+             {/* Center Glow - Dynamic Color */}
+             <div className={`absolute w-40 h-40 bg-gradient-to-r ${item.color || 'from-purple-500 to-pink-500'} opacity-20 blur-3xl rounded-full`}></div>
           </div>
 
           {/* QR Code Content */}
           <div className="relative z-10 flex flex-col items-center justify-center group-hover:scale-105 transition-transform duration-300">
             <div className="bg-white p-1.5 rounded-lg shadow-2xl">
-              <QRCodeSVG 
-                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/p/${item.id}?mode=app`}
-                size={130}
-                level="M"
-                fgColor="#000000"
-                bgColor="#ffffff"
-              />
+              {isClient && (
+                <QRCodeSVG 
+                  value={`${window.location.origin}/p/${item.id}?mode=app`}
+                  size={130}
+                  level="M"
+                  fgColor="#000000"
+                  bgColor="#ffffff"
+                />
+              )}
             </div>
             <div className="text-center mt-3">
-              <div className="text-brand-400 font-bold text-sm mb-1 drop-shadow-md"><i className="fa-solid fa-mobile-screen-button mr-1"></i> 扫码即刻体验</div>
+              <div className="text-white font-bold text-sm mb-1 drop-shadow-md"><i className="fa-solid fa-mobile-screen-button mr-1"></i> 扫码即刻体验</div>
               <div className="text-slate-400 text-[10px] drop-shadow-md">手机全屏模式运行</div>
             </div>
           </div>

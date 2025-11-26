@@ -17,6 +17,7 @@ export default function Profile() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState({ works: 0, purchased: 0, favorites: 0 });
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
 
   useEffect(() => {
     checkAuth();
@@ -81,11 +82,19 @@ export default function Profile() {
       .select('id', { count: 'exact', head: true })
       .eq('user_id', user.id);
 
+    // Pending orders count (Seller side)
+    const { count: pendingCount } = await supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('seller_id', user.id)
+      .eq('status', 'paid');
+
     setCounts({
       works: worksCount || 0,
       purchased: purchasedCount || 0,
       favorites: favoritesCount || 0
     });
+    setPendingOrdersCount(pendingCount || 0);
   };
 
   const fetchItems = async () => {
@@ -254,9 +263,14 @@ export default function Profile() {
             </button>
             <button 
               onClick={openManageOrdersModal}
-              className="px-4 py-2 rounded-lg glass-panel border border-slate-600 hover:bg-slate-800 transition text-sm font-bold"
+              className="relative px-4 py-2 rounded-lg glass-panel border border-slate-600 hover:bg-slate-800 transition text-sm font-bold"
             >
               <i className="fa-solid fa-list-check mr-2"></i>订单管理
+              {pendingOrdersCount > 0 && (
+                <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center font-bold border-2 border-slate-900 animate-bounce">
+                  {pendingOrdersCount}
+                </span>
+              )}
             </button>
             <button 
               onClick={handleLogout}

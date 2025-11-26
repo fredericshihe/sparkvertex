@@ -240,9 +240,6 @@ export default function Guide() {
         <div className="text-center mt-20">
           <h2 className="text-3xl font-bold text-white mb-6">准备好开始了吗？</h2>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <button onClick={copyCurrentPrompt} className="px-8 py-4 bg-white text-slate-900 hover:bg-slate-200 rounded-full font-bold text-lg transition shadow-lg shadow-white/10 flex items-center gap-2">
-              <i className="fa-solid fa-copy"></i> 复制 Prompt
-            </button>
             <Link href="/upload" className="px-8 py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-full font-bold text-lg transition shadow-lg shadow-brand-500/30 flex items-center gap-2">
               <i className="fa-solid fa-cloud-arrow-up"></i> 开发完成了？收录到灵感广场
             </Link>

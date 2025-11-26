@@ -14,7 +14,14 @@ export default function Footer() {
     <footer className="bg-slate-900 border-t border-slate-800 py-12 mt-12">
       <div className="max-w-7xl mx-auto px-4 text-center">
         <div className="flex justify-center items-center mb-6">
-          <i className="fa-solid fa-toolbox text-brand-500 text-xl mr-2"></i>
+          <img 
+            src="/logo.png" 
+            alt="Logo" 
+            className="w-6 h-6 mr-2 object-contain mix-blend-screen" 
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
           <span className="font-bold text-lg">SparkVertex</span>
         </div>
         <p className="text-slate-500 text-sm mb-6">Local-First. Offline-Ready. Geek-Approved.</p>

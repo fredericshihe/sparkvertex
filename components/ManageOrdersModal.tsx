@@ -80,66 +80,71 @@ export default function ManageOrdersModal() {
             <p>暂无待处理订单</p>
           </div>
         ) : (
-          <div className="overflow-y-auto max-h-[60vh] custom-scrollbar">
-            <table className="w-full text-left text-sm text-slate-400 whitespace-nowrap">
-              <thead className="bg-slate-800 text-slate-200 uppercase font-bold">
-                <tr>
-                  <th className="px-4 py-3">商品</th>
-                  <th className="px-4 py-3">买家</th>
-                  <th className="px-4 py-3">金额</th>
-                  <th className="px-4 py-3">状态</th>
-                  <th className="px-4 py-3">备注码</th>
-                  <th className="px-4 py-3">时间</th>
-                  <th className="px-4 py-3">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700">
-                {orders.map(order => (
-                  <tr key={order.id} className={`transition ${order.status === 'paid' ? 'bg-brand-900/20 hover:bg-brand-900/30' : 'hover:bg-slate-800/50'}`}>
-                    <td className="px-4 py-3 font-medium text-white max-w-[200px] truncate" title={order.items?.title}>{order.items?.title || 'Unknown'}</td>
-                    <td className="px-4 py-3">{order.profiles?.username || 'Unknown'}</td>
-                    <td className="px-4 py-3 text-brand-400 font-bold">¥{order.amount}</td>
-                    <td className="px-4 py-3">
-                      {order.status === 'paid' ? (
-                        <span className="inline-flex items-center gap-1 text-green-400 font-bold text-xs bg-green-400/10 px-2 py-1 rounded-full">
-                          <i className="fa-solid fa-check-circle"></i> 已支付
-                        </span>
-                      ) : order.status === 'completed' ? (
-                        <span className="inline-flex items-center gap-1 text-blue-400 font-bold text-xs bg-blue-400/10 px-2 py-1 rounded-full">
-                          <i className="fa-solid fa-check-double"></i> 已完成
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-slate-500 text-xs bg-slate-800 px-2 py-1 rounded-full">
-                          <i className="fa-regular fa-clock"></i> 待支付
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-yellow-400 font-bold">{order.remark || '-'}</td>
-                    <td className="px-4 py-3 text-xs">{new Date(order.created_at).toLocaleString()}</td>
-                    <td className="px-4 py-3">
-                      {order.status === 'completed' ? (
-                        <span className="text-slate-600 text-xs font-bold flex items-center gap-1 cursor-default">
-                          <i className="fa-solid fa-check"></i> 已处理
-                        </span>
-                      ) : (
-                        <button 
-                          onClick={() => confirmOrder(order.id)}
-                          disabled={order.status !== 'paid'}
-                          className={`px-3 py-1 rounded text-xs font-bold transition flex items-center gap-1 ${
-                            order.status === 'paid' 
-                              ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/20' 
-                              : 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                          }`}
-                          title={order.status === 'pending' ? '等待买家确认支付' : '确认收到款项'}
-                        >
-                          <i className="fa-solid fa-check"></i> 确认收款
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="overflow-y-auto max-h-[60vh] custom-scrollbar space-y-4 p-1">
+            {orders.map(order => (
+              <div key={order.id} className={`relative p-5 rounded-xl border transition-all duration-300 ${order.status === 'paid' ? 'bg-brand-900/10 border-brand-500/50 shadow-[0_0_20px_rgba(168,85,247,0.1)]' : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'}`}>
+                <div className="flex flex-col md:flex-row justify-between gap-4">
+                  {/* Left: Info */}
+                  <div className="flex-grow space-y-2">
+                    <div className="flex items-start justify-between md:justify-start md:gap-4">
+                      <h3 className="font-bold text-white text-lg">{order.items?.title || 'Unknown Item'}</h3>
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
+                        order.status === 'paid' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
+                        order.status === 'completed' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                        'bg-slate-700 text-slate-400'
+                      }`}>
+                        {order.status === 'paid' ? '待确认' : order.status === 'completed' ? '已完成' : order.status}
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm text-slate-400">
+                      <div>
+                        <span className="block text-xs text-slate-500 mb-0.5">买家</span>
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-user-circle"></i>
+                          <span className="text-slate-300">{order.profiles?.username || 'Unknown'}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="block text-xs text-slate-500 mb-0.5">金额</span>
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-yen-sign"></i>
+                          <span className="text-white font-bold">{order.amount}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="block text-xs text-slate-500 mb-0.5">时间</span>
+                        <span>{new Date(order.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+
+                    {order.remark && (
+                      <div className="bg-slate-950/50 p-2 rounded border border-slate-800 text-xs mt-2">
+                        <span className="text-slate-500 mr-2">备注码:</span>
+                        <span className="font-mono text-brand-400">{order.remark}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Action */}
+                  <div className="flex items-center justify-end md:border-l md:border-slate-700 md:pl-6 min-w-[140px]">
+                    {order.status === 'paid' ? (
+                      <button 
+                        onClick={() => confirmOrder(order.id)}
+                        className="w-full md:w-auto px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold shadow-lg shadow-brand-500/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <i className="fa-solid fa-check-circle"></i>
+                        确认收款
+                      </button>
+                    ) : (
+                      <div className="text-slate-500 flex items-center gap-2 cursor-default opacity-50">
+                        <i className="fa-solid fa-check"></i> 已处理
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

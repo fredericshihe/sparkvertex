@@ -613,7 +613,7 @@ export default function UploadPage() {
         runTask(7, generateIconTask(titlePromise, descPromise))
       ]);
 
-      const combinedTags = Array.from(new Set([category, ...appTypes, ...techTags])).filter(t => t);
+      const combinedTags = Array.from(new Set([category, ...appTypes, ...techTags, 'AI Verified'])).filter(t => t);
 
       // Update Form Data
       setTitle(titleRes);

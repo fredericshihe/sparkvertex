@@ -27,6 +27,10 @@ interface ModalContextType {
   isManageOrdersModalOpen: boolean;
   openManageOrdersModal: () => void;
   closeManageOrdersModal: () => void;
+  isRewardModalOpen: boolean;
+  openRewardModal: (authorId: string) => void;
+  closeRewardModal: () => void;
+  rewardAuthorId: string | null;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -42,6 +46,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentItem, setPaymentItem] = useState<any | null>(null);
   const [isManageOrdersModalOpen, setIsManageOrdersModalOpen] = useState(false);
+  const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
+  const [rewardAuthorId, setRewardAuthorId] = useState<string | null>(null);
 
   const openLoginModal = () => setIsLoginModalOpen(true);
   const closeLoginModal = () => setIsLoginModalOpen(false);
@@ -81,6 +87,15 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const openManageOrdersModal = () => setIsManageOrdersModalOpen(true);
   const closeManageOrdersModal = () => setIsManageOrdersModalOpen(false);
 
+  const openRewardModal = (authorId: string) => {
+    setRewardAuthorId(authorId);
+    setIsRewardModalOpen(true);
+  };
+  const closeRewardModal = () => {
+    setIsRewardModalOpen(false);
+    setRewardAuthorId(null);
+  };
+
   // Scroll Locking Effect
   useEffect(() => {
     const anyModalOpen = 
@@ -90,7 +105,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       isEditProfileModalOpen || 
       isPaymentQRModalOpen || 
       isPaymentModalOpen || 
-      isManageOrdersModalOpen;
+      isManageOrdersModalOpen ||
+      isRewardModalOpen;
 
     if (anyModalOpen) {
       document.body.style.overflow = 'hidden';
@@ -108,7 +124,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     isEditProfileModalOpen, 
     isPaymentQRModalOpen, 
     isPaymentModalOpen, 
-    isManageOrdersModalOpen
+    isManageOrdersModalOpen,
+    isRewardModalOpen
   ]);
 
   return (
@@ -136,7 +153,11 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       paymentItem,
       isManageOrdersModalOpen,
       openManageOrdersModal,
-      closeManageOrdersModal
+      closeManageOrdersModal,
+      isRewardModalOpen,
+      openRewardModal,
+      closeRewardModal,
+      rewardAuthorId
     }}>
       {children}
     </ModalContext.Provider>
