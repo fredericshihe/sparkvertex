@@ -36,6 +36,26 @@ export const getPreviewContent = (content: string | null) => {
       window.onerror = function(msg, url, line) {
         console.error('Preview Error:', msg);
       };
+
+      // Mobile Audio Unlocker
+      document.addEventListener('click', function() {
+        var AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+          var ctx = new AudioContext();
+          if (ctx.state === 'suspended') {
+            ctx.resume();
+          }
+        }
+      }, { once: true });
+      document.addEventListener('touchstart', function() {
+        var AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+          var ctx = new AudioContext();
+          if (ctx.state === 'suspended') {
+            ctx.resume();
+          }
+        }
+      }, { once: true });
     })();
   </script>`;
 

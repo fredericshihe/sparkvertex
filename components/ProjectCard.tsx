@@ -68,7 +68,8 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
         srcDoc={previewContent}
         className="absolute inset-0 w-full h-full border-0 pointer-events-none bg-white" 
         loading="lazy" 
-        sandbox="allow-scripts"
+        sandbox="allow-scripts allow-forms allow-modals"
+        allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay"
       />
     );
   };

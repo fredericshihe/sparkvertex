@@ -294,7 +294,8 @@ export default function DetailModal() {
                     <iframe 
                       srcDoc={getPreviewContent(item?.content || '')} 
                       className="w-full h-full border-0 bg-white" 
-                      sandbox="allow-scripts allow-pointer-lock allow-modals"
+                      sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups"
+                      allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay"
                     />
                   </div>
                   
