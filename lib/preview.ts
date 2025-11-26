@@ -11,7 +11,7 @@ export const getPreviewContent = (content: string | null) => {
   
   const injectedStyle = `<style>
     * { -webkit-tap-highlight-color: transparent; }
-    body { margin: 0; padding: 0; overflow-x: hidden; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; width: 100vw; height: 100vh; }
+    body { margin: 0; padding: 0; overflow-x: hidden; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; width: 100vw; height: 100vh; background-color: #ffffff; }
     ::-webkit-scrollbar { width: 0px; background: transparent; }
     body { -ms-overflow-style: none; scrollbar-width: none; }
     /* Ensure full height */

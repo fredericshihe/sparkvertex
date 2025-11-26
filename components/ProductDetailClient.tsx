@@ -255,7 +255,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
         {/* Preview Area / App Mode Container */}
         <div className={`
             transition-all duration-300 bg-slate-900 relative group flex flex-col
-            ${viewMode === 'app' ? 'fixed inset-0 z-[100] h-[100dvh] w-screen' : 'h-[50vh] md:h-auto md:flex-grow'}
+            ${viewMode === 'app' ? 'fixed inset-0 z-[9999] w-screen h-screen' : 'h-[50vh] md:h-auto md:flex-grow'}
         `}>
           {/* Back Button (Only in App Mode & Not Standalone & Not Initial App Mode) */}
           {viewMode === 'app' && !isStandalone && initialMode !== 'app' && (
