@@ -11,7 +11,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { data: item } = await supabase
     .from('items')
-    .select('title, description')
+    .select('title, description, icon_url')
     .eq('id', params.id)
     .single();
 
@@ -25,6 +25,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: item.title,
     description: item.description,
     manifest: `/api/manifest/${params.id}`,
+    icons: {
+      icon: item.icon_url || '/icons/icon-192x192.png',
+      apple: item.icon_url || '/icons/icon-192x192.png',
+    },
     appleWebApp: {
       capable: true,
       title: item.title,

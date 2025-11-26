@@ -10,13 +10,39 @@ export async function GET(
   // Fetch item details
   const { data: item } = await supabase
     .from('items')
-    .select('title, description')
+    .select('title, description, icon_url')
     .eq('id', id)
     .single();
 
   if (!item) {
     return new NextResponse('Item not found', { status: 404 });
   }
+
+  const icons = item.icon_url 
+    ? [
+        {
+          src: item.icon_url,
+          sizes: "192x192",
+          type: "image/png"
+        },
+        {
+          src: item.icon_url,
+          sizes: "512x512",
+          type: "image/png"
+        }
+      ]
+    : [
+        {
+          src: "/icons/icon-192x192.png",
+          sizes: "192x192",
+          type: "image/png"
+        },
+        {
+          src: "/icons/icon-512x512.png",
+          sizes: "512x512",
+          type: "image/png"
+        }
+      ];
 
   const manifest = {
     name: item.title,
@@ -28,18 +54,7 @@ export async function GET(
     orientation: "portrait",
     background_color: "#0f172a",
     theme_color: "#0f172a",
-    icons: [
-      {
-        src: "/icons/icon-192x192.png",
-        sizes: "192x192",
-        type: "image/png"
-      },
-      {
-        src: "/icons/icon-512x512.png",
-        sizes: "512x512",
-        type: "image/png"
-      }
-    ]
+    icons: icons
   };
 
   return NextResponse.json(manifest);
