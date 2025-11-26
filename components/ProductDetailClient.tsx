@@ -576,7 +576,8 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                     </button>
                     <button 
                         onClick={() => {
-                            navigator.clipboard.writeText(window.location.href);
+                            const url = `${window.location.origin}/p/${item.id}`;
+                            navigator.clipboard.writeText(url);
                             alert('链接已复制');
                         }}
                         className="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm"

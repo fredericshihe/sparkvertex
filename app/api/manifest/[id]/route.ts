@@ -22,8 +22,10 @@ export async function GET(
     name: item.title,
     short_name: item.title.length > 12 ? item.title.substring(0, 12) + '...' : item.title,
     description: item.description,
-    start_url: `/p/${id}`,
+    start_url: `/p/${id}?mode=app`,
+    scope: "/",
     display: "standalone",
+    orientation: "portrait",
     background_color: "#0f172a",
     theme_color: "#0f172a",
     icons: [
