@@ -1,0 +1,21 @@
+-- 1. Add icon_url column to items table
+ALTER TABLE items ADD COLUMN icon_url TEXT;
+
+-- 2. Create a storage bucket for icons (if not exists)
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('icons', 'icons', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- 3. Set up security policies for the icons bucket
+-- Allow public read access
+CREATE POLICY "Public Access" 
+ON storage.objects FOR SELECT 
+USING ( bucket_id = 'icons' );
+
+-- Allow authenticated users to upload icons
+CREATE POLICY "Authenticated users can upload icons" 
+ON storage.objects FOR INSERT 
+WITH CHECK ( bucket_id = 'icons' AND auth.role() = 'authenticated' );
+
+-- Allow users to update their own icons (optional, depending on file path structure)
+-- Usually we use a unique path like `userId/timestamp.png` so insert is enough.

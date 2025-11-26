@@ -1,0 +1,282 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 15, 23, 42;
+  --background-end-rgb: 15, 23, 42;
+}
+
+html {
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    color: rgb(var(--foreground-rgb));
+    background: linear-gradient(
+        to bottom,
+        transparent,
+        rgb(var(--background-end-rgb))
+      )
+      rgb(var(--background-start-rgb));
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation;
+}
+
+/* Ensure smooth scrolling on all scrollable containers */
+.overflow-y-auto, .overflow-auto, .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+}
+
+.glass-panel {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gradient-text {
+    background: linear-gradient(to right, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.code-preview {
+    font-family: 'Fira Code', monospace;
+    font-size: 0.85rem;
+}
+
+/* Prevent iOS zoom on inputs */
+@media screen and (max-width: 768px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #0f172a; 
+}
+::-webkit-scrollbar-thumb {
+    background: #334155; 
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #475569; 
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* 3D Tilt Card Effect */
+.tilt-card {
+    transform-style: preserve-3d;
+    transform: perspective(1000px);
+}
+.tilt-content {
+    transform: translateZ(20px);
+}
+
+/* Animated Text Gradient */
+.animate-gradient-text {
+    background-size: 200% auto;
+    animation: textShine 5s linear infinite;
+}
+@keyframes textShine {
+    to { background-position: 200% center; }
+}
+
+/* Staggered Animation */
+.stagger-item {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeInUp 0.6s ease forwards;
+}
+@keyframes fadeInUp {
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* New Animations for Hero */
+.animate-float {
+    animation: float 6s ease-in-out infinite;
+}
+.animate-float-delayed {
+    animation: float 8s ease-in-out infinite;
+    animation-delay: 2s;
+}
+.animate-pulse-slow {
+    animation: pulse-slow 8s ease-in-out infinite;
+}
+.animate-gradient-xy {
+    background-size: 200% 200%;
+    animation: gradient-xy 6s ease infinite;
+}
+
+/* Perspective for Hero */
+.perspective-1000 {
+    perspective: 1000px;
+}
+
+/* Mobile Preview Styles */
+.preview-container {
+    background-color: #0f172a;
+    background-image: radial-gradient(#334155 1px, transparent 1px);
+    background-size: 20px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.preview-container iframe {
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                border-radius 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                border-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    background: #0f172a;
+    box-sizing: border-box;
+}
+
+.preview-container.desktop-mode iframe {
+    width: 100%;
+    height: 100%;
+    border: 0px solid #1e293b;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.preview-container.mobile-mode iframe {
+    width: 375px;
+    height: 667px;
+    max-width: 90%;
+    max-height: 90%;
+    border: 12px solid #1e293b;
+    border-radius: 30px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.preview-container.tablet-mode iframe {
+    width: 768px;
+    height: 1024px;
+    max-width: 95%;
+    max-height: 95%;
+    border: 12px solid #1e293b;
+    border-radius: 24px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+/* Flip Card Effect */
+.flip-card {
+    perspective: 1000px;
+}
+.flip-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+}
+.flip-card.flipped .flip-card-inner {
+    transform: rotateY(180deg);
+}
+.flip-trigger-zone {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 24px;
+    z-index: 30;
+    cursor: pointer;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-top: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.7);
+    font-size: 10px;
+    transition: all 0.3s;
+    opacity: 0;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+}
+.flip-card:hover .flip-trigger-zone {
+    opacity: 1;
+}
+.flip-trigger-zone:hover {
+    background: rgba(14, 165, 233, 0.9);
+    color: white;
+    height: 32px;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+}
+.flip-card-front, .flip-card-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    border-radius: 1rem;
+}
+.flip-card-back {
+    transform: rotateY(180deg);
+    background-color: #1e293b;
+    overflow: hidden;
+}
+
+/* City Background Effect */
+#city-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    perspective: 1000px;
+    z-index: -1;
+    background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+}
+#world {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform-style: preserve-3d;
+    animation: rotateCity 120s infinite linear;
+    will-change: transform;
+}
+@keyframes rotateCity {
+    0% { transform: rotateX(70deg) rotateZ(0deg) translateZ(-100px); }
+    100% { transform: rotateX(70deg) rotateZ(360deg) translateZ(-100px); }
+}
+.building {
+    position: absolute;
+    transform-style: preserve-3d;
+}
+.face {
+    position: absolute;
+    background: rgba(56, 189, 248, 0.05);
+    border: 1px solid rgba(56, 189, 248, 0.15);
+    backface-visibility: hidden;
+}
+.face.top { 
+    background: rgba(56, 189, 248, 0.2);
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+}
