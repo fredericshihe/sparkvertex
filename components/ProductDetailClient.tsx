@@ -250,42 +250,36 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
 
   return (
     <div className={`min-h-screen bg-slate-900 flex flex-col ${viewMode === 'app' ? 'pt-0' : 'pt-16'}`}>
-      {/* WeChat Overlay Hint */}
-      {isWeChat && (
-        <div className="fixed inset-0 z-[10000] bg-slate-900/95 flex flex-col items-center justify-center p-8 text-center animate-fade-in">
-            <div className="absolute top-4 right-6 animate-bounce">
-                <i className="fa-solid fa-arrow-up-long text-4xl text-white"></i>
-            </div>
-            <div className="w-20 h-20 bg-brand-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-brand-500/30">
-                <i className="fa-brands fa-weixin text-4xl text-white"></i>
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-4">请在浏览器中打开</h2>
-            <p className="text-slate-300 mb-8 leading-relaxed">
-                微信内置浏览器不支持部分高级功能。
-                <br/>
-                请点击右上角 <i className="fa-solid fa-ellipsis"></i> 选择
-                <br/>
-                <span className="text-brand-400 font-bold">"在浏览器打开"</span> 以获得最佳体验。
-            </p>
-            <div className="text-sm text-slate-500">
-                SparkVertex App Experience
-            </div>
-        </div>
-      )}
-
       {/* Add to Home Screen Hint - Only show on mobile browser (not standalone) */}
       {showInstallHint && viewMode === 'app' && !isWeChat && (
-        <div className="md:hidden fixed top-0 left-0 w-full bg-brand-600 text-white text-xs px-4 py-3 z-[9999] flex justify-between items-center animate-slide-down shadow-lg safe-area-top-padding">
-            <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <i className="fa-solid fa-mobile-screen text-white"></i>
+        <div 
+            className="md:hidden fixed bottom-8 left-4 right-4 z-[10000] animate-slide-up"
+            style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+        >
+            <div className="bg-slate-900/90 backdrop-blur-md border border-brand-500/30 rounded-2xl p-4 shadow-2xl flex items-center gap-4 relative overflow-hidden">
+                {/* Glow effect */}
+                <div className="absolute top-0 left-0 w-1 h-full bg-brand-500"></div>
+                
+                <div className="w-12 h-12 bg-brand-500/20 rounded-xl flex items-center justify-center flex-shrink-0 shadow-inner">
+                    <i className="fa-solid fa-mobile-screen-button text-brand-400 text-xl"></i>
                 </div>
-                <div className="flex flex-col">
-                    <span className="font-bold text-sm">添加到主屏幕</span>
-                    <span className="text-[10px] opacity-80">点击浏览器分享 <i className="fa-solid fa-arrow-up-from-bracket mx-0.5"></i> 即可全屏运行</span>
+                
+                <div className="flex-grow min-w-0 flex flex-col">
+                    <div className="font-bold text-white text-base">添加到主屏幕</div>
+                    <div className="text-xs text-slate-400 flex items-center flex-wrap gap-1 mt-1">
+                        <span>点击底部</span>
+                        <span className="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700"><i className="fa-solid fa-arrow-up-from-bracket text-[10px]"></i></span>
+                        <span>选择"添加到主屏幕"</span>
+                    </div>
                 </div>
+
+                <button 
+                    onClick={dismissHint} 
+                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-white transition bg-slate-800/50 rounded-full flex-shrink-0"
+                >
+                    <i className="fa-solid fa-xmark"></i>
+                </button>
             </div>
-            <button onClick={dismissHint} className="w-8 h-8 flex items-center justify-center bg-black/10 rounded-full hover:bg-black/20 transition"><i className="fa-solid fa-xmark"></i></button>
         </div>
       )}
 
@@ -294,7 +288,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
         {/* Preview Area / App Mode Container */}
         <div className={`
             transition-all duration-300 bg-slate-900 relative group flex flex-col
-            ${viewMode === 'app' ? 'fixed inset-0 z-[9999] w-screen h-screen' : 'h-[50vh] md:h-auto md:flex-grow'}
+            ${viewMode === 'app' ? 'fixed inset-0 z-[9999] w-screen h-[100dvh] overscroll-none' : 'h-[50vh] md:h-auto md:flex-grow'}
         `}>
           {/* Back Button (Only in App Mode & Not Standalone & Not Initial App Mode) */}
           {viewMode === 'app' && !isStandalone && initialMode !== 'app' && (
@@ -325,8 +319,8 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
               }`}></div>
 
               <iframe 
-                src={`data:text/html;charset=utf-8,${encodeURIComponent(getPreviewContent(item.content || ''))}`}
-                className="w-full h-full border-0 bg-slate-900" 
+                srcDoc={getPreviewContent(item.content || '')}
+                className="w-full h-full border-0 bg-white" 
                 sandbox="allow-scripts allow-pointer-lock allow-modals allow-same-origin allow-forms allow-popups allow-downloads"
                 allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; payment; fullscreen; picture-in-picture; display-capture; execution-while-not-rendered; execution-while-out-of-viewport"
                 style={{ touchAction: 'manipulation' }}

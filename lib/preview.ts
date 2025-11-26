@@ -9,6 +9,36 @@ export const getPreviewContent = (content: string | null) => {
   // viewport-fit=cover is important for notches
   const viewportMeta = '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">';
   
+  // Script to prevent crashes on iOS/Safari when accessing localStorage/sessionStorage in data: URI
+  const safetyScript = `<script>
+    (function() {
+      try {
+        // Try to access storage to trigger error if blocked
+        window.localStorage;
+        window.sessionStorage;
+      } catch (e) {
+        // Mock storage to prevent crash
+        var mockStorage = {
+          getItem: function() { return null; },
+          setItem: function() {},
+          removeItem: function() {},
+          clear: function() {},
+          length: 0,
+          key: function() { return null; }
+        };
+        try {
+          Object.defineProperty(window, 'localStorage', { value: mockStorage });
+          Object.defineProperty(window, 'sessionStorage', { value: mockStorage });
+        } catch(e) {}
+      }
+      
+      // Error handling
+      window.onerror = function(msg, url, line) {
+        console.error('Preview Error:', msg);
+      };
+    })();
+  </script>`;
+
   const injectedStyle = `<style>
     * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
     html { width: 100%; height: 100%; overflow: hidden; }
@@ -35,11 +65,11 @@ export const getPreviewContent = (content: string | null) => {
   
   let newContent = content;
   if (newContent.includes('<head>')) {
-      newContent = newContent.replace('<head>', `<head>${viewportMeta}${injectedStyle}`);
+      newContent = newContent.replace('<head>', `<head>${viewportMeta}${safetyScript}${injectedStyle}`);
   } else if (newContent.includes('<html>')) {
-      newContent = newContent.replace('<html>', `<html><head>${viewportMeta}${injectedStyle}</head>`);
+      newContent = newContent.replace('<html>', `<html><head>${viewportMeta}${safetyScript}${injectedStyle}</head>`);
   } else {
-      newContent = `<head>${viewportMeta}${injectedStyle}</head>${newContent}`;
+      newContent = `<head>${viewportMeta}${safetyScript}${injectedStyle}</head>${newContent}`;
   }
   return newContent;
 };

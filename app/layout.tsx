@@ -34,6 +34,7 @@ import PaymentQRModal from '@/components/PaymentQRModal';
 import PaymentModal from '@/components/PaymentModal';
 import ManageOrdersModal from '@/components/ManageOrdersModal';
 import CityBackground from '@/components/CityBackground';
+import WeChatGuard from '@/components/WeChatGuard';
 import { ModalProvider } from '@/context/ModalContext';
 import { ToastProvider } from '@/context/ToastContext';
 
@@ -48,6 +49,7 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
       </head>
       <body className={inter.className}>
+        <WeChatGuard />
         <ToastProvider>
           <ModalProvider>
             <canvas id="fluid-canvas" className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 opacity-20"></canvas>
