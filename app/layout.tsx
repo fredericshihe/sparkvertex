@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { Suspense } from 'react';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -56,16 +57,20 @@ export default function RootLayout({
           <ModalProvider>
             <canvas id="fluid-canvas" className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 opacity-20"></canvas>
             <CityBackground />
-            <Navbar />
-          {children}
-          <Footer />
-          <LoginModal />
-          <DetailModal />
-          <FeedbackModal />
-          <EditProfileModal />
-          <PaymentQRModal />
-          <PaymentModal />
-          <RewardModal />
+            <Suspense fallback={<div className="h-16 bg-white/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-gray-100" />}>
+              <Navbar />
+            </Suspense>
+            <main className="min-h-screen bg-gray-50 pt-16">
+              {children}
+            </main>
+            <Footer />
+            <LoginModal />
+            <DetailModal />
+            <FeedbackModal />
+            <EditProfileModal />
+            <PaymentQRModal />
+            <PaymentModal />
+            <RewardModal />
             <ManageOrdersModal />
           </ModalProvider>
         </ToastProvider>

@@ -40,7 +40,6 @@ export async function POST(request: Request) {
     }
 
     const siliconFlowKey = process.env.SILICONFLOW_API_KEY;
-    const openAiKey = process.env.OPENAI_API_KEY;
     const deepseekKey = process.env.DEEPSEEK_API_KEY;
 
     // Construct Professional Prompt
@@ -151,45 +150,12 @@ Output ONLY the generated prompt string. Do not include any other text.`
       }
     }
 
-    // 2. Try OpenAI DALL-E 3
-    if (openAiKey) {
-      console.log('Using OpenAI DALL-E 3...');
-      try {
-        const response = await fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${openAiKey}`
-          },
-          body: JSON.stringify({
-            model: "dall-e-3",
-            prompt: `A modern, minimalist, high-quality app icon for an application named "${prompt}". The icon should be simple, elegant, and suitable for iOS and Android home screens. Rounded square shape. Flat design with subtle gradients.`,
-            n: 1,
-            size: "1024x1024",
-            response_format: "b64_json"
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const imageBase64 = data.data[0].b64_json;
-          
-          return NextResponse.json({ 
-            url: `data:image/png;base64,${imageBase64}`,
-            isMock: false,
-            source: 'openai'
-          });
-        }
-      } catch (err) {
-        console.error('OpenAI failed, falling back...', err);
-      }
-    }
-
-    // 3. Fallback to Pollinations.ai (Free)
+    // 2. Fallback to Pollinations.ai (Free)
     console.log('Using Pollinations.ai (Free Fallback)...');
     
     // Construct a prompt optimized for icons
-    const iconPrompt = `mobile app icon representing ${prompt}, no text, no letters, no words, symbolic, abstract, edge to edge, full bleed, no padding, no margin, single large central shape, premium color palette, elegant, clean, flat vector style with subtle gradient, high quality, 4k, square, full fill`;
+    const basePrompt = finalPrompt || `mobile app icon representing ${title || prompt}`;
+    const iconPrompt = `${basePrompt}, no text, no letters, no words, symbolic, abstract, edge to edge, full bleed, no padding, no margin, single large central shape, premium color palette, elegant, clean, flat vector style with subtle gradient, high quality, 4k, square, full fill`;
     const encodedPrompt = encodeURIComponent(iconPrompt);
     const seed = Math.floor(Math.random() * 1000000);
     
@@ -213,6 +179,7 @@ Output ONLY the generated prompt string. Do not include any other text.`
       // Fallback to SVG if even Pollinations fails
       const color1 = '#' + Math.floor(Math.random()*16777215).toString(16);
       const color2 = '#' + Math.floor(Math.random()*16777215).toString(16);
+      const displayLetter = (title || prompt || 'A').slice(0, 1).toUpperCase();
       const svg = `
         <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
           <defs>
@@ -223,7 +190,7 @@ Output ONLY the generated prompt string. Do not include any other text.`
           </defs>
           <rect width="1024" height="1024" fill="url(#grad)" rx="220" />
           <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="400" fill="white" text-anchor="middle" dy=".3em" font-weight="bold">
-            ${prompt.slice(0, 1).toUpperCase()}
+            ${displayLetter}
           </text>
         </svg>
       `;
