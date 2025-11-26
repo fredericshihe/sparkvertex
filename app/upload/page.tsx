@@ -349,15 +349,18 @@ export default function UploadPage() {
         
         // Mark as safe to allow proceeding without re-analysis unless file changes
         setIsSecuritySafe(true); 
-        setAnalysisStatusHtml(`
-          <div class="flex items-center gap-3 text-green-400">
-              <i class="fa-solid fa-circle-check text-2xl"></i>
-              <div class="flex-grow">
-                  <div class="font-bold">已加载现有作品</div>
-                  <div class="text-xs text-slate-400 mt-1">你可以修改信息或重新上传代码</div>
-              </div>
-          </div>
-        `);
+        setAnalysisState({
+          status: 'success',
+          message: '已加载现有作品',
+          data: {
+            category: '已加载',
+            title: data.title,
+            tags: data.tags,
+            techTagsCount: 0,
+            mobileOptimized: false,
+            iconUrl: data.icon_url
+          }
+        });
       }
     } catch (error) {
       console.error('Error loading item:', error);
@@ -416,7 +419,22 @@ export default function UploadPage() {
     }
   };
 
-  const [analysisStatusHtml, setAnalysisStatusHtml] = useState('');
+  const [analysisState, setAnalysisState] = useState<{
+    status: 'idle' | 'analyzing' | 'success' | 'risk' | 'error';
+    progress?: number;
+    tasks?: { id: string; label: string; status: 'pending' | 'done' }[];
+    message?: string;
+    data?: {
+      category?: string;
+      title?: string;
+      tags?: string[];
+      techTagsCount?: number;
+      risks?: string[];
+      severity?: string;
+      mobileOptimized?: boolean;
+      iconUrl?: string;
+    };
+  }>({ status: 'idle' });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSecuritySafe, setIsSecuritySafe] = useState(false);
   const [prompt, setPrompt] = useState('');
@@ -438,7 +456,7 @@ export default function UploadPage() {
     setTags(['HTML5', 'Tool']);
     setTagInput('');
     setPublishedId(null);
-    setAnalysisStatusHtml('');
+    setAnalysisState({ status: 'idle' });
     setIsAnalyzing(false);
     setIsSecuritySafe(false);
     setPrompt('');
@@ -498,7 +516,7 @@ export default function UploadPage() {
     setIsAnalyzing(true);
     setIsSecuritySafe(false);
     
-    const tasks = [
+    const tasks: { id: string; label: string; status: 'pending' | 'done' }[] = [
       { id: 'security', label: '安全检测', status: 'pending' },
       { id: 'category', label: '智能分类', status: 'pending' },
       { id: 'title', label: '标题提取', status: 'pending' },
@@ -514,29 +532,11 @@ export default function UploadPage() {
       const totalCount = tasks.length;
       const progress = Math.round(((totalCount - pendingCount) / totalCount) * 100);
 
-      setAnalysisStatusHtml(`
-        <div class="flex items-center gap-3 text-purple-400 mb-4">
-            <i class="fa-solid fa-brain fa-pulse text-xl"></i>
-            <div class="flex-grow">
-                <div class="font-bold">AI 深度分析中... ${progress}%</div>
-                <div class="w-full bg-slate-700 h-1.5 mt-2 rounded-full overflow-hidden">
-                    <div class="bg-purple-500 h-full transition-all duration-300" style="width: ${progress}%"></div>
-                </div>
-            </div>
-        </div>
-        <div class="grid grid-cols-2 gap-2">
-            ${tasks.map(task => `
-              <div class="flex items-center gap-2 text-sm p-2 rounded bg-slate-800/50 border border-slate-700/50">
-                  <div class="w-5 h-5 flex items-center justify-center">
-                    ${task.status === 'pending' 
-                      ? '<i class="fa-solid fa-circle-notch fa-spin text-slate-500 text-xs"></i>' 
-                      : '<i class="fa-solid fa-check text-green-400 text-xs"></i>'}
-                  </div>
-                  <span class="${task.status === 'pending' ? 'text-slate-400' : 'text-slate-200'}">${task.label}</span>
-              </div>
-            `).join('')}
-        </div>
-      `);
+      setAnalysisState({
+        status: 'analyzing',
+        progress,
+        tasks: [...tasks]
+      });
     };
 
     // Initial UI
@@ -629,70 +629,26 @@ export default function UploadPage() {
       // Update UI based on Security Result
       if (securityResult.isSafe) {
         setIsSecuritySafe(true);
-        setAnalysisStatusHtml(`
-          <div class="flex items-center gap-3 text-green-400">
-              <i class="fa-solid fa-circle-check text-2xl"></i>
-              <div class="flex-grow">
-                  <div class="font-bold">AI 分析完成</div>
-                  <div class="text-xs text-slate-400 mt-1">代码已通过安全检测，可以继续下一步</div>
-              </div>
-          </div>
-          
-          <div class="grid grid-cols-2 gap-4 mt-4">
-              <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-                  <div class="text-xs text-green-400 mb-1"><i class="fa-solid fa-check mr-1"></i> 智能分类</div>
-                  <div class="font-bold text-white">${category}</div>
-              </div>
-              <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-                  <div class="text-xs text-green-400 mb-1"><i class="fa-solid fa-check mr-1"></i> 标题提取</div>
-                  <div class="font-bold text-white truncate">${titleRes}</div>
-              </div>
-              <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2">
-                  <div class="text-xs text-blue-400 mb-1"><i class="fa-solid fa-check mr-1"></i> 标签识别</div>
-                  <div class="font-bold text-white flex flex-wrap gap-2">
-                      ${appTypes.map((t: string) => `<span class="text-purple-400 border border-purple-500/30 bg-purple-500/10 px-1 rounded">${t}</span>`).join('')}
-                      <span class="text-slate-400 text-xs self-center">+ ${techTags.length} 技术栈</span>
-                  </div>
-              </div>
-              ${mobileResult.wasOptimized ? `
-              <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2">
-                  <div class="text-xs text-purple-400 mb-1"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> 移动端适配优化</div>
-                  <div class="font-bold text-white text-sm">已自动注入 Viewport 和触摸优化代码</div>
-              </div>
-              ` : ''}
-              ${iconRes ? `
-              <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2 flex items-center gap-4">
-                  <img src="${iconRes}" class="w-12 h-12 rounded-xl border border-slate-600" />
-                  <div>
-                    <div class="text-xs text-purple-400 mb-1"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> 图标自动生成</div>
-                    <div class="font-bold text-white text-sm">已生成高清应用图标</div>
-                  </div>
-              </div>
-              ` : ''}
-              <div class="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2">
-                  <div class="text-xs text-green-400 mb-1"><i class="fa-solid fa-check mr-1"></i> 安全检测</div>
-                  <div class="font-bold text-white">无风险</div>
-              </div>
-          </div>
-        `);
+        setAnalysisState({
+          status: 'success',
+          data: {
+            category,
+            title: titleRes,
+            tags: appTypes,
+            techTagsCount: techTags.length,
+            mobileOptimized: mobileResult.wasOptimized,
+            iconUrl: iconRes
+          }
+        });
       } else {
         setIsSecuritySafe(false);
-        setAnalysisStatusHtml(`
-          <div class="flex items-center gap-3 text-red-400">
-              <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
-              <div class="flex-grow">
-                  <div class="font-bold">检测到安全风险</div>
-                  <div class="text-xs text-slate-400 mt-1">严重程度: ${(securityResult.severity || 'UNKNOWN').toUpperCase()}</div>
-              </div>
-          </div>
-          <div class="mt-4 bg-red-900/20 border border-red-700/50 rounded-lg p-4">
-              <div class="text-sm font-bold text-red-400 mb-2">检测到以下风险:</div>
-              <ul class="space-y-1">
-                  ${securityResult.risks.map((risk: string) => `<li class="text-sm text-slate-300">• ${risk}</li>`).join('')}
-              </ul>
-              <div class="mt-3 text-xs text-slate-400">* 包含风险代码的作品将无法发布</div>
-          </div>
-        `);
+        setAnalysisState({
+          status: 'risk',
+          data: {
+            risks: securityResult.risks,
+            severity: securityResult.severity
+          }
+        });
       }
 
     } catch (error: any) {
@@ -710,25 +666,15 @@ export default function UploadPage() {
           openLoginModal();
         }
 
-        setAnalysisStatusHtml(`
-          <div class="flex items-center gap-3 text-red-400">
-              <i class="fa-solid fa-ban text-xl"></i>
-              <div>
-                  <div class="font-bold">请求被拒绝</div>
-                  <div class="text-xs text-slate-400 mt-1">${error.message}</div>
-              </div>
-          </div>
-        `);
+        setAnalysisState({
+          status: 'error',
+          message: `请求被拒绝: ${error.message}`
+        });
       } else {
-        setAnalysisStatusHtml(`
-          <div class="flex items-center gap-3 text-yellow-400">
-              <i class="fa-solid fa-exclamation-triangle text-xl"></i>
-              <div>
-                  <div class="font-bold">AI 分析失败</div>
-                  <div class="text-xs text-slate-400 mt-1">请检查网络连接或稍后重试</div>
-              </div>
-          </div>
-        `);
+        setAnalysisState({
+          status: 'error',
+          message: 'AI 分析失败: 请检查网络连接或稍后重试'
+        });
       }
     } finally {
       setIsAnalyzing(false);
@@ -970,7 +916,114 @@ export default function UploadPage() {
 
           {/* AI Analysis Status */}
           <div className="glass-panel rounded-2xl p-6 mb-6">
-            <div id="ai-analysis-status" className="text-sm" dangerouslySetInnerHTML={{ __html: analysisStatusHtml }}>
+            <div id="ai-analysis-status" className="text-sm">
+              {analysisState.status === 'analyzing' && (
+                <>
+                  <div className="flex items-center gap-3 text-purple-400 mb-4">
+                    <i className="fa-solid fa-brain fa-pulse text-xl"></i>
+                    <div className="flex-grow">
+                      <div className="font-bold">AI 深度分析中... {analysisState.progress}%</div>
+                      <div className="w-full bg-slate-700 h-1.5 mt-2 rounded-full overflow-hidden">
+                        <div className="bg-purple-500 h-full transition-all duration-300" style={{ width: `${analysisState.progress}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {analysisState.tasks?.map(task => (
+                      <div key={task.id} className="flex items-center gap-2 text-sm p-2 rounded bg-slate-800/50 border border-slate-700/50">
+                        <div className="w-5 h-5 flex items-center justify-center">
+                          {task.status === 'pending' 
+                            ? <i className="fa-solid fa-circle-notch fa-spin text-slate-500 text-xs"></i> 
+                            : <i className="fa-solid fa-check text-green-400 text-xs"></i>}
+                        </div>
+                        <span className={task.status === 'pending' ? 'text-slate-400' : 'text-slate-200'}>{task.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {analysisState.status === 'success' && analysisState.data && (
+                <>
+                  <div className="flex items-center gap-3 text-green-400">
+                    <i className="fa-solid fa-circle-check text-2xl"></i>
+                    <div className="flex-grow">
+                      <div className="font-bold">{analysisState.message || 'AI 分析完成'}</div>
+                      <div className="text-xs text-slate-400 mt-1">代码已通过安全检测，可以继续下一步</div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+                      <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> 智能分类</div>
+                      <div className="font-bold text-white">{analysisState.data.category}</div>
+                    </div>
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+                      <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> 标题提取</div>
+                      <div className="font-bold text-white truncate">{analysisState.data.title}</div>
+                    </div>
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2">
+                      <div className="text-xs text-blue-400 mb-1"><i className="fa-solid fa-check mr-1"></i> 标签识别</div>
+                      <div className="font-bold text-white flex flex-wrap gap-2">
+                        {analysisState.data.tags?.map((t, i) => (
+                          <span key={i} className="text-purple-400 border border-purple-500/30 bg-purple-500/10 px-1 rounded">{t}</span>
+                        ))}
+                        <span className="text-slate-400 text-xs self-center">+ {analysisState.data.techTagsCount} 技术栈</span>
+                      </div>
+                    </div>
+                    {analysisState.data.mobileOptimized && (
+                      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2">
+                        <div className="text-xs text-purple-400 mb-1"><i className="fa-solid fa-wand-magic-sparkles mr-1"></i> 移动端适配优化</div>
+                        <div className="font-bold text-white text-sm">已自动注入 Viewport 和触摸优化代码</div>
+                      </div>
+                    )}
+                    {analysisState.data.iconUrl && (
+                      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2 flex items-center gap-4">
+                        <img src={analysisState.data.iconUrl} className="w-12 h-12 rounded-xl border border-slate-600" alt="Generated Icon" />
+                        <div>
+                          <div className="text-xs text-purple-400 mb-1"><i className="fa-solid fa-wand-magic-sparkles mr-1"></i> 图标自动生成</div>
+                          <div className="font-bold text-white text-sm">已生成高清应用图标</div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2">
+                      <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> 安全检测</div>
+                      <div className="font-bold text-white">无风险</div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {analysisState.status === 'risk' && analysisState.data && (
+                <>
+                  <div className="flex items-center gap-3 text-red-400">
+                    <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
+                    <div className="flex-grow">
+                      <div className="font-bold">检测到安全风险</div>
+                      <div className="text-xs text-slate-400 mt-1">严重程度: {(analysisState.data.severity || 'UNKNOWN').toUpperCase()}</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 bg-red-900/20 border border-red-700/50 rounded-lg p-4">
+                    <div className="text-sm font-bold text-red-400 mb-2">检测到以下风险:</div>
+                    <ul className="space-y-1">
+                      {analysisState.data.risks?.map((risk, i) => (
+                        <li key={i} className="text-sm text-slate-300">• {risk}</li>
+                      ))}
+                    </ul>
+                    <div className="mt-3 text-xs text-slate-400">* 包含风险代码的作品将无法发布</div>
+                  </div>
+                </>
+              )}
+
+              {analysisState.status === 'error' && (
+                <div className="flex items-center gap-3 text-red-400">
+                  <i className="fa-solid fa-ban text-xl"></i>
+                  <div>
+                    <div className="font-bold">分析出错</div>
+                    <div className="text-xs text-slate-400 mt-1">{analysisState.message}</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

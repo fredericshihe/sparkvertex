@@ -41,10 +41,12 @@ export async function POST(request: Request) {
     // 4. Try Supabase Edge Function (Priority)
     // This allows using the remote DeepSeek proxy which handles the API key securely
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    // SECURITY: Use Service Role Key to authenticate as a privileged caller.
+    // This allows you to configure the Edge Function to REJECT requests with the Anon Key,
+    // preventing users from bypassing the rate limits in this API route.
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (supabaseUrl && supabaseKey) {
-      console.log('Attempting to call Supabase Edge Function:', `${supabaseUrl}/functions/v1/analyze-html`);
       try {
         const edgeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-html`, {
           method: 'POST',
@@ -56,7 +58,6 @@ export async function POST(request: Request) {
         });
 
         if (edgeResponse.ok) {
-          console.log('Edge Function response OK, starting stream parse...');
           // Parse SSE stream from Edge Function
           const reader = edgeResponse.body?.getReader();
           if (reader) {
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
           }
         }
       } catch (e) {
-        console.warn('Edge Function attempt failed, falling back to local/mock:', e);
+        console.warn('Edge Function attempt failed, falling back to local/mock.');
       }
     }
 
@@ -170,7 +171,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ content });
 
   } catch (error: any) {
-    console.error('Analysis error:', error);
+    console.error('Analysis error occurred.');
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

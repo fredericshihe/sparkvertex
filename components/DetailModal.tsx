@@ -97,16 +97,11 @@ export default function DetailModal() {
     // Optimistic update
     setItem(prev => prev ? ({ ...prev, page_views: (prev.page_views || 0) + 1 }) : null);
 
-    // Try RPC first
+    // Use RPC for secure increment
     const { error } = await supabase.rpc('increment_views', { item_id: itemId });
     
     if (error) {
-      // Fallback to manual update if RPC fails
-      console.warn('RPC increment_views failed, falling back to manual update', error);
-      const { data } = await supabase.from('items').select('page_views').eq('id', itemId).single();
-      if (data) {
-        await supabase.from('items').update({ page_views: (data.page_views || 0) + 1 }).eq('id', itemId);
-      }
+      console.error('Failed to increment views:', error);
     }
   };
 
@@ -114,11 +109,11 @@ export default function DetailModal() {
     // Optimistic update
     setItem(prev => prev ? ({ ...prev, views: (prev.views || 0) + 1 }) : null);
 
-    // Try RPC first (assuming increment_downloads exists, or fallback)
-    // Since we don't know if increment_downloads exists, we'll use manual update for safety as requested
-    const { data } = await supabase.from('items').select('views').eq('id', itemId).single();
-    if (data) {
-      await supabase.from('items').update({ views: (data.views || 0) + 1 }).eq('id', itemId);
+    // Use RPC for secure increment
+    const { error } = await supabase.rpc('increment_downloads', { item_id: itemId });
+    
+    if (error) {
+       console.error('Failed to increment downloads:', error);
     }
   };
 
@@ -252,8 +247,8 @@ export default function DetailModal() {
 
   return (
     <div className="fixed inset-0 z-[100]">
-      <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={closeDetailModal}></div>
-      <div className="absolute inset-0 md:inset-10 bg-slate-900 md:rounded-2xl border-0 md:border border-slate-700 flex flex-col overflow-hidden shadow-2xl animate-float-up max-w-7xl mx-auto">
+      <div className="absolute inset-0 bg-black/90 backdrop-blur-md touch-none" onClick={closeDetailModal}></div>
+      <div className="absolute inset-0 md:inset-10 bg-slate-900 md:rounded-2xl border-0 md:border border-slate-700 flex flex-col overflow-hidden shadow-2xl animate-float-up max-w-7xl mx-auto overscroll-contain">
         
         {/* Header */}
         <div className="h-16 border-b border-slate-800 flex items-center justify-between px-4 md:px-6 bg-slate-900/50 backdrop-blur-md z-30 relative flex-shrink-0">
@@ -298,8 +293,8 @@ export default function DetailModal() {
 
                     <iframe 
                       srcDoc={getPreviewContent(item?.content || '')} 
-                      className="w-full h-full border-0 bg-slate-900" 
-                      sandbox="allow-scripts allow-pointer-lock allow-modals allow-same-origin"
+                      className="w-full h-full border-0 bg-white" 
+                      sandbox="allow-scripts allow-pointer-lock allow-modals"
                     />
                   </div>
                   

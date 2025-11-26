@@ -28,14 +28,13 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
       );
     }
 
-    // Use Data URI for better compatibility with WeChat/WebViews
+    // Use srcDoc for better compatibility and performance
     const previewContent = getPreviewContent(item.content);
-    const dataUri = `data:text/html;charset=utf-8,${encodeURIComponent(previewContent)}`;
-
+    
     return (
       <iframe 
-        src={dataUri}
-        className="absolute inset-0 w-full h-full border-0 pointer-events-none bg-slate-900" 
+        srcDoc={previewContent}
+        className="absolute inset-0 w-full h-full border-0 pointer-events-none bg-white" 
         loading="lazy" 
         sandbox="allow-scripts"
       />
@@ -44,7 +43,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
 
   return (
     <div 
-      className={`h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 ${isFlipped ? 'flipped' : ''}`} 
+      className={`h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 touch-manipulation ${isFlipped ? 'flipped' : ''}`} 
       onClick={() => onClick(item.id)}
       onMouseLeave={() => setIsFlipped(false)}
     >
@@ -52,15 +51,15 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
         {/* Front */}
         <div className="flip-card-front absolute inset-0 w-full h-full rounded-2xl overflow-hidden border border-slate-700/50 bg-slate-800 shadow-lg flex flex-col" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(0deg)' }}>
           
-          {/* Trigger Zone */}
+          {/* Trigger Zone - Desktop Only */}
           <div 
-            className="flip-trigger-zone" 
+            className="flip-trigger-zone hidden md:flex" 
             onMouseEnter={() => setIsFlipped(true)}
           >
             <i className="fa-solid fa-qrcode mr-1"></i> 扫码体验
           </div>
 
-          <div className="h-44 relative bg-slate-900 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
+          <div className="h-44 relative bg-white overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
             {generatePreviewHtml(item)}
             
             {/* Owner Actions */}

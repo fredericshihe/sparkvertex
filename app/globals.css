@@ -10,6 +10,7 @@
 
 html {
     -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none; /* Prevent pull-to-refresh/bounce on the root */
 }
 
 body {
@@ -24,11 +25,24 @@ body {
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     touch-action: manipulation;
+    
+    /* Disable selection and callouts for app-like feel */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Re-enable selection for inputs */
+input, textarea, [contenteditable] {
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 /* Ensure smooth scrolling on all scrollable containers */
 .overflow-y-auto, .overflow-auto, .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain; /* Prevent scroll chaining */
 }
 
 .glass-panel {

@@ -68,15 +68,19 @@ export default function FeedbackModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[110]">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeFeedbackModal}></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-slate-900 rounded-2xl border border-slate-700 p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-2 flex items-center gap-2 text-white">
-          <i className="fa-solid fa-comment-dots text-brand-500"></i>
-          产品反馈
-        </h2>
-        <p className="text-sm text-slate-400 mb-6">遇到问题或有建议？请告诉我们！</p>
-        
+    <div className="fixed inset-0 z-[100]">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm touch-none" onClick={closeFeedbackModal}></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl animate-float-up overscroll-contain max-h-[90vh] overflow-y-auto custom-scrollbar">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <i className="fa-solid fa-comment-dots text-brand-500"></i>
+            问题反馈
+          </h2>
+          <button onClick={closeFeedbackModal} className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 transition">
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
         <div className="space-y-4">
           {/* Type Selection */}
           <div className="flex gap-4">

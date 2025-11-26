@@ -103,12 +103,17 @@ export default function EditProfileModal() {
 
   return (
     <div className="fixed inset-0 z-[110]">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeEditProfileModal}></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-slate-900 rounded-2xl border border-slate-700 p-8 shadow-2xl">
-        <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-white">
-          <i className="fa-solid fa-user-pen text-brand-500"></i>
-          编辑资料
-        </h2>
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm touch-none" onClick={closeEditProfileModal}></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl animate-float-up overscroll-contain">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold flex items-center gap-2 text-white">
+            <i className="fa-solid fa-user-pen text-brand-500"></i>
+            编辑资料
+          </h2>
+          <button onClick={closeEditProfileModal} className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 transition">
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+        </div>
         
         <div className="space-y-4">
           {/* Avatar */}

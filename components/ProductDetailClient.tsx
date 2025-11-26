@@ -57,22 +57,25 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
     // Optimistic update
     setItem(prev => ({ ...prev, page_views: (prev.page_views || 0) + 1 }));
 
-    // Try RPC first
+    // Use RPC for secure increment
+    // RLS policies prevent direct updates from non-authors, so we must use a Postgres Function
     const { error } = await supabase.rpc('increment_views', { item_id: itemId });
     
     if (error) {
-      const { data } = await supabase.from('items').select('page_views').eq('id', itemId).single();
-      if (data) {
-        await supabase.from('items').update({ page_views: (data.page_views || 0) + 1 }).eq('id', itemId);
-      }
+      console.error('Failed to increment views:', error);
     }
   };
 
   const incrementDownloads = async (itemId: string) => {
+    // Optimistic update
     setItem(prev => ({ ...prev, views: (prev.views || 0) + 1 }));
-    const { data } = await supabase.from('items').select('views').eq('id', itemId).single();
-    if (data) {
-      await supabase.from('items').update({ views: (data.views || 0) + 1 }).eq('id', itemId);
+    
+    // Use RPC for secure increment (assuming you have a similar function for downloads)
+    // If not, you should create one: create function increment_downloads(item_id uuid) ...
+    const { error } = await supabase.rpc('increment_downloads', { item_id: itemId });
+    
+    if (error) {
+       console.error('Failed to increment downloads:', error);
     }
   };
 
@@ -275,9 +278,9 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
 
                 <button 
                     onClick={dismissHint} 
-                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-white transition bg-slate-800/50 rounded-full flex-shrink-0"
+                    className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-white transition bg-slate-800/50 rounded-full flex-shrink-0 touch-manipulation active:scale-90"
                 >
-                    <i className="fa-solid fa-xmark"></i>
+                    <i className="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
         </div>
@@ -288,13 +291,13 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
         {/* Preview Area / App Mode Container */}
         <div className={`
             transition-all duration-300 bg-slate-900 relative group flex flex-col
-            ${viewMode === 'app' ? 'fixed inset-0 z-[9999] w-screen h-[100dvh] overscroll-none' : 'h-[50vh] md:h-auto md:flex-grow'}
+            ${viewMode === 'app' ? 'fixed inset-0 z-[9999] w-screen h-[100dvh] overscroll-none touch-none' : 'h-[50vh] md:h-auto md:flex-grow'}
         `}>
           {/* Back Button (Only in App Mode & Not Standalone & Not Initial App Mode) */}
           {viewMode === 'app' && !isStandalone && initialMode !== 'app' && (
             <button 
               onClick={exitAppMode}
-              className="absolute top-4 left-4 z-[70] w-10 h-10 rounded-full bg-slate-900/50 backdrop-blur text-white border border-white/10 flex items-center justify-center hover:bg-slate-800 transition"
+              className="absolute top-4 left-4 z-[70] w-10 h-10 rounded-full bg-slate-900/50 backdrop-blur text-white border border-white/10 flex items-center justify-center hover:bg-slate-800 transition touch-manipulation active:scale-90"
             >
               <i className="fa-solid fa-arrow-left"></i>
             </button>
@@ -321,7 +324,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
               <iframe 
                 srcDoc={getPreviewContent(item.content || '')}
                 className="w-full h-full border-0 bg-white" 
-                sandbox="allow-scripts allow-pointer-lock allow-modals allow-same-origin allow-forms allow-popups allow-downloads"
+                sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
                 allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; payment; fullscreen; picture-in-picture; display-capture; execution-while-not-rendered; execution-while-out-of-viewport"
                 style={{ touchAction: 'manipulation' }}
               />
