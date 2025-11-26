@@ -72,7 +72,16 @@ export default function RewardModal() {
           {loading ? (
             <i className="fa-solid fa-circle-notch fa-spin text-3xl text-slate-400"></i>
           ) : qrUrl ? (
-            <img src={qrUrl} className="w-full h-full object-contain" alt="Payment QR" />
+            <img 
+                src={qrUrl} 
+                className="w-full h-full object-contain" 
+                alt="Payment QR" 
+                style={{ 
+                    WebkitTouchCallout: 'default', 
+                    userSelect: 'auto',
+                    WebkitUserSelect: 'auto'
+                }}
+            />
           ) : (
             <div className="text-slate-500 flex flex-col items-center p-4">
               <i className="fa-solid fa-image-slash text-4xl mb-2 opacity-50"></i>

@@ -199,7 +199,16 @@ export default function PaymentModal() {
             </div>
 
             <div className="w-64 h-64 mx-auto bg-white rounded-xl p-2 mb-6">
-              <img src={qrUrl} className="w-full h-full object-contain" alt="Payment QR" />
+              <img 
+                src={qrUrl} 
+                className="w-full h-full object-contain" 
+                alt="Payment QR" 
+                style={{ 
+                    WebkitTouchCallout: 'default', 
+                    userSelect: 'auto',
+                    WebkitUserSelect: 'auto'
+                }}
+              />
             </div>
 
             {/* Mobile Hint */}
