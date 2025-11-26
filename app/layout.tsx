@@ -14,7 +14,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: 'SparkVertex - 灵枢 | Local-First Tools',
   description: 'Local-First. Offline-Ready. Geek-Approved.',
-  manifest: '/manifest.json',
+  // manifest: '/manifest.json', // Temporarily disabled to fix 404
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
