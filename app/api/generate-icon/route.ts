@@ -120,7 +120,7 @@ Output ONLY the generated prompt string. Do not include any other text.`
             model: "black-forest-labs/FLUX.1-schnell",
             prompt: finalPrompt,
             image_size: "1024x1024",
-            num_inference_steps: 20
+            num_inference_steps: 1
           })
         });
 
