@@ -7,6 +7,7 @@ import { Item } from '@/types/supabase';
 import html2canvas from 'html2canvas';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useModal } from '@/context/ModalContext';
+import { useToast } from '@/context/ToastContext';
 import { getPreviewContent } from '@/lib/preview';
 import AddToHomeScreenGuide from '@/components/AddToHomeScreenGuide';
 import { saveToHistory } from '@/lib/db';
@@ -27,6 +28,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   const [likesCount, setLikesCount] = useState(initialItem.likes || 0);
   const [showCopiedTip, setShowCopiedTip] = useState(false);
   const { openLoginModal, openPaymentModal, openRewardModal } = useModal();
+  const { success } = useToast();
   
   // View Mode: 'detail' (default) or 'app' (immersive)
   const [viewMode, setViewMode] = useState<'detail' | 'app'>(initialMode === 'app' ? 'app' : 'detail');
@@ -73,7 +75,12 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
     
     // Save to local history for offline access/PWA persistence
     if (item) {
-        saveToHistory(item);
+        saveToHistory(item).then(() => {
+            // Only show toast if in PWA mode to confirm storage
+            if (window.matchMedia('(display-mode: standalone)').matches) {
+                // success('已缓存到本地', 2000); // Optional: feedback
+            }
+        });
     }
   }, [id]);
 
@@ -425,7 +432,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
               <iframe 
                 srcDoc={getPreviewContent(item.content || '')}
                 className="w-full h-full border-0 bg-white" 
-                sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
+                sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
                 allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; payment; fullscreen; picture-in-picture; display-capture; execution-while-not-rendered; execution-while-out-of-viewport"
                 style={{ touchAction: 'manipulation' }}
               />
