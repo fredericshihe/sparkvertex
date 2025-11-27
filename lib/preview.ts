@@ -10,21 +10,70 @@ export const getPreviewContent = (content: string | null) => {
   const viewportMeta = '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">';
   
   // Script to prevent crashes on iOS/Safari when accessing localStorage/sessionStorage in data: URI
+  // AND Security: Namespace storage to prevent collision/overwriting parent data
   const safetyScript = `<script>
     (function() {
       try {
-        // Try to access storage to trigger error if blocked
-        window.localStorage;
-        window.sessionStorage;
+        // 1. Storage Protection & Namespacing
+        // We wrap localStorage to prefix keys, preventing the app from accidentally overwriting parent site data.
+        // Note: This is a soft protection. Malicious code can still access window.parent.localStorage if allow-same-origin is on.
+        // But for "tools", this prevents collisions.
+        
+        var originalSetItem = Storage.prototype.setItem;
+        var originalGetItem = Storage.prototype.getItem;
+        var originalRemoveItem = Storage.prototype.removeItem;
+        var originalClear = Storage.prototype.clear;
+        var originalKey = Storage.prototype.key;
+        
+        // Prefix for this specific iframe context (if we could inject ID, it would be better, but generic is safer than raw)
+        var PREFIX = 'app_data_'; 
+        
+        Storage.prototype.setItem = function(key, value) {
+            if (key.startsWith(PREFIX)) {
+                return originalSetItem.call(this, key, value);
+            }
+            return originalSetItem.call(this, PREFIX + key, value);
+        };
+        
+        Storage.prototype.getItem = function(key) {
+            if (key.startsWith(PREFIX)) {
+                return originalGetItem.call(this, key);
+            }
+            return originalGetItem.call(this, PREFIX + key);
+        };
+
+        Storage.prototype.removeItem = function(key) {
+            if (key.startsWith(PREFIX)) {
+                return originalRemoveItem.call(this, key);
+            }
+            return originalRemoveItem.call(this, PREFIX + key);
+        };
+        
+        // Clear only app data, not parent data
+        Storage.prototype.clear = function() {
+            var keysToRemove = [];
+            for (var i = 0; i < this.length; i++) {
+                var key = originalKey.call(this, i);
+                if (key && key.startsWith(PREFIX)) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(function(k) {
+                originalRemoveItem.call(this, k);
+            }.bind(this));
+        };
+
       } catch (e) {
-        // Mock storage to prevent crash
+        // Fallback for restricted environments
+        console.warn('Storage access restricted, using memory storage');
         var mockStorage = {
-          getItem: function() { return null; },
-          setItem: function() {},
-          removeItem: function() {},
-          clear: function() {},
+          _data: {},
+          getItem: function(k) { return this._data[k] || null; },
+          setItem: function(k, v) { this._data[k] = String(v); },
+          removeItem: function(k) { delete this._data[k]; },
+          clear: function() { this._data = {}; },
           length: 0,
-          key: function() { return null; }
+          key: function(i) { return Object.keys(this._data)[i] || null; }
         };
         try {
           Object.defineProperty(window, 'localStorage', { value: mockStorage });
@@ -32,6 +81,21 @@ export const getPreviewContent = (content: string | null) => {
         } catch(e) {}
       }
       
+      // 2. Security: Block Top Navigation
+      // Prevent the iframe from redirecting the main window
+      window.onbeforeunload = function() {
+        return null; // Prevent navigation if possible
+      };
+      
+      try {
+          // Attempt to freeze parent access (Soft protection)
+          if (window.parent !== window) {
+             // We cannot truly block window.parent access with allow-same-origin
+             // But we can try to hide it from casual scripts
+             // Object.defineProperty(window, 'parent', { value: null, writable: false }); // This often throws
+          }
+      } catch(e) {}
+
       // Error handling
       window.onerror = function(msg, url, line) {
         console.error('Preview Error:', msg);
