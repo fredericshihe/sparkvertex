@@ -138,6 +138,16 @@ input, textarea, [contenteditable] {
     animation: gradient-xy 6s ease infinite;
 }
 
+/* Fade In Animation for Wizard Steps */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
 /* Perspective for Hero */
 .perspective-1000 {
     perspective: 1000px;

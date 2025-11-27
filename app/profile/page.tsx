@@ -18,6 +18,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState({ works: 0, purchased: 0, favorites: 0 });
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+  const [filterVisibility, setFilterVisibility] = useState<'all' | 'public' | 'private'>('all');
 
   useEffect(() => {
     checkAuth();
@@ -119,7 +120,8 @@ export default function Profile() {
         const { data } = await supabase
           .from('items')
           .select(selectQuery)
-          .eq('author_id', user.id);
+          .eq('author_id', user.id)
+          .order('created_at', { ascending: false });
         setItems(data?.map(mapItemWithProfile) || []);
       } else if (activeTab === 'purchased') {
         // Fetch items purchased by user
@@ -228,6 +230,13 @@ export default function Profile() {
     }
   };
 
+  const filteredItems = items.filter(item => {
+    if (activeTab !== 'works') return true;
+    if (filterVisibility === 'public') return item.is_public !== false;
+    if (filterVisibility === 'private') return item.is_public === false;
+    return true;
+  });
+
   return (
     <div className="page-section relative z-10">
       {/* Profile Header */}
@@ -282,7 +291,7 @@ export default function Profile() {
         </div>
 
         {/* Profile Tabs */}
-        <div className="border-b border-slate-700 mb-8">
+        <div className="border-b border-slate-700 mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex gap-8 overflow-x-auto no-scrollbar">
             <button 
               onClick={() => setActiveTab('works')} 
@@ -303,6 +312,30 @@ export default function Profile() {
               我的喜欢 <span className="ml-1 bg-slate-800 px-2 py-0.5 rounded-full text-xs">{counts.favorites}</span>
             </button>
           </div>
+
+          {/* Visibility Filter (Only for Works tab) */}
+          {activeTab === 'works' && (
+            <div className="flex bg-slate-800/50 p-1 rounded-lg self-start md:self-auto">
+              <button 
+                onClick={() => setFilterVisibility('all')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filterVisibility === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                全部
+              </button>
+              <button 
+                onClick={() => setFilterVisibility('public')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filterVisibility === 'public' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                公开
+              </button>
+              <button 
+                onClick={() => setFilterVisibility('private')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filterVisibility === 'private' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                私有
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Grid */}
@@ -311,14 +344,17 @@ export default function Profile() {
             <div className="text-center py-20">
               <i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500"></i>
             </div>
-          ) : items.length === 0 ? (
+          ) : filteredItems.length === 0 ? (
             <div className="text-center py-20 text-slate-500">
               <i className="fa-solid fa-box-open text-4xl mb-4 opacity-50"></i>
-              <p>这里空空如也</p>
+              <p>
+                {filterVisibility === 'all' ? '这里空空如也' : 
+                 filterVisibility === 'public' ? '没有公开的作品' : '没有私有的作品'}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {items.map(item => (
+              {filteredItems.map(item => (
                 <div key={item.id} className="relative">
                   <ProjectCard 
                     item={item} 

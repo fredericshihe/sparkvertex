@@ -144,14 +144,19 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
               </div>
             )}
 
-            {/* AI Verified Badge */}
-            {(item.tags || []).includes('AI Verified') && (
-              <div className="absolute top-2 right-2" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'translateZ(0)' }}>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(234,179,8,0.3)]">
-                  <i className="fa-solid fa-certificate"></i> AI 认证
+            {/* Badges */}
+            <div className="absolute top-2 right-2 z-20 flex flex-col gap-1 items-end" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'translateZ(0)' }}>
+              {item.is_public === false && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-slate-900/80 text-slate-400 border border-slate-700 flex items-center gap-1 shadow-lg">
+                  <i className="fa-solid fa-lock text-[10px]"></i> 私有
                 </span>
-              </div>
-            )}
+              )}
+              {(item.tags || []).includes('AI Verified') && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(234,179,8,0.3)]">
+                  <i className="fa-solid fa-shield-halved text-[10px]"></i> AI 认证
+                </span>
+              )}
+            </div>
           </div>
           <div className="p-3 text-left flex flex-col flex-grow">
             <h3 className="font-bold text-white text-sm mb-1 truncate">{item.title}</h3>

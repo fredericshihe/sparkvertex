@@ -20,6 +20,7 @@ export interface Item {
   color?: string;
   downloads?: number;
   icon_url?: string;
+  is_public?: boolean;
 }
 
 export interface Order {

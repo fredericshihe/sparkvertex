@@ -60,6 +60,7 @@ export default function Hero() {
             avatar_url
           )
         `)
+        .eq('is_public', true)
         .limit(5)
         .order('created_at', { ascending: false });
 
@@ -91,7 +92,7 @@ export default function Hero() {
   };
 
   useEffect(() => {
-    const texts = ['人人都是开发者的时代', '本周热门工具', '开发者推荐', '极客精选'];
+    const texts = ['人人都是开发者的时代', '小白也能轻松上手', '极速分享成果'];
     let count = 0;
     let index = 0;
     let currentText = '';
@@ -353,7 +354,7 @@ export default function Hero() {
 
             {/* CTA Buttons */}
             <div className="stagger-item flex flex-col sm:flex-row lg:justify-start justify-center gap-6 mb-20" style={{ animationDelay: '0.3s' }}>
-              <Link href="/guide" className="group relative px-8 py-4 rounded-full bg-white text-slate-900 font-bold text-lg hover:bg-slate-100 transition duration-300 shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_40px_rgba(255,255,255,0.6)] overflow-hidden">
+              <Link href="/create" className="group relative px-8 py-4 rounded-full bg-white text-slate-900 font-bold text-lg hover:bg-slate-100 transition duration-300 shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_40px_rgba(255,255,255,0.6)] overflow-hidden">
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   <i className="fa-solid fa-wand-magic-sparkles"></i> 开始创造
                 </span>

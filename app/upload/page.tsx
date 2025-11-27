@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
 import { getPreviewContent } from '@/lib/preview';
+import { copyToClipboard } from '@/lib/utils';
 
 // --- Helper Functions (Ported from SparkWorkbench.html) ---
 
@@ -298,6 +299,7 @@ export default function UploadPage() {
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isPublic, setIsPublic] = useState(true);
   
   // Metadata
   const [title, setTitle] = useState('');
@@ -315,6 +317,26 @@ export default function UploadPage() {
     if (editId) {
       setIsEditing(true);
       loadItemData(editId);
+    } else {
+      // Check for generated content from Create Wizard
+      const fromCreate = searchParams.get('from') === 'create';
+      if (fromCreate) {
+        const generatedCode = localStorage.getItem('spark_generated_code');
+        // const generatedMeta = localStorage.getItem('spark_generated_meta'); // No longer needed as we re-analyze
+        
+        if (generatedCode) {
+          setFileContent(generatedCode);
+          setStep(2); // Skip upload step
+          
+          // Trigger AI Analysis immediately to match "upload" behavior
+          // This ensures the generated code goes through the full analysis flow (Security, Title, Tags, Icon, etc.)
+          performAIAnalysis(generatedCode);
+          
+          // Clear storage to prevent reuse
+          localStorage.removeItem('spark_generated_code');
+          localStorage.removeItem('spark_generated_meta');
+        }
+      }
     }
   }, [editId]);
 
@@ -733,12 +755,23 @@ export default function UploadPage() {
           content: watermarkedContent,
           price: priceType === 'free' ? 0 : price,
           tags,
-          prompt
+          prompt,
+          is_public: isPublic
         };
         if (iconUrl) updateData.icon_url = iconUrl;
 
-        const result = await supabase.from('items').update(updateData).eq('id', editId).select().single();
+        let result = await supabase.from('items').update(updateData).eq('id', editId).select().single();
         
+        // Fallback: If is_public column is missing (Error 42703), try updating without it
+        if (result.error && (result.error.code === '42703' || result.error.message?.includes('is_public'))) {
+          console.warn('Database schema outdated: is_public column missing. Falling back.');
+          const { is_public, ...fallbackData } = updateData;
+          result = await supabase.from('items').update(fallbackData).eq('id', editId).select().single();
+          if (!result.error) {
+            toastError('警告：数据库缺少 is_public 字段，隐私设置未保存');
+          }
+        }
+
         data = result.data;
         error = result.error;
       } else {
@@ -747,7 +780,7 @@ export default function UploadPage() {
         // Note: Ideally this should be handled by catching the 409 error, but Supabase JS client sometimes wraps it obscurely.
         // Let's try to catch the specific error code below.
         
-        const result = await supabase.from('items').insert({
+        const insertPayload = {
           title,
           description,
           content: watermarkedContent,
@@ -755,11 +788,24 @@ export default function UploadPage() {
           author_id: session.user.id,
           tags,
           prompt,
+          is_public: isPublic,
           color: 'from-blue-500 to-cyan-500',
           likes: 0,
           views: 0,
           icon_url: iconUrl
-        }).select().single();
+        };
+
+        let result = await supabase.from('items').insert(insertPayload).select().single();
+
+        // Fallback: If is_public column is missing (Error 42703), try inserting without it
+        if (result.error && (result.error.code === '42703' || result.error.message?.includes('is_public'))) {
+          console.warn('Database schema outdated: is_public column missing. Falling back.');
+          const { is_public, ...fallbackPayload } = insertPayload;
+          result = await supabase.from('items').insert(fallbackPayload).select().single();
+          if (!result.error) {
+            toastError('警告：数据库缺少 is_public 字段，隐私设置未保存');
+          }
+        }
 
         data = result.data;
         error = result.error;
@@ -802,11 +848,10 @@ export default function UploadPage() {
   const copyShareLink = async () => {
     if (!publishedId) return;
     const url = `${window.location.origin}/explore?work=${publishedId}`;
-    try {
-      await navigator.clipboard.writeText(url);
+    const success = await copyToClipboard(url);
+    if (success) {
       toastSuccess('链接已复制！');
-    } catch (err) {
-      console.error('Copy failed', err);
+    } else {
       toastError('复制失败');
     }
   };
@@ -1236,6 +1281,31 @@ export default function UploadPage() {
       {/* Step 3: Pricing & Publish */}
       {step === 3 && (
         <div className="glass-panel rounded-2xl p-8 space-y-6">
+          {/* Visibility Settings */}
+          <div className="mb-8">
+            <h3 className="text-xl font-bold text-white mb-4">发布设置</h3>
+            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-white font-medium mb-1">
+                    {isPublic ? '公开作品' : '私有作品'}
+                  </h4>
+                  <p className="text-sm text-slate-400">
+                    {isPublic 
+                      ? '作品将显示在探索页面，所有人可见' 
+                      : '作品仅在个人中心可见，其他人无法查看'}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setIsPublic(!isPublic)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isPublic ? 'bg-brand-500' : 'bg-slate-600'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
+          </div>
+
           <h3 className="text-xl font-bold text-white mb-6">设置你的作品价格</h3>
 
           <div>

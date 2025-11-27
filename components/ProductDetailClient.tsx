@@ -11,6 +11,7 @@ import { useToast } from '@/context/ToastContext';
 import { getPreviewContent } from '@/lib/preview';
 import AddToHomeScreenGuide from '@/components/AddToHomeScreenGuide';
 import { saveToHistory } from '@/lib/db';
+import { copyToClipboard } from '@/lib/utils';
 
 interface ProductDetailClientProps {
   initialItem: Item;
@@ -520,7 +521,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
             <div className="mb-8">
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider flex items-center justify-between">
                 <span>Prompt (提示词)</span>
-                <button onClick={() => {navigator.clipboard.writeText(item.prompt || ''); alert('已复制');}} className="text-brand-400 hover:text-brand-300 text-[10px] flex items-center gap-1 transition">
+                <button onClick={() => {copyToClipboard(item.prompt || '').then(() => alert('已复制'));}} className="text-brand-400 hover:text-brand-300 text-[10px] flex items-center gap-1 transition">
                   <i className="fa-regular fa-copy"></i> 复制
                 </button>
               </h3>
@@ -736,23 +737,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                     <button 
                         onClick={() => {
                             const url = `${window.location.origin}/p/${item.id}`;
-                            try {
-                                if (navigator.clipboard && navigator.clipboard.writeText) {
-                                    navigator.clipboard.writeText(url).then(() => alert('链接已复制'));
-                                } else {
-                                    // Fallback for non-secure contexts
-                                    const textArea = document.createElement("textarea");
-                                    textArea.value = url;
-                                    document.body.appendChild(textArea);
-                                    textArea.select();
-                                    document.execCommand("copy");
-                                    document.body.removeChild(textArea);
-                                    alert('链接已复制');
-                                }
-                            } catch (err) {
-                                console.error('Failed to copy:', err);
-                                alert('复制失败，请手动复制');
-                            }
+                            copyToClipboard(url).then(() => alert('链接已复制'));
                         }}
                         className="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm"
                     >

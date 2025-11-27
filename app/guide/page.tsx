@@ -2,17 +2,21 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { copyToClipboard } from '@/lib/utils';
 
 export default function Guide() {
   const [currentPromptMode, setCurrentPromptMode] = useState<'vanilla' | 'react'>('vanilla');
 
-  const copyCurrentPrompt = () => {
+  const copyCurrentPrompt = async () => {
     const id = currentPromptMode === 'vanilla' ? 'guide-prompt-code-vanilla' : 'guide-prompt-code-react';
     const element = document.getElementById(id);
     if (element) {
-      navigator.clipboard.writeText(element.innerText).then(() => {
+      const success = await copyToClipboard(element.innerText);
+      if (success) {
         alert('Prompt 协议已复制！');
-      });
+      } else {
+        alert('复制失败，请手动复制');
+      }
     }
   };
 

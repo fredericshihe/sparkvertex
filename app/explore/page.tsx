@@ -49,6 +49,7 @@ export default function Explore() {
           avatar_url
         )
       `)
+      .eq('is_public', true)
       .order('created_at', { ascending: false })
       .range(pageIndex * ITEMS_PER_PAGE, (pageIndex + 1) * ITEMS_PER_PAGE - 1);
 
