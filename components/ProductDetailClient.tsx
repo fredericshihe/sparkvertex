@@ -9,6 +9,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { useModal } from '@/context/ModalContext';
 import { getPreviewContent } from '@/lib/preview';
 import AddToHomeScreenGuide from '@/components/AddToHomeScreenGuide';
+import { saveToHistory } from '@/lib/db';
 
 interface ProductDetailClientProps {
   initialItem: Item;
@@ -69,6 +70,11 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   useEffect(() => {
     checkIfLiked(id);
     incrementViews(id);
+    
+    // Save to local history for offline access/PWA persistence
+    if (item) {
+        saveToHistory(item);
+    }
   }, [id]);
 
   useEffect(() => {

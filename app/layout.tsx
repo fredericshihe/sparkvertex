@@ -37,6 +37,7 @@ import RewardModal from '@/components/RewardModal';
 import ManageOrdersModal from '@/components/ManageOrdersModal';
 import CityBackground from '@/components/CityBackground';
 import WeChatGuard from '@/components/WeChatGuard';
+import StorageManager from '@/components/StorageManager';
 import { ModalProvider } from '@/context/ModalContext';
 import { ToastProvider } from '@/context/ToastContext';
 
@@ -53,6 +54,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <WeChatGuard />
+        <StorageManager />
         <ToastProvider>
           <ModalProvider>
             <canvas id="fluid-canvas" className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 opacity-20"></canvas>
