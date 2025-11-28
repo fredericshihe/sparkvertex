@@ -48,9 +48,13 @@ export default function LoginModal() {
       if (error) throw error;
       setMessage('重置密码邮件已发送，请检查您的邮箱');
     } catch (error: any) {
-      // Security: Generic error message
-      setMessage('发送请求失败，请稍后重试');
       console.error('Reset password error:', error.message);
+      if (error.message?.includes('security purposes') && error.message?.includes('seconds')) {
+        const seconds = error.message.match(/after (\d+) seconds/)?.[1] || '60';
+        setMessage(`操作过于频繁，请 ${seconds} 秒后再试`);
+      } else {
+        setMessage('发送请求失败，请稍后重试');
+      }
     } finally {
       setLoading(false);
     }
