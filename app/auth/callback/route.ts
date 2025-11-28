@@ -14,13 +14,6 @@ export async function GET(request: Request) {
     
     const supabase = createRouteHandlerClient({ 
       cookies: () => cookieStore 
-    }, {
-      cookieOptions: {
-        secure: isSecure,
-        path: '/',
-        sameSite: 'lax',
-        domain: '',
-      }
     });
     
     console.log('Auth Callback: Exchanging code for session...');
@@ -28,7 +21,7 @@ export async function GET(request: Request) {
     if (error) {
       console.error('Auth Callback Error:', error.message);
       // Security: Don't leak specific error details in URL
-      return NextResponse.redirect(new URL(`/?error=auth_failed`, request.url));
+      return NextResponse.redirect(new URL(`/?error=auth_failed&details=${encodeURIComponent(error.message)}`, request.url));
     }
     console.log('Auth Callback: Session exchanged successfully');
   } else {
