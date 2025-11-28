@@ -2,10 +2,11 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-// 使用 Edge Runtime 以支持流式传输
-export const runtime = 'edge';
-// 增加最大执行时间 (Vercel Pro/Hobby 限制不同，但设置为最大值有助于避免 504)
+// 使用 Node.js Runtime 以支持更长的超时设置
+export const runtime = 'nodejs';
+// 增加最大执行时间 (Vercel Hobby 限制 60s, Pro 限制 300s)
 export const maxDuration = 60; 
+export const dynamic = 'force-dynamic'; 
 
 export async function POST(request: Request) {
   try {

@@ -94,10 +94,23 @@ export default function CreatePage() {
     checkAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
         checkAuth();
       }
+      if (event === 'SIGNED_OUT') {
+        setUserId(null);
+      }
     });
+
+    // Keep-alive mechanism: Periodically check session to ensure token refresh
+    // This prevents session expiry during long creation/editing sessions (e.g. hours)
+    const keepAliveInterval = setInterval(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // Accessing session triggers internal refresh logic if close to expiry
+        console.debug('Session keep-alive check passed');
+      }
+    }, 1000 * 60 * 4); // Check every 4 minutes
 
     // Realtime subscription for credit updates
     let profileSubscription: any;
@@ -105,6 +118,9 @@ export default function CreatePage() {
     const setupSubscription = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
+
+      // Remove existing subscription if any
+      if (profileSubscription) supabase.removeChannel(profileSubscription);
 
       profileSubscription = supabase
         .channel('profile-credits')
@@ -129,10 +145,20 @@ export default function CreatePage() {
         .subscribe();
     };
 
+    // Setup subscription initially and whenever auth state changes (via checkAuth/onAuthStateChange)
     setupSubscription();
+
+    // Also listen to auth changes to re-setup subscription
+    const authListener = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        setupSubscription();
+      }
+    });
 
     return () => {
       subscription.unsubscribe();
+      authListener.data.subscription.unsubscribe();
+      clearInterval(keepAliveInterval);
       if (profileSubscription) supabase.removeChannel(profileSubscription);
     };
   }, []);
