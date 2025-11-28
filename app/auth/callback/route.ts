@@ -17,10 +17,19 @@ export async function GET(request: Request) {
     });
     
     console.log('Auth Callback: Exchanging code for session...');
+    // Log cookie names for debugging (don't log values)
+    console.log('Available cookies:', cookieStore.getAll().map(c => c.name));
+
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
       console.error('Auth Callback Error:', error.message);
-      // Security: Don't leak specific error details in URL
+      
+      // Check for specific PKCE error
+      if (error.message.includes('code verifier')) {
+        // Redirect to a help page or home with specific instruction
+        return NextResponse.redirect(new URL(`/?error=verifier_missing&details=${encodeURIComponent('请在同一个浏览器中打开链接')}`, request.url));
+      }
+
       return NextResponse.redirect(new URL(`/?error=auth_failed&details=${encodeURIComponent(error.message)}`, request.url));
     }
     console.log('Auth Callback: Session exchanged successfully');
