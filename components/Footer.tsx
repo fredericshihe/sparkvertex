@@ -7,27 +7,25 @@ export default function Footer() {
   const { openFeedbackModal } = useModal();
   const pathname = usePathname();
 
-  // Hide Footer on standalone product pages
-  if (pathname?.startsWith('/p/')) return null;
+  // Hide Footer on standalone product pages and Homepage (Hero handles it)
+  if (pathname?.startsWith('/p/') || pathname === '/') return null;
 
   return (
-    <footer className="bg-slate-900 border-t border-slate-800 py-12 mt-12">
-      <div className="max-w-7xl mx-auto px-4 text-center">
-        <div className="flex justify-center items-center mb-6">
+    <footer className="w-full py-6 mt-0 text-center relative z-10 bg-transparent">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex justify-center items-center mb-4 opacity-50 hover:opacity-100 transition duration-300">
           <img 
             src="/logo.png" 
             alt="Logo" 
-            className="w-6 h-6 mr-2 object-contain mix-blend-screen" 
+            className="w-5 h-5 mr-2 object-contain mix-blend-screen transition" 
             onError={(e) => {
               e.currentTarget.style.display = 'none';
             }}
           />
-          <span className="font-bold text-lg">SparkVertex</span>
+          <span className="font-bold text-sm text-slate-500 hover:text-slate-300 transition">SparkVertex</span>
         </div>
-        <p className="text-slate-500 text-sm mb-6">Local-First. Offline-Ready. Geek-Approved.</p>
-        <div className="text-slate-600 text-xs">
-          &copy; 2025 SparkVertex. All rights reserved.
-          <button onClick={openFeedbackModal} className="hover:text-brand-400 transition ml-4">问题反馈</button>
+        <div className="text-slate-700 text-[10px]">
+          &copy; 2025 SparkVertex. <button onClick={openFeedbackModal} className="hover:text-brand-400 transition ml-2">反馈</button>
         </div>
       </div>
     </footer>

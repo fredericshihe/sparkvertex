@@ -246,18 +246,18 @@ export default function Profile() {
       </div>
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative -mt-20">
-        <div className="flex flex-col md:flex-row items-end gap-6 mb-8">
+        <div className="flex flex-col md:flex-row items-center md:items-end gap-6 mb-8 text-center md:text-left">
           <div className="relative">
             <img 
               src={profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'default'}`} 
               className="w-32 h-32 rounded-full border-4 border-slate-900 bg-slate-800 object-cover"
             />
           </div>
-          <div className="flex-grow mb-2">
+          <div className="flex-grow mb-2 w-full md:w-auto">
             <h1 className="text-3xl font-bold text-white mb-1">{profile?.username || user?.email?.split('@')[0] || 'Loading...'}</h1>
-            <p className="text-slate-400 text-sm max-w-xl">{profile?.bio || '这个家伙很懒，什么都没写'}</p>
+            <p className="text-slate-400 text-sm max-w-xl mx-auto md:mx-0">{profile?.bio || '这个家伙很懒，什么都没写'}</p>
           </div>
-          <div className="flex gap-3 mb-4">
+          <div className="flex flex-wrap justify-center md:justify-end gap-3 mb-4 w-full md:w-auto">
             <button 
               onClick={openEditProfileModal}
               className="px-4 py-2 rounded-lg glass-panel border border-slate-600 hover:bg-slate-800 transition text-sm font-bold"
@@ -288,6 +288,43 @@ export default function Profile() {
               <i className="fa-solid fa-right-from-bracket mr-2"></i>退出
             </button>
           </div>
+        </div>
+
+        {/* Credits Section - Compact */}
+        <div className="glass-panel p-4 rounded-xl border border-slate-700/50 mb-8 flex flex-col sm:flex-row gap-6 items-center">
+          
+          {/* Creation Credits */}
+          <div className="flex items-center gap-4 flex-1 w-full">
+            <div className="w-10 h-10 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 text-lg shrink-0">
+              <i className="fa-solid fa-wand-magic-sparkles"></i>
+            </div>
+            <div>
+              <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">创建额度</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl font-bold text-white">{profile?.generation_credits ?? 3}</span>
+                <span className="text-xs text-slate-500">/ 3 (体验)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="hidden sm:block w-px h-8 bg-slate-700"></div>
+          <div className="block sm:hidden w-full h-px bg-slate-700"></div>
+
+          {/* Modification Credits */}
+          <div className="flex items-center gap-4 flex-1 w-full">
+            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-lg shrink-0">
+              <i className="fa-solid fa-pen-to-square"></i>
+            </div>
+            <div>
+              <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">修改额度</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl font-bold text-white">{profile?.modification_credits ?? 10}</span>
+                <span className="text-xs text-slate-500">/ 10 (总计)</span>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         {/* Profile Tabs */}

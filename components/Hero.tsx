@@ -36,7 +36,7 @@ await ai.chat("Help me build a website");`
 ];
 
 export default function Hero() {
-  const { openDetailModal } = useModal();
+  const { openDetailModal, openFeedbackModal } = useModal();
   const [typingText, setTypingText] = useState('人人都是开发者的时代');
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -169,7 +169,7 @@ export default function Hero() {
       
       {/* Flip Card Container */}
       <div 
-        className={`h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 ${isFlipped ? 'flipped' : ''}`} 
+        className={`h-64 md:h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 ${isFlipped ? 'flipped' : ''}`} 
         onClick={() => openDetailModal(activeCard.id, activeCard)}
         onMouseEnter={() => { setIsHovering(true); setIsFlipped(true); }}
         onMouseLeave={() => { setIsHovering(false); setIsFlipped(false); }}
@@ -286,7 +286,7 @@ export default function Hero() {
 
       {/* Main Hero Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-12 items-center">
           
           {/* Left: Text Content */}
           <div className="text-center lg:text-left">
@@ -317,7 +317,7 @@ export default function Hero() {
               </p>
               
               <div 
-                className="relative group cursor-pointer inline-block"
+                className="relative group cursor-pointer hidden lg:inline-block"
                 onMouseEnter={() => { setIsHovering(true); setIsFlipped(true); }}
                 onMouseLeave={() => { setIsHovering(false); setIsFlipped(false); }}
               >
@@ -347,32 +347,96 @@ export default function Hero() {
               </div>
             </div>
 
-            {/* Mobile Card Display */}
-            <div className="block lg:hidden mb-12 stagger-item" style={{ animationDelay: '0.25s' }}>
-              {cardContent}
-            </div>
-
             {/* CTA Buttons */}
-            <div className="stagger-item flex flex-col sm:flex-row lg:justify-start justify-center gap-6 mb-20" style={{ animationDelay: '0.3s' }}>
-              <Link href="/create" className="group relative px-8 py-4 rounded-full bg-white text-slate-900 font-bold text-lg hover:bg-slate-100 transition duration-300 shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_40px_rgba(255,255,255,0.6)] overflow-hidden">
-                <span className="relative z-10 flex items-center justify-center gap-2">
-                  <i className="fa-solid fa-wand-magic-sparkles"></i> 开始创造
-                </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent -translate-x-full group-hover:translate-x-full transition duration-700"></div>
-              </Link>
-              <Link href="/explore" className="px-8 py-4 rounded-full bg-slate-800/50 text-white font-bold text-lg border border-slate-700 hover:bg-slate-800 hover:border-brand-500 transition duration-300 backdrop-blur-sm flex items-center justify-center gap-2">
-                <i className="fa-solid fa-lightbulb"></i> 探索灵感
+            <div className="stagger-item flex flex-col sm:flex-row lg:justify-start justify-center gap-6 mb-8 lg:mb-20 relative" style={{ animationDelay: '0.3s' }}>
+              
+              {/* Primary CTA with Smart Guidance */}
+              <div className="relative group">
+                {/* Floating Badge */}
+                <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-gradient-to-r from-brand-500 to-purple-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg animate-bounce opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap pointer-events-none z-20">
+                  ✨ 免费试用超强AI大模型生成！
+                  <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-purple-600 rotate-45"></div>
+                </div>
+
+                <Link href="/create" className="relative px-10 py-5 rounded-full bg-white text-slate-900 font-bold text-xl hover:bg-slate-50 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:shadow-[0_0_50px_rgba(255,255,255,0.6)] hover:scale-105 active:scale-95 overflow-hidden flex items-center justify-center gap-3">
+                  {/* Pulse Ring */}
+                  <span className="absolute inset-0 rounded-full border-2 border-white/50 animate-ping opacity-20"></span>
+                  
+                  <span className="relative z-10 flex items-center justify-center gap-2">
+                    <i className="fa-solid fa-wand-magic-sparkles text-brand-600 animate-pulse"></i> 
+                    <span>开始创造</span>
+                  </span>
+                  
+                  {/* Shine Effect */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent -translate-x-full group-hover:translate-x-full transition duration-1000 ease-in-out"></div>
+                </Link>
+              </div>
+
+              <Link href="/explore" className="px-8 py-4 rounded-full bg-slate-800/40 text-white font-bold text-lg border border-slate-700/50 hover:bg-slate-800 hover:border-brand-500/50 transition duration-300 backdrop-blur-sm flex items-center justify-center gap-2 hover:shadow-[0_0_30px_rgba(168,85,247,0.2)]">
+                <i className="fa-solid fa-lightbulb text-yellow-400"></i> 探索灵感
               </Link>
             </div>
           </div>
 
           {/* Right: Prompt Display */}
-          <div className="hidden lg:block stagger-item mt-8 lg:mt-0" style={{ animationDelay: '0.4s' }}>
+          <div className="block stagger-item mt-2 lg:mt-0" style={{ animationDelay: '0.4s' }}>
+            {/* Mobile Scan Code Hint */}
+            <div className="lg:hidden mb-4 flex justify-center">
+              <div 
+                className="relative group cursor-pointer inline-block"
+                onClick={() => setIsFlipped(!isFlipped)}
+              >
+                 {/* Glow Effect */}
+                 <div className={`absolute -inset-4 bg-brand-500/20 rounded-xl blur-xl transition-all duration-500 ${isFlipped ? 'opacity-100 scale-110' : 'opacity-0 scale-90'}`}></div>
+                 
+                 <div className="relative flex items-center gap-4 p-2 rounded-xl transition-colors duration-300 hover:bg-white/5">
+                    {/* Icon */}
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all duration-500 ${isFlipped ? 'bg-brand-500 border-brand-400 text-white shadow-[0_0_20px_rgba(168,85,247,0.5)] rotate-12' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
+                      <i className={`fa-solid fa-mobile-screen-button text-xl transition-transform duration-500 ${isFlipped ? 'scale-110' : ''}`}></i>
+                    </div>
+
+                    <div className="flex flex-col justify-center h-12">
+                      <span className={`text-2xl font-bold transition-all duration-500 leading-none mb-1 ${isFlipped ? 'text-transparent bg-clip-text bg-gradient-to-r from-brand-300 to-purple-400 translate-x-1' : 'text-slate-300'}`}>
+                        扫码即用，原生体验
+                      </span>
+                      <div className="h-5 overflow-hidden relative">
+                        <span className={`absolute left-0 text-sm flex items-center gap-2 transition-all duration-500 ${isFlipped ? 'top-1/2 -translate-y-1/2 opacity-100' : 'top-full opacity-0'}`}>
+                          <i className="fa-solid fa-arrow-down animate-bounce"></i> <span>立即查看下方演示</span>
+                        </span>
+                        <span className={`absolute left-0 text-sm flex items-center gap-2 transition-all duration-500 ${isFlipped ? '-top-full opacity-0' : 'top-1/2 -translate-y-1/2 opacity-100'}`}>
+                          <i className="fa-solid fa-hand-pointer animate-pulse"></i> <span>点击查看二维码</span>
+                        </span>
+                      </div>
+                    </div>
+                 </div>
+              </div>
+            </div>
+
             {cardContent}
           </div>
 
         </div>
       </div>
+
+      {/* Footer integrated into Hero */}
+      <footer className="relative lg:absolute bottom-0 w-full py-6 text-center z-20 mt-12 lg:mt-0">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex justify-center items-center mb-2 opacity-50 hover:opacity-100 transition duration-300">
+            <img 
+              src="/logo.png" 
+              alt="Logo" 
+              className="w-5 h-5 mr-2 object-contain mix-blend-screen transition" 
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <span className="font-bold text-sm text-slate-500 hover:text-slate-300 transition">SparkVertex</span>
+          </div>
+          <div className="text-slate-700 text-[10px]">
+            &copy; 2025 SparkVertex. <button onClick={openFeedbackModal} className="hover:text-brand-400 transition ml-2">反馈</button>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

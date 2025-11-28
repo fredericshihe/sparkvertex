@@ -102,16 +102,21 @@ export default function CreatePage() {
     }
     setUserId(session.user.id);
     
-    // Fetch user credits
+    // Fetch user credits and reset logic
     const { data } = await supabase
       .from('profiles')
-      .select('generation_credits, modification_credits')
+      .select('generation_credits, modification_credits, last_reset_date')
       .eq('id', session.user.id)
       .single();
       
     if (data) {
-      setGenerationCredits(data.generation_credits ?? 2);
-      setModificationCredits(data.modification_credits ?? 6);
+      // No daily reset logic anymore - fixed quota
+      setGenerationCredits(data.generation_credits ?? 3);
+      setModificationCredits(data.modification_credits ?? 10);
+    } else {
+      // New profile handling (if not created by trigger)
+      setGenerationCredits(3);
+      setModificationCredits(10);
     }
   };
 
@@ -254,12 +259,12 @@ Return ONLY the full HTML code.
     // Check Credits
     if (isModification) {
       if (modificationCredits <= 0) {
-        toastError('您的修改次数已用完，请等待重置或升级会员');
+        toastError('您的修改次数已用完');
         return;
       }
     } else {
       if (generationCredits <= 0) {
-        toastError('您的创建次数已用完，请等待重置或升级会员');
+        toastError('您的创建次数已用完');
         return;
       }
     }
@@ -269,14 +274,16 @@ Return ONLY the full HTML code.
     setProgress(0);
     setStreamingCode('');
     
-    // Enhanced Progress Simulation
+    // Enhanced Progress Simulation - Friendly & Non-Stalling
     const loadingMessages = [
-      '正在分析需求...',
-      '设计 UI 界面布局...',
-      '编写 React 组件逻辑...',
-      '优化移动端触控体验...',
-      '配置 Tailwind 样式...',
-      '正在进行最终检查...'
+      '正在深度分析您的需求...',
+      'AI 正在构思最佳 UI 布局...',
+      '正在编写 React 组件逻辑...',
+      '正在优化移动端触控响应...',
+      '正在配置 Tailwind 美学样式...',
+      '正在进行代码安全性检查...',
+      '正在做最后的性能优化...',
+      '即将完成，准备预览...'
     ];
     
     let messageIndex = 0;
@@ -287,35 +294,40 @@ Return ONLY the full HTML code.
 
     const progressInterval = setInterval(() => {
       setProgress(prev => {
-        // Slower progress as it gets higher to avoid "hanging" feeling
-        // 0-30: Fast
-        // 30-60: Medium
-        // 60-90: Slow
-        // 90-99: Very Slow
+        // Smart Progress Logic
+        // We want to avoid the "stuck at 99%" feeling.
+        // Instead of slowing down to a crawl, we keep a steady pace until ~85%, 
+        // then we wait for the stream to actually finish.
+        
         let increment = 0;
-        if (prev < 30) increment = Math.random() * 5 + 2;
-        else if (prev < 60) increment = Math.random() * 3 + 1;
-        else if (prev < 90) increment = Math.random() * 1 + 0.5;
-        else if (prev < 99) increment = 0.1; // Keep moving tiny bit
         
-        // Cap at 95% until we actually start receiving data
-        const maxProgress = hasStartedStreaming ? 99.5 : 95;
-        const next = Math.min(prev + increment, maxProgress);
-        
-        // Rotate messages based on progress milestones
-        if (next >= 99) {
-          setLoadingText('正在生成代码...');
+        if (hasStartedStreaming) {
+           // If we are receiving data, move faster!
+           if (prev < 95) increment = Math.random() * 2 + 1;
+           else increment = 0.1; // Just a tiny bit to show life
         } else {
-          const newIndex = Math.floor((next / 100) * loadingMessages.length);
-          if (newIndex !== messageIndex && newIndex < loadingMessages.length) {
-            messageIndex = newIndex;
-            setLoadingText(loadingMessages[newIndex]);
-          }
+           // Still waiting for server response
+           if (prev < 30) increment = Math.random() * 3 + 2; // Initial burst
+           else if (prev < 60) increment = Math.random() * 1 + 0.5; // Steady thinking
+           else if (prev < 85) increment = 0.2; // Waiting for stream start
+           else increment = 0; // Hold at 85% until stream starts
         }
+
+        const nextProgress = Math.min(prev + increment, 99);
         
-        return next;
+        // Cycle messages based on progress milestones to keep user engaged
+        const totalMessages = loadingMessages.length;
+        const messageStage = Math.floor((nextProgress / 100) * totalMessages);
+        
+        if (messageStage > messageIndex && messageStage < totalMessages) {
+            messageIndex = messageStage;
+            setLoadingText(loadingMessages[messageIndex]);
+        }
+
+        return nextProgress;
       });
-    }, 200); // Faster updates for smoother animation
+    }, 200); // Update every 200ms for smooth animation
+
 
     try {
       const prompt = constructPrompt(isModification, chatInput);
@@ -330,17 +342,28 @@ Return ONLY the full HTML code.
         setModificationCount(prev => prev + 1);
       }
 
-      const response = await fetch('/api/stream-generate', {
+      // Use Next.js Proxy API to hide Supabase Edge Function URL
+      const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           system_prompt: 'You are an expert React developer specializing in single-file mobile web apps. You MUST write valid, error-free JavaScript code.',
-          user_prompt: prompt,
-          temperature: 0.5
+          user_prompt: prompt
         })
       });
 
-      if (!response.ok) throw new Error('Generation failed');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Generation failed details:', {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText,
+            url: '/api/generate'
+        });
+        throw new Error(`Generation failed: ${response.status} ${errorText}`);
+      }
       if (!response.body) throw new Error('No response body');
 
       // Deduct credits on successful start
@@ -816,8 +839,8 @@ Return ONLY the full HTML code.
               previewMode === 'desktop' 
                 ? 'w-full h-full rounded-none border-0' 
                 : previewMode === 'tablet'
-                  ? 'h-[85%] md:h-[90%] w-auto rounded-[1.5rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50'
-                  : 'h-[85%] md:h-[90%] w-auto rounded-[2.5rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50'
+                  ? 'h-[75%] md:h-[85%] w-auto rounded-[1.5rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50'
+                  : 'h-[70%] md:h-[85%] w-auto rounded-[2.5rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50'
             }`}
           >
              {/* Notch */}
