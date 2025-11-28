@@ -85,6 +85,14 @@ export default function CreatePage() {
 
   useEffect(() => {
     checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        checkAuth();
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -95,28 +103,25 @@ export default function CreatePage() {
 
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      openLoginModal();
-      router.push('/');
-      return;
-    }
-    setUserId(session.user.id);
-    
-    // Fetch user credits and reset logic
-    const { data } = await supabase
-      .from('profiles')
-      .select('generation_credits, modification_credits, last_reset_date')
-      .eq('id', session.user.id)
-      .single();
+    if (session) {
+      setUserId(session.user.id);
       
-    if (data) {
-      // No daily reset logic anymore - fixed quota
-      setGenerationCredits(data.generation_credits ?? 3);
-      setModificationCredits(data.modification_credits ?? 10);
-    } else {
-      // New profile handling (if not created by trigger)
-      setGenerationCredits(3);
-      setModificationCredits(10);
+      // Fetch user credits and reset logic
+      const { data } = await supabase
+        .from('profiles')
+        .select('generation_credits, modification_credits, last_reset_date')
+        .eq('id', session.user.id)
+        .single();
+        
+      if (data) {
+        // No daily reset logic anymore - fixed quota
+        setGenerationCredits(data.generation_credits ?? 3);
+        setModificationCredits(data.modification_credits ?? 10);
+      } else {
+        // New profile handling (if not created by trigger)
+        setGenerationCredits(3);
+        setModificationCredits(10);
+      }
     }
   };
 
@@ -256,6 +261,13 @@ Return ONLY the full HTML code.
   };
 
   const startGeneration = async (isModification = false) => {
+    // Check Auth first
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      openLoginModal();
+      return;
+    }
+
     // Check Credits
     if (isModification) {
       if (modificationCredits <= 0) {

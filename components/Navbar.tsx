@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
+import { useToast } from '@/context/ToastContext';
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -14,8 +15,14 @@ export default function Navbar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { openLoginModal, openFeedbackModal } = useModal();
+  const { success } = useToast();
 
   useEffect(() => {
+    // Check for email verification hash
+    if (typeof window !== 'undefined' && window.location.hash && window.location.hash.includes('type=signup')) {
+      success('邮箱验证成功，已自动登录', 5000);
+    }
+
     const handleSession = (session: any) => {
       setUser(session?.user ?? null);
       if (session?.user) {
