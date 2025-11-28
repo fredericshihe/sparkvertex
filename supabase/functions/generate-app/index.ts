@@ -39,8 +39,9 @@ serve(async (req) => {
     const { system_prompt, user_prompt } = await req.json();
     
     if (!user_prompt) throw new Error('Missing user_prompt');
-    if (user_prompt.length > 2000) {
-       return new Response(JSON.stringify({ error: 'Input too long (max 2000 chars)' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // Increased limit to 50,000 chars to support full file modification context
+    if (user_prompt.length > 50000) {
+       return new Response(JSON.stringify({ error: 'Input too long (max 50000 chars)' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // 3. 速率限制 (Rate Limiting)

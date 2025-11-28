@@ -13,6 +13,8 @@ export default function UpdatePassword() {
   const router = useRouter();
   const { success, error } = useToast();
 
+  const [errorMsg, setErrorMsg] = useState('');
+
   useEffect(() => {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -30,8 +32,8 @@ export default function UpdatePassword() {
         setTimeout(() => {
           supabase.auth.getSession().then(({ data: { session: finalSession } }) => {
             if (!finalSession) {
-              error('链接已失效或未检测到登录状态，请重新发送重置邮件');
-              router.push('/');
+              setErrorMsg('链接已失效或未检测到登录状态，请重新发送重置邮件');
+              setVerifying(false);
             } else {
               setVerifying(false);
             }
@@ -83,6 +85,25 @@ export default function UpdatePassword() {
           <button 
             onClick={() => router.push('/')}
             className="mt-8 text-sm text-slate-400 hover:text-white underline"
+          >
+            返回首页
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (errorMsg) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-white text-center max-w-md">
+          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i className="fa-solid fa-circle-exclamation text-red-500 text-2xl"></i>
+          </div>
+          <p className="text-lg mb-2 text-red-400">{errorMsg}</p>
+          <button 
+            onClick={() => router.push('/')}
+            className="mt-8 px-6 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-white transition"
           >
             返回首页
           </button>

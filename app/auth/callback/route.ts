@@ -9,7 +9,17 @@ export async function GET(request: Request) {
 
   if (code) {
     const cookieStore = cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    // Determine if we are on a secure connection
+    const isSecure = requestUrl.protocol === 'https:';
+    
+    const supabase = createRouteHandlerClient({ 
+      cookies: () => cookieStore 
+    }, {
+      cookieOptions: {
+        secure: isSecure,
+      }
+    });
+    
     console.log('Auth Callback: Exchanging code for session...');
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {

@@ -137,126 +137,63 @@ export default function CreatePage() {
   };
 
   const addTemplateFeature = (desc: string) => {
-    setWizardData(prev => ({ 
-      ...prev, 
-      features: prev.features ? `${prev.features}\n${desc}` : desc 
-    }));
+    setWizardData(prev => {
+      const newFeatures = prev.features ? `${prev.features}\n${desc}` : desc;
+      if (newFeatures.length > 500) {
+        toastError('功能描述已达到字数上限');
+        return prev;
+      }
+      return { ...prev, features: newFeatures };
+    });
   };
 
   // --- Generation Logic ---
-  const constructPrompt = (isModification = false, modificationRequest = '') => {
+    const constructPrompt = (isModification = false, modificationRequest = '') => {
     const categoryLabel = CATEGORIES.find(c => c.id === wizardData.category)?.label || 'App';
     const styleLabel = STYLES.find(s => s.id === wizardData.style)?.label || 'Modern';
     
-    let description = `
-    Type: ${categoryLabel}
-    Style: ${styleLabel}
-    Features Description: ${wizardData.features}
-    Additional Notes: ${wizardData.description}
-    `;
+    // Compact description
+    let description = `Type:${categoryLabel}, Style:${styleLabel}. Features:${wizardData.features}. Notes:${wizardData.description}`;
 
     if (isModification) {
-      description = `
-      The user wants to modify the existing code.
-      
-      === EXISTING CODE START ===
+      // User requested full HTML context to avoid issues
+      description = `Modify this HTML:
       ${generatedCode}
-      === EXISTING CODE END ===
-
-      Modification Request: ${modificationRequest}
-      
-      Please return the FULL updated HTML code based on the request. 
-      IMPORTANT: 
-      1. Keep the existing functionality and design unless explicitly asked to change.
-      2. Only modify the parts relevant to the user's request.
-      3. Ensure the code remains a single valid HTML file.
-      `;
+      Request: ${modificationRequest}`;
     }
 
     return `
-# Role
-React Expert (Single File).
-
 # Task
-Create a [Tool Name: ${categoryLabel} Generator] using React.
-
-# Description
+Create single-file React app: ${categoryLabel} Generator.
 ${description}
 
-# Language
-Chinese (Simplified). All text content MUST be in Chinese.
+# Specs
+- Lang: Chinese
+- Stack: React 18, Tailwind CSS (CDN)
+- Mobile-first, dark mode (#0f172a)
+- Single HTML file, NO markdown.
 
-# Tech Stack (MUST USE THESE EXACT URLs)
-- React 18: https://unpkg.com/react@18/umd/react.development.js
-- ReactDOM 18: https://unpkg.com/react-dom@18/umd/react-dom.development.js
-- Babel Standalone: https://unpkg.com/@babel/standalone/babel.min.js
-- Tailwind CSS: https://cdn.tailwindcss.com
-
-# HTML Structure Template (STRICTLY FOLLOW THIS)
+# Template
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>App</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <style>
-        body { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; background-color: #0f172a; color: white; }
-        /* Hide scrollbar */
-        ::-webkit-scrollbar { display: none; }
-        * { -ms-overflow-style: none; scrollbar-width: none; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<script src="https://cdn.tailwindcss.com"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>body{-webkit-user-select:none;user-select:none;background:#0f172a;color:white}::-webkit-scrollbar{display:none}</style>
 </head>
 <body>
-    <div id="root"></div>
-    <script type="text/babel">
-        const { useState, useEffect, useRef, useMemo, useCallback } = React;
-        
-        // ... YOUR COMPONENT CODE HERE ...
-
-        const App = () => {
-            return (
-                <div className="min-h-screen w-full flex flex-col">
-                    {/* App Content */}
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
-
-# Mobile Adaptation (Native-Like Experience)
-1. Viewport: <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-2. No Select: body { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-3. No Scrollbar: Hide scrollbars but allow scrolling.
-4. Layout: Use Flexbox/Grid, avoid fixed width.
-5. UI Components: Use large buttons (min-height 44px), large text, and touch-friendly spacing.
-
-# Constraints
-1. Single HTML File: Return the COMPLETE HTML code starting with <!DOCTYPE html>.
-2. React Component: Use functional components and hooks.
-3. Syntax Safety: DOUBLE CHECK all closing braces '}' and parentheses ')'. Ensure all hooks (useEffect, etc.) are properly closed with '}, [deps]);'. Verify all function calls have correct arguments (e.g., padStart(2, '0')).
-4. No Markdown: Return ONLY the raw HTML code, no \`\`\`html blocks.
-5. Clean Code: Do NOT use try-catch blocks for simple logic. Only use them for async operations (fetch, etc.) if needed. Prioritize correct syntax over error handling.
-6. Completeness: Ensure the code is NOT truncated. If the logic is complex, simplify it to fit within the response limit.
-7. Variable Safety: Ensure all variables used in dependency arrays are defined and correctly named.
-8. Declaration Safety: Ensure all const/let declarations have a valid variable name (e.g., 'const value = ...', NOT 'const = ...').
-9. Reserved Keywords: Do NOT use reserved keywords like 'new', 'class', 'return' as variable names (e.g., use 'newTask' instead of 'new').
-10. Footer Integrity: The code MUST end with exactly:
-   const root = ReactDOM.createRoot(document.getElementById('root'));
-   root.render(<App />);
-   </script>
-   </body>
-   </html>
-
-# Output
-Return ONLY the full HTML code.
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef}=React;
+// YOUR CODE
+const App=()=>{return <div className="min-h-screen w-full">...</div>};
+const root=ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App/>);
+</script></body></html>
     `;
   };
 
@@ -367,14 +304,14 @@ Return ONLY the full HTML code.
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
         console.error('Generation failed details:', {
             status: response.status,
             statusText: response.statusText,
-            body: errorText,
+            body: errorData,
             url: '/api/generate'
         });
-        throw new Error(`Generation failed: ${response.status} ${errorText}`);
+        throw new Error(errorData.error || `Generation failed: ${response.status}`);
       }
       if (!response.body) throw new Error('No response body');
 
@@ -464,9 +401,23 @@ Return ONLY the full HTML code.
         setChatHistory(prev => [...prev, { role: 'ai', content: '代码已更新，请查看预览效果。' }]);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Generation error:', error);
-      toastError('生成失败，请重试');
+      
+      // Smart Error Handling
+      if (error.message?.includes('Input too long') || error.message?.includes('2000')) {
+        // Specific handling for length limit
+        toastError('应用代码量已超出AI处理上限，无法继续修改');
+        
+        // Add a system message to chat to guide the user
+        setChatHistory(prev => [...prev, { 
+          role: 'ai', 
+          content: `⚠️ **无法继续修改**\n\n当前应用代码量已超过系统限制（2000字符）。\n\n**建议方案：**\n1. 点击下方“下载源码”保存当前进度，在本地继续开发。\n2. 或者点击“发布作品”分享当前版本。` 
+        }]);
+      } else {
+        toastError(error.message || '生成失败，请重试');
+      }
+      
       setStep(isModification ? 'preview' : 'desc'); // Go back
     } finally {
       setIsGenerating(false);
@@ -592,13 +543,20 @@ Return ONLY the full HTML code.
               </div>
               
               {/* Custom Input */}
-              <div className="bg-slate-900/50 p-1 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors">
+              <div className="bg-slate-900/50 p-1 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors relative">
                 <textarea
                   value={wizardData.features}
-                  onChange={(e) => setWizardData(prev => ({ ...prev, features: e.target.value }))}
+                  onChange={(e) => {
+                    if (e.target.value.length <= 500) {
+                      setWizardData(prev => ({ ...prev, features: e.target.value }));
+                    }
+                  }}
                   placeholder="例如：我需要一个计分板，左边是红队，右边是蓝队，点击加分..."
                   className="w-full h-32 bg-transparent border-none rounded-xl p-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-sm leading-relaxed"
                 ></textarea>
+                <div className="absolute bottom-2 right-4 text-xs text-slate-500">
+                  {wizardData.features.length}/500
+                </div>
               </div>
 
               {/* Templates */}
@@ -646,13 +604,20 @@ Return ONLY the full HTML code.
                 <h2 className="text-3xl font-bold text-white">最后补充</h2>
                 <p className="text-slate-400">还有什么特别的要求吗？比如配色、音效等</p>
               </div>
-              <div className="bg-slate-900/50 p-1 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors">
+              <div className="bg-slate-900/50 p-1 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors relative">
                 <textarea
                   value={wizardData.description}
-                  onChange={(e) => setWizardData(prev => ({ ...prev, description: e.target.value }))}
+                  onChange={(e) => {
+                    if (e.target.value.length <= 500) {
+                      setWizardData(prev => ({ ...prev, description: e.target.value }));
+                    }
+                  }}
                   placeholder="例如：我希望背景是深蓝色的，按钮要有点击音效，计分板在顶部..."
                   className="w-full h-40 bg-transparent border-none rounded-xl p-4 text-white placeholder-slate-500 focus:ring-0 resize-none leading-relaxed"
                 ></textarea>
+                <div className="absolute bottom-2 right-4 text-xs text-slate-500">
+                  {wizardData.description.length}/500
+                </div>
               </div>
               <div className="flex justify-between items-center pt-4">
                 <button onClick={() => setStep('features')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-800 transition">

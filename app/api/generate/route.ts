@@ -37,7 +37,8 @@ export async function POST(request: Request) {
     if (!response.ok) {
         const errorText = await response.text();
         console.error('Upstream Error:', response.status, errorText);
-        return NextResponse.json({ error: 'Generation failed' }, { status: response.status });
+        // Return the actual error from upstream for debugging
+        return NextResponse.json({ error: `Generation failed: ${errorText}` }, { status: response.status });
     }
 
     // 透传流式响应
