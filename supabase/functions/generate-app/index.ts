@@ -36,7 +36,7 @@ serve(async (req) => {
     }
 
     // 2. 输入验证 (Input Validation)
-    const { system_prompt, user_prompt } = await req.json();
+    const { system_prompt, user_prompt, type } = await req.json();
     
     if (!user_prompt) throw new Error('Missing user_prompt');
     // Increased limit to 50,000 chars to support full file modification context
@@ -53,8 +53,8 @@ serve(async (req) => {
 
     const userId = user.id;
     const endpoint = 'generate-app';
-    const limitMin = 5;   // 每分钟 5 次
-    const limitDay = 50;  // 每天 50 次
+    const limitMin = 20;   // 每分钟 20 次 (Increased for testing)
+    const limitDay = 200;  // 每天 200 次 (Increased for testing)
 
     const now = new Date();
     const today = now.toISOString().split('T')[0];
@@ -116,6 +116,39 @@ serve(async (req) => {
     if (upsertError) {
       console.error('Rate limit update error:', upsertError);
       // 可以选择忽略此错误继续，或者报错。为了用户体验，这里只记录日志。
+    }
+
+    // 4. Credit Deduction (Server-side Authority)
+    const isModification = type === 'modification';
+    const creditField = isModification ? 'modification_credits' : 'generation_credits';
+    
+    // Fetch current credits
+    const { data: profile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select(creditField)
+        .eq('id', userId)
+        .single();
+        
+    if (profileError || !profile) {
+        console.error('Profile fetch error:', profileError);
+        return new Response(JSON.stringify({ error: 'Failed to fetch user profile' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
+    const currentCredits = profile[creditField] ?? 0;
+    
+    if (currentCredits <= 0) {
+        return new Response(JSON.stringify({ error: isModification ? '您的修改次数已用完' : '您的创建次数已用完' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
+    // Deduct credit
+    const { error: creditUpdateError } = await supabaseAdmin
+        .from('profiles')
+        .update({ [creditField]: currentCredits - 1 })
+        .eq('id', userId);
+        
+    if (creditUpdateError) {
+        console.error('Credit update error:', creditUpdateError);
+        return new Response(JSON.stringify({ error: 'Failed to deduct credits' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // --- SECURITY CHECK END ---

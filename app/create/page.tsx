@@ -312,6 +312,7 @@ root.render(<App/>);
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
+          type: isModification ? 'modification' : 'generation',
           system_prompt: `You are an expert frontend developer specializing in ${wizardData.device === 'desktop' ? 'desktop' : 'mobile-first'} web applications. You will be given a description of a web application, and you must generate the full HTML code for it in a single file.
 
 Requirements:
@@ -366,19 +367,13 @@ Requirements:
       }
       if (!response.body) throw new Error('No response body');
 
-      // Deduct credits on successful start
+      // Deduct credits on successful start (Optimistic UI update only)
       if (userId) {
         const newCredits = isModification ? modificationCredits - 1 : generationCredits - 1;
-        const updateField = isModification ? 'modification_credits' : 'generation_credits';
         
         // Optimistic update
         if (isModification) setModificationCredits(newCredits);
         else setGenerationCredits(newCredits);
-        
-        // Background update
-        supabase.from('profiles').update({ [updateField]: newCredits }).eq('id', userId).then(({ error }) => {
-            if (error) console.error('Failed to update credits', error);
-        });
       }
 
       const reader = response.body.getReader();
