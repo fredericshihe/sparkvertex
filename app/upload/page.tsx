@@ -309,11 +309,22 @@ export default function UploadPage() {
   const [tags, setTags] = useState<string[]>(['HTML5', 'Tool']);
   const [tagInput, setTagInput] = useState('');
   const [publishedId, setPublishedId] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     checkAuth();
+    
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
     if (editId) {
       setIsEditing(true);
       loadItemData(editId);
@@ -395,7 +406,9 @@ export default function UploadPage() {
 
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    setUser(session?.user ?? null);
+    // Only force login if editing an existing item, otherwise let them browse/upload (upload click will trigger login)
+    if (!session && editId) {
       openLoginModal();
     }
   };
@@ -424,8 +437,7 @@ export default function UploadPage() {
     e.preventDefault();
 
     // Auth Check
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    if (!user) {
       openLoginModal();
       return;
     }
@@ -909,9 +921,8 @@ export default function UploadPage() {
         <>
           <div 
             className="glass-panel rounded-2xl p-10 text-center border-2 border-dashed border-slate-600 hover:border-brand-500 transition cursor-pointer group"
-            onClick={async () => {
-              const { data: { session } } = await supabase.auth.getSession();
-              if (!session) {
+            onClick={() => {
+              if (!user) {
                 openLoginModal();
                 return;
               }
