@@ -60,24 +60,34 @@ export async function POST(request: Request) {
             messages: [
               {
                 role: "system",
-                content: `You are an expert Icon Designer. Your task is to generate a clean, high-contrast app icon prompt based on the user's input. The output must be suitable for a 512x512 resolution, meaning details must be bold and simple.
+                content: `You are an expert Icon Designer. Your task is to generate a creative, unique, and genre-appropriate app icon prompt based on the user's input.
 
 # Analysis & Strategy
-1.  **Extract Keyword:** Identify the single most representative object (e.g., "Rocket", "Pen", "Shield").
-2.  **Simplification:** Discard background scenery or tiny details. Focus on the object.
-3.  **Composition:** The object must be centered. The background must fill the entire image edge-to-edge.
+1.  **Analyze Genre & Vibe:**
+    - **Game:** Fun, dynamic, maybe Pixel Art, Cartoon, or Low Poly.
+    - **Tool/Utility:** Clean, precise, Flat Design, Neumorphism, or Minimalist Line Art.
+    - **Business/Finance:** Professional, abstract, Geometric, Deep colors, Glassmorphism.
+    - **Lifestyle/Social:** Warm, soft, Hand-drawn, or Pastel colors.
+    - **Cyberpunk/Tech:** Neon, glowing, Glitch effect, High contrast.
+
+2.  **Select Style:** Choose the ONE most appropriate visual style from the list above. **DO NOT default to "Modern 3D minimalist" unless it truly fits.**
+
+3.  **Composition:**
+    - The icon must be suitable for a square format.
+    - Keep the main subject clear and recognizable even at small sizes.
+    - Background should complement the subject, not just be a generic gradient.
 
 # Prompt Generation
 Generate the image prompt using this strict format:
 
-"Mobile app icon for '{App Title}', [Core Object] in the center. Style: Modern 3D minimalist, smooth matte texture. Lighting: Soft studio light, single light source. Colors: [Vibrant Color] gradient background filling the entire canvas. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself."
+"Mobile app icon for '{App Title}', [Core Object/Symbol] in the center. Style: [Specific Style Name], [Style Descriptors]. Lighting: [Lighting suitable for style]. Colors: [Color Palette suitable for vibe]. Composition: [Composition details]. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself."
 
 # Execution
 Output ONLY the generated prompt string. Do not include any other text.`
               },
               {
                 role: "user",
-                content: `App Name: ${title}\nDescription: ${description}`
+                content: `App Name: \${title}\nDescription: \${description}`
               }
             ],
             temperature: 0.7
@@ -99,10 +109,26 @@ Output ONLY the generated prompt string. Do not include any other text.`
 
     // Fallback if DeepSeek failed or not available
     if (!finalPrompt) {
+      // Simple heuristic for fallback style
+      let style = "Modern 3D minimalist, smooth matte texture";
+      let colors = "Vibrant gradient background";
+      
+      const lowerDesc = (description || prompt || "").toLowerCase();
+      if (lowerDesc.includes("game") || lowerDesc.includes("play")) {
+        style = "Playful 3D cartoon style, bubbly shapes";
+        colors = "Bright and energetic colors";
+      } else if (lowerDesc.includes("tool") || lowerDesc.includes("utility")) {
+        style = "Clean flat design, vector art";
+        colors = "Professional solid background";
+      } else if (lowerDesc.includes("cyber") || lowerDesc.includes("future")) {
+        style = "Cyberpunk neon style, glowing edges";
+        colors = "Dark background with neon accents";
+      }
+
       if (title && description) {
-        finalPrompt = `Mobile app icon for "${title}", ${description} in the center. Style: Modern 3D minimalist, smooth matte texture. Lighting: Soft studio light, single light source. Colors: Vibrant gradient background filling the entire canvas. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself.`;
+        finalPrompt = \`Mobile app icon for "\${title}", \${description} in the center. Style: \${style}. Lighting: Studio lighting. Colors: \${colors}. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself.\`;
       } else {
-        finalPrompt = `Mobile app icon for "${prompt}", ${prompt} in the center. Style: Modern 3D minimalist, smooth matte texture. Lighting: Soft studio light, single light source. Colors: Vibrant gradient background filling the entire canvas. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself.`;
+        finalPrompt = \`Mobile app icon for "\${prompt}", \${prompt} in the center. Style: \${style}. Lighting: Studio lighting. Colors: \${colors}. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself.\`;
       }
     }
 

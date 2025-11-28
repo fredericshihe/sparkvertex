@@ -420,8 +420,16 @@ export default function UploadPage() {
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
+
+    // Auth Check
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      openLoginModal();
+      return;
+    }
+
     const selectedFile = e.dataTransfer.files?.[0];
     if (selectedFile) {
       if (selectedFile.name.endsWith('.html') || selectedFile.type === 'text/html') {
@@ -901,7 +909,14 @@ export default function UploadPage() {
         <>
           <div 
             className="glass-panel rounded-2xl p-10 text-center border-2 border-dashed border-slate-600 hover:border-brand-500 transition cursor-pointer group"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={async () => {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session) {
+                openLoginModal();
+                return;
+              }
+              fileInputRef.current?.click();
+            }}
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
           >
