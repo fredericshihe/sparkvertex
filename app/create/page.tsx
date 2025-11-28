@@ -999,6 +999,14 @@ Requirements:
           </div>
         </div>
       </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen text-white relative">
+      {step === 'generating' ? renderGenerating() : 
+       step === 'preview' ? renderPreview() : 
+       renderWizard()}
 
       {/* Credit Exhausted Modal */}
       {isCreditModalOpen && (
