@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server';
 
 // 使用 Edge Runtime 以支持流式传输
 export const runtime = 'edge';
+// 增加最大执行时间 (Vercel Pro/Hobby 限制不同，但设置为最大值有助于避免 504)
+export const maxDuration = 60; 
 
 export async function POST(request: Request) {
   try {
