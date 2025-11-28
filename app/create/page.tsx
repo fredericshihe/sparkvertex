@@ -113,21 +113,20 @@ export default function CreatePage() {
     if (session) {
       setUserId(session.user.id);
       
-      // Fetch user credits and reset logic
+      // Fetch user credits
       const { data } = await supabase
         .from('profiles')
-        .select('generation_credits, modification_credits, last_reset_date')
+        .select('generation_credits, modification_credits')
         .eq('id', session.user.id)
         .single();
         
       if (data) {
-        // No daily reset logic anymore - fixed quota
-        setGenerationCredits(data.generation_credits ?? 3);
-        setModificationCredits(data.modification_credits ?? 10);
+        setGenerationCredits(data.generation_credits ?? 2);
+        setModificationCredits(data.modification_credits ?? 6);
       } else {
         // New profile handling (if not created by trigger)
-        setGenerationCredits(3);
-        setModificationCredits(10);
+        setGenerationCredits(2);
+        setModificationCredits(6);
       }
     }
   };
