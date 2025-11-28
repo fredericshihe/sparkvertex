@@ -345,7 +345,7 @@ Requirements:
         if (response.status === 403) {
             errorMessage = `服务暂时不可用 (403): ${errorMessage}`;
         } else if (response.status === 429) {
-            errorMessage = '请求过于频繁，请稍后再试。';
+            errorMessage = `请求过于频繁 (429): ${errorMessage}`;
         } else if (response.status === 500) {
             errorMessage = '服务器内部错误，请稍后重试。';
         }
