@@ -14,6 +14,12 @@ const CATEGORIES = [
   { id: 'info', label: '资讯', icon: 'fa-newspaper', desc: '展示、列表、博客' }
 ];
 
+const DEVICES = [
+  { id: 'mobile', label: '手机端', icon: 'fa-mobile-screen', desc: '竖屏设计，大按钮，适合单手操作' },
+  { id: 'tablet', label: '平板端', icon: 'fa-tablet-screen-button', desc: '自适应布局，兼顾触控与展示' },
+  { id: 'desktop', label: '电脑端', icon: 'fa-desktop', desc: '宽屏展示，精细交互，鼠标操作' }
+];
+
 const STYLES = [
   { id: 'cyberpunk', label: '赛博朋克', color: 'from-pink-500 to-cyan-500', desc: '霓虹、故障风、高对比度' },
   { id: 'minimalist', label: '极简主义', color: 'from-slate-200 to-slate-400', desc: '干净、留白、黑白灰' },
@@ -47,9 +53,10 @@ export default function CreatePage() {
   const { success: toastSuccess, error: toastError } = useToast();
   
   // State: Wizard
-  const [step, setStep] = useState<'category' | 'style' | 'features' | 'desc' | 'generating' | 'preview'>('category');
+  const [step, setStep] = useState<'category' | 'device' | 'style' | 'features' | 'desc' | 'generating' | 'preview'>('category');
   const [wizardData, setWizardData] = useState({
     category: '',
+    device: 'mobile',
     style: '',
     features: '',
     description: ''
@@ -128,6 +135,11 @@ export default function CreatePage() {
   // --- Wizard Handlers ---
   const handleCategorySelect = (id: string) => {
     setWizardData(prev => ({ ...prev, category: id, features: '' }));
+    setStep('device');
+  };
+
+  const handleDeviceSelect = (id: string) => {
+    setWizardData(prev => ({ ...prev, device: id }));
     setStep('style');
   };
 
@@ -151,9 +163,10 @@ export default function CreatePage() {
     const constructPrompt = (isModification = false, modificationRequest = '') => {
     const categoryLabel = CATEGORIES.find(c => c.id === wizardData.category)?.label || 'App';
     const styleLabel = STYLES.find(s => s.id === wizardData.style)?.label || 'Modern';
+    const deviceLabel = DEVICES.find(d => d.id === wizardData.device)?.label || 'Mobile';
     
     // Compact description
-    let description = `Type:${categoryLabel}, Style:${styleLabel}. Features:${wizardData.features}. Notes:${wizardData.description}`;
+    let description = `Type:${categoryLabel}, Device:${deviceLabel}, Style:${styleLabel}. Features:${wizardData.features}. Notes:${wizardData.description}`;
 
     if (isModification) {
       // User requested full HTML context to avoid issues
@@ -164,13 +177,14 @@ export default function CreatePage() {
 
     return `
 # Task
-Create single-file React app: ${categoryLabel} Generator.
+Create single-file React app: ${categoryLabel} Generator for ${deviceLabel}.
 ${description}
 
 # Specs
 - Lang: Chinese
 - Stack: React 18, Tailwind CSS (CDN)
-- Mobile-first, dark mode (#0f172a)
+- Device Target: ${deviceLabel} (${wizardData.device === 'mobile' ? 'Mobile-first, touch-friendly' : wizardData.device === 'desktop' ? 'Desktop-optimized, mouse-friendly' : 'Responsive, tablet-friendly'})
+- Dark mode (#0f172a)
 - Single HTML file, NO markdown.
 
 # Template
@@ -298,15 +312,13 @@ root.render(<App/>);
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          system_prompt: `You are an expert frontend developer specializing in mobile-first web applications. You will be given a description of a web application, and you must generate the full HTML code for it in a single file.
+          system_prompt: `You are an expert frontend developer specializing in ${wizardData.device === 'desktop' ? 'desktop' : 'mobile-first'} web applications. You will be given a description of a web application, and you must generate the full HTML code for it in a single file.
 
 Requirements:
 1. **Language**: All generated text and content MUST be in Simplified Chinese (简体中文).
-2. **Mobile-First Design**: The UI/UX must be highly optimized for mobile devices. It should feel like a native app when opened in PWA mode.
-   - Use large, touch-friendly tap targets (min 44px).
-   - Use bottom navigation or accessible menus for mobile.
-   - Ensure fonts and spacing are optimized for small screens.
-   - Prevent horizontal scrolling on mobile.
+2. **Device Optimization**: The UI/UX must be highly optimized for ${wizardData.device} devices.
+   ${wizardData.device === 'mobile' ? '- Use large, touch-friendly tap targets (min 44px).\n   - Use bottom navigation or accessible menus for mobile.\n   - Ensure fonts and spacing are optimized for small screens.\n   - Prevent horizontal scrolling on mobile.' : ''}
+   ${wizardData.device === 'desktop' ? '- Use dense information density appropriate for large screens.\n   - Support hover states and mouse interactions.\n   - Use top navigation bars and sidebars.' : ''}
 3. **Tech Stack**:
    - Use Tailwind CSS for styling via CDN.
    - Use React and ReactDOM via CDN (UMD build).
@@ -435,6 +447,8 @@ Requirements:
       console.log('Generated Code:', cleanCode);
       setGeneratedCode(cleanCode);
       setStep('preview');
+      // Auto-switch preview mode based on selection
+      setPreviewMode(wizardData.device as any);
       
       if (isModification) {
         setChatHistory(prev => [...prev, { role: 'ai', content: '代码已更新，请查看预览效果。' }]);
@@ -500,8 +514,8 @@ Requirements:
         {/* Progress Steps */}
         <div className="flex justify-between mb-12 relative max-w-lg mx-auto w-full z-10">
           <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-800 -z-10 rounded-full"></div>
-          {['category', 'style', 'features', 'desc'].map((s, i) => {
-            const steps = ['category', 'style', 'features', 'desc'];
+          {['category', 'device', 'style', 'features', 'desc'].map((s, i) => {
+            const steps = ['category', 'device', 'style', 'features', 'desc'];
             const currentIndex = steps.indexOf(step);
             const stepIndex = steps.indexOf(s);
             const isActive = stepIndex <= currentIndex;
@@ -512,7 +526,7 @@ Requirements:
                   {i + 1}
                 </div>
                 <div className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-colors ${isActive ? 'text-brand-400' : 'text-slate-600'}`}>
-                  {s === 'category' ? '类型' : s === 'style' ? '风格' : s === 'features' ? '功能' : '描述'}
+                  {s === 'category' ? '类型' : s === 'device' ? '设备' : s === 'style' ? '风格' : s === 'features' ? '功能' : '描述'}
                 </div>
               </div>
             );
@@ -544,6 +558,35 @@ Requirements:
             </div>
           )}
 
+          {step === 'device' && (
+            <div className="space-y-8 animate-fade-in">
+              <div className="text-center space-y-2">
+                <h2 className="text-3xl font-bold text-white">选择目标设备</h2>
+                <p className="text-slate-400">我们将根据设备特性优化交互体验</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {DEVICES.map(dev => (
+                  <button
+                    key={dev.id}
+                    onClick={() => handleDeviceSelect(dev.id)}
+                    className="p-6 bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700 hover:border-brand-500 rounded-2xl transition-all group text-left hover:shadow-lg hover:-translate-y-1"
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-slate-900 flex items-center justify-center mb-4 group-hover:scale-110 transition shadow-inner">
+                      <i className={`fa-solid ${dev.icon} text-2xl text-brand-400`}></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">{dev.label}</h3>
+                    <p className="text-sm text-slate-400 leading-relaxed">{dev.desc}</p>
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-center pt-4">
+                <button onClick={() => setStep('category')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-800 transition">
+                  <i className="fa-solid fa-arrow-left"></i> 返回上一步
+                </button>
+              </div>
+            </div>
+          )}
+
           {step === 'style' && (
             <div className="space-y-8 animate-fade-in">
               <div className="text-center space-y-2">
@@ -567,7 +610,7 @@ Requirements:
                 ))}
               </div>
               <div className="flex justify-center pt-4">
-                <button onClick={() => setStep('category')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-800 transition">
+                <button onClick={() => setStep('device')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-800 transition">
                   <i className="fa-solid fa-arrow-left"></i> 返回上一步
                 </button>
               </div>
@@ -764,9 +807,9 @@ Requirements:
   );
 
   const renderPreview = () => (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-64px)]">
+    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-64px)] lg:h-[calc(100vh-64px)]">
       {/* Left: Chat & Controls */}
-      <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col">
+      <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col h-[50vh] lg:h-auto">
         <div className="p-4 border-b border-slate-800 flex justify-between items-center">
           <h3 className="font-bold text-white">创作助手</h3>
           <span className="text-xs text-slate-500">剩余修改次数: {modificationCredits}</span>
@@ -850,11 +893,11 @@ Requirements:
       </div>
 
       {/* Right: Preview */}
-      <div className="flex-1 bg-slate-950 relative flex flex-col group">
+      <div className="flex-1 bg-slate-950 relative flex flex-col group h-[50vh] lg:h-auto">
         <div className="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4">
           <span className="text-sm font-bold text-slate-400">预览模式</span>
         </div>
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-4 bg-[url('/grid.svg')]">
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-4 bg-[url('/grid.svg')] pb-20 lg:pb-4">
           <div 
             style={{ 
               aspectRatio: previewMode === 'desktop' ? 'auto' : previewMode === 'tablet' ? '3/4' : '9/19.5' 
