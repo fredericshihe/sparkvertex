@@ -307,9 +307,9 @@ ${description}
 <body>
 <div id="root"></div>
 <script type="text/babel" data-type="module">
-import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0?bundle';
-import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client?bundle';
-import * as LucideReact from 'https://esm.sh/lucide-react@0.263.1?bundle';
+import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
+import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0';
+import * as LucideReact from 'https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0';
 
 const { Camera, Home, Settings, User, Menu, X, ChevronLeft, ChevronRight, ...LucideIcons } = LucideReact;
 
