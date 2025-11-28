@@ -4,6 +4,52 @@
  */
 export const getPreviewContent = (content: string | null) => {
   if (!content) return '';
+
+  // --- HOT PATCH: Fix Legacy Apps (White Screen Issue) ---
+  // Replace unstable/broken CDN links in existing database records with stable ones.
+  let patchedContent = content;
+
+  // 1. Fix React & ReactDOM (Use cdnjs for stability)
+  patchedContent = patchedContent.replace(
+    /<script.*src=".*react(\.development|\.production\.min)\.js".*><\/script>/g,
+    ''
+  ).replace(
+    /<script.*src=".*react-dom(\.development|\.production\.min)\.js".*><\/script>/g,
+    ''
+  );
+
+  // 2. Fix Lucide React (Use specific stable version 0.263.1 from jsdelivr)
+  patchedContent = patchedContent.replace(
+    /<script.*src=".*lucide-react.*\.js".*><\/script>/g,
+    ''
+  );
+
+  // 3. Fix Babel (Use cdnjs)
+  patchedContent = patchedContent.replace(
+    /<script.*src=".*babel.*\.js".*><\/script>/g,
+    ''
+  );
+
+  // 4. Re-inject stable scripts at the beginning of head
+  // We inject them before any other scripts to ensure they are available.
+  const stableScripts = `
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
+    <script>
+      // Polyfill for legacy code expecting global lucideReact
+      window.lucideReact = window.lucideReact || {};
+    </script>
+  `;
+
+  if (patchedContent.includes('<head>')) {
+    patchedContent = patchedContent.replace('<head>', `<head>${stableScripts}`);
+  } else {
+    patchedContent = `<head>${stableScripts}</head>${patchedContent}`;
+  }
+  // -------------------------------------------------------
   
   // Inject viewport for mobile adaptation and disable selection/callout
   // viewport-fit=cover is important for notches
@@ -156,7 +202,7 @@ export const getPreviewContent = (content: string | null) => {
     body { -ms-overflow-style: none; scrollbar-width: none; }
   </style>`;
   
-  let newContent = content;
+  let newContent = patchedContent;
   if (newContent.includes('<head>')) {
       newContent = newContent.replace('<head>', `<head>${viewportMeta}${safetyScript}${injectedStyle}`);
   } else if (newContent.includes('<html>')) {
