@@ -387,6 +387,8 @@ Requirements:
    - Use Lucide React icons via CDN (lucide.createIcons()).
 4. **Functionality**: The app should be fully functional and interactive.
 5. **Output Format**: The output must be ONLY valid HTML code, starting with <!DOCTYPE html>. Do not include markdown code blocks (like \`\`\`html).
+   - IMPORTANT: Do not split strings across multiple lines in JSX. Use template literals or concatenation if needed.
+   - IMPORTANT: Ensure all JSX attributes are properly closed.
 6. **Visuals**: Include beautiful, modern, and polished UI components with smooth transitions.`,
           user_prompt: prompt
         })
