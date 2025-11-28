@@ -65,12 +65,12 @@ export async function POST(request: Request) {
 # Analysis & Strategy
 1.  **Extract Keyword:** Identify the single most representative object (e.g., "Rocket", "Pen", "Shield").
 2.  **Simplification:** Discard background scenery or tiny details. Focus on the object.
-3.  **Composition:** The object must be centered with clear padding from the edges to allow for rounded corner cropping.
+3.  **Composition:** The object must be centered. The background must fill the entire image edge-to-edge.
 
 # Prompt Generation
 Generate the image prompt using this strict format:
 
-"Mobile app icon for '{App Title}', [Core Object] in the center. Style: Modern 3D minimalist, smooth matte texture. Lighting: Soft studio light, single light source. Colors: [Vibrant Color] gradient background, white or contrasting object. Composition: Centered, bold shapes, high readability at small sizes. Resolution: High definition, sharp edges. No text, no fine details, no complex background."
+"Mobile app icon for '{App Title}', [Core Object] in the center. Style: Modern 3D minimalist, smooth matte texture. Lighting: Soft studio light, single light source. Colors: [Vibrant Color] gradient background filling the entire canvas. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself."
 
 # Execution
 Output ONLY the generated prompt string. Do not include any other text.`
@@ -100,9 +100,9 @@ Output ONLY the generated prompt string. Do not include any other text.`
     // Fallback if DeepSeek failed or not available
     if (!finalPrompt) {
       if (title && description) {
-        finalPrompt = `Mobile app icon for "${title}", ${description} in the center. Style: Modern 3D minimalist, smooth matte texture. Lighting: Soft studio light, single light source. Colors: Vibrant gradient background, white or contrasting object. Composition: Centered, bold shapes, high readability at small sizes. Resolution: High definition, sharp edges. No text, no fine details, no complex background.`;
+        finalPrompt = `Mobile app icon for "${title}", ${description} in the center. Style: Modern 3D minimalist, smooth matte texture. Lighting: Soft studio light, single light source. Colors: Vibrant gradient background filling the entire canvas. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself.`;
       } else {
-        finalPrompt = `Mobile app icon for "${prompt}", ${prompt} in the center. Style: Modern 3D minimalist, smooth matte texture. Lighting: Soft studio light, single light source. Colors: Vibrant gradient background, white or contrasting object. Composition: Centered, bold shapes, high readability at small sizes. Resolution: High definition, sharp edges. No text, no fine details, no complex background.`;
+        finalPrompt = `Mobile app icon for "${prompt}", ${prompt} in the center. Style: Modern 3D minimalist, smooth matte texture. Lighting: Soft studio light, single light source. Colors: Vibrant gradient background filling the entire canvas. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself.`;
       }
     }
 

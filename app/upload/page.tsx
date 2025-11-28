@@ -858,7 +858,7 @@ export default function UploadPage() {
 
   const goToDetail = () => {
     if (publishedId) {
-      router.push(`/explore?work=${publishedId}`);
+      router.push(`/p/${publishedId}`);
     }
   };
 
@@ -1394,7 +1394,7 @@ export default function UploadPage() {
               返回探索
             </button>
             <button onClick={goToDetail} className="px-8 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold transition shadow-lg shadow-brand-500/30">
-              分享作品
+              查看作品
             </button>
           </div>
         </div>

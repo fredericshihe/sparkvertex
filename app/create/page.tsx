@@ -78,6 +78,10 @@ export default function CreatePage() {
   const [generationCredits, setGenerationCredits] = useState(2);
   const [modificationCredits, setModificationCredits] = useState(6);
   const [userId, setUserId] = useState<string | null>(null);
+
+  // State: Credit Modal
+  const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
+  const [creditModalType, setCreditModalType] = useState<'generation' | 'modification'>('generation');
   
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -282,12 +286,14 @@ root.render(<App/>);
     // Check Credits
     if (isModification) {
       if (modificationCredits <= 0) {
-        toastError('您的修改次数已用完');
+        setCreditModalType('modification');
+        setIsCreditModalOpen(true);
         return;
       }
     } else {
       if (generationCredits <= 0) {
-        toastError('您的创建次数已用完');
+        setCreditModalType('generation');
+        setIsCreditModalOpen(true);
         return;
       }
     }
@@ -906,13 +912,13 @@ Requirements:
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !isGenerating && chatInput.trim() && startGeneration(true)}
-              placeholder={modificationCredits <= 0 ? "修改次数已用完" : "例如：把背景改成黑色，按钮变大一点..."}
-              disabled={isGenerating || modificationCredits <= 0}
+              placeholder="例如：把背景改成黑色，按钮变大一点..."
+              disabled={isGenerating}
               className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-4 pr-12 py-3 text-white focus:border-brand-500 outline-none disabled:opacity-50"
             />
             <button 
               onClick={() => startGeneration(true)}
-              disabled={isGenerating || !chatInput.trim() || modificationCredits <= 0}
+              disabled={isGenerating || !chatInput.trim()}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-brand-600 hover:bg-brand-500 text-white rounded-lg flex items-center justify-center transition disabled:opacity-50 disabled:bg-slate-700"
             >
               {isGenerating ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-paper-plane"></i>}
@@ -993,14 +999,42 @@ Requirements:
           </div>
         </div>
       </div>
-    </div>
-  );
 
-  return (
-    <div className="min-h-screen text-white relative">
-      {step === 'generating' ? renderGenerating() : 
-       step === 'preview' ? renderPreview() : 
-       renderWizard()}
+      {/* Credit Exhausted Modal */}
+      {isCreditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#1a1b26] border border-gray-800 rounded-xl p-6 max-w-md w-full shadow-2xl transform transition-all">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i className="fa-solid fa-triangle-exclamation text-2xl text-red-500"></i>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">
+                {creditModalType === 'generation' ? '创建次数不足' : '修改次数不足'}
+              </h3>
+              <p className="text-gray-400">
+                {creditModalType === 'generation' 
+                  ? '您的应用创建次数已用完。想要继续创作，请前往个人中心获取更多额度。' 
+                  : '您的应用修改次数已用完。想要继续完善，请前往个人中心获取更多额度。'}
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsCreditModalOpen(false)}
+                className="flex-1 px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium transition-colors"
+              >
+                稍后再说
+              </button>
+              <button
+                onClick={() => router.push('/profile')}
+                className="flex-1 px-4 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium transition-all shadow-lg shadow-blue-900/20"
+              >
+                获取额度
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
