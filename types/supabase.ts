@@ -21,6 +21,7 @@ export interface Item {
   downloads?: number;
   icon_url?: string;
   is_public?: boolean;
+  thumbnail_url?: string;
 }
 
 export interface Order {

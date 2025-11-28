@@ -60,34 +60,50 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   }, []);
 
   const generatePreviewHtml = (item: Item) => {
-    if (!item.content) {
+    // 1. 优先显示缩略图 (如果有)
+    if (item.thumbnail_url) {
       return (
-        <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-700 to-slate-800'} opacity-20 flex items-center justify-center`}>
-          <i className="fa-solid fa-code text-4xl text-white/50"></i>
-        </div>
+        <img 
+          src={item.thumbnail_url} 
+          alt={item.title} 
+          className="absolute inset-0 w-full h-full object-cover"
+          loading="lazy"
+        />
       );
     }
 
-    if (!isVisible) {
-      return (
-        <div className="absolute inset-0 bg-slate-800 flex items-center justify-center">
-          <div className="w-6 h-6 border-2 border-slate-600 border-t-brand-500 rounded-full animate-spin"></div>
-        </div>
-      );
-    }
+    // 2. 静态预览模式 (默认) - 避免在列表页加载 iframe
+    // 使用渐变背景 + 图标代替沉重的 iframe
+    const gradients = [
+      'from-pink-500 to-rose-500',
+      'from-blue-500 to-cyan-500',
+      'from-violet-500 to-purple-500',
+      'from-emerald-500 to-teal-500',
+      'from-amber-500 to-orange-500'
+    ];
+    // 根据 ID 确定性选择颜色，保证每次渲染一致
+    const colorIndex = item.id.charCodeAt(0) % gradients.length;
+    const bgGradient = gradients[colorIndex];
 
-    // Use srcDoc for better compatibility and performance
-    const previewContent = getPreviewContent(item.content);
-    
     return (
-      <iframe 
-        srcDoc={previewContent}
-        className="absolute inset-0 w-full h-full border-0 pointer-events-none bg-white" 
-        loading="lazy" 
-        sandbox="allow-scripts allow-forms allow-modals"
-        allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay"
-      />
+      <div className={`absolute inset-0 bg-gradient-to-br ${bgGradient} flex flex-col items-center justify-center p-6 text-white`}>
+        <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-3 shadow-inner border border-white/30">
+          <i className={`fa-solid ${getIconForCategory(item.category)} text-3xl text-white drop-shadow-md`}></i>
+        </div>
+        <div className="text-xs font-medium opacity-90 bg-black/20 px-3 py-1 rounded-full backdrop-blur-md border border-white/10">
+          点击预览
+        </div>
+      </div>
     );
+  };
+
+  const getIconForCategory = (category?: string) => {
+    switch (category) {
+      case 'game': return 'fa-gamepad';
+      case 'tool': return 'fa-screwdriver-wrench';
+      case 'info': return 'fa-newspaper';
+      default: return 'fa-cube';
+    }
   };
 
   return (
