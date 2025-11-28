@@ -98,7 +98,16 @@ export const getPreviewContent = (content: string | null) => {
 
       // Error handling
       window.onerror = function(msg, url, line) {
-        console.error('Preview Error:', msg);
+        // Suppress "Script error." which is common in cross-origin iframes and provides no value
+        if (msg === 'Script error.' || msg === 'Script error') {
+            return true;
+        }
+        // Suppress "SecurityError: The operation is insecure." which happens when accessing storage in restricted iframes
+        if (String(msg).includes('SecurityError') || String(msg).includes('The operation is insecure')) {
+            return true;
+        }
+        console.log('App Error:', msg);
+        return false;
       };
 
       // Mobile Audio Unlocker
