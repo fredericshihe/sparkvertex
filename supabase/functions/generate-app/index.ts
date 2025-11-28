@@ -120,8 +120,12 @@ serve(async (req) => {
 
     // --- SECURITY CHECK END ---
 
-    // 使用用户提供的 Google API Key
-    const apiKey = Deno.env.get('GOOGLE_API_KEY') || 'AIzaSyA9HTO4tanLciwgi2OD8adTAYS7-F1ji8o';
+    // 使用环境变量中的 Google API Key
+    const apiKey = Deno.env.get('GOOGLE_API_KEY');
+    if (!apiKey) {
+      console.error('Missing GOOGLE_API_KEY environment variable');
+      return new Response(JSON.stringify({ error: 'Server Configuration Error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     console.log('Using Google Gemini API (OpenAI Compatible)...');
 
