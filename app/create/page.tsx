@@ -301,22 +301,21 @@ ${description}
     }
   }
 </script>
-<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
 <style>body{-webkit-user-select:none;user-select:none;background:#0f172a;color:white}::-webkit-scrollbar{display:none}</style>
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel">
-const {useState,useEffect,useRef}=React;
-const LucideLib = window.lucideReact || {};
-const {Camera, Home, Settings, User, Menu, X, ChevronLeft, ChevronRight, ...LucideIcons} = LucideLib;
+<script type="text/babel" data-type="module">
+import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0?bundle';
+import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client?bundle';
+import * as LucideReact from 'https://esm.sh/lucide-react@0.263.1?bundle';
+
+const { Camera, Home, Settings, User, Menu, X, ChevronLeft, ChevronRight, ...LucideIcons } = LucideReact;
+
 // YOUR CODE
 const App=()=>{return <div className="min-h-screen w-full">...</div>};
-const root=ReactDOM.createRoot(document.getElementById('root'));
+const root = createRoot(document.getElementById('root'));
 root.render(<App/>);
 </script></body></html>
     `;
