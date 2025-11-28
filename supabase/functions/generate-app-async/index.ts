@@ -66,6 +66,10 @@ serve(async (req) => {
     const apiKey = Deno.env.get('GOOGLE_API_KEY');
     const modelName = Deno.env.get('GOOGLE_MODEL_NAME') || 'gemini-1.5-pro-latest'; // Use latest pro
 
+    if (!apiKey) {
+        throw new Error('Missing GOOGLE_API_KEY');
+    }
+
     const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
       method: 'POST',
       headers: {
@@ -85,7 +89,8 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Gemini API Error: ${errorText}`);
+      console.error('Gemini API Error:', response.status, errorText);
+      throw new Error(`Gemini API Error: ${response.status} ${errorText}`);
     }
 
     // 7. Process Stream & Update DB
