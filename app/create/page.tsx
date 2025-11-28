@@ -428,13 +428,21 @@ Requirements:
           (payload) => {
             const newTask = payload.new as any;
             if (newTask.result_code) {
-                setStreamingCode(newTask.result_code);
-                hasStartedStreaming = true;
+                // Only update streaming code if status is processing
+                // If completed, we will handle it in the completed block
+                if (newTask.status === 'processing') {
+                    setStreamingCode(newTask.result_code);
+                    hasStartedStreaming = true;
+                }
             }
             
             if (newTask.status === 'completed') {
                 // Finish
                 let cleanCode = newTask.result_code || '';
+                
+                // Ensure we have the full content from the final update
+                setStreamingCode(cleanCode);
+                
                 // ... (Cleaning logic same as before)
                 cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
                 const htmlStart = cleanCode.indexOf('<!DOCTYPE html>');

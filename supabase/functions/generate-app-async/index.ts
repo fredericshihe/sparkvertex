@@ -136,17 +136,20 @@ serve(async (req) => {
 
         // Update DB every 1 second or 1000 chars to avoid rate limits on DB
         if (Date.now() - lastUpdate > 1000 || fullContent.length - buffer.length > 1000) {
-            await supabaseAdmin
-                .from('generation_tasks')
-                .update({ result_code: fullContent })
-                .eq('id', taskId);
-            buffer = fullContent;
-            lastUpdate = Date.now();
+            // Only update if we have new content
+            if (fullContent.length > buffer.length) {
+                await supabaseAdmin
+                    .from('generation_tasks')
+                    .update({ result_code: fullContent })
+                    .eq('id', taskId);
+                buffer = fullContent;
+                lastUpdate = Date.now();
+            }
         }
       }
     }
 
-    // Final Update
+    // Final Update - Ensure we write everything
     await supabaseAdmin
         .from('generation_tasks')
         .update({ result_code: fullContent, status: 'completed' })
