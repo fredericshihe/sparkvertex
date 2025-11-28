@@ -122,6 +122,8 @@ serve(async (req) => {
 
     // 使用环境变量中的 Google API Key
     const apiKey = Deno.env.get('GOOGLE_API_KEY');
+    const modelName = Deno.env.get('GOOGLE_MODEL_NAME') || 'gemini-3-pro-preview';
+    
     if (!apiKey) {
       console.error('Missing GOOGLE_API_KEY environment variable');
       return new Response(JSON.stringify({ error: 'Server Configuration Error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -138,8 +140,8 @@ serve(async (req) => {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'gemini-3-pro-preview', // 使用 Google Gemini 3.0 Preview 模型
-        reasoning_effort: 'high', // 启用高强度思考
+        model: modelName,
+        // reasoning_effort: 'high', // Not supported on 1.5-pro
         messages: [
           {
             role: 'system',
@@ -158,8 +160,7 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error('Google API Error:', response.status, errorText);
       return new Response(JSON.stringify({
-        error: 'Generation failed', // 隐藏具体的上游错误信息
-        // details: errorText // 移除详细错误信息，防止泄露后端技术栈
+        error: errorText || 'Generation failed',
       }), {
         status: response.status,
         headers: {

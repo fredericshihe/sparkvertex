@@ -327,7 +327,30 @@ Requirements:
             body: errorData,
             url: '/api/generate'
         });
-        throw new Error(errorData.error || `Generation failed: ${response.status}`);
+        
+        let errorMessage = errorData.error || `Generation failed: ${response.status}`;
+        
+        // Clean up nested JSON error messages
+        if (errorMessage.includes('{"error":')) {
+            try {
+                const match = errorMessage.match(/({.*})/);
+                if (match) {
+                    const innerError = JSON.parse(match[1]);
+                    errorMessage = innerError.error || errorMessage;
+                }
+            } catch (e) {}
+        }
+
+        // User-friendly messages for common status codes
+        if (response.status === 403) {
+            errorMessage = `服务暂时不可用 (403): ${errorMessage}`;
+        } else if (response.status === 429) {
+            errorMessage = '请求过于频繁，请稍后再试。';
+        } else if (response.status === 500) {
+            errorMessage = '服务器内部错误，请稍后重试。';
+        }
+
+        throw new Error(errorMessage);
       }
       if (!response.body) throw new Error('No response body');
 
@@ -559,7 +582,7 @@ Requirements:
               </div>
               
               {/* Custom Input */}
-              <div className="bg-slate-900/50 p-1 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors relative">
+              <div className="bg-slate-900/50 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors relative overflow-hidden">
                 <textarea
                   value={wizardData.features}
                   onChange={(e) => {
@@ -568,7 +591,7 @@ Requirements:
                     }
                   }}
                   placeholder="例如：我需要一个计分板，左边是红队，右边是蓝队，点击加分..."
-                  className="w-full h-32 bg-transparent border-none rounded-xl p-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-sm leading-relaxed"
+                  className="w-full h-32 bg-transparent border-none outline-none appearance-none p-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-sm leading-relaxed"
                 ></textarea>
                 <div className="absolute bottom-2 right-4 text-xs text-slate-500">
                   {wizardData.features.length}/500
@@ -620,7 +643,7 @@ Requirements:
                 <h2 className="text-3xl font-bold text-white">最后补充</h2>
                 <p className="text-slate-400">还有什么特别的要求吗？比如配色、音效等</p>
               </div>
-              <div className="bg-slate-900/50 p-1 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors relative">
+              <div className="bg-slate-900/50 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors relative overflow-hidden">
                 <textarea
                   value={wizardData.description}
                   onChange={(e) => {
@@ -629,7 +652,7 @@ Requirements:
                     }
                   }}
                   placeholder="例如：我希望背景是深蓝色的，按钮要有点击音效，计分板在顶部..."
-                  className="w-full h-40 bg-transparent border-none rounded-xl p-4 text-white placeholder-slate-500 focus:ring-0 resize-none leading-relaxed"
+                  className="w-full h-40 bg-transparent border-none outline-none appearance-none p-4 text-white placeholder-slate-500 focus:ring-0 resize-none leading-relaxed"
                 ></textarea>
                 <div className="absolute bottom-2 right-4 text-xs text-slate-500">
                   {wizardData.description.length}/500

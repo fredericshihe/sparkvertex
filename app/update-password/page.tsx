@@ -14,6 +14,7 @@ export default function UpdatePassword() {
   const { success, error } = useToast();
 
   const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
     // Listen for auth state changes
@@ -97,8 +98,14 @@ export default function UpdatePassword() {
       if (updateError) throw updateError;
 
       success('密码修改成功，请重新登录');
+      setSuccessMsg('密码修改成功！正在跳转回首页...');
+      
       await supabase.auth.signOut();
-      router.push('/');
+      
+      // Delay redirect to let user see the success message
+      setTimeout(() => {
+        router.push('/');
+      }, 2000);
     } catch (err: any) {
       error(err.message || '修改密码失败');
     } finally {
@@ -118,6 +125,19 @@ export default function UpdatePassword() {
           >
             返回首页
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (successMsg) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-white text-center max-w-md">
+          <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <i className="fa-solid fa-check text-green-500 text-2xl"></i>
+          </div>
+          <p className="text-lg mb-2 text-green-400">{successMsg}</p>
         </div>
       </div>
     );
