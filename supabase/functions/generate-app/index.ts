@@ -163,6 +163,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: modelName,
+        max_tokens: 8192, // Explicitly set max output tokens to prevent truncation
         // reasoning_effort: 'high', // Not supported on 1.5-pro
         messages: [
           {

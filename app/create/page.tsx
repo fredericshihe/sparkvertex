@@ -509,6 +509,16 @@ Requirements:
       if (cleanCode.includes('root.render(<App />') && !cleanCode.includes('root.render(<App />);')) {
         cleanCode = cleanCode.split('root.render(<App />')[0] + 'root.render(<App />);\n    </script>\n</body>\n</html>';
       }
+
+      // Check for severe truncation
+      if (!cleanCode.trim().endsWith('</html>')) {
+        console.warn('Generated code appears truncated');
+        toastError('生成的内容似乎不完整，可能因网络或长度限制中断。');
+        // Attempt to close tags if it looks like it's in the script tag
+        if (!cleanCode.includes('</body>')) {
+             cleanCode += '\n/* Truncated here */\n    </script>\n</body>\n</html>';
+        }
+      }
       
       console.log('Generated Code:', cleanCode);
       setGeneratedCode(cleanCode);
