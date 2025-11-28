@@ -37,17 +37,9 @@ export default function LoginModal() {
     setMessage('');
     try {
       // Determine the redirect URL based on environment
-      let redirectUrl = `${window.location.origin}/auth/callback?next=/update-password`;
+      // Use window.location.origin to dynamically adapt to localhost, IP, or production domain
+      const redirectUrl = `${window.location.origin}/auth/callback?next=/update-password`;
       
-      // Force local IP if we are on localhost or 127.0.0.1 to ensure mobile testing works
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        redirectUrl = 'http://192.168.3.151:3000/auth/callback?next=/update-password';
-      }
-      // If we are already on the IP address, use it directly
-      else if (window.location.hostname === '192.168.3.151') {
-        redirectUrl = 'http://192.168.3.151:3000/auth/callback?next=/update-password';
-      }
-
       console.log('Sending password reset with redirect to:', redirectUrl);
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
