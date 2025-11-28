@@ -118,7 +118,7 @@ serve(async (req) => {
       // 可以选择忽略此错误继续，或者报错。为了用户体验，这里只记录日志。
     }
 
-    // 4. Credit Deduction (Server-side Authority)
+    // 4. Credit Check (No deduction yet)
     const isModification = type === 'modification';
     const creditField = isModification ? 'modification_credits' : 'generation_credits';
     
@@ -138,17 +138,6 @@ serve(async (req) => {
     
     if (currentCredits <= 0) {
         return new Response(JSON.stringify({ error: isModification ? '您的修改次数已用完' : '您的创建次数已用完' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-    
-    // Deduct credit
-    const { error: creditUpdateError } = await supabaseAdmin
-        .from('profiles')
-        .update({ [creditField]: currentCredits - 1 })
-        .eq('id', userId);
-        
-    if (creditUpdateError) {
-        console.error('Credit update error:', creditUpdateError);
-        return new Response(JSON.stringify({ error: 'Failed to deduct credits' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // --- SECURITY CHECK END ---
@@ -201,6 +190,18 @@ serve(async (req) => {
           'Content-Type': 'application/json'
         }
       });
+    }
+
+    // 5. Credit Deduction (Deduct only after successful upstream response)
+    const { error: creditUpdateError } = await supabaseAdmin
+        .from('profiles')
+        .update({ [creditField]: currentCredits - 1 })
+        .eq('id', userId);
+        
+    if (creditUpdateError) {
+        console.error('Credit update error (Post-Generation):', creditUpdateError);
+        // We don't stop the stream here, but we log the error. 
+        // Ideally we should have a reliable queue or transaction, but for now logging is sufficient.
     }
 
     // 3. 响应处理与脱敏 (Response Sanitization)

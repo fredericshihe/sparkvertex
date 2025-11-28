@@ -99,7 +99,42 @@ export default function CreatePage() {
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Realtime subscription for credit updates
+    let profileSubscription: any;
+
+    const setupSubscription = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      profileSubscription = supabase
+        .channel('profile-credits')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${session.user.id}`
+          },
+          (payload) => {
+            const newProfile = payload.new as any;
+            if (newProfile.generation_credits !== undefined) {
+              setGenerationCredits(newProfile.generation_credits);
+            }
+            if (newProfile.modification_credits !== undefined) {
+              setModificationCredits(newProfile.modification_credits);
+            }
+          }
+        )
+        .subscribe();
+    };
+
+    setupSubscription();
+
+    return () => {
+      subscription.unsubscribe();
+      if (profileSubscription) supabase.removeChannel(profileSubscription);
+    };
   }, []);
 
   useEffect(() => {
@@ -367,6 +402,8 @@ Requirements:
       if (!response.body) throw new Error('No response body');
 
       // Deduct credits on successful start (Optimistic UI update only)
+      // Removed optimistic update to rely on Realtime subscription for accuracy
+      /*
       if (userId) {
         const newCredits = isModification ? modificationCredits - 1 : generationCredits - 1;
         
@@ -374,6 +411,7 @@ Requirements:
         if (isModification) setModificationCredits(newCredits);
         else setGenerationCredits(newCredits);
       }
+      */
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
