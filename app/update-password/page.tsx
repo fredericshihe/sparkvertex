@@ -16,10 +16,14 @@ export default function UpdatePassword() {
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
+    // Check for hash in URL (Implicit Flow)
+    const hasHash = typeof window !== 'undefined' && window.location.hash.includes('access_token');
+    
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY' || session) {
         setVerifying(false);
+        setErrorMsg(''); // Clear any previous error
       }
     });
 
@@ -28,17 +32,27 @@ export default function UpdatePassword() {
       if (session) {
         setVerifying(false);
       } else {
-        // Give a grace period
+        // If we have a hash, give it more time to process
+        const waitTime = hasHash ? 5000 : 3000;
+        
         setTimeout(() => {
           supabase.auth.getSession().then(({ data: { session: finalSession } }) => {
             if (!finalSession) {
-              setErrorMsg('链接已失效或未检测到登录状态，请重新发送重置邮件');
+              // Double check if we are still processing the hash
+              if (hasHash && !finalSession) {
+                 // Try to manually recover session from hash if possible, 
+                 // but usually the client does it automatically.
+                 // If it fails after 5 seconds, it's likely invalid.
+                 setErrorMsg('无法验证链接，请确保您在同一个浏览器中打开，或重新发送邮件');
+              } else {
+                 setErrorMsg('链接已失效或未检测到登录状态，请重新发送重置邮件');
+              }
               setVerifying(false);
             } else {
               setVerifying(false);
             }
           });
-        }, 3000);
+        }, waitTime);
       }
     });
 
