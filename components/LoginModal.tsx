@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { useModal } from '@/context/ModalContext';
 
 export default function LoginModal() {
@@ -36,13 +37,25 @@ export default function LoginModal() {
     setLoading(true);
     setMessage('');
     try {
-      // Determine the redirect URL based on environment
-      // Use window.location.origin to dynamically adapt to localhost, IP, or production domain
-      const redirectUrl = `${window.location.origin}/auth/callback?next=/update-password`;
-      
-      console.log('Sending password reset with redirect to:', redirectUrl);
+      // Use a separate client with implicit flow for password reset to support cross-device scenarios
+      // (e.g. request on desktop, open link on mobile)
+      const authClient = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          auth: {
+            flowType: 'implicit',
+          },
+        }
+      );
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // Direct redirect to the update password page, skipping the server-side callback
+      // This allows the client-side library to handle the session from the URL hash
+      const redirectUrl = `${window.location.origin}/update-password`;
+      
+      console.log('Sending password reset (implicit) with redirect to:', redirectUrl);
+
+      const { error } = await authClient.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
       });
       if (error) throw error;
