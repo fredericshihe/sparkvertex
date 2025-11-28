@@ -628,8 +628,16 @@ Requirements:
                   <i className="fa-solid fa-arrow-left"></i> 返回上一步
                 </button>
                 <button 
-                  onClick={() => setStep('desc')}
-                  className="px-6 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold transition shadow-lg shadow-brand-500/20 flex items-center gap-2"
+                  onClick={() => {
+                    if (!wizardData.features.trim()) return;
+                    setStep('desc');
+                  }}
+                  disabled={!wizardData.features.trim()}
+                  className={`px-6 py-2 rounded-lg font-bold transition shadow-lg flex items-center gap-2 ${
+                    !wizardData.features.trim() 
+                      ? 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none' 
+                      : 'bg-brand-600 hover:bg-brand-500 text-white shadow-brand-500/20'
+                  }`}
                 >
                   下一步 <i className="fa-solid fa-arrow-right"></i>
                 </button>
