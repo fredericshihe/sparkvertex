@@ -28,6 +28,11 @@ export async function POST(request: Request) {
     }
 
     // 服务器端请求 Supabase Edge Function，隐藏真实 URL
+    // 增加 signal 以支持取消请求，但这里我们主要关注超时
+    const controller = new AbortController();
+    // 设置 55 秒超时，留 5 秒给 Next.js 处理响应
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
+
     const response = await fetch(`${supabaseUrl}/functions/v1/generate-app`, {
       method: 'POST',
       headers: {
@@ -35,7 +40,10 @@ export async function POST(request: Request) {
         'Authorization': `Bearer ${token}`, // 传递用户 Token
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
         const errorText = await response.text();
