@@ -16,45 +16,61 @@ export default function UpdatePassword() {
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    // Check for hash in URL (Implicit Flow)
-    const hasHash = typeof window !== 'undefined' && window.location.hash.includes('access_token');
-    
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY' || session) {
         setVerifying(false);
-        setErrorMsg(''); // Clear any previous error
+        setErrorMsg('');
       }
     });
 
-    // Initial check
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const initSession = async () => {
+      // 1. Try to manually parse hash if present (Fix for cross-device implicit flow)
+      // This is crucial when the automatic detection fails or is slow
+      if (typeof window !== 'undefined' && window.location.hash && window.location.hash.includes('access_token')) {
+        try {
+          const hash = window.location.hash.substring(1); // remove #
+          const params = new URLSearchParams(hash);
+          const access_token = params.get('access_token');
+          const refresh_token = params.get('refresh_token');
+          
+          if (access_token) {
+            console.log('Manual hash parsing: Found access token');
+            const { data, error } = await supabase.auth.setSession({
+              access_token,
+              refresh_token: refresh_token || '',
+            });
+            
+            if (!error && data.session) {
+              console.log('Manual hash parsing: Session set successfully');
+              setVerifying(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing hash:', e);
+        }
+      }
+
+      // 2. Fallback to standard check
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setVerifying(false);
       } else {
-        // If we have a hash, give it more time to process
-        const waitTime = hasHash ? 5000 : 3000;
-        
-        setTimeout(() => {
-          supabase.auth.getSession().then(({ data: { session: finalSession } }) => {
-            if (!finalSession) {
-              // Double check if we are still processing the hash
-              if (hasHash && !finalSession) {
-                 // Try to manually recover session from hash if possible, 
-                 // but usually the client does it automatically.
-                 // If it fails after 5 seconds, it's likely invalid.
-                 setErrorMsg('无法验证链接，请确保您在同一个浏览器中打开，或重新发送邮件');
-              } else {
-                 setErrorMsg('链接已失效或未检测到登录状态，请重新发送重置邮件');
-              }
-              setVerifying(false);
-            } else {
-              setVerifying(false);
-            }
-          });
-        }, waitTime);
+        // Wait a bit just in case
+        setTimeout(async () => {
+           const { data: { session: finalSession } } = await supabase.auth.getSession();
+           if (finalSession) {
+             setVerifying(false);
+           } else {
+             setErrorMsg('链接已失效或未检测到登录状态，请重新发送重置邮件');
+             setVerifying(false);
+           }
+        }, 3000);
       }
-    });
+    };
+
+    initSession();
 
     return () => subscription.unsubscribe();
   }, [router, error]);
