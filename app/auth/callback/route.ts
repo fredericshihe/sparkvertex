@@ -17,6 +17,9 @@ export async function GET(request: Request) {
     }, {
       cookieOptions: {
         secure: isSecure,
+        path: '/',
+        sameSite: 'lax',
+        domain: '',
       }
     });
     
