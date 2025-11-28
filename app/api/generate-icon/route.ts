@@ -87,7 +87,7 @@ Output ONLY the generated prompt string. Do not include any other text.`
               },
               {
                 role: "user",
-                content: `App Name: \${title}\nDescription: \${description}`
+                content: `App Name: ${title}\nDescription: ${description}`
               }
             ],
             temperature: 0.7
@@ -126,9 +126,9 @@ Output ONLY the generated prompt string. Do not include any other text.`
       }
 
       if (title && description) {
-        finalPrompt = \`Mobile app icon for "\${title}", \${description} in the center. Style: \${style}. Lighting: Studio lighting. Colors: \${colors}. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself.\`;
+        finalPrompt = `Mobile app icon for "${title}", ${description} in the center. Style: ${style}. Lighting: Studio lighting. Colors: ${colors}. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself.`;
       } else {
-        finalPrompt = \`Mobile app icon for "\${prompt}", \${prompt} in the center. Style: \${style}. Lighting: Studio lighting. Colors: \${colors}. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself.\`;
+        finalPrompt = `Mobile app icon for "${prompt}", ${prompt} in the center. Style: ${style}. Lighting: Studio lighting. Colors: ${colors}. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself.`;
       }
     }
 
