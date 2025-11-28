@@ -110,7 +110,8 @@ serve(async (req) => {
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
     let fullContent = '';
-    let buffer = '';
+    let dbBuffer = ''; // Buffer for DB updates
+    let streamBuffer = ''; // Buffer for SSE stream parsing
     let lastUpdate = Date.now();
 
     if (reader) {
@@ -119,7 +120,11 @@ serve(async (req) => {
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        streamBuffer += chunk;
+        
+        const lines = streamBuffer.split('\n');
+        // Keep the last line in the buffer as it might be incomplete
+        streamBuffer = lines.pop() || '';
         
         for (const line of lines) {
             const trimmed = line.trim();
@@ -135,14 +140,14 @@ serve(async (req) => {
         }
 
         // Update DB every 1 second or 1000 chars to avoid rate limits on DB
-        if (Date.now() - lastUpdate > 1000 || fullContent.length - buffer.length > 1000) {
+        if (Date.now() - lastUpdate > 1000 || fullContent.length - dbBuffer.length > 1000) {
             // Only update if we have new content
-            if (fullContent.length > buffer.length) {
+            if (fullContent.length > dbBuffer.length) {
                 await supabaseAdmin
                     .from('generation_tasks')
                     .update({ result_code: fullContent })
                     .eq('id', taskId);
-                buffer = fullContent;
+                dbBuffer = fullContent;
                 lastUpdate = Date.now();
             }
         }

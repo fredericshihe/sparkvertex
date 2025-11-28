@@ -261,12 +261,15 @@ ${description}
 <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/lucide-react@latest/dist/umd/lucide-react.js"></script>
 <style>body{-webkit-user-select:none;user-select:none;background:#0f172a;color:white}::-webkit-scrollbar{display:none}</style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
 const {useState,useEffect,useRef}=React;
+const {Camera, Home, Settings, User, Menu, X, ChevronLeft, ChevronRight, ...LucideIcons} = lucideReact;
 // YOUR CODE
 const App=()=>{return <div className="min-h-screen w-full">...</div>};
 const root=ReactDOM.createRoot(document.getElementById('root'));
@@ -371,15 +374,7 @@ root.render(<App/>);
         setModificationCount(prev => prev + 1);
       }
 
-      // Use Next.js Proxy API to hide Supabase Edge Function URL
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          type: isModification ? 'modification' : 'generation',
-          system_prompt: `You are an expert frontend developer specializing in ${wizardData.device === 'desktop' ? 'desktop' : 'mobile-first'} web applications. You will be given a description of a web application, and you must generate the full HTML code for it in a single file.
+      const SYSTEM_PROMPT = `You are an expert frontend developer specializing in ${wizardData.device === 'desktop' ? 'desktop' : 'mobile-first'} web applications. You will be given a description of a web application, and you must generate the full HTML code for it in a single file.
 
 Requirements:
 1. **Language**: All generated text and content MUST be in Simplified Chinese (简体中文).
@@ -390,12 +385,26 @@ Requirements:
    - Use Tailwind CSS for styling via CDN.
    - Use React and ReactDOM via CDN (UMD build).
    - Use Babel via CDN to compile JSX in the browser.
-   - Use Lucide React icons via CDN (lucide.createIcons()).
-4. **Functionality**: The app should be fully functional and interactive.
-5. **Output Format**: The output must be ONLY valid HTML code, starting with <!DOCTYPE html>. Do not include markdown code blocks (like \`\`\`html).
+   - Use Lucide React icons via CDN. The global 'lucideReact' object is available. Use icons like <lucideReact.Home size={24} />.
+     - DO NOT use lucide.createIcons().
+     - DO NOT use <Camera /> directly without the prefix.
+4. **Visuals & Icons**:
+   - Include beautiful, modern, and polished UI components with smooth transitions.
+   - **LOGO**: Create a unique, relevant SVG logo for the app. DO NOT use the generic React atom/quantum shape unless it is a science app. DO NOT use a placeholder image.
+5. **Functionality**: The app should be fully functional and interactive.
+6. **Output Format**: The output must be ONLY valid HTML code, starting with <!DOCTYPE html>. Do not include markdown code blocks (like \`\`\`html).
    - IMPORTANT: Do not split strings across multiple lines in JSX. Use template literals or concatenation if needed.
-   - IMPORTANT: Ensure all JSX attributes are properly closed.
-6. **Visuals**: Include beautiful, modern, and polished UI components with smooth transitions.`,
+   - IMPORTANT: Ensure all JSX attributes are properly closed.`;
+
+      // Use Next.js Proxy API to hide Supabase Edge Function URL
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          type: isModification ? 'modification' : 'generation',
+          system_prompt: SYSTEM_PROMPT,
           user_prompt: prompt
         })
       });
@@ -411,7 +420,12 @@ Requirements:
       // We use supabase.functions.invoke to trigger the edge function
       // We don't await the result because it might take long
       supabase.functions.invoke('generate-app-async', {
-        body: { taskId, system_prompt: constructPrompt(isModification, chatInput), user_prompt: chatInput || 'Start', type: isModification ? 'modification' : 'generation' }
+        body: { 
+            taskId, 
+            system_prompt: SYSTEM_PROMPT, 
+            user_prompt: prompt, 
+            type: isModification ? 'modification' : 'generation' 
+        }
       }).catch(err => console.error('Trigger error:', err));
 
       // Subscribe to Task Updates

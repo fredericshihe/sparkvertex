@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
 import { useModal } from '@/context/ModalContext';
@@ -14,6 +14,19 @@ export default function LoginModal() {
   const [message, setMessage] = useState('');
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+
+  // Reset state when modal opens to prevent stale lockout state
+  useEffect(() => {
+    if (isLoginModalOpen) {
+      // Optional: Don't reset lockout if it's still valid? 
+      // For better UX, we reset it because client-side limits are easily bypassed anyway (refresh).
+      // This fixes the issue where a user gets locked out, closes modal, comes back later and is still locked out.
+      setLoginAttempts(0);
+      setLockoutUntil(null);
+      setMessage('');
+      setView('login');
+    }
+  }, [isLoginModalOpen]);
 
   if (!isLoginModalOpen) return null;
 
@@ -126,27 +139,32 @@ export default function LoginModal() {
         closeLoginModal();
       }
     } catch (error: any) {
-      // Security: Rate Limiting Increment
-      const newAttempts = loginAttempts + 1;
-      setLoginAttempts(newAttempts);
+      console.error('Auth error:', error.message);
       
-      if (newAttempts >= 5) {
-        setLockoutUntil(Date.now() + 60000); // 1 minute lockout
-        setMessage('尝试次数过多，请 1 分钟后再试');
-      } else {
-        // Security: Generic Error Messages
-        if (type === 'register' && (error.message?.includes('already registered') || error.message?.includes('User already registered'))) {
-           // For UX we might keep this, but for "highest security" we should be vague. 
-           // However, standard practice often allows this for registration to prevent user confusion.
-           // I will keep it but make it polite.
-           setMessage('该邮箱已被注册，请直接登录');
-        } else if (type === 'login') {
-           setMessage('邮箱或密码错误');
-        } else {
-           setMessage('操作失败，请稍后重试');
+      // Check for specific errors that shouldn't count towards lockout
+      const isRegistrationError = type === 'register' && (error.message?.includes('already registered') || error.message?.includes('User already registered'));
+      
+      if (!isRegistrationError) {
+        // Security: Rate Limiting Increment
+        const newAttempts = loginAttempts + 1;
+        setLoginAttempts(newAttempts);
+        
+        if (newAttempts >= 10) { // Increased limit to 10
+          setLockoutUntil(Date.now() + 60000); // 1 minute lockout
+          setMessage('尝试次数过多，请 1 分钟后再试');
+          setLoading(false);
+          return;
         }
       }
-      console.error('Auth error:', error.message);
+
+      // Security: Generic Error Messages
+      if (isRegistrationError) {
+          setMessage('该邮箱已被注册，请直接登录');
+      } else if (type === 'login') {
+          setMessage('邮箱或密码错误');
+      } else {
+          setMessage('操作失败，请稍后重试');
+      }
     } finally {
       setLoading(false);
     }
