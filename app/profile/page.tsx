@@ -302,7 +302,7 @@ export default function Profile() {
               <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">创建额度</div>
               <div className="flex items-baseline gap-2">
                 <span className="text-xl font-bold text-white">{profile?.generation_credits ?? 3}</span>
-                <span className="text-xs text-slate-500">/ 3 (体验)</span>
+                <span className="text-xs text-slate-500">次</span>
               </div>
             </div>
           </div>
@@ -320,7 +320,7 @@ export default function Profile() {
               <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">修改额度</div>
               <div className="flex items-baseline gap-2">
                 <span className="text-xl font-bold text-white">{profile?.modification_credits ?? 10}</span>
-                <span className="text-xs text-slate-500">/ 10 (总计)</span>
+                <span className="text-xs text-slate-500">次</span>
               </div>
             </div>
           </div>
