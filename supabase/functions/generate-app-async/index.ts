@@ -64,7 +64,20 @@ serve(async (req) => {
 
     // 6. Call Gemini
     const apiKey = Deno.env.get('GOOGLE_API_KEY');
-    const modelName = Deno.env.get('GOOGLE_MODEL_NAME') || 'gemini-1.5-pro-latest'; // Use latest pro
+    
+    // Determine model based on task type
+    // Creation -> gemini-3-pro-preview
+    // Modification -> gemini-2.5-pro
+    let modelName = 'gemini-3-pro-preview';
+    if (type === 'modification') {
+        modelName = 'gemini-2.5-pro';
+    }
+    
+    // Allow environment variable override, but ensure we don't default to 1.5
+    const envModel = Deno.env.get('GOOGLE_MODEL_NAME');
+    if (envModel) {
+        modelName = envModel;
+    }
 
     if (!apiKey) {
         throw new Error('Missing GOOGLE_API_KEY');

@@ -144,7 +144,20 @@ serve(async (req) => {
 
     // 使用环境变量中的 Google API Key
     const apiKey = Deno.env.get('GOOGLE_API_KEY');
-    const modelName = Deno.env.get('GOOGLE_MODEL_NAME') || 'gemini-3-pro-preview';
+    
+    // Determine model based on task type
+    // Creation -> gemini-3-pro-preview
+    // Modification -> gemini-2.5-pro
+    let modelName = 'gemini-3-pro-preview';
+    if (type === 'modification') {
+        modelName = 'gemini-2.5-pro';
+    }
+
+    // Allow environment variable override
+    const envModel = Deno.env.get('GOOGLE_MODEL_NAME');
+    if (envModel) {
+        modelName = envModel;
+    }
     
     if (!apiKey) {
       console.error('Missing GOOGLE_API_KEY environment variable');
