@@ -27,39 +27,39 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Server Configuration Error' }, { status: 500 });
     }
 
-    // 服务器端请求 Supabase Edge Function，隐藏真实 URL
-    // 增加 signal 以支持取消请求，但这里我们主要关注超时
-    const controller = new AbortController();
-    // 设置 55 秒超时，留 5 秒给 Next.js 处理响应
-    const timeoutId = setTimeout(() => controller.abort(), 55000);
+    // 1. Create Task in DB
+    const { data: task, error: taskError } = await supabase
+      .from('generation_tasks')
+      .insert({
+        user_id: session.user.id,
+        prompt: body.user_prompt,
+        status: 'pending'
+      })
+      .select()
+      .single();
 
-    const response = await fetch(`${supabaseUrl}/functions/v1/generate-app`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`, // 传递用户 Token
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Upstream Error:', response.status, errorText);
-        // Return the actual error from upstream for debugging
-        return NextResponse.json({ error: `Generation failed: ${errorText}` }, { status: response.status });
+    if (taskError || !task) {
+        console.error('Task Creation Error:', taskError);
+        return NextResponse.json({ error: 'Failed to create generation task' }, { status: 500 });
     }
 
-    // 透传流式响应
-    return new Response(response.body, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
+    // 2. Trigger Async Edge Function (Fire and Forget-ish)
+    // We use fetch but don't await the full result, or we rely on the client to trigger it?
+    // Better: We trigger it here, but we set a very short timeout so we don't wait for completion.
+    // Actually, if we abort the request to Edge Function, does it stop?
+    // Deno Edge Functions usually stop if the client disconnects unless they use background tasks.
+    // BUT, we can use the "invoke" method from supabase-js which might handle auth better.
+    
+    // Let's try to just return the taskId to the client, and let the CLIENT trigger the heavy lifting.
+    // This avoids Vercel timeout issues completely.
+    
+    return NextResponse.json({ taskId: task.id });
+
+    /* 
+    // Old Logic Removed
+    const controller = new AbortController();
+    ...
+    */
 
   } catch (error) {
     console.error('Proxy Error:', error);

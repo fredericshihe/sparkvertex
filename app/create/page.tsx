@@ -402,153 +402,82 @@ Requirements:
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: response.statusText }));
-        console.error('Generation failed details:', {
-            status: response.status,
-            statusText: response.statusText,
-            body: errorData,
-            url: '/api/generate'
-        });
-        
-        let errorMessage = errorData.error || `Generation failed: ${response.status}`;
-        
-        // Clean up nested JSON error messages
-        if (errorMessage.includes('{"error":')) {
-            try {
-                const match = errorMessage.match(/({.*})/);
-                if (match) {
-                    const innerError = JSON.parse(match[1]);
-                    errorMessage = innerError.error || errorMessage;
+        throw new Error(errorData.error || `Generation failed: ${response.status}`);
+      }
+
+      const { taskId } = await response.json();
+      
+      // Trigger Async Generation (Fire and Forget)
+      // We use supabase.functions.invoke to trigger the edge function
+      // We don't await the result because it might take long
+      supabase.functions.invoke('generate-app-async', {
+        body: { taskId, system_prompt: constructPrompt(isModification, chatInput), user_prompt: chatInput || 'Start', type: isModification ? 'modification' : 'generation' }
+      }).catch(err => console.error('Trigger error:', err));
+
+      // Subscribe to Task Updates
+      const channel = supabase
+        .channel(`task-${taskId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'generation_tasks',
+            filter: `id=eq.${taskId}`
+          },
+          (payload) => {
+            const newTask = payload.new as any;
+            if (newTask.result_code) {
+                setStreamingCode(newTask.result_code);
+                hasStartedStreaming = true;
+            }
+            
+            if (newTask.status === 'completed') {
+                // Finish
+                let cleanCode = newTask.result_code || '';
+                // ... (Cleaning logic same as before)
+                cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
+                const htmlStart = cleanCode.indexOf('<!DOCTYPE html>');
+                if (htmlStart !== -1) {
+                    cleanCode = cleanCode.substring(htmlStart);
+                } else {
+                    const htmlTagStart = cleanCode.indexOf('<html');
+                    if (htmlTagStart !== -1) {
+                        cleanCode = '<!DOCTYPE html>\n' + cleanCode.substring(htmlTagStart);
+                    }
                 }
-            } catch (e) {}
-        }
+                
+                if (cleanCode.includes('root.render(<App />') && !cleanCode.includes('root.render(<App />);')) {
+                    cleanCode = cleanCode.split('root.render(<App />')[0] + 'root.render(<App />);\n    </script>\n</body>\n</html>';
+                }
 
-        // User-friendly messages for common status codes
-        if (response.status === 403) {
-            errorMessage = `服务暂时不可用 (403): ${errorMessage}`;
-        } else if (response.status === 429) {
-            errorMessage = `请求过于频繁 (429): ${errorMessage}`;
-        } else if (response.status === 500) {
-            errorMessage = '服务器内部错误，请稍后重试。';
-        }
-
-        throw new Error(errorMessage);
-      }
-      if (!response.body) throw new Error('No response body');
-
-      // Deduct credits on successful start (Optimistic UI update only)
-      // Removed optimistic update to rely on Realtime subscription for accuracy
-      /*
-      if (userId) {
-        const newCredits = isModification ? modificationCredits - 1 : generationCredits - 1;
-        
-        // Optimistic update
-        if (isModification) setModificationCredits(newCredits);
-        else setGenerationCredits(newCredits);
-      }
-      */
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let fullContent = '';
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        // Mark streaming as started when we receive the first chunk
-        hasStartedStreaming = true;
-        
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-        
-        const lines = buffer.split('\n');
-        // Keep the last line in the buffer as it might be incomplete
-        buffer = lines.pop() || '';
-        
-        for (const line of lines) {
-          const trimmedLine = line.trim();
-          if (!trimmedLine) continue;
-
-          if (trimmedLine.startsWith('data: ')) {
-            const dataStr = trimmedLine.slice(6).trim();
-            if (dataStr === '[DONE]') continue;
-            try {
-              const data = JSON.parse(dataStr);
-              const content = data.choices?.[0]?.delta?.content || '';
-              fullContent += content;
-              setStreamingCode(fullContent);
-            } catch (e) {
-              console.error('Error parsing SSE chunk:', e);
+                setGeneratedCode(cleanCode);
+                setStep('preview');
+                setPreviewMode(wizardData.device as any);
+                if (isModification) {
+                    setChatHistory(prev => [...prev, { role: 'ai', content: '代码已更新，请查看预览效果。' }]);
+                }
+                setIsGenerating(false);
+                clearInterval(progressInterval);
+                setProgress(100);
+                supabase.removeChannel(channel);
+            } else if (newTask.status === 'failed') {
+                toastError(newTask.error_message || '生成失败');
+                setIsGenerating(false);
+                clearInterval(progressInterval);
+                supabase.removeChannel(channel);
             }
           }
-        }
-      }
+        )
+        .subscribe();
 
-      clearInterval(progressInterval);
-      setProgress(100);
-      
-      // Improved cleaning logic
-      let cleanCode = fullContent;
-      // Remove markdown code blocks
-      cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
-      
-      // Find the start of HTML
-      const htmlStart = cleanCode.indexOf('<!DOCTYPE html>');
-      if (htmlStart !== -1) {
-        cleanCode = cleanCode.substring(htmlStart);
-      } else {
-        const htmlTagStart = cleanCode.indexOf('<html');
-        if (htmlTagStart !== -1) {
-            cleanCode = '<!DOCTYPE html>\n' + cleanCode.substring(htmlTagStart);
-        }
-      }
-
-      // Auto-repair: Fix truncated root.render
-      // This handles the case where the AI stops at "root.render(<App />" without closing it
-      if (cleanCode.includes('root.render(<App />') && !cleanCode.includes('root.render(<App />);')) {
-        cleanCode = cleanCode.split('root.render(<App />')[0] + 'root.render(<App />);\n    </script>\n</body>\n</html>';
-      }
-
-      // Check for severe truncation
-      if (!cleanCode.trim().endsWith('</html>')) {
-        console.warn('Generated code appears truncated');
-        toastError('生成的内容似乎不完整，可能因网络或长度限制中断。');
-        // Attempt to close tags if it looks like it's in the script tag
-        if (!cleanCode.includes('</body>')) {
-             cleanCode += '\n/* Truncated here */\n    </script>\n</body>\n</html>';
-        }
-      }
-      
-      console.log('Generated Code:', cleanCode);
-      setGeneratedCode(cleanCode);
-      setStep('preview');
-      // Auto-switch preview mode based on selection
-      setPreviewMode(wizardData.device as any);
-      
-      if (isModification) {
-        setChatHistory(prev => [...prev, { role: 'ai', content: '代码已更新，请查看预览效果。' }]);
-      }
+      // Fallback polling in case realtime fails? 
+      // For now rely on Realtime.
 
     } catch (error: any) {
       console.error('Generation error:', error);
-      
-      // Smart Error Handling
-      if (error.message?.includes('Input too long') || error.message?.includes('2000')) {
-        // Specific handling for length limit
-        toastError('应用代码量已超出AI处理上限，无法继续修改');
-        
-        // Add a system message to chat to guide the user
-        setChatHistory(prev => [...prev, { 
-          role: 'ai', 
-          content: `⚠️ **无法继续修改**\n\n当前应用代码量已超过系统限制（2000字符）。\n\n**建议方案：**\n1. 点击下方“下载源码”保存当前进度，在本地继续开发。\n2. 或者点击“发布作品”分享当前版本。` 
-        }]);
-      } else {
-        toastError(error.message || '生成失败，请重试');
-      }
-      
-      setStep(isModification ? 'preview' : 'desc'); // Go back
-    } finally {
+      toastError(error.message || '生成失败，请重试');
+      setStep(isModification ? 'preview' : 'desc');
       setIsGenerating(false);
       clearInterval(progressInterval);
     }
