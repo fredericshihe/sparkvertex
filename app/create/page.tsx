@@ -178,6 +178,9 @@ export default function CreatePage() {
     if (session) {
       setUserId(session.user.id);
       
+      // Check for daily rewards
+      await supabase.rpc('check_daily_rewards');
+
       // Fetch user credits
       const { data } = await supabase
         .from('profiles')
