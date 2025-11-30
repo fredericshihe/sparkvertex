@@ -801,7 +801,7 @@ Requirements:
   );
 
   const renderGenerating = () => (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] px-4 w-full max-w-2xl mx-auto py-8 md:py-12">
+    <div className="flex flex-col items-center justify-center min-h-[100dvh] pt-24 pb-8 px-4 w-full max-w-2xl mx-auto">
       {/* Chat Simulation Container */}
       <div className="w-full bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl mb-8 relative overflow-hidden">
         {/* Progress Line at top */}
@@ -880,9 +880,9 @@ Requirements:
   );
 
   const renderPreview = () => (
-    <div className="flex flex-col lg:flex-row min-h-[calc(100vh-64px)] lg:h-[calc(100vh-64px)]">
+    <div className="flex flex-col lg:flex-row h-[100dvh] pt-16">
       {/* Left: Chat & Controls */}
-      <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col h-[50vh] lg:h-auto">
+      <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col h-[40dvh] lg:h-auto order-2 lg:order-1">
         <div className="p-4 border-b border-slate-800 flex justify-between items-center">
           <h3 className="font-bold text-white">创作助手</h3>
           <span className="text-xs text-slate-500">剩余修改次数: {modificationCredits}</span>
@@ -895,7 +895,7 @@ Requirements:
               <i className="fa-solid fa-robot"></i>
             </div>
             <div className="bg-slate-800 p-3 rounded-2xl rounded-tl-none text-sm text-slate-300">
-              应用已生成！你可以在右侧预览效果。如果需要调整，请直接告诉我。
+              应用已生成！你可以在上方预览效果。如果需要调整，请直接告诉我。
             </div>
           </div>
           {chatHistory.map((msg, i) => (
@@ -919,7 +919,7 @@ Requirements:
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !isGenerating && chatInput.trim() && startGeneration(true)}
-              placeholder="例如：把背景改成黑色，按钮变大一点..."
+              placeholder="例如：把背景改成黑色..."
               disabled={isGenerating}
               className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-4 pr-12 py-3 text-white focus:border-brand-500 outline-none disabled:opacity-50"
             />
@@ -933,8 +933,8 @@ Requirements:
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-3">
+        {/* Actions - Hidden on mobile to save space, or simplified */}
+        <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-3 hidden lg:block">
           <button 
             onClick={handleUpload}
             className="w-full py-3 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-xl font-bold transition shadow-lg flex items-center justify-center gap-2"
@@ -959,34 +959,36 @@ Requirements:
               <i className="fa-solid fa-code"></i> 查看代码
             </button>
           </div>
-          <div className="flex items-center text-[10px] text-orange-400 bg-orange-900/20 px-2 rounded border border-orange-500/30 w-full justify-center">
-            <i className="fa-solid fa-triangle-exclamation mr-1"></i> 建议下载备份防丢失
-          </div>
         </div>
       </div>
 
       {/* Right: Preview */}
-      <div className="flex-1 bg-slate-950 relative flex flex-col group h-[50vh] lg:h-auto">
-        <div className="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4">
+      <div className="flex-1 bg-slate-950 relative flex flex-col group h-[60dvh] lg:h-auto order-1 lg:order-2">
+        <div className="h-10 lg:h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4">
           <span className="text-sm font-bold text-slate-400">预览模式</span>
+          {/* Mobile Actions (Simplified) */}
+          <div className="flex lg:hidden gap-2">
+             <button onClick={handleUpload} className="text-xs bg-brand-600 px-3 py-1 rounded text-white">发布</button>
+          </div>
         </div>
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-4 bg-[url('/grid.svg')] pb-20 lg:pb-4">
+        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-0 lg:p-4 bg-[url('/grid.svg')]">
           <div 
-            style={{ 
-              aspectRatio: previewMode === 'desktop' ? 'auto' : previewMode === 'tablet' ? '3/4' : '9/19.5' 
-            }}
-            className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 max-w-full ${
-              previewMode === 'desktop' 
+            className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 max-w-full aspect-auto
+              ${/* Base (Mobile) Styles */ ''}
+              ${previewMode === 'mobile' 
                 ? 'w-full h-full rounded-none border-0' 
-                : previewMode === 'tablet'
-                  ? 'h-[75%] md:h-[85%] w-auto rounded-[1.5rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50'
-                  : 'h-[70%] md:h-[85%] w-auto rounded-[2.5rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50'
-            }`}
+                : 'w-[90%] h-[80%] rounded-xl border-4 border-slate-800'}
+              
+              ${/* Desktop Overrides (lg:) */ ''}
+              ${previewMode === 'desktop' ? 'lg:w-full lg:h-full lg:rounded-none lg:border-0 lg:aspect-auto' : ''}
+              ${previewMode === 'tablet' ? 'lg:h-[85%] lg:w-auto lg:rounded-[1.5rem] lg:border-[12px] lg:border-slate-800 lg:ring-1 lg:ring-slate-700/50 lg:aspect-[3/4]' : ''}
+              ${previewMode === 'mobile' ? 'lg:h-[85%] lg:w-auto lg:rounded-[2.5rem] lg:border-[12px] lg:border-slate-800 lg:ring-1 lg:ring-slate-700/50 lg:aspect-[9/19.5]' : ''}
+            `}
           >
-             {/* Notch */}
-             <div className={`absolute top-0 left-1/2 -translate-x-1/2 bg-slate-800 z-20 transition-all duration-300 ${
-                previewMode === 'mobile' ? 'w-24 h-6 rounded-b-xl opacity-100' : 'w-0 h-0 opacity-0'
-             }`}></div>
+             {/* Notch - Only show on Desktop/Large screens when in mobile mode */}
+             <div className={`absolute top-0 left-1/2 -translate-x-1/2 bg-slate-800 z-20 transition-all duration-300 w-0 h-0 opacity-0
+                ${previewMode === 'mobile' ? 'lg:w-24 lg:h-6 lg:rounded-b-xl lg:opacity-100' : ''}
+             `}></div>
              
              <iframe
                ref={iframeRef}
@@ -997,11 +999,11 @@ Requirements:
           </div>
           
           {/* Floating Preview Controls */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 opacity-0 group-hover:opacity-100 transition duration-300 z-10">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
             <div className="bg-slate-900/80 backdrop-blur border border-slate-700 rounded-full p-1 flex shadow-xl">
-              <button onClick={() => setPreviewMode('desktop')} className={`w-10 h-10 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`} title="桌面端"><i className="fa-solid fa-desktop"></i></button>
-              <button onClick={() => setPreviewMode('tablet')} className={`w-10 h-10 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`} title="平板端"><i className="fa-solid fa-tablet-screen-button"></i></button>
-              <button onClick={() => setPreviewMode('mobile')} className={`w-10 h-10 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`} title="移动端"><i className="fa-solid fa-mobile-screen"></i></button>
+              <button onClick={() => setPreviewMode('desktop')} className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`} title="桌面端"><i className="fa-solid fa-desktop text-xs lg:text-base"></i></button>
+              <button onClick={() => setPreviewMode('tablet')} className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`} title="平板端"><i className="fa-solid fa-tablet-screen-button text-xs lg:text-base"></i></button>
+              <button onClick={() => setPreviewMode('mobile')} className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`} title="移动端"><i className="fa-solid fa-mobile-screen text-xs lg:text-base"></i></button>
             </div>
           </div>
         </div>
