@@ -6,10 +6,12 @@ import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { Item } from '@/types/supabase';
 import html2canvas from 'html2canvas';
-import { QRCodeCanvas } from 'qrcode.react';
+import dynamic from 'next/dynamic';
 import { getPreviewContent } from '@/lib/preview';
 import AddToHomeScreenGuide from '@/components/AddToHomeScreenGuide';
 import { copyToClipboard } from '@/lib/utils';
+
+const QRCodeCanvas = dynamic(() => import('qrcode.react').then(mod => mod.QRCodeCanvas), { ssr: false });
 
 export default function DetailModal() {
   const { isDetailModalOpen, closeDetailModal, detailItemId, detailItemData, openLoginModal, openPaymentModal, openRewardModal } = useModal();
@@ -216,6 +218,16 @@ export default function DetailModal() {
     setTimeout(async () => {
         if (shareRef.current) {
             try {
+                // Wait for all images to load explicitly
+                const images = Array.from(shareRef.current.getElementsByTagName('img'));
+                await Promise.all(images.map(img => {
+                    if (img.complete) return Promise.resolve();
+                    return new Promise((resolve) => {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                    });
+                }));
+
                 const canvas = await html2canvas(shareRef.current, {
                     useCORS: true,
                     allowTaint: true,
@@ -589,10 +601,10 @@ export default function DetailModal() {
                             <div className="flex justify-center mb-6 mt-4">
                                 <div className="w-40 h-40 rounded-[2.5rem] bg-gradient-to-br from-brand-500 to-blue-600 shadow-2xl shadow-brand-500/30 flex items-center justify-center relative overflow-hidden border border-white/10 group">
                                     <img 
-                                        src={item?.icon_url || defaultIconDataUrl || "/icons/icon-512x512.png"} 
+                                        src={qrIconDataUrl || item?.icon_url || defaultIconDataUrl || "/icons/icon-512x512.png"} 
                                         className="w-full h-full object-cover" 
                                         alt="App Icon" 
-                                        crossOrigin={item?.icon_url && !item.icon_url.startsWith('data:') ? "anonymous" : undefined}
+                                        crossOrigin={!qrIconDataUrl && item?.icon_url && !item.icon_url.startsWith('data:') ? "anonymous" : undefined}
                                         onError={(e) => {
                                             const target = e.target as HTMLImageElement;
                                             const fallback = defaultIconDataUrl || "/icons/icon-512x512.png";

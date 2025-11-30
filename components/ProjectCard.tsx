@@ -3,7 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Item } from '@/types/supabase';
 import { getPreviewContent } from '@/lib/preview';
-import { QRCodeSVG } from 'qrcode.react';
+import dynamic from 'next/dynamic';
+
+const QRCodeSVG = dynamic(() => import('qrcode.react').then(mod => mod.QRCodeSVG), { ssr: false });
 
 interface ProjectCardProps {
   item: Item;
@@ -18,34 +20,34 @@ interface ProjectCardProps {
 export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onDelete }: ProjectCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const [isClient, setIsClient] = useState(false);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    setIsClient(true);
-    
-    // Check if desktop (md breakpoint)
-    const isDesktop = window.innerWidth >= 768;
-
     const observer = new IntersectionObserver(
       ([entry]) => {
-        // Always toggle visibility to save memory on all devices
-        // This is crucial for MacBook Air and other devices with limited resources
-        // when rendering many heavy React apps in iframes.
         if (entry.isIntersecting) {
+          if (timerRef.current) {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+          }
           setIsVisible(true);
         } else {
-          // Add a small delay before unloading to prevent flickering during fast scrolling
-          setTimeout(() => {
-            if (!entry.isIntersecting) {
+          // Add a delay before unloading to prevent flickering during fast scrolling
+          // and to keep the iframe alive if the user scrolls back quickly
+          if (!timerRef.current) {
+            timerRef.current = setTimeout(() => {
               setIsVisible(false);
-            }
-          }, 1000);
+              setIframeLoaded(false); // Reset loading state when unloaded
+              timerRef.current = null;
+            }, 3000); // Increased timeout to 3s to keep content longer
+          }
         }
       },
       { 
-        rootMargin: '200px', // Preload/unload margin
-        threshold: 0.01
+        rootMargin: '400px', // Increased preload margin
+        threshold: 0
       }
     );
 
@@ -58,6 +60,9 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
         observer.unobserve(cardRef.current);
       }
       observer.disconnect();
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
     };
   }, []);
 
@@ -70,34 +75,51 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
       );
     }
 
-    if (!isVisible) {
+    // Show loading spinner if not visible OR if visible but iframe hasn't loaded yet
+    if (!isVisible || !iframeLoaded) {
       return (
-        <div className="absolute inset-0 bg-slate-800 flex items-center justify-center">
+        <div className="absolute inset-0 bg-slate-800 flex items-center justify-center z-10">
           <div className="w-6 h-6 border-2 border-slate-600 border-t-brand-500 rounded-full animate-spin"></div>
         </div>
       );
     }
 
-    // Use srcDoc for better compatibility and performance
-    const previewContent = getPreviewContent(item.content);
-    
-    return (
-      <div className="absolute inset-0 w-full h-full overflow-hidden bg-white">
-        <iframe 
-          srcDoc={previewContent}
-          className="w-[200%] h-[200%] border-0 pointer-events-none origin-top-left scale-50" 
-          loading="lazy" 
-          sandbox="allow-scripts allow-forms allow-modals"
-          allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay"
-        />
-      </div>
-    );
+    return null;
   };
+
+  // Memoize preview content to avoid recalculation on every render
+  const previewContent = isVisible && item.content ? getPreviewContent(item.content) : '';
 
   return (
     <div 
       ref={cardRef}
       className={`h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 touch-manipulation ${isFlipped ? 'flipped' : ''}`} 
+      onClick={() => !isFlipped && onClick(item.id)}
+    >
+      <div className="flip-card-inner w-full h-full relative shadow-xl rounded-2xl">
+        {/* Front Side */}
+        <div className="flip-card-front absolute w-full h-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 flex flex-col">
+          {/* Preview Area */}
+          <div className="h-48 relative bg-slate-800 overflow-hidden group-hover:brightness-110 transition-all duration-500">
+            {generatePreviewHtml(item)}
+            
+            {isVisible && (
+              <div className={`absolute inset-0 w-full h-full overflow-hidden bg-white transition-opacity duration-500 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}>
+                <iframe 
+                  srcDoc={previewContent}
+                  className="w-[200%] h-[200%] border-0 pointer-events-none origin-top-left scale-50" 
+                  loading="lazy" 
+                  sandbox="allow-scripts allow-forms allow-modals"
+                  onLoad={() => setIframeLoaded(true)}
+                />
+              </div>
+            )}
+            
+            {/* AI Badge */}
+            <div className="absolute top-3 right-3 bg-yellow-500/10 backdrop-blur-md border border-yellow-500/20 text-yellow-500 text-[10px] px-2 py-1 rounded-full font-bold flex items-center gap-1 z-20">
+              <i className="fa-solid fa-shield-halved"></i> AI 认证
+            </div>
+          </div> 
       onClick={() => onClick(item.id)}
       onMouseLeave={() => setIsFlipped(false)}
     >
