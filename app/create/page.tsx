@@ -179,7 +179,12 @@ export default function CreatePage() {
       setUserId(session.user.id);
       
       // Check for daily rewards
-      await supabase.rpc('check_daily_rewards');
+      try {
+        await supabase.rpc('check_daily_rewards');
+      } catch (error) {
+        console.error('Failed to check daily rewards:', error);
+        // Continue execution even if rewards check fails
+      }
 
       // Fetch user credits
       const { data } = await supabase
@@ -259,7 +264,7 @@ ${description}
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
@@ -304,15 +309,16 @@ ${description}
     }
   }
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <style>body{-webkit-user-select:none;user-select:none;background:#0f172a;color:white}::-webkit-scrollbar{display:none}</style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel" data-type="module">
-import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'https://esm.sh/react@18.2.0';
 import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0';
 import * as LucideReact from 'https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0';
+// You can import other libraries here, e.g., import confetti from 'https://esm.sh/canvas-confetti';
 
 const { Camera, Home, Settings, User, Menu, X, ChevronLeft, ChevronRight, ...LucideIcons } = LucideReact;
 
@@ -429,11 +435,12 @@ Requirements:
    ${wizardData.device === 'desktop' ? '- Use dense information density appropriate for large screens.\n   - Support hover states and mouse interactions.\n   - Use top navigation bars and sidebars.' : ''}
 3. **Tech Stack**:
    - Use Tailwind CSS for styling via CDN.
-   - Use React and ReactDOM via CDN (UMD build).
+   - Use React 18+ (Functional Components & Hooks) via CDN (esm.sh).
    - Use Babel via CDN to compile JSX in the browser.
    - Use Lucide React icons via CDN. The global 'lucideReact' object is available. Use icons like <lucideReact.Home size={24} />.
-     - DO NOT use lucide.createIcons().
-     - DO NOT use <Camera /> directly without the prefix.
+   - **External Libraries**: You are FREE to use any popular React-compatible library (e.g., framer-motion, recharts, canvas-confetti, three, react-use) by importing them from 'https://esm.sh/LIBRARY_NAME?deps=react@18.2.0'.
+     - Example: import confetti from 'https://esm.sh/canvas-confetti';
+     - Example: import { motion } from 'https://esm.sh/framer-motion?deps=react@18.2.0';
 4. **Visuals & Icons**:
    - Include beautiful, modern, and polished UI components with smooth transitions.
    - **LOGO**: Create a unique, relevant SVG logo for the app. DO NOT use the generic React atom/quantum shape unless it is a science app. DO NOT use a placeholder image.
@@ -478,6 +485,17 @@ Requirements:
       const channel = supabase
         .channel(`task-${taskId}`)
         .on(
+          'broadcast',
+          { event: 'chunk' },
+          (payload) => {
+             const { fullContent } = payload.payload;
+             if (fullContent) {
+                 setStreamingCode(fullContent);
+                 hasStartedStreaming = true;
+             }
+          }
+        )
+        .on(
           'postgres_changes',
           {
             event: 'UPDATE',
@@ -487,6 +505,7 @@ Requirements:
           },
           (payload) => {
             const newTask = payload.new as any;
+            
             if (newTask.result_code) {
                 // Only update streaming code if status is processing
                 // If completed, we will handle it in the completed block
@@ -517,6 +536,11 @@ Requirements:
                 
                 if (cleanCode.includes('root.render(<App />') && !cleanCode.includes('root.render(<App />);')) {
                     cleanCode = cleanCode.split('root.render(<App />')[0] + 'root.render(<App />);\n    </script>\n</body>\n</html>';
+                }
+
+                // Force inject viewport meta if missing (Critical for mobile preview)
+                if (!cleanCode.includes('<meta name="viewport"')) {
+                    cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
                 }
 
                 setGeneratedCode(cleanCode);

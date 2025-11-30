@@ -21,33 +21,24 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   const [isFlipped, setIsFlipped] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [isClient, setIsClient] = useState(false); // Add isClient state
   const cardRef = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    setIsClient(true); // Set isClient to true on mount
+    
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          if (timerRef.current) {
-            clearTimeout(timerRef.current);
-            timerRef.current = null;
-          }
           setIsVisible(true);
-        } else {
-          // Add a delay before unloading to prevent flickering during fast scrolling
-          // and to keep the iframe alive if the user scrolls back quickly
-          if (!timerRef.current) {
-            timerRef.current = setTimeout(() => {
-              setIsVisible(false);
-              setIframeLoaded(false); // Reset loading state when unloaded
-              timerRef.current = null;
-            }, 3000); // Increased timeout to 3s to keep content longer
-          }
+          // Once visible, disconnect to keep it loaded forever
+          // This prevents flickering and reloading issues
+          observer.disconnect();
         }
       },
       { 
-        rootMargin: '400px', // Increased preload margin
-        threshold: 0
+        rootMargin: '200px', 
+        threshold: 0.01 
       }
     );
 
@@ -56,15 +47,19 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
     }
 
     return () => {
-      if (cardRef.current) {
-        observer.unobserve(cardRef.current);
-      }
       observer.disconnect();
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
     };
   }, []);
+
+  // Force iframe loaded state after timeout to prevent infinite spinner
+  useEffect(() => {
+    if (isVisible && !iframeLoaded) {
+      const timeout = setTimeout(() => {
+        setIframeLoaded(true);
+      }, 5000);
+      return () => clearTimeout(timeout);
+    }
+  }, [isVisible, iframeLoaded]);
 
   const generatePreviewHtml = (item: Item) => {
     if (!item.content) {
@@ -95,34 +90,9 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
       ref={cardRef}
       className={`h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 touch-manipulation ${isFlipped ? 'flipped' : ''}`} 
       onClick={() => !isFlipped && onClick(item.id)}
-    >
-      <div className="flip-card-inner w-full h-full relative shadow-xl rounded-2xl">
-        {/* Front Side */}
-        <div className="flip-card-front absolute w-full h-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 flex flex-col">
-          {/* Preview Area */}
-          <div className="h-48 relative bg-slate-800 overflow-hidden group-hover:brightness-110 transition-all duration-500">
-            {generatePreviewHtml(item)}
-            
-            {isVisible && (
-              <div className={`absolute inset-0 w-full h-full overflow-hidden bg-white transition-opacity duration-500 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}>
-                <iframe 
-                  srcDoc={previewContent}
-                  className="w-[200%] h-[200%] border-0 pointer-events-none origin-top-left scale-50" 
-                  loading="lazy" 
-                  sandbox="allow-scripts allow-forms allow-modals"
-                  onLoad={() => setIframeLoaded(true)}
-                />
-              </div>
-            )}
-            
-            {/* AI Badge */}
-            <div className="absolute top-3 right-3 bg-yellow-500/10 backdrop-blur-md border border-yellow-500/20 text-yellow-500 text-[10px] px-2 py-1 rounded-full font-bold flex items-center gap-1 z-20">
-              <i className="fa-solid fa-shield-halved"></i> AI 认证
-            </div>
-          </div> 
-      onClick={() => onClick(item.id)}
       onMouseLeave={() => setIsFlipped(false)}
     >
+
       {/* Mobile Flip Toggle - Top Center */}
       <div 
         className="absolute top-0 left-1/2 -translate-x-1/2 z-40 md:hidden flex items-center justify-center cursor-pointer bg-slate-900/90 backdrop-blur-md border border-white/10 border-t-0 rounded-b-xl px-4 py-2 text-xs text-white shadow-lg transition-colors active:bg-slate-800"

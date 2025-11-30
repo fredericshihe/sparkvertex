@@ -139,14 +139,24 @@ serve(async (req) => {
             }
         }
 
-        // Update DB every 1 second or 1000 chars to avoid rate limits on DB
-        if (Date.now() - lastUpdate > 1000 || fullContent.length - dbBuffer.length > 1000) {
-            // Only update if we have new content
+        // Broadcast updates via Realtime instead of DB writes to reduce DB load and latency
+        // We can send more frequently (e.g., every 100ms)
+        if (Date.now() - lastUpdate > 100 || fullContent.length - dbBuffer.length > 50) {
             if (fullContent.length > dbBuffer.length) {
-                await supabaseAdmin
-                    .from('generation_tasks')
-                    .update({ result_code: fullContent })
-                    .eq('id', taskId);
+                const newChunk = fullContent.slice(dbBuffer.length);
+                
+                // Send broadcast message
+                await supabaseAdmin.channel(`task-${taskId}`)
+                    .send({
+                        type: 'broadcast',
+                        event: 'chunk',
+                        payload: { 
+                            chunk: newChunk, 
+                            fullContent: fullContent,
+                            taskId: taskId
+                        }
+                    });
+                
                 dbBuffer = fullContent;
                 lastUpdate = Date.now();
             }
@@ -154,7 +164,7 @@ serve(async (req) => {
       }
     }
 
-    // Final Update - Ensure we write everything
+    // Final Update - Ensure we write everything to DB for persistence
     await supabaseAdmin
         .from('generation_tasks')
         .update({ result_code: fullContent, status: 'completed' })

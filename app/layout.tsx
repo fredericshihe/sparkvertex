@@ -40,6 +40,7 @@ import WeChatGuard from '@/components/WeChatGuard';
 import StorageManager from '@/components/StorageManager';
 import { ModalProvider } from '@/context/ModalContext';
 import { ToastProvider } from '@/context/ToastContext';
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 
 export default function RootLayout({
   children,
@@ -55,6 +56,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <WeChatGuard />
         <StorageManager />
+        <ServiceWorkerRegister />
         <ToastProvider>
           <ModalProvider>
             <canvas id="fluid-canvas" className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 opacity-20"></canvas>
