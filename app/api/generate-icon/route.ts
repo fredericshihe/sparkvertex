@@ -39,7 +39,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Input too long (max 5000 chars)' }, { status: 400 });
     }
 
-    const siliconFlowKey = process.env.SILICONFLOW_API_KEY;
+    // User provided specific key for SiliconFlow
+    const siliconFlowKey = 'sk-zuggbrweuquheciuetyncladlbuxkfimoqnpawyloigutjnv';
     const deepseekKey = process.env.DEEPSEEK_API_KEY;
     
     // Debug Info Collector
