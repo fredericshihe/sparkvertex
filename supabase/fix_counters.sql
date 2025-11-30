@@ -6,6 +6,10 @@
 -- We recreate the functions to accept BIGINT (which matches the 'items' table schema provided).
 
 -- Function to increment page_views (View Count)
+-- Drop first to avoid parameter name conflict errors
+DROP FUNCTION IF EXISTS increment_views(bigint);
+DROP FUNCTION IF EXISTS increment_views(uuid); -- Drop old UUID version if exists
+
 CREATE OR REPLACE FUNCTION increment_views(item_id BIGINT)
 RETURNS void AS $$
 BEGIN
@@ -16,9 +20,10 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function to increment downloads (Download Count)
--- Note: The frontend currently displays the 'views' column as the download count.
--- To ensure consistency, we update BOTH 'views' and 'downloads' columns.
--- This fixes the issue where the count reverts after refresh (because 'views' wasn't being updated).
+-- Drop first to avoid parameter name conflict errors
+DROP FUNCTION IF EXISTS increment_downloads(bigint);
+DROP FUNCTION IF EXISTS increment_downloads(uuid); -- Drop old UUID version if exists
+
 CREATE OR REPLACE FUNCTION increment_downloads(item_id BIGINT)
 RETURNS void AS $$
 BEGIN
