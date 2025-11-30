@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
 import { copyToClipboard } from '@/lib/utils';
+import { getPreviewContent } from '@/lib/preview';
 
 // --- Constants ---
 const CATEGORIES = [
@@ -426,28 +427,44 @@ root.render(<App/>);
         setModificationCount(prev => prev + 1);
       }
 
-      const SYSTEM_PROMPT = `You are an expert frontend developer specializing in ${wizardData.device === 'desktop' ? 'desktop' : 'mobile-first'} web applications. You will be given a description of a web application, and you must generate the full HTML code for it in a single file.
+      const SYSTEM_PROMPT = `You are a World-Class Senior Frontend Architect and UI/UX Designer.
+Your goal is to create a "Production-Grade", visually stunning, and highly interactive single-file web application.
 
-Requirements:
-1. **Language**: All generated text and content MUST be in Simplified Chinese (简体中文).
-2. **Device Optimization**: The UI/UX must be highly optimized for ${wizardData.device} devices.
-   ${wizardData.device === 'mobile' ? '- Use large, touch-friendly tap targets (min 44px).\n   - Use bottom navigation or accessible menus for mobile.\n   - Ensure fonts and spacing are optimized for small screens.\n   - Prevent horizontal scrolling on mobile.' : ''}
-   ${wizardData.device === 'desktop' ? '- Use dense information density appropriate for large screens.\n   - Support hover states and mouse interactions.\n   - Use top navigation bars and sidebars.' : ''}
-3. **Tech Stack**:
-   - Use Tailwind CSS for styling via CDN.
-   - Use React 18+ (Functional Components & Hooks) via CDN (esm.sh).
-   - Use Babel via CDN to compile JSX in the browser.
-   - Use Lucide React icons via CDN. The global 'lucideReact' object is available. Use icons like <lucideReact.Home size={24} />.
-   - **External Libraries**: You are FREE to use any popular React-compatible library (e.g., framer-motion, recharts, canvas-confetti, three, react-use) by importing them from 'https://esm.sh/LIBRARY_NAME?deps=react@18.2.0'.
-     - Example: import confetti from 'https://esm.sh/canvas-confetti';
-     - Example: import { motion } from 'https://esm.sh/framer-motion?deps=react@18.2.0';
-4. **Visuals & Icons**:
-   - Include beautiful, modern, and polished UI components with smooth transitions.
-   - **LOGO**: Create a unique, relevant SVG logo for the app. DO NOT use the generic React atom/quantum shape unless it is a science app. DO NOT use a placeholder image.
-5. **Functionality**: The app should be fully functional and interactive.
-6. **Output Format**: The output must be ONLY valid HTML code, starting with <!DOCTYPE html>. Do not include markdown code blocks (like \`\`\`html).
-   - IMPORTANT: Do not split strings across multiple lines in JSX. Use template literals or concatenation if needed.
-   - IMPORTANT: Ensure all JSX attributes are properly closed.`;
+Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse Interaction)' : 'Mobile (Touch First, Responsive)'}
+
+### Core Requirements:
+1. **Language**: STRICTLY Simplified Chinese (简体中文) for all UI text.
+2. **Single File Architecture**: Output a single valid HTML file containing CSS, JS (React), and Logic.
+3. **No Markdown**: Output ONLY the raw HTML code. Start immediately with <!DOCTYPE html>.
+
+### Tech Stack (Strict Enforcement):
+- **React 18**: Use Functional Components, Hooks (useState, useEffect, useMemo, useCallback).
+- **Tailwind CSS**: Use for ALL styling. Use arbitrary values (e.g., \`bg-[#1a1a1a]\`) if specific colors are needed.
+- **Lucide Icons**: Access via \`window.lucideReact\`. Example: \`<lucideReact.Activity />\`.
+- **Libraries**: Use \`https://esm.sh/...\` for imports.
+  - *Recommended*: \`framer-motion\` (animations), \`canvas-confetti\` (celebrations), \`react-use\` (hooks).
+
+### Design System & UX (The "Wow" Factor):
+- **Visual Style**: Modern, Clean, Apple-esque or Linear-style design. Use subtle shadows, rounded corners (rounded-xl, rounded-2xl), and plenty of whitespace.
+- **Color Palette**: Use a professional, harmonious color palette. Avoid default HTML colors. Use slate/zinc/neutral for grays, and a vibrant primary color (indigo, violet, emerald, or rose).
+- **Interactions**:
+  - Add hover effects (\`hover:scale-105\`, \`active:scale-95\`) to ALL interactive elements.
+  - Use transitions (\`transition-all duration-300 ease-in-out\`).
+  - Add loading states (skeletons or spinners) for async operations.
+- **Mobile Specifics** (if mobile):
+  - Bottom Navigation Bar for main tabs.
+  - Large touch targets (min-h-[44px]).
+  - \`pb-safe\` for iPhone Home Indicator area.
+
+### Code Quality Standards:
+- **Error Handling**: Wrap main logic in try-catch blocks. UI should not crash on error.
+- **State Management**: Use simple but effective state. Avoid prop drilling where possible (use Context if complex, but keep it simple for single file).
+- **Performance**: Cleanup event listeners in \`useEffect\`.
+
+### Execution Steps:
+1. **Analyze**: Understand the user's request deeply. What is the core value?
+2. **Design**: Plan the component structure (Header, Main, Sidebar/Nav, Modals).
+3. **Implement**: Write the code with the constraints above.`;
 
       // Use Next.js Proxy API to hide Supabase Edge Function URL
       const response = await fetch('/api/generate', {
@@ -1005,8 +1022,8 @@ Requirements:
               
               ${/* Desktop Overrides (lg:) */ ''}
               ${previewMode === 'desktop' ? 'lg:w-full lg:h-full lg:rounded-none lg:border-0 lg:aspect-auto' : ''}
-              ${previewMode === 'tablet' ? 'lg:h-[85%] lg:w-auto lg:rounded-[1.5rem] lg:border-[12px] lg:border-slate-800 lg:ring-1 lg:ring-slate-700/50 lg:aspect-[3/4]' : ''}
-              ${previewMode === 'mobile' ? 'lg:h-[85%] lg:w-auto lg:rounded-[2.5rem] lg:border-[12px] lg:border-slate-800 lg:ring-1 lg:ring-slate-700/50 lg:aspect-[9/19.5]' : ''}
+              ${previewMode === 'tablet' ? 'lg:w-[768px] lg:h-[95%] lg:rounded-[1.5rem] lg:border-[12px] lg:border-slate-800 lg:ring-1 lg:ring-slate-700/50' : ''}
+              ${previewMode === 'mobile' ? 'lg:w-[375px] lg:h-[812px] lg:rounded-[2.5rem] lg:border-[10px] lg:border-slate-800 lg:ring-1 lg:ring-slate-700/50' : ''}
             `}
           >
              {/* Notch - Only show on Desktop/Large screens when in mobile mode */}
@@ -1016,7 +1033,7 @@ Requirements:
              
              <iframe
                ref={iframeRef}
-               srcDoc={generatedCode}
+               srcDoc={getPreviewContent(generatedCode)}
                className="w-full h-full"
                sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
              />

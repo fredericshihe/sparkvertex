@@ -56,8 +56,8 @@ async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, tempera
 
 async function analyzeCategory(htmlContent: string) {
   const categories = ['休闲游戏', '实用工具', '办公效率', '教育学习', '生活便利', '创意设计', '数据可视化', '影音娱乐', '开发者工具', 'AI应用'];
-  const systemPrompt = '你是一个应用分类专家。你需要分析 HTML 代码并将其归类到一个最合适的类别中。';
-  const userPrompt = `请分析以下 HTML 代码的功能,将其归类为以下类别之一:\n${categories.join(', ')}\n\n只返回类别名称,不要其他内容。代码:\n\n${htmlContent.substring(0, 3000)}`;
+  const systemPrompt = '你是一个资深的应用市场分类专家。你需要精准分析 HTML 代码的核心功能，并将其归类到一个最合适的类别中。';
+  const userPrompt = `请分析以下 HTML 代码的核心功能和用户场景，将其归类为以下类别之一:\n${categories.join(', ')}\n\n只返回类别名称，不要解释，不要标点符号。代码:\n\n${htmlContent.substring(0, 4000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
   if (!result) return '实用工具';
@@ -68,8 +68,14 @@ async function analyzeCategory(htmlContent: string) {
 }
 
 async function analyzeTitle(htmlContent: string) {
-  const systemPrompt = '你是一个专业的前端代码分析专家。你需要分析 HTML 代码并提取或推荐一个简洁、吸引人的标题。';
-  const userPrompt = `请分析以下 HTML 代码,提取或推荐一个标题(10-30字)。如果代码中有 <title> 标签,优化它;如果没有,根据代码功能创建一个。只返回标题文本,不要其他内容:\n\n${htmlContent.substring(0, 3000)}`;
+  const systemPrompt = '你是一个专业的 SEO 专家和产品经理。你需要分析 HTML 代码并提取或创作一个简洁、吸引人且符合 SEO 规范的标题。';
+  const userPrompt = `请分析以下 HTML 代码，提取或创作一个标题 (10-30字)。
+要求：
+1. 包含核心关键词。
+2. 具有吸引力，能提高点击率。
+3. 如果代码中有 <title>，请优化它。
+
+只返回标题文本，不要引号，不要解释。代码:\n\n${htmlContent.substring(0, 4000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
   if (!result) return '未命名作品';
@@ -79,8 +85,14 @@ async function analyzeTitle(htmlContent: string) {
 }
 
 async function analyzeDescription(htmlContent: string) {
-  const systemPrompt = '你是一个专业的产品描述撰写专家。你需要分析 HTML 代码并生成一段简洁、专业、吸引人的功能描述。';
-  const userPrompt = `请分析以下 HTML 代码的功能特性,生成一段 40-80 字的产品描述。描述应该突出核心功能和技术亮点,语言简洁专业。只返回描述文本:\n\n${htmlContent.substring(0, 4000)}`;
+  const systemPrompt = '你是一个资深的科技媒体编辑。你需要分析 HTML 代码并生成一段简洁、专业、极具吸引力的产品介绍。';
+  const userPrompt = `请分析以下 HTML 代码的功能特性，生成一段 40-80 字的产品描述。
+要求：
+1. 突出核心价值和技术亮点。
+2. 语言风格现代、专业、简洁。
+3. 避免空洞的形容词。
+
+只返回描述文本。代码:\n\n${htmlContent.substring(0, 5000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.7);
   if (!result) return '这是一个创意 Web 应用。';
@@ -90,8 +102,17 @@ async function analyzeDescription(htmlContent: string) {
 }
 
 async function analyzeTechStack(htmlContent: string) {
-  const systemPrompt = '你是一个技术栈识别专家。你需要分析 HTML 代码并识别使用的技术、框架、库和API。';
-  const userPrompt = `分析以下代码使用的技术栈,从以下列表中选择 3-6 个最相关的标签:\n可选标签: HTML5, CSS3, JavaScript, TypeScript, React, Vue, Angular, Tailwind, Bootstrap, Canvas, WebGL, Three.js, D3.js, Chart.js, WebRTC, WebSocket, Service Worker, PWA, LocalStorage, IndexedDB, Web Audio, WebAssembly, Node.js, Express, Python, AI/ML, API Integration\n\n只返回逗号分隔的标签名称,不要其他内容。代码:\n\n${htmlContent.substring(0, 5000)}`;
+  const systemPrompt = '你是一个全栈技术专家。你需要精准识别 HTML 代码中使用的关键技术、框架、库和 API。';
+  const userPrompt = `分析以下代码使用的技术栈，从以下列表中选择 3-6 个最相关的标签：
+可选标签: 
+- 核心: HTML5, CSS3, JavaScript, TypeScript, React, Vue
+- 样式: Tailwind, Bootstrap, SCSS
+- 图形: Canvas, WebGL, Three.js, D3.js, SVG
+- 数据: LocalStorage, IndexedDB, JSON
+- 网络: WebSocket, WebRTC, API Integration
+- 高级: PWA, Service Worker, WebAssembly, AI/ML, Web Audio
+
+只返回逗号分隔的标签名称，不要其他内容。代码:\n\n${htmlContent.substring(0, 6000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
   if (!result) return ['HTML5', 'JavaScript', 'CSS3'];
@@ -102,50 +123,50 @@ async function analyzeTechStack(htmlContent: string) {
 }
 
 async function analyzePrompt(htmlContent: string) {
-  const systemPrompt = '你是一个高级逆向工程专家和产品经理。你需要深入分析 HTML/JS 代码，并还原出一个极其详细、能够完美复刻该产品的 Prompt (提示词)。';
-  const userPrompt = `请深入分析以下代码，并撰写一个能够生成此代码的**极其详细**的 Prompt。
-Prompt 必须包含以下所有部分，并且描述要尽可能具体、详尽，覆盖所有功能细节和逻辑：
+  const systemPrompt = '你是一个世界级的逆向工程专家、产品架构师和 Prompt 工程师。你需要深入剖析 HTML/JS 代码的每一个原子细节，并重构出一个能够让 AI 完美复刻该产品的"终极 Prompt"。';
+  const userPrompt = `请对以下代码进行"像素级"的深度分析，并撰写一个能够生成此代码的**终极 Prompt**。
+这个 Prompt 将被用于指导另一个 AI 重新生成这个应用，因此必须包含所有隐性逻辑和显性设计。
 
-# Role (角色设定)
-定义 AI 的角色，例如：资深全栈工程师、UI/UX 设计大师。
+请严格按照以下结构撰写：
 
-# Project Overview (项目概述)
-一句话描述这是什么产品。
+# 1. Role & Goal (角色与目标)
+- 定义 AI 的专家角色（如：WebGL 动效大师、金融算法工程师）。
+- 设定核心目标：不仅仅是功能实现，更要达到什么样的用户体验标准。
 
-# Core Features (核心功能 - 非常重要)
-列出所有功能点，包括：
-- 用户交互逻辑（点击、悬停、拖拽等）
-- 数据处理逻辑（计算、存储、转换等）
-- 状态管理（加载中、错误、成功等）
-- 具体的算法或业务规则
-- 所有的输入输出细节
+# 2. Project Essence (项目本质)
+- 用一句话精准概括产品。
+- 核心价值主张是什么？
 
-# UI/UX Design (界面与体验)
-- 布局结构
-- 配色方案（具体的颜色或风格）
-- 动画效果
-- 响应式设计要求
-- 组件细节
+# 3. Detailed Features (功能细节 - 核心)
+- **交互逻辑**: 详尽描述点击、拖拽、滑动后的每一步反应。
+- **数据逻辑**: 具体的计算公式、数据转换规则、状态流转。
+- **隐性逻辑**: 代码中处理的边缘情况（如空状态、错误处理、边界值）。
+- **输入输出**: 明确的数据格式要求。
 
-# Mobile Adaptation (移动端适配 - 必须完美支持)
-- 必须在 <head> 中包含: <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-- 必须添加 CSS: body { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; } 以防止长按弹出菜单
-- 隐藏滚动条但允许滚动: .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-- 确保所有交互元素（按钮、输入框）在移动端有足够的大小和间距
-- 使用 Flexbox 或 Grid 布局确保内容在不同屏幕尺寸下自适应
-- 避免使用固定像素宽度，使用百分比或 rem/vw
+# 4. UI/UX Design System (设计系统)
+- **视觉风格**: 具体的风格流派（Glassmorphism, Neumorphism, Brutalism 等）。
+- **配色方案**: 提取具体的 HEX 颜色代码或 Tailwind 颜色类。
+- **动效细节**: 描述动画的曲线、持续时间、触发条件。
+- **布局结构**: 详细的组件层级和排版规则。
 
-# Technical Requirements (技术要求)
-- 使用的库和框架 (React, Tailwind, Three.js 等)
-- 代码结构要求
-- 性能优化要求
+# 5. Mobile Experience (移动端极致体验)
+- **视口设置**: 必须包含 viewport-fit=cover, user-scalable=no。
+- **触控优化**: 禁用系统默认长按 (touch-callout: none)，确保 44px+ 点击热区。
+- **适配策略**: Flex/Grid 布局，rem/vw 单位，安全区域适配 (pb-safe)。
 
-# Constraints (约束条件)
-- 任何特定的限制或要求
+# 6. Technical Stack & Constraints (技术栈与约束)
+- **核心库**: React 18, Tailwind CSS, Lucide Icons。
+- **第三方库**: 识别并列出所有使用的外部库 (esm.sh)。
+- **代码规范**: 单文件 HTML，无 Markdown，模块化代码结构。
 
-请确保生成的 Prompt 足够详细，使得另一个 AI 能够根据它完美复刻出这段代码的功能和外观。不要省略任何细节。
+# 7. Edge Cases & Robustness (边界与鲁棒性)
+- 如何处理网络延迟？
+- 如何处理非法输入？
+- 性能优化策略（防抖、节流、虚拟列表）。
 
-代码:\n\n${htmlContent.substring(0, 6000)}`;
+请确保生成的 Prompt 极其详尽，逻辑严密，使得生成的代码能够直接达到生产级标准。
+
+代码:\n\n${htmlContent.substring(0, 8000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
   if (!result) return '# Role\nCreative Developer\n\n# Task\nCreate a web application.\n\n# Style\nModern, Clean.';
@@ -208,8 +229,23 @@ function performBasicSecurityCheck(htmlContent: string) {
 }
 
 async function checkMaliciousCode(htmlContent: string) {
-  const systemPrompt = '你是一个网络安全专家。你需要检测 HTML/JavaScript 代码中的潜在恶意行为,包括但不限于:恶意外链、数据窃取、XSS攻击、挖矿代码、恶意重定向、Cookie 窃取、键盘记录等。';
-  const userPrompt = `请检测以下代码是否包含恶意行为。返回JSON格式:\n{"isSafe": true/false, "risks": ["风险描述1", "风险描述2"], "severity": "low/medium/high"}\n\n代码:\n\n${htmlContent.substring(0, 8000)}`;
+  const systemPrompt = '你是一个顶尖的网络安全专家和代码审计师。你需要对 HTML/JavaScript 代码进行深度安全审计，识别所有潜在的恶意行为、漏洞和隐私风险。';
+  const userPrompt = `请对以下代码进行严格的安全检测。重点关注以下高危行为：
+1. **数据窃取**: 检查是否有将 document.cookie, localStorage, input value 发送到外部服务器的行为 (fetch, XMLHttpRequest, Image src, navigator.sendBeacon)。
+2. **恶意挖矿**: 检查是否有高 CPU 占用的循环或连接到已知矿池的 WebSocket/Script。
+3. **XSS/注入**: 检查是否有 innerHTML, document.write, eval, new Function 的不安全使用。
+4. **恶意重定向/钓鱼**: 检查是否有自动跳转 (window.location) 或伪造登录框。
+5. **混淆代码**: 检查是否有大量 hex/base64 编码或混淆的变量名。
+6. **键盘监听**: 检查是否有全局 keydown/keypress 监听并发送数据的行为。
+
+返回严格的 JSON 格式:
+{
+  "isSafe": boolean,
+  "risks": string[], // 具体的风险描述，包含行号或代码片段更好
+  "severity": "low" | "medium" | "high" | "critical"
+}
+
+代码:\n\n${htmlContent.substring(0, 10000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.2);
   if (!result) return performBasicSecurityCheck(htmlContent);
