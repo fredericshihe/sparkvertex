@@ -16,9 +16,10 @@ export async function POST(request: Request) {
     const { system_prompt, user_prompt, temperature = 0.7 } = await request.json();
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
+      console.error('Server Configuration Error: Missing SUPABASE_SERVICE_ROLE_KEY');
       return new Response('Configuration Error', { status: 500 });
     }
 

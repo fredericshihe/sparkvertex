@@ -1035,7 +1035,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                ref={iframeRef}
                srcDoc={getPreviewContent(generatedCode)}
                className="w-full h-full"
-               sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+               sandbox="allow-scripts allow-forms allow-modals allow-popups"
              />
           </div>
           

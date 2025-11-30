@@ -201,16 +201,16 @@ ${htmlContent.substring(0, 10000)}`;
 }
 
 function performBasicSecurityCheck(htmlContent: string) {
+  // Relaxed checks for creative coding context
   const dangerousPatterns = [
-      { pattern: /eval\s*\(/gi, name: 'eval函数调用' },
-      { pattern: /window\[['"]eval['"]\]/gi, name: 'eval混淆调用' },
-      { pattern: /new\s+Function\s*\(/gi, name: 'Function构造器' },
-      { pattern: /document\.write\s*\(/gi, name: 'document.write' },
-      { pattern: /\.innerHTML\s*=/g, name: 'innerHTML直接赋值' },
+      // { pattern: /eval\s*\(/gi, name: 'eval函数调用' }, // Common in calculators
+      // { pattern: /new\s+Function\s*\(/gi, name: 'Function构造器' }, // Common in compilers
+      // { pattern: /document\.write\s*\(/gi, name: 'document.write' }, // Deprecated but not strictly malicious
+      // { pattern: /\.innerHTML\s*=/g, name: 'innerHTML直接赋值' }, // Common in vanilla JS apps
       { pattern: /<script[^>]*src\s*=\s*["'][^"']*(?:bitcoin|crypto|miner|coinminer)[^"']*["']/gi, name: '可疑挖矿脚本' },
       { pattern: /keylogger|keystroke|keypress.*password/gi, name: '键盘监听可疑行为' },
-      { pattern: /document\.cookie/gi, name: 'Cookie访问' },
-      { pattern: /localStorage|sessionStorage/gi, name: '本地存储访问' },
+      // { pattern: /document\.cookie/gi, name: 'Cookie访问' }, // Common for auth
+      // { pattern: /localStorage|sessionStorage/gi, name: '本地存储访问' }, // Common for state persistence
       { pattern: /navigator\.sendBeacon/gi, name: '后台数据发送' }
   ];
   
@@ -222,30 +222,34 @@ function performBasicSecurityCheck(htmlContent: string) {
       }
   });
   
-  if (foundRisks.length > 2) {
+  // Only block for high severity findings
+  if (foundRisks.length > 0) {
       return { isSafe: false, risks: foundRisks, severity: 'high' };
-  } else if (foundRisks.length > 0) {
-      return { isSafe: false, risks: foundRisks, severity: 'medium' };
   }
   
   return { isSafe: true, risks: [], severity: 'low' };
 }
 
 async function checkMaliciousCode(htmlContent: string) {
-  const systemPrompt = '你是一个顶尖的网络安全专家和代码审计师。你需要对 HTML/JavaScript 代码进行深度安全审计，识别所有潜在的恶意行为、漏洞和隐私风险。';
-  const userPrompt = `请对以下代码进行严格的安全检测。重点关注以下高危行为：
-1. **数据窃取**: 检查是否有将 document.cookie, localStorage, input value 发送到外部服务器的行为 (fetch, XMLHttpRequest, Image src, navigator.sendBeacon)。
-2. **恶意挖矿**: 检查是否有高 CPU 占用的循环或连接到已知矿池的 WebSocket/Script。
-3. **XSS/注入**: 检查是否有 innerHTML, document.write, eval, new Function 的不安全使用。
-4. **恶意重定向/钓鱼**: 检查是否有自动跳转 (window.location) 或伪造登录框。
-5. **混淆代码**: 检查是否有大量 hex/base64 编码或混淆的变量名。
-6. **键盘监听**: 检查是否有全局 keydown/keypress 监听并发送数据的行为。
+  const systemPrompt = '你是一个宽容的代码审计师。这是一个代码分享平台，用户上传的通常是单文件应用（如计算器、小游戏）。';
+  const userPrompt = `请对以下代码进行安全检测。
+  
+**请注意，以下行为在本项目中是【允许】的，不需要报错：**
+1. 使用 CDN 加载资源 (React, Vue, Tailwind, Audio/Video, Images)。
+2. 使用 eval() 或 new Function() 进行数学计算（如计算器应用）。
+3. 使用 localStorage/sessionStorage 保存用户偏好。
+4. 使用 innerHTML 更新 UI。
 
-返回严格的 JSON 格式:
+**只有以下情况才视为风险：**
+1. **恶意挖矿**: 明显的 CPU 占用循环或连接矿池。
+2. **恶意数据窃取**: 将用户敏感数据发送到第三方未知服务器 (navigator.sendBeacon, fetch 到未知域名)。
+3. **恶意破坏**: 试图删除页面内容或无限弹窗。
+
+返回 JSON 格式:
 {
   "isSafe": boolean,
-  "risks": string[], // 具体的风险描述，包含行号或代码片段更好
-  "severity": "low" | "medium" | "high" | "critical"
+  "risks": string[], 
+  "severity": "low" | "medium" | "high"
 }
 
 代码:\n\n${htmlContent.substring(0, 50000)}`;
@@ -351,6 +355,7 @@ export default function UploadPage() {
   const [user, setUser] = useState<any>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const analysisSessionIdRef = useRef(0);
 
   useEffect(() => {
     checkAuth();
@@ -527,8 +532,14 @@ export default function UploadPage() {
   const [iconPreview, setIconPreview] = useState<string>('');
   const [isGeneratingIcon, setIsGeneratingIcon] = useState(false);
   const [generationCount, setGenerationCount] = useState(0);
+  
+  // Add a ref to track the current analysis session ID
+  // const analysisSessionIdRef = useRef(0); // Already declared above
 
   const handleReset = () => {
+    // Increment session ID to invalidate any running analysis
+    analysisSessionIdRef.current += 1;
+    
     // Reset File Input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -601,6 +612,10 @@ export default function UploadPage() {
       return;
     }
 
+    // Start a new analysis session
+    const currentSessionId = analysisSessionIdRef.current + 1;
+    analysisSessionIdRef.current = currentSessionId;
+
     setIsAnalyzing(true);
     setIsSecuritySafe(false);
     
@@ -616,6 +631,9 @@ export default function UploadPage() {
     ];
 
     const updateProgressUI = () => {
+      // Check if this session is still valid
+      if (analysisSessionIdRef.current !== currentSessionId) return;
+
       const pendingCount = tasks.filter(t => t.status === 'pending').length;
       const totalCount = tasks.length;
       const progress = Math.round(((totalCount - pendingCount) / totalCount) * 100);
@@ -634,13 +652,18 @@ export default function UploadPage() {
       const runTask = async <T,>(index: number, promise: Promise<T>): Promise<T> => {
         try {
           const result = await promise;
-          tasks[index].status = 'done';
-          updateProgressUI();
+          // Check validity before updating UI
+          if (analysisSessionIdRef.current === currentSessionId) {
+            tasks[index].status = 'done';
+            updateProgressUI();
+          }
           return result;
         } catch (e) {
           console.error(`Task ${tasks[index].label} failed`, e);
-          tasks[index].status = 'done';
-          updateProgressUI();
+          if (analysisSessionIdRef.current === currentSessionId) {
+            tasks[index].status = 'done';
+            updateProgressUI();
+          }
           throw e;
         }
       };
@@ -705,6 +728,12 @@ export default function UploadPage() {
         runTask(6, optimizeMobileCode(html)),
         runTask(7, generateIconTask(titlePromise, descPromise))
       ]);
+
+      // Final check before updating state
+      if (analysisSessionIdRef.current !== currentSessionId) {
+        console.log('Analysis result ignored due to reset/re-upload');
+        return;
+      }
 
       const combinedTags = Array.from(new Set([category, ...appTypes, ...techTags, 'AI Verified'])).filter(t => t);
 
@@ -1033,7 +1062,7 @@ export default function UploadPage() {
                 <iframe 
                   srcDoc={getPreviewContent(fileContent)} 
                   className="w-full h-full border-0 bg-slate-900" 
-                  sandbox="allow-scripts allow-pointer-lock allow-modals allow-same-origin allow-forms allow-popups allow-downloads"
+                  sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
                   allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; payment; fullscreen; picture-in-picture"
                 />
               </div>

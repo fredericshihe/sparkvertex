@@ -40,13 +40,13 @@ export async function POST(request: Request) {
     }
 
     // User provided specific key for SiliconFlow
-    const siliconFlowKey = 'sk-zuggbrweuquheciuetyncladlbuxkfimoqnpawyloigutjnv';
+    // const siliconFlowKey = process.env.SILICONFLOW_API_KEY; // Moved to Edge Function
     const deepseekKey = process.env.DEEPSEEK_API_KEY;
     
     // Debug Info Collector
     const debugInfo = {
       hasDeepSeekKey: !!deepseekKey,
-      hasSiliconFlowKey: !!siliconFlowKey,
+      hasSiliconFlowKey: true, // Assumed true via Edge Function
       promptSource: 'heuristic',
       imageSource: 'svg',
       finalPrompt: '',
@@ -281,29 +281,29 @@ Output ONLY the generated prompt string. Do not include any other text.`
     
     debugInfo.finalPrompt = finalPrompt;
 
-    // 1. Try SiliconFlow (Flux-1-schnell) - Priority
-    if (siliconFlowKey) {
-      debugInfo.trace.push('SiliconFlow: Started');
-      console.log('Using SiliconFlow API (Flux-1-schnell)...');
+    // 1. Try SiliconFlow (via Edge Function) - Priority
+    if (supabaseUrl && supabaseKey) {
+      debugInfo.trace.push('SiliconFlow (Edge): Started');
+      console.log('Using SiliconFlow via Edge Function...');
       try {
-        const response = await fetch('https://api.siliconflow.com/v1/images/generations', {
+        const response = await fetch(`${supabaseUrl}/functions/v1/generate-image`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${siliconFlowKey}`
+            'Authorization': `Bearer ${supabaseKey}`
           },
           body: JSON.stringify({
             model: "black-forest-labs/FLUX.1-schnell",
             prompt: finalPrompt,
             image_size: "1024x1024",
-            num_inference_steps: 4 // Increased for better quality
+            num_inference_steps: 4
           })
         });
 
         if (!response.ok) {
           const errorText = await response.text();
-          debugInfo.trace.push(`SiliconFlow: Failed (${response.status})`);
-          throw new Error(`SiliconFlow API Error: ${response.status} ${errorText}`);
+          debugInfo.trace.push(`SiliconFlow (Edge): Failed (${response.status})`);
+          throw new Error(`Edge Function Error: ${response.status} ${errorText}`);
         }
 
         const data = await response.json();
@@ -315,24 +315,24 @@ Output ONLY the generated prompt string. Do not include any other text.`
           const arrayBuffer = await imageRes.arrayBuffer();
           const base64 = Buffer.from(arrayBuffer).toString('base64');
           
-          debugInfo.imageSource = 'siliconflow';
-          debugInfo.trace.push('SiliconFlow: Success');
+          debugInfo.imageSource = 'siliconflow-edge';
+          debugInfo.trace.push('SiliconFlow (Edge): Success');
           return NextResponse.json({ 
             url: `data:image/jpeg;base64,${base64}`,
             isMock: false,
-            source: 'siliconflow',
+            source: 'siliconflow-edge',
             debug: debugInfo
           });
         } else {
-            debugInfo.trace.push('SiliconFlow: No Image URL');
+            debugInfo.trace.push('SiliconFlow (Edge): No Image URL');
         }
       } catch (err: any) {
-        console.error('SiliconFlow failed, falling back...', err);
-        debugInfo.trace.push(`SiliconFlow: Error (${err.message})`);
+        console.error('SiliconFlow (Edge) failed, falling back...', err);
+        debugInfo.trace.push(`SiliconFlow (Edge): Error (${err.message})`);
         // Continue to other methods if this fails
       }
     } else {
-        debugInfo.trace.push('SiliconFlow: Skipped (Missing Key)');
+        debugInfo.trace.push('SiliconFlow (Edge): Skipped (Missing Supabase Config)');
     }
 
     // 2. Fallback to Pollinations.ai (Free)
