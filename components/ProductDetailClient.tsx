@@ -122,12 +122,6 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
     // Optimistic update
     setItem(prev => ({ ...prev, page_views: (prev.page_views || 0) + 1 }));
 
-    // Validate UUID to prevent DB errors
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(itemId)) {
-        return;
-    }
-
     // Use RPC for secure increment
     // RLS policies prevent direct updates from non-authors, so we must use a Postgres Function
     const { error } = await supabase.rpc('increment_views', { item_id: itemId });
@@ -141,12 +135,6 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
     // Optimistic update
     setItem(prev => ({ ...prev, views: (prev.views || 0) + 1 }));
     
-    // Validate UUID
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(itemId)) {
-        return;
-    }
-
     // Use RPC for secure increment (assuming you have a similar function for downloads)
     // If not, you should create one: create function increment_downloads(item_id uuid) ...
     const { error } = await supabase.rpc('increment_downloads', { item_id: itemId });

@@ -37,7 +37,7 @@ export const getPreviewContent = (content: string | null) => {
     <script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdn.staticfile.org/prop-types/15.8.1/prop-types.min.js"></script>
-    <script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.5/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
     <script>
       // Polyfill for legacy code expecting global lucideReact

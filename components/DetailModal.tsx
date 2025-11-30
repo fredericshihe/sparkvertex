@@ -153,12 +153,6 @@ export default function DetailModal() {
     // Optimistic update
     setItem(prev => prev ? ({ ...prev, page_views: (prev.page_views || 0) + 1 }) : null);
 
-    // Validate UUID to prevent DB errors
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(itemId)) {
-        return;
-    }
-
     // Use RPC for secure increment
     const { error } = await supabase.rpc('increment_views', { item_id: itemId });
     
