@@ -41,7 +41,8 @@ export const getPreviewContent = (content: string | null) => {
     <script src="https://cdn.jsdelivr.net/npm/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
     <script>
       // Polyfill for legacy code expecting global lucideReact
-      window.lucideReact = window.lucideReact || {};
+      // The UMD build exports as 'LucideReact', but some generated code might use 'lucideReact'
+      window.lucideReact = window.LucideReact || window.lucideReact || {};
     </script>
   `;
 
