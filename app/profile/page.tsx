@@ -296,36 +296,29 @@ export default function Profile() {
         {/* Credits Section - Compact */}
         <div className="glass-panel p-4 rounded-xl border border-slate-700/50 mb-8 flex flex-col sm:flex-row gap-6 items-center">
           
-          {/* Creation Credits */}
+          {/* Unified Credits */}
           <div className="flex items-center gap-4 flex-1 w-full">
             <div className="w-10 h-10 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 text-lg shrink-0">
-              <i className="fa-solid fa-wand-magic-sparkles"></i>
+              <i className="fa-solid fa-coins"></i>
             </div>
             <div>
-              <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">创建额度</div>
+              <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">当前积分</div>
               <div className="flex items-baseline gap-2">
-                <span className="text-xl font-bold text-white">{profile?.generation_credits ?? 3}</span>
-                <span className="text-xs text-slate-500">次</span>
+                <span className="text-xl font-bold text-white">{profile?.credits ?? 20}</span>
+                <span className="text-xs text-slate-500">分</span>
               </div>
             </div>
           </div>
 
-          {/* Divider */}
+          {/* Info / Top-up Hint (Optional) */}
           <div className="hidden sm:block w-px h-8 bg-slate-700"></div>
           <div className="block sm:hidden w-full h-px bg-slate-700"></div>
 
-          {/* Modification Credits */}
           <div className="flex items-center gap-4 flex-1 w-full">
-            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-lg shrink-0">
-              <i className="fa-solid fa-pen-to-square"></i>
-            </div>
-            <div>
-              <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">修改额度</div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-xl font-bold text-white">{profile?.modification_credits ?? 10}</span>
-                <span className="text-xs text-slate-500">次</span>
-              </div>
-            </div>
+             <div className="text-sm text-slate-400">
+                <p><i className="fa-solid fa-circle-info mr-1 text-blue-400"></i> 每日登录赠送 2 积分</p>
+                <p className="mt-1"><i className="fa-solid fa-bolt mr-1 text-yellow-400"></i> 创建/修改消耗 2 积分</p>
+             </div>
           </div>
 
         </div>
