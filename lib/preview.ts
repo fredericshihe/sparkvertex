@@ -135,9 +135,14 @@ export const getPreviewContent = (content: string | null) => {
           key: function(i) { return Object.keys(this._data)[i] || null; }
         };
         try {
-          Object.defineProperty(window, 'localStorage', { value: mockStorage });
-          Object.defineProperty(window, 'sessionStorage', { value: mockStorage });
-        } catch(e) {}
+          // In some browsers, these properties are not configurable.
+          // We try to overwrite them, but if it fails, we just ignore it.
+          // The app might still crash if it tries to access the original storage.
+          Object.defineProperty(window, 'localStorage', { value: mockStorage, configurable: true, writable: true });
+          Object.defineProperty(window, 'sessionStorage', { value: mockStorage, configurable: true, writable: true });
+        } catch(e) {
+            console.error("Failed to mock storage", e);
+        }
       }
       
       // 2. Security: Block Top Navigation

@@ -615,14 +615,19 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
   };
 
   const handleUpload = () => {
-    // Save to localStorage to pass to upload page
-    localStorage.setItem('spark_generated_code', generatedCode);
-    localStorage.setItem('spark_generated_meta', JSON.stringify({
-      title: `${wizardData.category} - ${wizardData.style}`,
-      description: wizardData.description || wizardData.features,
-      tags: [wizardData.category, wizardData.style]
-    }));
-    router.push('/upload?from=create');
+    try {
+      // Save to localStorage to pass to upload page
+      localStorage.setItem('spark_generated_code', generatedCode);
+      localStorage.setItem('spark_generated_meta', JSON.stringify({
+        title: `${wizardData.category} - ${wizardData.style}`,
+        description: wizardData.description || wizardData.features,
+        tags: [wizardData.category, wizardData.style]
+      }));
+      router.push('/upload?from=create');
+    } catch (e) {
+      console.error('Failed to save to localStorage:', e);
+      toastError('无法保存数据，请检查浏览器隐私设置');
+    }
   };
 
   const handleDownload = () => {
