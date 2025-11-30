@@ -108,10 +108,14 @@ export default function CreatePage() {
     // Keep-alive mechanism: Periodically check session to ensure token refresh
     // This prevents session expiry during long creation/editing sessions (e.g. hours)
     const keepAliveInterval = setInterval(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        // Accessing session triggers internal refresh logic if close to expiry
-        console.debug('Session keep-alive check passed');
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Accessing session triggers internal refresh logic if close to expiry
+          console.debug('Session keep-alive check passed');
+        }
+      } catch (e) {
+        console.error('Keep-alive check failed', e);
       }
     }, 1000 * 60 * 4); // Check every 4 minutes
 
@@ -119,30 +123,34 @@ export default function CreatePage() {
     let profileSubscription: any;
 
     const setupSubscription = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
 
-      // Remove existing subscription if any
-      if (profileSubscription) supabase.removeChannel(profileSubscription);
+        // Remove existing subscription if any
+        if (profileSubscription) supabase.removeChannel(profileSubscription);
 
-      profileSubscription = supabase
-        .channel('profile-credits')
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'profiles',
-            filter: `id=eq.${session.user.id}`
-          },
-          (payload) => {
-            const newProfile = payload.new as any;
-            if (newProfile.credits !== undefined) {
-              setCredits(newProfile.credits);
+        profileSubscription = supabase
+          .channel('profile-credits')
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'profiles',
+              filter: `id=eq.${session.user.id}`
+            },
+            (payload) => {
+              const newProfile = payload.new as any;
+              if (newProfile.credits !== undefined) {
+                setCredits(newProfile.credits);
+              }
             }
-          }
-        )
-        .subscribe();
+          )
+          .subscribe();
+      } catch (error) {
+        console.error('Failed to setup subscription:', error);
+      }
     };
 
     // Setup subscription initially and whenever auth state changes (via checkAuth/onAuthStateChange)
@@ -170,34 +178,38 @@ export default function CreatePage() {
   }, [chatHistory]);
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      setUserId(session.user.id);
-      
-      // Check for daily rewards
-      try {
-        const { data: bonusData, error: bonusError } = await supabase.rpc('check_daily_bonus');
-        if (bonusData && bonusData.awarded) {
-          toastSuccess(`每日登录奖励：+2 积分！当前积分：${bonusData.credits}`);
-        }
-      } catch (error) {
-        console.error('Failed to check daily rewards:', error);
-        // Continue execution even if rewards check fails
-      }
-
-      // Fetch user credits
-      const { data } = await supabase
-        .from('profiles')
-        .select('credits')
-        .eq('id', session.user.id)
-        .maybeSingle();
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setUserId(session.user.id);
         
-      if (data) {
-        setCredits(data.credits ?? 20);
-      } else {
-        // New profile handling (if not created by trigger)
-        setCredits(20);
+        // Check for daily rewards
+        try {
+          const { data: bonusData, error: bonusError } = await supabase.rpc('check_daily_bonus');
+          if (bonusData && bonusData.awarded) {
+            toastSuccess(`每日登录奖励：+2 积分！当前积分：${bonusData.credits}`);
+          }
+        } catch (error) {
+          console.error('Failed to check daily rewards:', error);
+          // Continue execution even if rewards check fails
+        }
+
+        // Fetch user credits
+        const { data } = await supabase
+          .from('profiles')
+          .select('credits')
+          .eq('id', session.user.id)
+          .maybeSingle();
+          
+        if (data) {
+          setCredits(data.credits ?? 20);
+        } else {
+          // New profile handling (if not created by trigger)
+          setCredits(20);
+        }
       }
+    } catch (error) {
+      console.error('Auth check failed:', error);
     }
   };
 
@@ -328,17 +340,23 @@ root.render(<App/>);
   };
 
   const startGeneration = async (isModification = false) => {
-    // Check Auth first
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      openLoginModal();
-      return;
-    }
+    try {
+      // Check Auth first
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        openLoginModal();
+        return;
+      }
 
-    // Check Credits (Unified Cost: 2 points)
-    const COST = 2;
-    if (credits < COST) {
-      setIsCreditModalOpen(true);
+      // Check Credits (Unified Cost: 2 points)
+      const COST = 2;
+      if (credits < COST) {
+        setIsCreditModalOpen(true);
+        return;
+      }
+    } catch (e) {
+      console.error("Pre-flight check failed", e);
+      toastError("验证失败，请刷新重试");
       return;
     }
 
