@@ -118,6 +118,18 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
           </div>
 
           <div className="h-44 relative bg-white overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
+            {/* Iframe Preview */}
+            {isVisible && item.content && (
+               <iframe
+                 srcDoc={previewContent}
+                 className="w-[200%] h-[200%] border-0 origin-top-left scale-50 pointer-events-none select-none"
+                 onLoad={() => setIframeLoaded(true)}
+                 sandbox="allow-scripts allow-same-origin"
+                 scrolling="no"
+                 title={`Preview of ${item.title}`}
+               />
+            )}
+
             {generatePreviewHtml(item)}
             
             {/* Owner Actions */}

@@ -19,6 +19,39 @@ const withPWA = require("@ducanh2912/next-pwa").default({
           },
         },
       },
+      {
+        urlPattern: /^https:\/\/cdn\.staticfile\.org\/.*$/,
+        handler: 'CacheFirst',
+        options: {
+          cacheName: 'staticfile-cdn',
+          expiration: {
+            maxEntries: 50,
+            maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+          },
+        },
+      },
+      {
+        urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/.*$/,
+        handler: 'CacheFirst',
+        options: {
+          cacheName: 'jsdelivr-cdn',
+          expiration: {
+            maxEntries: 50,
+            maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+          },
+        },
+      },
+      {
+        urlPattern: /^https:\/\/cdn\.tailwindcss\.com\/.*$/,
+        handler: 'StaleWhileRevalidate',
+        options: {
+          cacheName: 'tailwind-cdn',
+          expiration: {
+            maxEntries: 10,
+            maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
+          },
+        },
+      },
     ],
   },
 });
