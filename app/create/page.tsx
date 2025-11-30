@@ -948,16 +948,19 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
   );
 
   const renderPreview = () => (
-    <div className="flex flex-col lg:flex-row min-h-[100dvh] lg:h-[100dvh] pt-16">
-      {/* Left: Chat & Controls */}
-      <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col h-[80vh] lg:h-auto order-2 lg:order-1 shrink-0">
-        <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-          <h3 className="font-bold text-white">创作助手</h3>
-          <span className="text-xs text-slate-500">剩余积分: {credits} (修改消耗 2 积分)</span>
+    <div className="flex flex-col lg:flex-row h-[100dvh] pt-16 overflow-hidden">
+      {/* Left (Desktop) / Bottom (Mobile): Chat & Controls */}
+      <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col 
+          order-2 lg:order-1 
+          h-[45vh] lg:h-full shrink-0 z-10 relative shadow-[0_-4px_20px_rgba(0,0,0,0.3)] lg:shadow-none">
+        
+        <div className="p-3 lg:p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
+          <h3 className="font-bold text-white text-sm lg:text-base">创作助手</h3>
+          <span className="text-[10px] lg:text-xs text-slate-500">剩余积分: {credits} (修改消耗 2 积分)</span>
         </div>
         
         {/* Chat History */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 lg:p-4 space-y-3 lg:space-y-4 bg-slate-900">
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 flex-shrink-0">
               <i className="fa-solid fa-robot"></i>
@@ -1005,7 +1008,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
         </div>
 
         {/* Input Area */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900">
+        <div className="p-3 lg:p-4 border-t border-slate-800 bg-slate-900 pb-safe shrink-0">
           <div className="relative">
             <input
               type="text"
@@ -1014,7 +1017,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
               onKeyDown={(e) => e.key === 'Enter' && !isGenerating && chatInput.trim() && startGeneration(true)}
               placeholder="例如：把背景改成黑色..."
               disabled={isGenerating}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-4 pr-12 py-3 text-white focus:border-brand-500 outline-none disabled:opacity-50"
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-4 pr-12 py-2 lg:py-3 text-sm lg:text-base text-white focus:border-brand-500 outline-none disabled:opacity-50"
             />
             <button 
               onClick={() => startGeneration(true)}
@@ -1027,7 +1030,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
         </div>
 
         {/* Actions - Hidden on mobile to save space, or simplified */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-3 hidden lg:block">
+        <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-3 hidden lg:block shrink-0">
           <button 
             onClick={handleUpload}
             className="w-full py-3 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-xl font-bold transition shadow-lg flex items-center justify-center gap-2"
@@ -1055,9 +1058,11 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
         </div>
       </div>
 
-      {/* Right: Preview */}
-      <div className="flex-1 bg-slate-950 relative flex flex-col group h-[calc(100dvh-64px)] lg:h-auto order-1 lg:order-2 shrink-0">
-        <div className="h-10 lg:h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4">
+      {/* Right (Desktop) / Top (Mobile): Preview */}
+      <div className="flex-1 bg-slate-950 relative flex flex-col group 
+          order-1 lg:order-2 
+          h-[55vh] lg:h-full shrink-0 overflow-hidden">
+        <div className="h-8 lg:h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
           <span className="text-sm font-bold text-slate-400">预览模式</span>
           {/* Mobile Actions (Simplified) */}
           <div className="flex lg:hidden gap-2">
