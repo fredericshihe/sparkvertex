@@ -147,10 +147,10 @@ serve(async (req) => {
     
     // Determine model based on task type
     // Creation -> gemini-3-pro-preview
-    // Modification -> gemini-2.5-pro
+    // Modification -> gemini-3-pro-low
     let modelName = 'gemini-3-pro-preview';
     if (type === 'modification') {
-        modelName = 'gemini-2.5-pro';
+        modelName = 'gemini-3-pro-low';
     }
 
     // Allow environment variable override
