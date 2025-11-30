@@ -41,8 +41,19 @@ export const getPreviewContent = (content: string | null) => {
     <script src="https://cdn.jsdelivr.net/npm/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
     <script>
       // Polyfill for legacy code expecting global lucideReact
-      // The UMD build exports as 'LucideReact', but some generated code might use 'lucideReact'
-      window.lucideReact = window.LucideReact || window.lucideReact || {};
+      // The UMD build exports as 'LucideReact'
+      // We use a Proxy to handle missing icons gracefully to prevent React Error #130
+      const source = window.LucideReact || window.lucideReact || {};
+      
+      window.lucideReact = new Proxy(source, {
+        get: function(target, prop) {
+          if (prop in target) {
+            return target[prop];
+          }
+          // If the icon is missing, return a dummy component to prevent crash
+          return function() { return null; };
+        }
+      });
     </script>
   `;
 
