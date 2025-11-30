@@ -27,6 +27,20 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Server Configuration Error' }, { status: 500 });
     }
 
+    // 0. Deduct Credits (Unified Cost: 2 points)
+    // We deduct upfront to ensure immediate UI update and prevent abuse.
+    const { data: creditResult, error: creditError } = await supabase
+      .rpc('deduct_credits', { amount: 2 });
+
+    if (creditError) {
+      console.error('Credit Deduction Error:', creditError);
+      return NextResponse.json({ error: 'Failed to process credits' }, { status: 500 });
+    }
+
+    if (!creditResult || !creditResult.success) {
+      return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 });
+    }
+
     // 1. Create Task in DB
     const { data: task, error: taskError } = await supabase
       .from('generation_tasks')

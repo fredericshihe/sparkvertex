@@ -170,22 +170,9 @@ serve(async (req) => {
         .update({ result_code: fullContent, status: 'completed' })
         .eq('id', taskId);
 
-    // 8. Deduct Credits (Unified Cost: 2 points)
-    const COST = 2;
-    
-    // Fetch current credits to decrement
-    const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('credits')
-        .eq('id', user.id)
-        .single();
+    // 8. Credits are already deducted in the API route (app/api/generate/route.ts)
+    // This ensures immediate feedback to the user.
 
-    if (profile) {
-        await supabaseAdmin
-            .from('profiles')
-            .update({ credits: (profile.credits || 0) - COST })
-            .eq('id', user.id);
-    }
 
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 

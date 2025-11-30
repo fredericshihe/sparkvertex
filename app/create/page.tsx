@@ -476,6 +476,10 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 
       const { taskId } = await response.json();
       
+      // Immediate Credit Update (Optimistic & Sync)
+      setCredits(prev => Math.max(0, prev - 2));
+      checkAuth(); // Fetch latest from DB to be sure
+
       // Trigger Async Generation (Fire and Forget)
       // We use supabase.functions.invoke to trigger the edge function
       // We don't await the result because it might take long
