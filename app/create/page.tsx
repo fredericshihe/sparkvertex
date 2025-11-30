@@ -192,7 +192,7 @@ export default function CreatePage() {
         .from('profiles')
         .select('generation_credits, modification_credits')
         .eq('id', session.user.id)
-        .single();
+        .maybeSingle();
         
       if (data) {
         setGenerationCredits(data.generation_credits ?? 2);
@@ -536,6 +536,9 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             
             if (newTask.status === 'completed') {
                 // Finish
+                // Force sync credits to ensure accuracy
+                checkAuth();
+
                 let cleanCode = newTask.result_code || '';
                 
                 // Ensure we have the full content from the final update
@@ -592,6 +595,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
     } catch (error: any) {
       console.error('Generation error:', error);
       toastError(error.message || '生成失败，请重试');
+      
       if (!isModification) {
         setStep('desc');
       }
@@ -929,9 +933,9 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
   );
 
   const renderPreview = () => (
-    <div className="flex flex-col lg:flex-row h-[100dvh] pt-16">
+    <div className="flex flex-col lg:flex-row min-h-[100dvh] lg:h-[100dvh] pt-16">
       {/* Left: Chat & Controls */}
-      <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col h-[40dvh] lg:h-auto order-2 lg:order-1">
+      <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col h-[600px] lg:h-auto order-2 lg:order-1 shrink-0">
         <div className="p-4 border-b border-slate-800 flex justify-between items-center">
           <h3 className="font-bold text-white">创作助手</h3>
           <span className="text-xs text-slate-500">剩余修改次数: {modificationCredits}</span>
@@ -1037,7 +1041,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       </div>
 
       {/* Right: Preview */}
-      <div className="flex-1 bg-slate-950 relative flex flex-col group h-[60dvh] lg:h-auto order-1 lg:order-2">
+      <div className="flex-1 bg-slate-950 relative flex flex-col group h-[85vh] lg:h-auto order-1 lg:order-2 shrink-0">
         <div className="h-10 lg:h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4">
           <span className="text-sm font-bold text-slate-400">预览模式</span>
           {/* Mobile Actions (Simplified) */}

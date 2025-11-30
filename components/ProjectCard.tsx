@@ -166,28 +166,28 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
               )}
             </div>
           </div>
-          <div className="p-3 text-left flex flex-col flex-grow">
-            <h3 className="font-bold text-white text-sm mb-1 truncate">{item.title}</h3>
-            <p className="text-slate-400 text-xs line-clamp-2 mb-2">{item.description || 'No description'}</p>
+          <div className="p-3 text-left flex flex-col flex-grow min-h-0">
+            <h3 className="font-bold text-white text-sm mb-1 truncate w-full">{item.title}</h3>
+            <p className="text-slate-400 text-xs line-clamp-2 mb-2 w-full break-words">{item.description || 'No description'}</p>
             
             <div className="flex-grow"></div>
             
-            <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
-              <div className="flex items-center gap-2 text-xs text-slate-400">
+            <div className="flex items-center justify-between pt-2 border-t border-slate-700/50 gap-2 w-full">
+              <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0 flex-1 overflow-hidden">
                 <img 
                   src={item.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author}`} 
-                  className="w-4 h-4 rounded-full" 
+                  className="w-4 h-4 rounded-full flex-shrink-0" 
                   alt="author" 
                   onError={(e) => {
                     e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author}`;
                   }}
                 />
-                <span className="truncate">{item.author}</span>
+                <span className="truncate block max-w-full">{item.author}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <div className="flex gap-2 text-[10px] text-slate-500">
                   <span className="flex items-center gap-1" title="查看"><i className="fa-solid fa-eye"></i> {item.page_views || 0}</span>
-                  <span className="flex items-center gap-1" title="下载"><i className="fa-solid fa-download"></i> {item.views || 0}</span>
+                  <span className="hidden sm:flex items-center gap-1" title="下载"><i className="fa-solid fa-download"></i> {item.views || 0}</span>
                   <button 
                     onClick={(e) => { e.stopPropagation(); onLike(item.id); }} 
                     className="flex items-center gap-1 hover:scale-110 transition" 
@@ -196,7 +196,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                     <i className={`fa-solid fa-heart ${isLiked ? 'text-rose-500' : ''}`}></i> {item.likes || 0}
                   </button>
                 </div>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${item.price > 0 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex-shrink-0 ${item.price > 0 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
                   {item.price > 0 ? '¥' + item.price : '免费'}
                 </span>
               </div>

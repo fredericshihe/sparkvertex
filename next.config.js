@@ -8,6 +8,8 @@ const withPWA = require("@ducanh2912/next-pwa").default({
   disable: process.env.NODE_ENV === "development",
   workboxOptions: {
     disableDevLogs: true,
+    skipWaiting: true,
+    clientsClaim: true,
     runtimeCaching: [
       {
         urlPattern: ({ url }) => {
@@ -16,6 +18,13 @@ const withPWA = require("@ducanh2912/next-pwa").default({
         handler: 'NetworkOnly',
         options: {
           cacheName: 'next-rsc',
+        },
+      },
+      {
+        urlPattern: /^https:\/\/waesizzoqodntrlvrwhw\.supabase\.co\/auth\/v1\/.*$/,
+        handler: 'NetworkOnly',
+        options: {
+          cacheName: 'supabase-auth',
         },
       },
       {

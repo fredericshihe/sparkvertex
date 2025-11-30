@@ -42,11 +42,23 @@ export default function Navbar() {
       }
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Error getting session:', error);
+        // If refresh token is invalid, force sign out to clear bad state
+        if (error.message.includes('Refresh Token')) {
+          supabase.auth.signOut();
+        }
+      }
       handleSession(session);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setAvatarUrl('');
+        // Clear any other local state if necessary
+      }
       handleSession(session);
     });
 
