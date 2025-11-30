@@ -76,13 +76,11 @@ export default function CreatePage() {
   const [currentGenerationPrompt, setCurrentGenerationPrompt] = useState('');
   
   // State: User Credits
-  const [generationCredits, setGenerationCredits] = useState(2);
-  const [modificationCredits, setModificationCredits] = useState(6);
+  const [credits, setCredits] = useState(20);
   const [userId, setUserId] = useState<string | null>(null);
 
   // State: Credit Modal
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
-  const [creditModalType, setCreditModalType] = useState<'generation' | 'modification'>('generation');
   
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -139,11 +137,8 @@ export default function CreatePage() {
           },
           (payload) => {
             const newProfile = payload.new as any;
-            if (newProfile.generation_credits !== undefined) {
-              setGenerationCredits(newProfile.generation_credits);
-            }
-            if (newProfile.modification_credits !== undefined) {
-              setModificationCredits(newProfile.modification_credits);
+            if (newProfile.credits !== undefined) {
+              setCredits(newProfile.credits);
             }
           }
         )
@@ -181,7 +176,10 @@ export default function CreatePage() {
       
       // Check for daily rewards
       try {
-        await supabase.rpc('check_daily_rewards');
+        const { data: bonusData, error: bonusError } = await supabase.rpc('check_daily_bonus');
+        if (bonusData && bonusData.awarded) {
+          toastSuccess(`每日登录奖励：+2 积分！当前积分：${bonusData.credits}`);
+        }
       } catch (error) {
         console.error('Failed to check daily rewards:', error);
         // Continue execution even if rewards check fails
@@ -190,17 +188,15 @@ export default function CreatePage() {
       // Fetch user credits
       const { data } = await supabase
         .from('profiles')
-        .select('generation_credits, modification_credits')
+        .select('credits')
         .eq('id', session.user.id)
         .maybeSingle();
         
       if (data) {
-        setGenerationCredits(data.generation_credits ?? 2);
-        setModificationCredits(data.modification_credits ?? 6);
+        setCredits(data.credits ?? 20);
       } else {
         // New profile handling (if not created by trigger)
-        setGenerationCredits(2);
-        setModificationCredits(6);
+        setCredits(20);
       }
     }
   };
@@ -339,19 +335,11 @@ root.render(<App/>);
       return;
     }
 
-    // Check Credits
-    if (isModification) {
-      if (modificationCredits <= 0) {
-        setCreditModalType('modification');
-        setIsCreditModalOpen(true);
-        return;
-      }
-    } else {
-      if (generationCredits <= 0) {
-        setCreditModalType('generation');
-        setIsCreditModalOpen(true);
-        return;
-      }
+    // Check Credits (Unified Cost: 2 points)
+    const COST = 2;
+    if (credits < COST) {
+      setIsCreditModalOpen(true);
+      return;
     }
 
     setIsGenerating(true);
@@ -938,7 +926,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col h-[600px] lg:h-auto order-2 lg:order-1 shrink-0">
         <div className="p-4 border-b border-slate-800 flex justify-between items-center">
           <h3 className="font-bold text-white">创作助手</h3>
-          <span className="text-xs text-slate-500">剩余修改次数: {modificationCredits}</span>
+          <span className="text-xs text-slate-500">剩余积分: {credits} (修改消耗 2 积分)</span>
         </div>
         
         {/* Chat History */}
@@ -1115,12 +1103,10 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                 <i className="fa-solid fa-triangle-exclamation text-2xl text-red-500"></i>
               </div>
               <h3 className="text-xl font-bold text-white mb-2">
-                {creditModalType === 'generation' ? '创建次数不足' : '修改次数不足'}
+                积分不足
               </h3>
               <p className="text-gray-400">
-                {creditModalType === 'generation' 
-                  ? '您的应用创建次数已用完。想要继续创作，请前往个人中心获取更多额度。' 
-                  : '您的应用修改次数已用完。想要继续完善，请前往个人中心获取更多额度。'}
+                您的积分已不足（需要 2 积分）。想要继续创作，请前往个人中心获取更多积分，或明日登录领取奖励。
               </p>
             </div>
             

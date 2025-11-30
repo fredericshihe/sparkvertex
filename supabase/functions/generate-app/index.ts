@@ -120,12 +120,12 @@ serve(async (req) => {
 
     // 4. Credit Check (No deduction yet)
     const isModification = type === 'modification';
-    const creditField = isModification ? 'modification_credits' : 'generation_credits';
+    const COST = 2;
     
     // Fetch current credits
     const { data: profile, error: profileError } = await supabaseAdmin
         .from('profiles')
-        .select(creditField)
+        .select('credits')
         .eq('id', userId)
         .single();
         
@@ -134,10 +134,10 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: 'Failed to fetch user profile' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
-    const currentCredits = profile[creditField] ?? 0;
+    const currentCredits = profile.credits ?? 0;
     
-    if (currentCredits <= 0) {
-        return new Response(JSON.stringify({ error: isModification ? '您的修改次数已用完' : '您的创建次数已用完' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (currentCredits < COST) {
+        return new Response(JSON.stringify({ error: '您的积分不足，无法进行操作' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // --- SECURITY CHECK END ---
@@ -209,7 +209,7 @@ serve(async (req) => {
     // 5. Credit Deduction (Deduct only after successful upstream response)
     const { error: creditUpdateError } = await supabaseAdmin
         .from('profiles')
-        .update({ [creditField]: currentCredits - 1 })
+        .update({ credits: currentCredits - COST })
         .eq('id', userId);
         
     if (creditUpdateError) {

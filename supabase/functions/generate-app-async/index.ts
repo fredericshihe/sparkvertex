@@ -170,21 +170,20 @@ serve(async (req) => {
         .update({ result_code: fullContent, status: 'completed' })
         .eq('id', taskId);
 
-    // 8. Deduct Credits
-    const isModification = type === 'modification';
-    const creditField = isModification ? 'modification_credits' : 'generation_credits';
+    // 8. Deduct Credits (Unified Cost: 2 points)
+    const COST = 2;
     
     // Fetch current credits to decrement
     const { data: profile } = await supabaseAdmin
         .from('profiles')
-        .select(creditField)
+        .select('credits')
         .eq('id', user.id)
         .single();
 
     if (profile) {
         await supabaseAdmin
             .from('profiles')
-            .update({ [creditField]: (profile[creditField] || 0) - 1 })
+            .update({ credits: (profile.credits || 0) - COST })
             .eq('id', user.id);
     }
 
