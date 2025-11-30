@@ -49,7 +49,8 @@ export async function POST(request: Request) {
       hasSiliconFlowKey: !!siliconFlowKey,
       promptSource: 'heuristic',
       imageSource: 'svg',
-      finalPrompt: ''
+      finalPrompt: '',
+      trace: [] as string[]
     };
 
     // Construct Professional Prompt
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
     
     // 1. Try to use DeepSeek to generate the optimized prompt first
     if (deepseekKey && (title && description)) {
+      debugInfo.trace.push('DeepSeek: Started');
       try {
         console.log('Using DeepSeek to optimize icon prompt...');
         const deepseekResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -115,44 +117,76 @@ Output ONLY the generated prompt string. Do not include any other text.`
             finalPrompt = generatedContent.replace(/^"|"$/g, ''); // Remove quotes if present
             console.log('DeepSeek generated prompt:', finalPrompt);
             debugInfo.promptSource = 'deepseek';
+            debugInfo.trace.push('DeepSeek: Success');
+          } else {
+            debugInfo.trace.push('DeepSeek: Empty Response');
           }
         } else {
-            console.error('DeepSeek API Error:', await deepseekResponse.text());
+            const errText = await deepseekResponse.text();
+            console.error('DeepSeek API Error:', errText);
+            debugInfo.trace.push(`DeepSeek: Failed (${deepseekResponse.status})`);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('DeepSeek prompt generation failed:', err);
+        debugInfo.trace.push(`DeepSeek: Error (${err.message})`);
       }
+    } else {
+        debugInfo.trace.push('DeepSeek: Skipped (Missing Key or Data)');
     }
 
     // Fallback if DeepSeek failed or not available
     if (!finalPrompt) {
-      // Simple heuristic for fallback style
+      debugInfo.trace.push('Fallback: Activated');
+      // Enhanced Heuristic for Intelligent Prompt Generation
+      const lowerDesc = (description || prompt || "").toLowerCase();
+      const lowerTitle = (title || "").toLowerCase();
+      const combinedText = `${lowerTitle} ${lowerDesc}`;
+
       let style = "Modern 3D minimalist, smooth matte texture, claymorphism";
       let colors = "Vibrant gradient background, soft pastel accents";
-      
-      const lowerDesc = (description || prompt || "").toLowerCase();
-      if (lowerDesc.includes("game") || lowerDesc.includes("play")) {
-        style = "Playful 3D cartoon style, bubbly shapes, low poly, vibrant";
-        colors = "Bright and energetic colors, orange and blue";
-      } else if (lowerDesc.includes("tool") || lowerDesc.includes("utility")) {
-        style = "Clean flat design, vector art, swiss design, minimalist";
-        colors = "Professional solid background, blue and white";
-      } else if (lowerDesc.includes("cyber") || lowerDesc.includes("future") || lowerDesc.includes("ai")) {
-        style = "Cyberpunk neon style, glowing edges, glassmorphism, futuristic";
+      let metaphor = "abstract geometric shape representing the core functionality";
+
+      // 1. Determine App Type & Vibe
+      if (combinedText.includes("game") || combinedText.includes("play") || combinedText.includes("arcade")) {
+        style = "Playful 3D cartoon style, bubbly shapes, low poly, vibrant, fortnite style";
+        colors = "Bright and energetic colors, orange, purple and blue";
+        metaphor = "stylized game controller or character mascot";
+      } else if (combinedText.includes("tool") || combinedText.includes("utility") || combinedText.includes("calculator") || combinedText.includes("converter")) {
+        style = "Clean flat design, vector art, swiss design, minimalist, apple ios style";
+        colors = "Professional solid background, blue and white, high contrast";
+        metaphor = "simplified gear or wrench or mathematical symbol";
+      } else if (combinedText.includes("finance") || combinedText.includes("money") || combinedText.includes("wallet")) {
+        style = "Premium glassmorphism, frosted glass, metallic texture, secure";
+        colors = "Emerald green, gold, and dark navy";
+        metaphor = "stylized coin or shield or wallet";
+      } else if (combinedText.includes("health") || combinedText.includes("fitness") || combinedText.includes("meditation")) {
+        style = "Organic, soft lighting, zen, nature-inspired, rounded corners";
+        colors = "Sage green, soft teal, bamboo color, white";
+        metaphor = "lotus flower or heartbeat line or leaf";
+      } else if (combinedText.includes("social") || combinedText.includes("chat") || combinedText.includes("connect")) {
+        style = "Friendly, rounded, bubble-like, gradient mesh";
+        colors = "Hot pink, electric blue, purple gradient";
+        metaphor = "speech bubble or connecting nodes or smiling face";
+      } else if (combinedText.includes("cyber") || combinedText.includes("future") || combinedText.includes("ai") || combinedText.includes("bot")) {
+        style = "Cyberpunk neon style, glowing edges, glassmorphism, futuristic, holographic";
         colors = "Dark background with neon purple and cyan accents";
-      } else if (lowerDesc.includes("art") || lowerDesc.includes("design")) {
-        style = "Abstract fluid shapes, watercolor, artistic, surreal";
-        colors = "Colorful, rainbow, pastel";
+        metaphor = "glowing brain circuit or robot eye or digital spark";
+      } else if (combinedText.includes("art") || combinedText.includes("design") || combinedText.includes("photo")) {
+        style = "Abstract fluid shapes, watercolor, artistic, surreal, colorful";
+        colors = "Colorful, rainbow, pastel, vivid";
+        metaphor = "palette or brush or camera lens or abstract splash";
       }
 
       const subject = title || prompt || "app icon";
-      finalPrompt = `App icon for "${subject}", ${description ? description.substring(0, 50) : subject} in the center. Style: ${style}. Lighting: Soft studio lighting. Colors: ${colors}. Composition: Centered object, simple background. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry.`;
+      // Assemble the High-Quality Prompt
+      finalPrompt = `App icon for "${subject}", featuring a ${metaphor} in the center. Style: ${style}. Lighting: Soft studio lighting, rim lighting. Colors: ${colors}. Composition: Centered object, simple background, enough padding. High quality, 8k, masterpiece, trending on artstation. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, complex details.`;
     }
     
     debugInfo.finalPrompt = finalPrompt;
 
     // 1. Try SiliconFlow (Flux-1-schnell) - Priority
     if (siliconFlowKey) {
+      debugInfo.trace.push('SiliconFlow: Started');
       console.log('Using SiliconFlow API (Flux-1-schnell)...');
       try {
         const response = await fetch('https://api.siliconflow.com/v1/images/generations', {
@@ -165,12 +199,13 @@ Output ONLY the generated prompt string. Do not include any other text.`
             model: "black-forest-labs/FLUX.1-schnell",
             prompt: finalPrompt,
             image_size: "1024x1024",
-            num_inference_steps: 1
+            num_inference_steps: 4 // Increased for better quality
           })
         });
 
         if (!response.ok) {
           const errorText = await response.text();
+          debugInfo.trace.push(`SiliconFlow: Failed (${response.status})`);
           throw new Error(`SiliconFlow API Error: ${response.status} ${errorText}`);
         }
 
@@ -184,20 +219,27 @@ Output ONLY the generated prompt string. Do not include any other text.`
           const base64 = Buffer.from(arrayBuffer).toString('base64');
           
           debugInfo.imageSource = 'siliconflow';
+          debugInfo.trace.push('SiliconFlow: Success');
           return NextResponse.json({ 
             url: `data:image/jpeg;base64,${base64}`,
             isMock: false,
             source: 'siliconflow',
             debug: debugInfo
           });
+        } else {
+            debugInfo.trace.push('SiliconFlow: No Image URL');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('SiliconFlow failed, falling back...', err);
+        debugInfo.trace.push(`SiliconFlow: Error (${err.message})`);
         // Continue to other methods if this fails
       }
+    } else {
+        debugInfo.trace.push('SiliconFlow: Skipped (Missing Key)');
     }
 
     // 2. Fallback to Pollinations.ai (Free)
+    debugInfo.trace.push('Pollinations: Started');
     console.log('Using Pollinations.ai (Free Fallback)...');
     
     // Construct a prompt optimized for icons
