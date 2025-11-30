@@ -41,6 +41,15 @@ export async function POST(request: Request) {
 
     const siliconFlowKey = process.env.SILICONFLOW_API_KEY;
     const deepseekKey = process.env.DEEPSEEK_API_KEY;
+    
+    // Debug Info Collector
+    const debugInfo = {
+      hasDeepSeekKey: !!deepseekKey,
+      hasSiliconFlowKey: !!siliconFlowKey,
+      promptSource: 'heuristic',
+      imageSource: 'svg',
+      finalPrompt: ''
+    };
 
     // Construct Professional Prompt
     let finalPrompt = '';
@@ -60,27 +69,31 @@ export async function POST(request: Request) {
             messages: [
               {
                 role: "system",
-                content: `You are an expert Icon Designer. Your task is to generate a creative, unique, and genre-appropriate app icon prompt based on the user's input.
+                content: `You are a World-Class App Icon Designer (Apple Design Award Winner). Your task is to craft the perfect prompt for an AI image generator (Flux/Midjourney) to create a stunning, production-ready app icon.
 
-# Analysis & Strategy
-1.  **Analyze Genre & Vibe:**
-    - **Game:** Fun, dynamic, maybe Pixel Art, Cartoon, or Low Poly.
-    - **Tool/Utility:** Clean, precise, Flat Design, Neumorphism, or Minimalist Line Art.
-    - **Business/Finance:** Professional, abstract, Geometric, Deep colors, Glassmorphism.
-    - **Lifestyle/Social:** Warm, soft, Hand-drawn, or Pastel colors.
-    - **Cyberpunk/Tech:** Neon, glowing, Glitch effect, High contrast.
+# Core Philosophy
+- **Less is More:** The best icons are simple, memorable, and scalable.
+- **Visual Metaphor:** Do not just describe the app literally. Use abstract symbols or clever metaphors (e.g., for a "Speed Browser", use a stylized rocket or lightning, not a web page).
+- **Vibrancy:** Use rich, deep, and harmonious colors. Avoid muddy or dull tones.
+- **No Text:** Icons must NEVER contain text.
 
-2.  **Select Style:** Choose the ONE most appropriate visual style from the list above. **DO NOT default to "Modern 3D minimalist" unless it truly fits.**
+# Analysis Strategy
+1.  **Analyze the App:** Understand the core value proposition from the Title and Description.
+2.  **Determine the Vibe:**
+    - **Game:** Playful, 3D Render, Claymorphism, Low Poly, Vibrant.
+    - **Productivity:** Clean, Minimalist, Glassmorphism, Frosted Glass, Swiss Design.
+    - **Creative/Art:** Abstract, Fluid shapes, Watercolor, Ink, Surreal.
+    - **Tech/Dev:** Geometric, Neon, Cyberpunk, Dark Mode, Blueprint.
+    - **Lifestyle:** Soft, Pastel, Organic, Hand-drawn, Warm lighting.
+3.  **Select the Style:** Choose the ONE most impactful style.
 
-3.  **Composition:**
-    - The icon must be suitable for a square format.
-    - Keep the main subject clear and recognizable even at small sizes.
-    - Background should complement the subject, not just be a generic gradient.
+# Prompt Construction Rules
+Generate a prompt string following this structure:
+"App icon for '{App Title}', [Central Subject/Metaphor]. Style: [Specific Style Name], [3-4 Visual Adjectives]. Lighting: [Lighting Setup]. Colors: [Specific Color Palette]. Composition: [Composition Details]. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry."
 
-# Prompt Generation
-Generate the image prompt using this strict format:
-
-"Mobile app icon for '{App Title}', [Core Object/Symbol] in the center. Style: [Specific Style Name], [Style Descriptors]. Lighting: [Lighting suitable for style]. Colors: [Color Palette suitable for vibe]. Composition: [Composition details]. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself."
+# Example
+Input: "Spark Notes - A fast note taking app"
+Output: "App icon for 'Spark Notes', a glowing minimalist feather pen floating above a paper plane. Style: MacOS Big Sur style, 3D icon, soft shadows, depth. Lighting: Soft studio lighting from top left. Colors: Gradient from electric blue to purple, white accents. Composition: Centered, floating, clean background. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry."
 
 # Execution
 Output ONLY the generated prompt string. Do not include any other text.`
@@ -100,7 +113,10 @@ Output ONLY the generated prompt string. Do not include any other text.`
           if (generatedContent) {
             finalPrompt = generatedContent.replace(/^"|"$/g, ''); // Remove quotes if present
             console.log('DeepSeek generated prompt:', finalPrompt);
+            debugInfo.promptSource = 'deepseek';
           }
+        } else {
+            console.error('DeepSeek API Error:', await deepseekResponse.text());
         }
       } catch (err) {
         console.error('DeepSeek prompt generation failed:', err);
@@ -110,27 +126,29 @@ Output ONLY the generated prompt string. Do not include any other text.`
     // Fallback if DeepSeek failed or not available
     if (!finalPrompt) {
       // Simple heuristic for fallback style
-      let style = "Modern 3D minimalist, smooth matte texture";
-      let colors = "Vibrant gradient background";
+      let style = "Modern 3D minimalist, smooth matte texture, claymorphism";
+      let colors = "Vibrant gradient background, soft pastel accents";
       
       const lowerDesc = (description || prompt || "").toLowerCase();
       if (lowerDesc.includes("game") || lowerDesc.includes("play")) {
-        style = "Playful 3D cartoon style, bubbly shapes";
-        colors = "Bright and energetic colors";
+        style = "Playful 3D cartoon style, bubbly shapes, low poly, vibrant";
+        colors = "Bright and energetic colors, orange and blue";
       } else if (lowerDesc.includes("tool") || lowerDesc.includes("utility")) {
-        style = "Clean flat design, vector art";
-        colors = "Professional solid background";
-      } else if (lowerDesc.includes("cyber") || lowerDesc.includes("future")) {
-        style = "Cyberpunk neon style, glowing edges";
-        colors = "Dark background with neon accents";
+        style = "Clean flat design, vector art, swiss design, minimalist";
+        colors = "Professional solid background, blue and white";
+      } else if (lowerDesc.includes("cyber") || lowerDesc.includes("future") || lowerDesc.includes("ai")) {
+        style = "Cyberpunk neon style, glowing edges, glassmorphism, futuristic";
+        colors = "Dark background with neon purple and cyan accents";
+      } else if (lowerDesc.includes("art") || lowerDesc.includes("design")) {
+        style = "Abstract fluid shapes, watercolor, artistic, surreal";
+        colors = "Colorful, rainbow, pastel";
       }
 
-      if (title && description) {
-        finalPrompt = `Mobile app icon for "${title}", ${description} in the center. Style: ${style}. Lighting: Studio lighting. Colors: ${colors}. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself.`;
-      } else {
-        finalPrompt = `Mobile app icon for "${prompt}", ${prompt} in the center. Style: ${style}. Lighting: Studio lighting. Colors: ${colors}. Composition: Centered object, full bleed background. No borders, no frames, no rounded corners drawn, no icon container shape. The image is the icon itself.`;
-      }
+      const subject = title || prompt || "app icon";
+      finalPrompt = `App icon for "${subject}", ${description ? description.substring(0, 50) : subject} in the center. Style: ${style}. Lighting: Soft studio lighting. Colors: ${colors}. Composition: Centered object, simple background. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry.`;
     }
+    
+    debugInfo.finalPrompt = finalPrompt;
 
     // 1. Try SiliconFlow (Flux-1-schnell) - Priority
     if (siliconFlowKey) {
@@ -164,10 +182,12 @@ Output ONLY the generated prompt string. Do not include any other text.`
           const arrayBuffer = await imageRes.arrayBuffer();
           const base64 = Buffer.from(arrayBuffer).toString('base64');
           
+          debugInfo.imageSource = 'siliconflow';
           return NextResponse.json({ 
             url: `data:image/jpeg;base64,${base64}`,
             isMock: false,
-            source: 'siliconflow'
+            source: 'siliconflow',
+            debug: debugInfo
           });
         }
       } catch (err) {
@@ -180,8 +200,10 @@ Output ONLY the generated prompt string. Do not include any other text.`
     console.log('Using Pollinations.ai (Free Fallback)...');
     
     // Construct a prompt optimized for icons
-    const basePrompt = finalPrompt || `mobile app icon representing ${title || prompt}`;
-    const iconPrompt = `${basePrompt}, no text, no letters, no words, symbolic, abstract, edge to edge, full bleed, no padding, no margin, single large central shape, premium color palette, elegant, clean, flat vector style with subtle gradient, high quality, 4k, square, full fill`;
+    const basePrompt = finalPrompt || `mobile app icon representing ${title || prompt}, minimalist, vector art, clean`;
+    // Enhanced Pollinations prompt
+    const iconPrompt = `${basePrompt}, (masterpiece), (best quality), (ultra-detailed), (8k), (illustration), (3d render), centered, simple background, vector style, flat design, smooth, sharp focus, no text, no watermark, no letters, no ui, no borders, no frame`;
+    
     const encodedPrompt = encodeURIComponent(iconPrompt);
     const seed = Math.floor(Math.random() * 1000000);
     
@@ -195,10 +217,12 @@ Output ONLY the generated prompt string. Do not include any other text.`
       const arrayBuffer = await imageRes.arrayBuffer();
       const base64 = Buffer.from(arrayBuffer).toString('base64');
       
+      debugInfo.imageSource = 'pollinations';
       return NextResponse.json({ 
         url: `data:image/jpeg;base64,${base64}`,
         isMock: false,
-        source: 'pollinations'
+        source: 'pollinations',
+        debug: debugInfo
       });
     } catch (err) {
       console.error('Pollinations fallback failed:', err);
@@ -221,9 +245,12 @@ Output ONLY the generated prompt string. Do not include any other text.`
         </svg>
       `;
       const base64Svg = Buffer.from(svg).toString('base64');
+      
+      debugInfo.imageSource = 'svg';
       return NextResponse.json({ 
         url: `data:image/svg+xml;base64,${base64Svg}`,
-        isMock: true 
+        isMock: true,
+        debug: debugInfo
       });
     }
 
