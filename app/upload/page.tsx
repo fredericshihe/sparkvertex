@@ -658,6 +658,11 @@ export default function UploadPage() {
           }
 
           const data = await response.json();
+          
+          if (data.debug && data.debug.trace) {
+            console.log('🎨 [Auto] Icon Generation Trace:', data.debug.trace);
+          }
+
           if (data.url) {
             setIconPreview(data.url);
             const res = await fetch(data.url);
@@ -1219,6 +1224,11 @@ export default function UploadPage() {
                         }
 
                         const data = await response.json();
+
+                        if (data.debug && data.debug.trace) {
+                          console.log('🎨 [Manual] Icon Generation Trace:', data.debug.trace);
+                        }
+
                         if (data.url) {
                           setIconPreview(data.url);
                           // Convert data URL to File object for upload
