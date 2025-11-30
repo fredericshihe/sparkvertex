@@ -10,6 +10,15 @@ const withPWA = require("@ducanh2912/next-pwa").default({
     disableDevLogs: true,
     runtimeCaching: [
       {
+        urlPattern: ({ url }) => {
+          return url.searchParams.has('_rsc');
+        },
+        handler: 'NetworkOnly',
+        options: {
+          cacheName: 'next-rsc',
+        },
+      },
+      {
         urlPattern: /^https:\/\/waesizzoqodntrlvrwhw\.supabase\.co\/storage\/v1\/object\/public\/.*$/,
         handler: 'StaleWhileRevalidate',
         options: {

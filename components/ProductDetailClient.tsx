@@ -113,7 +113,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
         .select('item_id')
         .eq('user_id', session.user.id)
         .eq('item_id', itemId)
-        .single();
+        .maybeSingle();
       setIsLiked(!!data);
     }
   };
