@@ -88,7 +88,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   return (
     <div 
       ref={cardRef}
-      className={`h-[400px] md:h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 touch-manipulation ${isFlipped ? 'flipped' : ''}`} 
+      className={`h-[360px] md:h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 touch-manipulation ${isFlipped ? 'flipped' : ''}`} 
       onClick={() => !isFlipped && onClick(item.id)}
       onMouseLeave={() => setIsFlipped(false)}
     >

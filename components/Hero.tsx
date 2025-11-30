@@ -169,7 +169,7 @@ export default function Hero() {
       
       {/* Flip Card Container */}
       <div 
-        className={`h-[420px] md:h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 ${isFlipped ? 'flipped' : ''}`} 
+        className={`h-[360px] md:h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 ${isFlipped ? 'flipped' : ''}`} 
         onClick={() => openDetailModal(activeCard.id, activeCard)}
         onMouseEnter={() => { setIsHovering(true); setIsFlipped(true); }}
         onMouseLeave={() => { setIsHovering(false); setIsFlipped(false); }}
@@ -191,7 +191,7 @@ export default function Hero() {
               <i className="fa-solid fa-qrcode"></i> 扫码体验
             </div>
 
-            <div className="h-[240px] md:h-44 relative bg-slate-900 overflow-hidden flex-shrink-0">
+            <div className="h-[220px] md:h-44 relative bg-slate-900 overflow-hidden flex-shrink-0">
               {generatePreviewHtml(activeCard?.content, activeCard?.color)}
               
               {/* AI Verified Badge */}
