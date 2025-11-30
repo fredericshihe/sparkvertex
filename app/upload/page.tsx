@@ -529,6 +529,11 @@ export default function UploadPage() {
   const [generationCount, setGenerationCount] = useState(0);
 
   const handleReset = () => {
+    // Reset File Input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
     setFile(null);
     setFileContent('');
     setTitle('');
@@ -538,7 +543,7 @@ export default function UploadPage() {
     setTags(['HTML5', 'Tool']);
     setTagInput('');
     setPublishedId(null);
-    setAnalysisState({ status: 'idle' });
+    setAnalysisState({ status: 'idle', progress: 0, tasks: [], message: '', data: undefined });
     setIsAnalyzing(false);
     setIsSecuritySafe(false);
     setPrompt('');
