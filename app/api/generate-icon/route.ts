@@ -56,20 +56,115 @@ export async function POST(request: Request) {
     // Construct Professional Prompt
     let finalPrompt = '';
     
-    // 1. Try to use SiliconFlow LLM (DeepSeek-V2.5) to generate the optimized prompt first
-    // This unifies the API usage and avoids separate DeepSeek keys
-    if (siliconFlowKey && (title && description)) {
-      debugInfo.trace.push('SiliconFlow LLM: Started');
+    // 1. Try to use Supabase Edge Function (DeepSeek Proxy) first
+    // This matches the logic in /api/analyze/route.ts to avoid 401 errors with direct API calls
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (supabaseUrl && supabaseKey && (title && description)) {
+      debugInfo.trace.push('DeepSeek (Edge): Started');
       try {
-        console.log('Using SiliconFlow LLM to optimize icon prompt...');
-        const llmResponse = await fetch('https://api.siliconflow.com/v1/chat/completions', {
+        console.log('Using Edge Function to optimize icon prompt...');
+        const systemPrompt = `You are a World-Class App Icon Designer (Apple Design Award Winner). Your task is to craft the perfect prompt for an AI image generator (Flux/Midjourney) to create a stunning, production-ready app icon.
+
+# Core Philosophy
+- **Less is More:** The best icons are simple, memorable, and scalable.
+- **Visual Metaphor:** Do not just describe the app literally. Use abstract symbols or clever metaphors (e.g., for a "Speed Browser", use a stylized rocket or lightning, not a web page).
+- **Vibrancy:** Use rich, deep, and harmonious colors. Avoid muddy or dull tones.
+- **No Text:** Icons must NEVER contain text.
+- **Shape:** SQUARE IMAGE ONLY. Full bleed. NO rounded corners. NO shadows. NO app icon container. The system will crop it later.
+
+# Analysis Strategy
+1.  **Analyze the App:** Understand the core value proposition from the Title and Description.
+2.  **Determine the Vibe:**
+    - **Game:** Playful, 3D Render, Claymorphism, Low Poly, Vibrant.
+    - **Productivity:** Clean, Minimalist, Glassmorphism, Frosted Glass, Swiss Design.
+    - **Creative/Art:** Abstract, Fluid shapes, Watercolor, Ink, Surreal.
+    - **Tech/Dev:** Geometric, Neon, Cyberpunk, Dark Mode, Blueprint.
+    - **Lifestyle:** Soft, Pastel, Organic, Hand-drawn, Warm lighting.
+3.  **Select the Style:** Choose the ONE most impactful style.
+
+# Prompt Construction Rules
+Generate a prompt string following this structure:
+"App icon for '{App Title}', [Central Subject/Metaphor]. Style: [Specific Style Name], [3-4 Visual Adjectives]. Lighting: [Lighting Setup]. Colors: [Specific Color Palette]. Composition: [Composition Details]. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background."
+
+# Example
+Input: "Spark Notes - A fast note taking app"
+Output: "App icon for 'Spark Notes', a glowing minimalist feather pen floating above a paper plane. Style: MacOS Big Sur style, 3D icon, soft shadows, depth. Lighting: Soft studio lighting from top left. Colors: Gradient from electric blue to purple, white accents. Composition: Centered, floating, clean background. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background."
+
+# Execution
+Output ONLY the generated prompt string. Do not include any other text.`;
+
+        const userPrompt = `App Name: ${title}\nDescription: ${description}`;
+
+        const edgeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-html`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${siliconFlowKey}`
+            'Authorization': `Bearer ${supabaseKey}`
+          },
+          body: JSON.stringify({ system_prompt: systemPrompt, user_prompt: userPrompt, temperature: 0.7 })
+        });
+
+        if (edgeResponse.ok) {
+          // Parse SSE stream from Edge Function (same logic as analyze route)
+          const reader = edgeResponse.body?.getReader();
+          if (reader) {
+            const decoder = new TextDecoder();
+            let fullContent = '';
+            let buffer = '';
+            
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop() || '';
+              
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const dataStr = line.slice(6).trim();
+                  if (dataStr === '[DONE]') continue;
+                  try {
+                    const data = JSON.parse(dataStr);
+                    fullContent += data.choices?.[0]?.delta?.content || '';
+                  } catch (e) {}
+                }
+              }
+            }
+            
+            if (fullContent) {
+              finalPrompt = fullContent.replace(/^"|"$/g, ''); // Remove quotes if present
+              console.log('DeepSeek (Edge) generated prompt:', finalPrompt);
+              debugInfo.promptSource = 'deepseek-edge';
+              debugInfo.trace.push('DeepSeek (Edge): Success');
+            } else {
+              debugInfo.trace.push('DeepSeek (Edge): Empty Response');
+            }
+          }
+        } else {
+           const errText = await edgeResponse.text();
+           console.error('Edge Function Error:', errText);
+           debugInfo.trace.push(`DeepSeek (Edge): Failed (${edgeResponse.status})`);
+        }
+      } catch (err: any) {
+        console.error('Edge Function call failed:', err);
+        debugInfo.trace.push(`DeepSeek (Edge): Error (${err.message})`);
+      }
+    } else if (deepseekKey && (title && description)) {
+      // Fallback to direct API call if Edge Function is not configured but Key is present
+      debugInfo.trace.push('DeepSeek (Direct): Started');
+      try {
+        console.log('Using DeepSeek (Direct) to optimize icon prompt...');
+        const deepseekResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${deepseekKey}`
           },
           body: JSON.stringify({
-            model: "deepseek-ai/DeepSeek-V2.5", // Use SiliconFlow hosted model
+            model: "deepseek-chat",
             messages: [
               {
                 role: "system",
@@ -112,28 +207,28 @@ Output ONLY the generated prompt string. Do not include any other text.`
           })
         });
 
-        if (llmResponse.ok) {
-          const data = await llmResponse.json();
+        if (deepseekResponse.ok) {
+          const data = await deepseekResponse.json();
           const generatedContent = data.choices?.[0]?.message?.content?.trim();
           if (generatedContent) {
             finalPrompt = generatedContent.replace(/^"|"$/g, ''); // Remove quotes if present
-            console.log('SiliconFlow LLM generated prompt:', finalPrompt);
-            debugInfo.promptSource = 'siliconflow-llm';
-            debugInfo.trace.push('SiliconFlow LLM: Success');
+            console.log('DeepSeek generated prompt:', finalPrompt);
+            debugInfo.promptSource = 'deepseek-direct';
+            debugInfo.trace.push('DeepSeek (Direct): Success');
           } else {
-            debugInfo.trace.push('SiliconFlow LLM: Empty Response');
+            debugInfo.trace.push('DeepSeek (Direct): Empty Response');
           }
         } else {
-            const errText = await llmResponse.text();
-            console.error('SiliconFlow LLM API Error:', errText);
-            debugInfo.trace.push(`SiliconFlow LLM: Failed (${llmResponse.status})`);
+            const errText = await deepseekResponse.text();
+            console.error('DeepSeek API Error:', errText);
+            debugInfo.trace.push(`DeepSeek (Direct): Failed (${deepseekResponse.status})`);
         }
       } catch (err: any) {
-        console.error('SiliconFlow LLM prompt generation failed:', err);
-        debugInfo.trace.push(`SiliconFlow LLM: Error (${err.message})`);
+        console.error('DeepSeek prompt generation failed:', err);
+        debugInfo.trace.push(`DeepSeek (Direct): Error (${err.message})`);
       }
     } else {
-        debugInfo.trace.push('SiliconFlow LLM: Skipped (Missing Key or Data)');
+        debugInfo.trace.push('DeepSeek: Skipped (Missing Key or Data)');
     }
 
     // Fallback if DeepSeek failed or not available
