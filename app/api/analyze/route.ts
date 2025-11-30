@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     }
 
     // 3. Input Validation
-    if (user_prompt.length > 10000) {
+    if (user_prompt.length > 100000) {
       return NextResponse.json({ error: 'Input too long' }, { status: 400 });
     }
 

@@ -57,7 +57,7 @@ async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, tempera
 async function analyzeCategory(htmlContent: string) {
   const categories = ['休闲游戏', '实用工具', '办公效率', '教育学习', '生活便利', '创意设计', '数据可视化', '影音娱乐', '开发者工具', 'AI应用'];
   const systemPrompt = '你是一个资深的应用市场分类专家。你需要精准分析 HTML 代码的核心功能，并将其归类到一个最合适的类别中。';
-  const userPrompt = `请分析以下 HTML 代码的核心功能和用户场景，将其归类为以下类别之一:\n${categories.join(', ')}\n\n只返回类别名称，不要解释，不要标点符号。代码:\n\n${htmlContent.substring(0, 4000)}`;
+  const userPrompt = `请分析以下 HTML 代码的核心功能和用户场景，将其归类为以下类别之一:\n${categories.join(', ')}\n\n只返回类别名称，不要解释，不要标点符号。代码:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
   if (!result) return '实用工具';
@@ -75,7 +75,7 @@ async function analyzeTitle(htmlContent: string) {
 2. 具有吸引力，能提高点击率。
 3. 如果代码中有 <title>，请优化它。
 
-只返回标题文本，不要引号，不要解释。代码:\n\n${htmlContent.substring(0, 4000)}`;
+只返回标题文本，不要引号，不要解释。代码:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
   if (!result) return '未命名作品';
@@ -92,7 +92,7 @@ async function analyzeDescription(htmlContent: string) {
 2. 语言风格现代、专业、简洁。
 3. 避免空洞的形容词。
 
-只返回描述文本。代码:\n\n${htmlContent.substring(0, 5000)}`;
+只返回描述文本。代码:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.7);
   if (!result) return '这是一个创意 Web 应用。';
@@ -112,7 +112,7 @@ async function analyzeTechStack(htmlContent: string) {
 - 网络: WebSocket, WebRTC, API Integration
 - 高级: PWA, Service Worker, WebAssembly, AI/ML, Web Audio
 
-只返回逗号分隔的标签名称，不要其他内容。代码:\n\n${htmlContent.substring(0, 6000)}`;
+只返回逗号分隔的标签名称，不要其他内容。代码:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
   if (!result) return ['HTML5', 'JavaScript', 'CSS3'];
@@ -166,7 +166,7 @@ async function analyzePrompt(htmlContent: string) {
 
 请确保生成的 Prompt 极其详尽，逻辑严密，使得生成的代码能够直接达到生产级标准。
 
-代码:\n\n${htmlContent.substring(0, 8000)}`;
+代码:\n\n${htmlContent.substring(0, 50000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
   if (!result) return '# Role\nCreative Developer\n\n# Task\nCreate a web application.\n\n# Style\nModern, Clean.';
@@ -185,7 +185,7 @@ async function analyzeAppType(htmlContent: string) {
 只返回 JSON 数组，不要包含其他文本。
 
 代码片段:
-${htmlContent.substring(0, 2000)}`;
+${htmlContent.substring(0, 10000)}`;
 
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
   if (!result) return [];
@@ -245,7 +245,7 @@ async function checkMaliciousCode(htmlContent: string) {
   "severity": "low" | "medium" | "high" | "critical"
 }
 
-代码:\n\n${htmlContent.substring(0, 10000)}`;
+代码:\n\n${htmlContent.substring(0, 50000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.2);
   if (!result) return performBasicSecurityCheck(htmlContent);

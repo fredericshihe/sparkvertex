@@ -35,8 +35,8 @@ export async function POST(request: Request) {
 
     // 3. Security Check: Input Validation
     const inputLength = (prompt?.length || 0) + (title?.length || 0) + (description?.length || 0);
-    if (inputLength > 1000) {
-      return NextResponse.json({ error: 'Input too long (max 1000 chars)' }, { status: 400 });
+    if (inputLength > 5000) {
+      return NextResponse.json({ error: 'Input too long (max 5000 chars)' }, { status: 400 });
     }
 
     const siliconFlowKey = process.env.SILICONFLOW_API_KEY;
