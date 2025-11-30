@@ -132,7 +132,10 @@ export default function Navbar() {
                      <img 
                         src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
                         className="w-8 h-8 rounded-full border border-slate-600 object-cover" 
-                        alt="Avatar" 
+                        alt="Avatar"
+                        onError={(e) => {
+                          e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`;
+                        }}
                      />
                    )}
                 </Link>

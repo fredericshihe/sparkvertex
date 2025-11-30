@@ -174,7 +174,14 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
             
             <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
               <div className="flex items-center gap-2 text-xs text-slate-400">
-                <img src={item.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author}`} className="w-4 h-4 rounded-full" alt="author" />
+                <img 
+                  src={item.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author}`} 
+                  className="w-4 h-4 rounded-full" 
+                  alt="author" 
+                  onError={(e) => {
+                    e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author}`;
+                  }}
+                />
                 <span className="truncate">{item.author}</span>
               </div>
               <div className="flex items-center gap-2">

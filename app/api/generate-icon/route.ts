@@ -79,6 +79,7 @@ export async function POST(request: Request) {
 - **Visual Metaphor:** Do not just describe the app literally. Use abstract symbols or clever metaphors (e.g., for a "Speed Browser", use a stylized rocket or lightning, not a web page).
 - **Vibrancy:** Use rich, deep, and harmonious colors. Avoid muddy or dull tones.
 - **No Text:** Icons must NEVER contain text.
+- **Shape:** SQUARE IMAGE ONLY. Full bleed. NO rounded corners. NO shadows. NO app icon container. The system will crop it later.
 
 # Analysis Strategy
 1.  **Analyze the App:** Understand the core value proposition from the Title and Description.
@@ -92,11 +93,11 @@ export async function POST(request: Request) {
 
 # Prompt Construction Rules
 Generate a prompt string following this structure:
-"App icon for '{App Title}', [Central Subject/Metaphor]. Style: [Specific Style Name], [3-4 Visual Adjectives]. Lighting: [Lighting Setup]. Colors: [Specific Color Palette]. Composition: [Composition Details]. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry."
+"App icon for '{App Title}', [Central Subject/Metaphor]. Style: [Specific Style Name], [3-4 Visual Adjectives]. Lighting: [Lighting Setup]. Colors: [Specific Color Palette]. Composition: [Composition Details]. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background."
 
 # Example
 Input: "Spark Notes - A fast note taking app"
-Output: "App icon for 'Spark Notes', a glowing minimalist feather pen floating above a paper plane. Style: MacOS Big Sur style, 3D icon, soft shadows, depth. Lighting: Soft studio lighting from top left. Colors: Gradient from electric blue to purple, white accents. Composition: Centered, floating, clean background. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry."
+Output: "App icon for 'Spark Notes', a glowing minimalist feather pen floating above a paper plane. Style: MacOS Big Sur style, 3D icon, soft shadows, depth. Lighting: Soft studio lighting from top left. Colors: Gradient from electric blue to purple, white accents. Composition: Centered, floating, clean background. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background."
 
 # Execution
 Output ONLY the generated prompt string. Do not include any other text.`
@@ -179,7 +180,7 @@ Output ONLY the generated prompt string. Do not include any other text.`
 
       const subject = title || prompt || "app icon";
       // Assemble the High-Quality Prompt
-      finalPrompt = `App icon for "${subject}", featuring a ${metaphor} in the center. Style: ${style}. Lighting: Soft studio lighting, rim lighting. Colors: ${colors}. Composition: Centered object, simple background, enough padding. High quality, 8k, masterpiece, trending on artstation. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, complex details.`;
+      finalPrompt = `App icon for "${subject}", featuring a ${metaphor} in the center. Style: ${style}. Lighting: Soft studio lighting, rim lighting. Colors: ${colors}. Composition: Centered object, simple background, enough padding. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece, trending on artstation. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, complex details, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background.`;
     }
     
     debugInfo.finalPrompt = finalPrompt;

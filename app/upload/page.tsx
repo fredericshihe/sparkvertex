@@ -523,6 +523,7 @@ export default function UploadPage() {
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [iconPreview, setIconPreview] = useState<string>('');
   const [isGeneratingIcon, setIsGeneratingIcon] = useState(false);
+  const [generationCount, setGenerationCount] = useState(0);
 
   const handleReset = () => {
     setFile(null);
@@ -541,6 +542,7 @@ export default function UploadPage() {
     setIconFile(null);
     setIconPreview('');
     setIsGeneratingIcon(false);
+    setGenerationCount(0);
     setStep(1);
   };
 
@@ -1209,7 +1211,14 @@ export default function UploadPage() {
                         toastError('请先填写描述或等待AI分析完成');
                         return;
                       }
+                      if (generationCount >= 3) {
+                        toastError('每个作品最多只能自动生成 3 次图标');
+                        return;
+                      }
+                      
                       setIsGeneratingIcon(true);
+                      setGenerationCount(prev => prev + 1);
+                      
                       try {
                         const response = await fetch('/api/generate-icon', {
                           method: 'POST',
@@ -1236,22 +1245,26 @@ export default function UploadPage() {
                           const blob = await res.blob();
                           const file = new File([blob], 'icon.png', { type: 'image/png' });
                           setIconFile(file);
-                          toastSuccess('图标生成成功');
+                          toastSuccess(`图标生成成功 (剩余 ${3 - (generationCount + 1)} 次)`);
                         }
                       } catch (error: any) {
                         console.error('Icon generation failed', error);
                         toastError(error.message || '图标生成失败，请重试');
+                        // Revert count on failure if you want, but usually attempts are counted regardless
+                        // setGenerationCount(prev => prev - 1); 
                       } finally {
                         setIsGeneratingIcon(false);
                       }
                     }}
-                    disabled={isGeneratingIcon || !description}
+                    disabled={isGeneratingIcon || !description || generationCount >= 3}
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white py-2 rounded-lg font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isGeneratingIcon ? (
                       <><i className="fa-solid fa-circle-notch fa-spin"></i> AI 生成中...</>
+                    ) : generationCount >= 3 ? (
+                      <><i className="fa-solid fa-ban"></i> 次数已用完</>
                     ) : (
-                      <><i className="fa-solid fa-wand-magic-sparkles"></i> AI 自动生成图标</>
+                      <><i className="fa-solid fa-wand-magic-sparkles"></i> AI 自动生成图标 ({3 - generationCount}/3)</>
                     )}
                   </button>
 

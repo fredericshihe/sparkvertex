@@ -251,6 +251,9 @@ export default function Profile() {
             <img 
               src={profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'default'}`} 
               className="w-32 h-32 rounded-full border-4 border-slate-900 bg-slate-800 object-cover"
+              onError={(e) => {
+                e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'default'}`;
+              }}
             />
           </div>
           <div className="flex-grow mb-2 w-full md:w-auto">
