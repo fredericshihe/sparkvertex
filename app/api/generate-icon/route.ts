@@ -56,19 +56,20 @@ export async function POST(request: Request) {
     // Construct Professional Prompt
     let finalPrompt = '';
     
-    // 1. Try to use DeepSeek to generate the optimized prompt first
-    if (deepseekKey && (title && description)) {
-      debugInfo.trace.push('DeepSeek: Started');
+    // 1. Try to use SiliconFlow LLM (DeepSeek-V2.5) to generate the optimized prompt first
+    // This unifies the API usage and avoids separate DeepSeek keys
+    if (siliconFlowKey && (title && description)) {
+      debugInfo.trace.push('SiliconFlow LLM: Started');
       try {
-        console.log('Using DeepSeek to optimize icon prompt...');
-        const deepseekResponse = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        console.log('Using SiliconFlow LLM to optimize icon prompt...');
+        const llmResponse = await fetch('https://api.siliconflow.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${deepseekKey}`
+            'Authorization': `Bearer ${siliconFlowKey}`
           },
           body: JSON.stringify({
-            model: "deepseek-chat",
+            model: "deepseek-ai/DeepSeek-V2.5", // Use SiliconFlow hosted model
             messages: [
               {
                 role: "system",
@@ -111,28 +112,28 @@ Output ONLY the generated prompt string. Do not include any other text.`
           })
         });
 
-        if (deepseekResponse.ok) {
-          const data = await deepseekResponse.json();
+        if (llmResponse.ok) {
+          const data = await llmResponse.json();
           const generatedContent = data.choices?.[0]?.message?.content?.trim();
           if (generatedContent) {
             finalPrompt = generatedContent.replace(/^"|"$/g, ''); // Remove quotes if present
-            console.log('DeepSeek generated prompt:', finalPrompt);
-            debugInfo.promptSource = 'deepseek';
-            debugInfo.trace.push('DeepSeek: Success');
+            console.log('SiliconFlow LLM generated prompt:', finalPrompt);
+            debugInfo.promptSource = 'siliconflow-llm';
+            debugInfo.trace.push('SiliconFlow LLM: Success');
           } else {
-            debugInfo.trace.push('DeepSeek: Empty Response');
+            debugInfo.trace.push('SiliconFlow LLM: Empty Response');
           }
         } else {
-            const errText = await deepseekResponse.text();
-            console.error('DeepSeek API Error:', errText);
-            debugInfo.trace.push(`DeepSeek: Failed (${deepseekResponse.status})`);
+            const errText = await llmResponse.text();
+            console.error('SiliconFlow LLM API Error:', errText);
+            debugInfo.trace.push(`SiliconFlow LLM: Failed (${llmResponse.status})`);
         }
       } catch (err: any) {
-        console.error('DeepSeek prompt generation failed:', err);
-        debugInfo.trace.push(`DeepSeek: Error (${err.message})`);
+        console.error('SiliconFlow LLM prompt generation failed:', err);
+        debugInfo.trace.push(`SiliconFlow LLM: Error (${err.message})`);
       }
     } else {
-        debugInfo.trace.push('DeepSeek: Skipped (Missing Key or Data)');
+        debugInfo.trace.push('SiliconFlow LLM: Skipped (Missing Key or Data)');
     }
 
     // Fallback if DeepSeek failed or not available

@@ -203,12 +203,15 @@ ${htmlContent.substring(0, 10000)}`;
 function performBasicSecurityCheck(htmlContent: string) {
   const dangerousPatterns = [
       { pattern: /eval\s*\(/gi, name: 'eval函数调用' },
+      { pattern: /window\[['"]eval['"]\]/gi, name: 'eval混淆调用' },
       { pattern: /new\s+Function\s*\(/gi, name: 'Function构造器' },
       { pattern: /document\.write\s*\(/gi, name: 'document.write' },
       { pattern: /\.innerHTML\s*=/g, name: 'innerHTML直接赋值' },
       { pattern: /<script[^>]*src\s*=\s*["'][^"']*(?:bitcoin|crypto|miner|coinminer)[^"']*["']/gi, name: '可疑挖矿脚本' },
       { pattern: /keylogger|keystroke|keypress.*password/gi, name: '键盘监听可疑行为' },
-      { pattern: /document\.cookie/gi, name: 'Cookie访问' }
+      { pattern: /document\.cookie/gi, name: 'Cookie访问' },
+      { pattern: /localStorage|sessionStorage/gi, name: '本地存储访问' },
+      { pattern: /navigator\.sendBeacon/gi, name: '后台数据发送' }
   ];
   
   const foundRisks: string[] = [];

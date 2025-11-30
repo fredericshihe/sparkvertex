@@ -44,7 +44,11 @@ export async function POST(request: Request) {
     // SECURITY: Use Service Role Key to authenticate as a privileged caller.
     // This allows you to configure the Edge Function to REJECT requests with the Anon Key,
     // preventing users from bypassing the rate limits in this API route.
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!supabaseKey) {
+      console.warn('SECURITY WARNING: SUPABASE_SERVICE_ROLE_KEY is not set. Edge Function calls may fail or be insecure.');
+    }
 
     if (supabaseUrl && supabaseKey) {
       try {
