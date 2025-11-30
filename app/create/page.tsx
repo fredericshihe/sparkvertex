@@ -950,7 +950,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
   const renderPreview = () => (
     <div className="flex flex-col lg:flex-row min-h-[100dvh] lg:h-[100dvh] pt-16">
       {/* Left: Chat & Controls */}
-      <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col h-[600px] lg:h-auto order-2 lg:order-1 shrink-0">
+      <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col h-[80vh] lg:h-auto order-2 lg:order-1 shrink-0">
         <div className="p-4 border-b border-slate-800 flex justify-between items-center">
           <h3 className="font-bold text-white">创作助手</h3>
           <span className="text-xs text-slate-500">剩余积分: {credits} (修改消耗 2 积分)</span>
@@ -1056,7 +1056,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       </div>
 
       {/* Right: Preview */}
-      <div className="flex-1 bg-slate-950 relative flex flex-col group h-[85vh] lg:h-auto order-1 lg:order-2 shrink-0">
+      <div className="flex-1 bg-slate-950 relative flex flex-col group h-[calc(100dvh-64px)] lg:h-auto order-1 lg:order-2 shrink-0">
         <div className="h-10 lg:h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4">
           <span className="text-sm font-bold text-slate-400">预览模式</span>
           {/* Mobile Actions (Simplified) */}
