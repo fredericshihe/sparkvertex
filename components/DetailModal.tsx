@@ -418,7 +418,7 @@ export default function DetailModal() {
                       <img src={item?.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item?.author}`} className="w-12 h-12 rounded-full border-2 border-slate-700 object-cover" alt="Author" />
                       <div>
                         <div className="font-bold text-white text-base">{item?.author}</div>
-                        <div className="text-xs text-slate-500">{new Date(item?.created_at || '').toLocaleDateString()}</div>
+                        <div className="text-xs text-slate-500" suppressHydrationWarning>{new Date(item?.created_at || '').toLocaleDateString()}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

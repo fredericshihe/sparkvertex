@@ -421,7 +421,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
               <iframe 
                 srcDoc={getPreviewContent(item.content || '')}
                 className="w-full h-full border-0 bg-white" 
-                sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups allow-presentation"
+                sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups"
                 allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; fullscreen; picture-in-picture; display-capture; screen-wake-lock"
                 style={{ touchAction: 'manipulation' }}
               />
@@ -450,7 +450,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                 <img src={item.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author}`} className="w-12 h-12 rounded-full border-2 border-slate-700 object-cover" alt="Author" />
                 <div>
                   <div className="font-bold text-white text-base">{item.author}</div>
-                  <div className="text-xs text-slate-500">{new Date(item.created_at || '').toLocaleDateString()}</div>
+                  <div className="text-xs text-slate-500" suppressHydrationWarning>{new Date(item.created_at || '').toLocaleDateString()}</div>
                 </div>
               </div>
               <div className="flex items-center gap-2">

@@ -114,7 +114,7 @@ export default function ManageOrdersModal() {
                       </div>
                       <div>
                         <span className="block text-xs text-slate-500 mb-0.5">时间</span>
-                        <span>{new Date(order.created_at).toLocaleDateString()}</span>
+                        <span suppressHydrationWarning>{new Date(order.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>
 

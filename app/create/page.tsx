@@ -355,7 +355,9 @@ root.render(<App/>);
     }
 
     setIsGenerating(true);
-    setStep('generating');
+    if (!isModification) {
+      setStep('generating');
+    }
     setProgress(0);
     setStreamingCode('');
     
@@ -561,8 +563,12 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                 }
 
                 setGeneratedCode(cleanCode);
-                setStep('preview');
-                setPreviewMode(wizardData.device as any);
+                
+                if (!isModification) {
+                  setStep('preview');
+                  setPreviewMode(wizardData.device as any);
+                }
+
                 if (isModification) {
                     setChatHistory(prev => [...prev, { role: 'ai', content: '代码已更新，请查看预览效果。' }]);
                 }
@@ -586,7 +592,9 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
     } catch (error: any) {
       console.error('Generation error:', error);
       toastError(error.message || '生成失败，请重试');
-      setStep(isModification ? 'preview' : 'desc');
+      if (!isModification) {
+        setStep('desc');
+      }
       setIsGenerating(false);
       clearInterval(progressInterval);
     }
@@ -949,6 +957,31 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
               </div>
             </div>
           ))}
+          
+          {/* Loading State for Modification */}
+          {isGenerating && (
+            <div className="flex gap-3 animate-fade-in">
+              <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 flex-shrink-0">
+                <i className="fa-solid fa-robot fa-bounce"></i>
+              </div>
+              <div className="bg-slate-800 p-3 rounded-2xl rounded-tl-none text-sm text-slate-300 w-full border border-brand-500/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-bold text-brand-400">AI 正在修改代码...</span>
+                  <span className="text-xs text-slate-500">{Math.floor(progress)}%</span>
+                </div>
+                <p className="text-xs text-slate-400 mb-2">{loadingText}</p>
+                {streamingCode && (
+                  <div className="bg-slate-950 rounded p-2 font-mono text-[10px] text-green-400 h-24 overflow-hidden relative opacity-80">
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent pointer-events-none"></div>
+                    <pre className="whitespace-pre-wrap break-all">
+                      {streamingCode.slice(-300)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           <div ref={chatEndRef}></div>
         </div>
 
@@ -1037,6 +1070,17 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                className="w-full h-full"
                sandbox="allow-scripts allow-forms allow-modals allow-popups"
              />
+             
+             {/* Loading Overlay for Modification */}
+             {isGenerating && (
+                <div className="absolute inset-0 z-30 bg-slate-900/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white animate-fade-in">
+                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700 shadow-2xl flex flex-col items-center">
+                      <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                      <p className="font-bold text-lg">正在应用修改...</p>
+                      <p className="text-sm text-slate-400 mt-1">请稍候，预览即将刷新</p>
+                    </div>
+                </div>
+             )}
           </div>
           
           {/* Floating Preview Controls */}

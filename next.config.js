@@ -18,6 +18,9 @@ const withPWA = require("@ducanh2912/next-pwa").default({
             maxEntries: 100,
             maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
           },
+          cacheableResponse: {
+            statuses: [200],
+          },
         },
       },
       {

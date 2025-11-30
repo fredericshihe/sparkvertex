@@ -829,12 +829,25 @@ export default function UploadPage() {
 
       // Upload Icon if exists
       let iconUrl = null;
-      if (iconFile) {
-        const fileExt = iconFile.name.split('.').pop();
+
+      // Ensure iconFile is set if we have a preview but no file (e.g. user clicked publish too fast after auto-generation)
+      let fileToUpload = iconFile;
+      if (!fileToUpload && iconPreview && iconPreview.startsWith('http')) {
+          try {
+              const res = await fetch(iconPreview);
+              const blob = await res.blob();
+              fileToUpload = new File([blob], 'icon.png', { type: 'image/png' });
+          } catch (e) {
+              console.warn('Failed to convert icon preview to file on publish', e);
+          }
+      }
+
+      if (fileToUpload) {
+        const fileExt = fileToUpload.name.split('.').pop() || 'png';
         const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
           .from('icons')
-          .upload(fileName, iconFile);
+          .upload(fileName, fileToUpload);
         
         if (uploadError) throw uploadError;
         
