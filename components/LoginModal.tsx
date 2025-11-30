@@ -7,13 +7,14 @@ import { useModal } from '@/context/ModalContext';
 
 export default function LoginModal() {
   const { isLoginModalOpen, closeLoginModal } = useModal();
-  const [view, setView] = useState<'login' | 'forgot_password'>('login');
+  const [view, setView] = useState<'login' | 'register' | 'forgot_password'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  const [showEmailSent, setShowEmailSent] = useState(false);
 
   // Reset state when modal opens to prevent stale lockout state
   useEffect(() => {
@@ -25,6 +26,7 @@ export default function LoginModal() {
       setLockoutUntil(null);
       setMessage('');
       setView('login');
+      setShowEmailSent(false);
     }
   }, [isLoginModalOpen]);
 
@@ -125,7 +127,8 @@ export default function LoginModal() {
         if (data.user && data.user.identities && data.user.identities.length === 0) {
           setMessage('该邮箱已被注册，请直接登录');
         } else {
-          setMessage('注册确认邮件已发送！\n如未收到，请检查垃圾箱或尝试直接登录。');
+          setShowEmailSent(true);
+          setMessage('');
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -170,20 +173,56 @@ export default function LoginModal() {
     }
   };
 
+  const renderEmailSent = () => (
+    <div className="text-center space-y-6 py-4">
+      <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto animate-bounce">
+        <i className="fa-solid fa-envelope-circle-check text-4xl text-green-500"></i>
+      </div>
+      <div>
+        <h3 className="text-xl font-bold text-white mb-2">验证邮件已发送</h3>
+        <p className="text-slate-400 text-sm leading-relaxed">
+          我们已向 <span className="text-brand-400 font-bold">{email}</span> 发送了一封验证邮件。
+          <br />
+          请查收邮件并点击链接完成注册。
+        </p>
+      </div>
+      <div className="bg-slate-800/50 rounded-lg p-4 text-xs text-slate-500 text-left">
+        <p className="mb-2 font-bold"><i className="fa-solid fa-circle-info mr-1"></i> 没收到邮件？</p>
+        <ul className="list-disc list-inside space-y-1 pl-1">
+          <li>请检查垃圾邮件箱</li>
+          <li>稍等几分钟再次刷新邮箱</li>
+          <li>确认邮箱地址输入正确</li>
+        </ul>
+      </div>
+      <button 
+        onClick={() => {
+          setShowEmailSent(false);
+          setView('login');
+          setMessage('');
+        }}
+        className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition border border-slate-700"
+      >
+        返回登录
+      </button>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-[200]">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm touch-none" onClick={closeLoginModal}></div>
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl animate-float-up overscroll-contain">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-white">
-            {view === 'login' ? '登录 / 注册' : '重置密码'}
+            {showEmailSent ? '注册成功' : 
+             view === 'login' ? '欢迎回来' : 
+             view === 'register' ? '创建账号' : '重置密码'}
           </h2>
           <button onClick={closeLoginModal} className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 transition">
             <i className="fa-solid fa-xmark"></i>
           </button>
         </div>
         
-        {view === 'login' ? (
+        {showEmailSent ? renderEmailSent() : view === 'login' ? (
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-400 mb-1">邮箱</label>
@@ -217,32 +256,80 @@ export default function LoginModal() {
               />
             </div>
             
-            {message && <p className="text-red-400 text-sm text-center">{message}</p>}
+            {message && <p className="text-red-400 text-sm text-center bg-red-500/10 py-2 rounded border border-red-500/20">{message}</p>}
 
             <button 
               onClick={() => handleAuth('login')}
               disabled={loading}
               className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-brand-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? '处理中...' : '登录'}
+              {loading ? '登录中...' : '立即登录'}
             </button>
             
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-700"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-slate-900 text-slate-500">或者</span>
-              </div>
+            <div className="text-center mt-4">
+              <span className="text-slate-500 text-sm">还没有账号？</span>
+              <button 
+                onClick={() => {
+                  setView('register');
+                  setMessage('');
+                }}
+                className="text-brand-400 hover:text-brand-300 text-sm font-bold ml-2 transition"
+              >
+                去注册
+              </button>
             </div>
+          </div>
+        ) : view === 'register' ? (
+          <div className="space-y-4">
+            <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 mb-4">
+              <p className="text-xs text-blue-400 flex items-start gap-2">
+                <i className="fa-solid fa-circle-info mt-0.5"></i>
+                <span>注册即代表同意我们的服务条款。注册后需要验证邮箱才能登录。</span>
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1">邮箱</label>
+              <input 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition"
+                placeholder="your@email.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1">密码</label>
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition"
+                placeholder="至少8位，包含字母和数字"
+              />
+            </div>
+            
+            {message && <p className="text-red-400 text-sm text-center bg-red-500/10 py-2 rounded border border-red-500/20">{message}</p>}
 
             <button 
               onClick={() => handleAuth('register')}
               disabled={loading}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition border border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-brand-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              注册新账号
+              {loading ? '注册中...' : '注册账号'}
             </button>
+            
+            <div className="text-center mt-4">
+              <span className="text-slate-500 text-sm">已有账号？</span>
+              <button 
+                onClick={() => {
+                  setView('login');
+                  setMessage('');
+                }}
+                className="text-brand-400 hover:text-brand-300 text-sm font-bold ml-2 transition"
+              >
+                去登录
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -261,7 +348,7 @@ export default function LoginModal() {
             </div>
 
             {message && (
-              <p className={`text-sm text-center ${message.includes('已发送') ? 'text-green-400' : 'text-red-400'}`}>
+              <p className={`text-sm text-center py-2 rounded border ${message.includes('已发送') ? 'text-green-400 bg-green-500/10 border-green-500/20' : 'text-red-400 bg-red-500/10 border-red-500/20'}`}>
                 {message}
               </p>
             )}

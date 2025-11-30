@@ -88,7 +88,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   return (
     <div 
       ref={cardRef}
-      className={`h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 touch-manipulation ${isFlipped ? 'flipped' : ''}`} 
+      className={`h-[400px] md:h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 touch-manipulation ${isFlipped ? 'flipped' : ''}`} 
       onClick={() => !isFlipped && onClick(item.id)}
       onMouseLeave={() => setIsFlipped(false)}
     >
@@ -117,7 +117,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
             <i className="fa-solid fa-qrcode mr-1"></i> 扫码体验
           </div>
 
-          <div className="h-44 relative bg-white overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
+          <div className="h-[220px] md:h-44 relative bg-white overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
             {/* Iframe Preview */}
             {isVisible && item.content && (
                <iframe
