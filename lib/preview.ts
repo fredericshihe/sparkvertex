@@ -168,10 +168,19 @@ export const getPreviewContent = (content: string | null) => {
         }
         // Suppress "SecurityError: The operation is insecure." which happens when accessing storage in restricted iframes
         if (String(msg).includes('SecurityError') || String(msg).includes('The operation is insecure')) {
+            console.warn('Suppressed SecurityError:', msg);
             return true;
         }
         console.log('App Error:', msg);
         return false;
+      };
+
+      // Global Promise Rejection Handler for SecurityError
+      window.onunhandledrejection = function(event) {
+        if (String(event.reason).includes('SecurityError') || String(event.reason).includes('The operation is insecure')) {
+            console.warn('Suppressed Unhandled SecurityError:', event.reason);
+            event.preventDefault();
+        }
       };
 
       // Mobile Audio Unlocker
