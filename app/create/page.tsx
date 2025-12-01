@@ -618,7 +618,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       console.log('Calling /api/generate with prompt length:', dbPrompt.length);
 
       // Use Next.js Proxy API to hide Supabase Edge Function URL
-      let response;
+      let response: Response;
       try {
         response = await fetch('/api/generate', {
             method: 'POST',
