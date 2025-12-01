@@ -542,7 +542,8 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             taskId, 
             system_prompt: SYSTEM_PROMPT, 
             user_prompt: prompt, 
-            type: isModification ? 'modification' : 'generation' 
+            type: isModification ? 'modification' : 'generation',
+            image_url: uploadedImageUrl
         }
       }).catch(err => console.error('Trigger error:', err));
 
