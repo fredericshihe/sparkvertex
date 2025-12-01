@@ -7,7 +7,7 @@ export function applyPatches(source: string, patchText: string): string {
   // ... content ...
   // >>>>
   // Enhanced regex to be more permissive with whitespace around markers
-  const matches = patchText.matchAll(/<<<<\s*SEARCH\s*\n([\s\S]*?)\n====\s*\n([\s\S]*?)\n>>>>/g);
+  const matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*\n([\s\S]*?)\n====\s*\n([\s\S]*?)\n>>>>/g));
   
   let result = source;
   let successCount = 0;
