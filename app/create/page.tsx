@@ -177,6 +177,35 @@ export default function CreatePage() {
     }
   }, [chatHistory]);
 
+  useEffect(() => {
+    // Check for remix template
+    const remixData = localStorage.getItem('remix_template');
+    if (remixData) {
+      try {
+        const template = JSON.parse(remixData);
+        setWizardData(prev => ({
+          ...prev,
+          category: template.category || 'tool',
+          style: template.style || 'minimalist',
+          description: template.prompt || template.description || '',
+          // Keep default device or infer? Let's keep default 'mobile' for now as it's the trend
+        }));
+        
+        // If we have a prompt, jump to description step to let user edit
+        if (template.prompt) {
+            setStep('desc');
+            // Use a small timeout to ensure toast is shown after mount
+            setTimeout(() => toastSuccess('已加载同款模板，您可以修改后生成'), 500);
+        }
+        
+        // Clear it
+        localStorage.removeItem('remix_template');
+      } catch (e) {
+        console.error('Failed to parse remix template', e);
+      }
+    }
+  }, []);
+
   const checkAuth = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -790,35 +819,6 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                 <div className="grid grid-cols-1 gap-3">
                   {/* @ts-ignore */}
                   {FEATURE_TEMPLATES[wizardData.category]?.map((tpl: any, index: number) => (
-                    <button
-                      key={index}
-                      onClick={() => addTemplateFeature(tpl.desc)}
-                      className="p-4 bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700 hover:border-brand-500 rounded-xl transition text-left group flex items-start gap-3"
-                    >
-                      <div className="mt-1 w-5 h-5 rounded-full border border-slate-600 flex items-center justify-center group-hover:border-brand-500 group-hover:bg-brand-500/20 transition-colors">
-                        <i className="fa-solid fa-plus text-[10px] text-slate-400 group-hover:text-brand-400"></i>
-                      </div>
-                      <div>
-                        <span className="font-bold text-white text-sm group-hover:text-brand-400 transition block mb-1">{tpl.label}</span>
-                        <p className="text-xs text-slate-400 leading-relaxed">{tpl.desc}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center pt-4">
-                <button onClick={() => setStep('style')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-800 transition">
-                  <i className="fa-solid fa-arrow-left"></i> 返回上一步
-                </button>
-                <button 
-                  onClick={() => {
-                    if (!wizardData.features.trim()) return;
-                    setStep('desc');
-                  }}
-                  disabled={!wizardData.features.trim()}
-                  className={`px-6 py-2 rounded-lg font-bold transition shadow-lg flex items-center gap-2 ${
-                    !wizardData.features.trim() 
                       ? 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none' 
                       : 'bg-brand-600 hover:bg-brand-500 text-white shadow-brand-500/20'
                   }`}

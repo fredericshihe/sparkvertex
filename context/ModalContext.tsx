@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 
 interface ModalContextType {
   isLoginModalOpen: boolean;
@@ -49,6 +49,10 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
   const [rewardAuthorId, setRewardAuthorId] = useState<string | null>(null);
 
+  // History Management Refs
+  const historyStatePushed = useRef(false);
+  const isPoppingState = useRef(false);
+
   const openLoginModal = () => setIsLoginModalOpen(true);
   const closeLoginModal = () => setIsLoginModalOpen(false);
 
@@ -60,11 +64,39 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       setDetailItemData(null);
     }
     setIsDetailModalOpen(true);
+
+    // Push history state for mobile back button support
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ modal: 'detail' }, '', window.location.href);
+      historyStatePushed.current = true;
+    }
   };
   const closeDetailModal = () => {
     setIsDetailModalOpen(false);
     setDetailItemId(null);
+
+    // Only go back if we pushed a state and this isn't a popstate event
+    if (historyStatePushed.current && !isPoppingState.current && typeof window !== 'undefined') {
+      window.history.back();
+      historyStatePushed.current = false;
+    }
   };
+
+  // Handle browser back button
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (isDetailModalOpen) {
+        // User pressed back button
+        isPoppingState.current = true;
+        closeDetailModal();
+        isPoppingState.current = false;
+        historyStatePushed.current = false; // State is already popped by browser
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isDetailModalOpen]);
 
   const openFeedbackModal = () => setIsFeedbackModalOpen(true);
   const closeFeedbackModal = () => setIsFeedbackModalOpen(false);
