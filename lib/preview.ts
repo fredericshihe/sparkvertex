@@ -39,11 +39,12 @@ export const getPreviewContent = (content: string | null) => {
     <script src="https://cdn.staticfile.org/prop-types/15.8.1/prop-types.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.5/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.0/umd/Recharts.min.js"></script>
     <script>
       // Polyfill for legacy code expecting global lucideReact
-      // The UMD build exports as 'LucideReact'
-      // We use a Proxy to handle missing icons gracefully to prevent React Error #130
-      const source = window.LucideReact || window.lucideReact || {};
+      // The UMD build exports as 'lucide' (lowercase) in newer versions, or 'LucideReact' in older ones.
+      // We check all possibilities.
+      const source = window.lucide || window.LucideReact || window.lucideReact || {};
       
       window.lucideReact = new Proxy(source, {
         get: function(target, prop) {
@@ -51,6 +52,19 @@ export const getPreviewContent = (content: string | null) => {
             return target[prop];
           }
           // If the icon is missing, return a dummy component to prevent crash
+          return function() { return null; };
+        }
+      });
+
+      // Polyfill for Recharts
+      // Ensure window.Recharts is available and proxied to prevent crashes if a component is missing
+      const rechartsSource = window.Recharts || {};
+      window.Recharts = new Proxy(rechartsSource, {
+        get: function(target, prop) {
+          if (prop in target) {
+            return target[prop];
+          }
+          console.warn('Missing Recharts component:', prop);
           return function() { return null; };
         }
       });

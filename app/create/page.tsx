@@ -598,15 +598,21 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       checkAuth(); // Fetch latest from DB to be sure
 
       // Trigger Async Generation (Fire and Forget)
-      // We use supabase.functions.invoke to trigger the edge function
-      // We don't await the result because it might take long
-      supabase.functions.invoke('generate-app-async', {
-        body: { 
+      // We use fetch directly to handle the streaming response (keep-alive) without parsing it
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-app-async`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ 
             taskId, 
             system_prompt: SYSTEM_PROMPT, 
             user_prompt: finalUserPrompt, 
             type: isModification ? 'modification' : 'generation'
-        }
+        })
       }).catch(err => console.error('Trigger error:', err));
 
       // Shared Task Handler
