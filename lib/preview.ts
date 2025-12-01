@@ -50,12 +50,12 @@ export const getPreviewContent = (content: string | null) => {
   // We inject them before any other scripts to ensure they are available.
   // Using cdn.staticfile.org (Seven Niu Cloud) for maximum stability in China, and jsdelivr for others.
   const stableScripts = `
-    <script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.staticfile.org/prop-types/15.8.1/prop-types.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/lucide-react@0.263.1/dist/umd/lucide-react.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.0/umd/Recharts.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.staticfile.org/prop-types/15.8.1/prop-types.min.js"></script>
+    <script src="https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
+    <script src="https://unpkg.com/recharts@2.12.0/umd/Recharts.min.js"></script>
+    <script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
     <script>
       // Polyfill for legacy code expecting global lucideReact
       // The UMD build exports as 'lucide' (lowercase) in newer versions, or 'LucideReact' in older ones.
