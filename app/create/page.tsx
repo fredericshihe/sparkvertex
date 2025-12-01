@@ -284,13 +284,13 @@ export default function CreatePage() {
 
   const handleStyleSelect = (id: string) => {
     setWizardData(prev => ({ ...prev, style: id }));
-    setStep('features');
+    setStep('desc');
   };
 
   const addTemplateFeature = (desc: string) => {
     setWizardData(prev => {
       const newFeatures = prev.features ? `${prev.features}\n${desc}` : desc;
-      if (newFeatures.length > 500) {
+      if (newFeatures.length > 800) {
         toastError('功能描述已达到字数上限');
         return prev;
       }
@@ -999,7 +999,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
           {step === 'features' && (
             <div className="space-y-6 animate-fade-in">
               <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold text-white">具体功能需求</h2>
+                <h2 className="text-3xl font-bold text-white">最后一步：具体功能需求</h2>
                 <p className="text-slate-400">描述你想要的功能，或使用下方模板快速组合</p>
               </div>
               
@@ -1009,14 +1009,14 @@ Please apply this change to the code. Ensure the modification is precise and aff
                   value={wizardData.features}
                   onChange={(e) => {
                     const val = e.target.value;
-                    // Allow paste but truncate to 500 chars
-                    setWizardData(prev => ({ ...prev, features: val.slice(0, 500) }));
+                    // Allow paste but truncate to 800 chars
+                    setWizardData(prev => ({ ...prev, features: val.slice(0, 800) }));
                   }}
                   placeholder="例如：我需要一个计分板，左边是红队，右边是蓝队，点击加分..."
                   className="w-full h-32 bg-transparent border-none outline-none appearance-none p-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-sm leading-relaxed"
                 ></textarea>
                 <div className="absolute bottom-2 right-4 text-xs text-slate-500">
-                  {wizardData.features.length}/500
+                  {wizardData.features.length}/800
                 </div>
               </div>
 
@@ -1034,7 +1034,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                         const newFeatures = wizardData.features 
                           ? wizardData.features + '\n' + tpl.desc 
                           : tpl.desc;
-                        if (newFeatures.length <= 500) {
+                        if (newFeatures.length <= 800) {
                           setWizardData(prev => ({ ...prev, features: newFeatures }));
                         }
                       }}
@@ -1049,21 +1049,18 @@ Please apply this change to the code. Ensure the modification is precise and aff
 
               <div className="flex gap-4 pt-4">
                 <button
-                  onClick={() => setStep('style')}
+                  onClick={() => setStep('desc')}
                   className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition"
                 >
                   上一步
                 </button>
                 <button
-                  onClick={() => setStep('desc')}
+                  onClick={() => startGeneration()}
                   disabled={!wizardData.features}
-                  className={`flex-1 py-3 rounded-xl font-bold shadow-lg transition flex items-center justify-center gap-2 ${
-                    !wizardData.features
-                      ? 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none' 
-                      : 'bg-brand-600 hover:bg-brand-500 text-white shadow-brand-500/20'
-                  }`}
+                  className={`flex-1 bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
                 >
-                  下一步 <i className="fa-solid fa-arrow-right"></i>
+                  <span>开始生成</span>
+                  <i className="fa-solid fa-wand-magic-sparkles"></i>
                 </button>
               </div>
             </div>
@@ -1072,7 +1069,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
           {step === 'desc' && (
             <div className="space-y-6 animate-fade-in">
               <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">最后一步：描述您的创意</h2>
+                <h2 className="text-2xl font-bold text-white mb-2">描述您的创意</h2>
                 <p className="text-slate-400">越详细的描述，生成的应用越符合您的预期</p>
               </div>
 
@@ -1088,18 +1085,22 @@ Please apply this change to the code. Ensure the modification is precise and aff
 
               <div className="flex gap-4">
                 <button
-                  onClick={() => setStep('features')}
+                  onClick={() => setStep('style')}
                   className="flex-1 py-4 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition"
                 >
                   上一步
                 </button>
                 <button
-                  onClick={() => startGeneration()}
+                  onClick={() => setStep('features')}
                   disabled={!wizardData.description}
-                  className="flex-1 bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className={`flex-1 py-4 rounded-xl font-bold shadow-lg transition flex items-center justify-center gap-2 ${
+                    !wizardData.description
+                      ? 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none' 
+                      : 'bg-brand-600 hover:bg-brand-500 text-white shadow-brand-500/20'
+                  }`}
                 >
-                  <span>开始生成</span>
-                  <i className="fa-solid fa-wand-magic-sparkles"></i>
+                  <span>下一步</span>
+                  <i className="fa-solid fa-arrow-right"></i>
                 </button>
               </div>
             </div>
