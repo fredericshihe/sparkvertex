@@ -809,11 +809,13 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       if (uploadError) throw uploadError;
 
       // 3. Get Signed URL (Valid for 1 hour) to ensure AI can access it even if bucket is private
-      const { data: { signedUrl }, error: signError } = await supabase.storage
+      const { data, error: signError } = await supabase.storage
         .from('temp-generations')
         .createSignedUrl(filePath, 3600);
 
-      if (signError) throw signError;
+      if (signError || !data?.signedUrl) throw signError || new Error('Failed to get signed URL');
+
+      const signedUrl = data.signedUrl;
 
       setUploadedImage(file);
       setUploadedImageUrl(signedUrl);
