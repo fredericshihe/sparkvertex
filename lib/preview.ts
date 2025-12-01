@@ -53,9 +53,9 @@ export const getPreviewContent = (content: string | null) => {
     <script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdn.staticfile.org/prop-types/15.8.1/prop-types.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.5/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.0/umd/Recharts.min.js"></script>
+    <script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://npm.elemecdn.com/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
+    <script src="https://npm.elemecdn.com/recharts@2.12.0/umd/Recharts.min.js"></script>
     <script>
       // Polyfill for legacy code expecting global lucideReact
       // The UMD build exports as 'lucide' (lowercase) in newer versions, or 'LucideReact' in older ones.
@@ -221,6 +221,10 @@ export const getPreviewContent = (content: string | null) => {
             return true;
         }
         console.log('App Error:', msg);
+        // Notify parent about the error
+        try {
+            window.parent.postMessage({ type: 'spark-app-error', error: String(msg) }, '*');
+        } catch(e) {}
         return false;
       };
 
