@@ -76,6 +76,10 @@ export default function CreatePage() {
   const [streamingCode, setStreamingCode] = useState('');
   const [currentGenerationPrompt, setCurrentGenerationPrompt] = useState('');
   
+  // State: History
+  const [codeHistory, setCodeHistory] = useState<{code: string, prompt: string, timestamp: number}[]>([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  
   // State: Image Upload
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
@@ -463,6 +467,16 @@ root.render(<App/>);
       
       // Set current prompt for display in generating screen
       const promptContent = isModification ? chatInput : (wizardData.description || wizardData.features || `创建一个${CATEGORIES.find(c => c.id === wizardData.category)?.label}应用...`);
+      
+      // Save history before modification
+      if (isModification && generatedCode) {
+        setCodeHistory(prev => [...prev, {
+            code: generatedCode,
+            prompt: currentGenerationPrompt || 'Initial Version',
+            timestamp: Date.now()
+        }]);
+      }
+
       setCurrentGenerationPrompt(promptContent);
 
       if (isModification) {
@@ -747,6 +761,65 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
   const removeUploadedImage = () => {
     setUploadedImage(null);
     setUploadedImageUrl(null);
+  };
+
+  const handleRollback = (item: typeof codeHistory[0]) => {
+    if (!confirm('确定要回退到此版本吗？当前未保存的修改将被保存到历史记录中。')) return;
+
+    // Save current state to history before rolling back
+    setCodeHistory(prev => [...prev, {
+        code: generatedCode,
+        prompt: currentGenerationPrompt || 'Before Rollback',
+        timestamp: Date.now()
+    }]);
+    
+    setGeneratedCode(item.code);
+    setStreamingCode(item.code);
+    setCurrentGenerationPrompt(item.prompt);
+    setShowHistoryModal(false);
+    toastSuccess('已回退到选定版本');
+  };
+
+  const renderHistoryModal = () => {
+    if (!showHistoryModal) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+        <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl">
+          <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+            <h3 className="font-bold text-white">历史版本</h3>
+            <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-white">
+              <X size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {codeHistory.length === 0 ? (
+              <div className="text-center text-slate-500 py-8">暂无历史记录</div>
+            ) : (
+              [...codeHistory].reverse().map((item, index) => (
+                <div key={item.timestamp} className="bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-brand-500 transition group">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-xs text-slate-400 font-mono">
+                      {new Date(item.timestamp).toLocaleTimeString()} 
+                      <span className="ml-2 opacity-50">{new Date(item.timestamp).toLocaleDateString()}</span>
+                    </span>
+                    <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
+                      v{codeHistory.length - index}
+                    </span>
+                  </div>
+                  <p className="text-sm text-white line-clamp-2 mb-3">{item.prompt}</p>
+                  <button 
+                    onClick={() => handleRollback(item)}
+                    className="w-full py-2 bg-slate-700 hover:bg-brand-600 text-white rounded-lg text-sm font-bold transition flex items-center justify-center gap-2"
+                  >
+                    <i className="fa-solid fa-clock-rotate-left"></i> 恢复此版本
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // --- Render Helpers ---
@@ -1199,10 +1272,16 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
           </button>
           <div className="flex gap-2">
             <button 
+              onClick={() => setShowHistoryModal(true)}
+              className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition border border-slate-700 flex items-center justify-center gap-2 text-sm"
+            >
+              <i className="fa-solid fa-clock-rotate-left"></i> 历史
+            </button>
+            <button 
               onClick={handleDownload}
               className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition border border-slate-700 flex items-center justify-center gap-2 text-sm"
             >
-              <i className="fa-solid fa-download"></i> 下载源码
+              <i className="fa-solid fa-download"></i> 下载
             </button>
             <button 
               onClick={() => {
@@ -1319,6 +1398,8 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
           </div>
         </div>
       )}
+
+      {renderHistoryModal()}
     </div>
   );
 }
