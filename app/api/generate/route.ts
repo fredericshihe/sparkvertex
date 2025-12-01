@@ -28,15 +28,25 @@ export async function POST(request: Request) {
     }
 
     // 0. Deduct Credits
-    // Creation: 2 points, Modification: 1 point
-    const cost = body.type === 'modification' ? 1 : 2;
+    // Creation: 0.5 points, Modification: 0.5 point
+    const cost = 0.5;
     
-    const { data: creditResult, error: creditError } = await supabase
-      .rpc('deduct_credits', { amount: cost });
+    let creditResult, creditError;
+    // Retry logic for unstable network connections
+    for (let i = 0; i < 3; i++) {
+        const res = await supabase.rpc('deduct_credits', { amount: cost });
+        creditResult = res.data;
+        creditError = res.error;
+        
+        if (!creditError) break;
+        
+        console.warn(`Credit deduction attempt ${i + 1} failed:`, creditError);
+        if (i < 2) await new Promise(resolve => setTimeout(resolve, 1000));
+    }
 
     if (creditError) {
-      console.error('Credit Deduction Error:', creditError);
-      return NextResponse.json({ error: 'Failed to process credits' }, { status: 500 });
+      console.error('Credit Deduction Error (Final):', creditError);
+      return NextResponse.json({ error: 'Failed to process credits (Network Error)' }, { status: 500 });
     }
 
     if (!creditResult || !creditResult.success) {
@@ -56,7 +66,10 @@ export async function POST(request: Request) {
 
     if (taskError || !task) {
         console.error('Task Creation Error:', taskError);
-        return NextResponse.json({ error: 'Failed to create generation task' }, { status: 500 });
+        return NextResponse.json({ 
+            error: 'Failed to create generation task', 
+            details: taskError 
+        }, { status: 500 });
     }
 
     // 2. Trigger Async Edge Function (Fire and Forget-ish)

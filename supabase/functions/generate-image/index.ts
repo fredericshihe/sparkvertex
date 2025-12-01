@@ -44,12 +44,12 @@ serve(async (req) => {
     const { prompt, model, image_size, num_inference_steps } = await req.json();
     const apiKey = Deno.env.get('SILICONFLOW_API_KEY');
     
-    if (!apiKey) throw new Error('Missing SILICONFLOW_API_KEY');
+    if (!apiKey) throw new Error('Missing API Key');
     if (!prompt) throw new Error('Missing prompt');
 
     console.log(`Generating image with prompt: ${prompt.substring(0, 50)}...`);
 
-    // 2. Call SiliconFlow API
+    // 2. Call Upstream API
     const response = await fetch('https://api.siliconflow.com/v1/images/generations', {
       method: 'POST',
       headers: {
@@ -66,9 +66,9 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('SiliconFlow API Error:', errorText);
+      console.error('Upstream API Error:', errorText);
       return new Response(JSON.stringify({
-        error: 'SiliconFlow API Error',
+        error: 'Upstream API Error',
         details: errorText
       }), {
         status: response.status,

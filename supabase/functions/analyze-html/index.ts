@@ -80,7 +80,7 @@ serve(async (req) => {
       const errorText = await response.text();
       // 如果上游报错，这里还是返回 JSON 错误信息
       return new Response(JSON.stringify({
-        error: 'DeepSeek API Error',
+        error: 'Upstream API Error',
         details: errorText
       }), {
         status: response.status,

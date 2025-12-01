@@ -20,12 +20,12 @@ const DEMO_CARDS = [
   {
     id: 'demo-1',
     title: "AI 智能助手",
-    description: "基于 Gemini 3 Pro 的个人效率工具，支持语音对话和多模态输入。",
-    tags: ["Gemini", "Next.js", "Tailwind"],
+    description: "基于先进大模型的个人效率工具，支持语音对话和多模态输入。",
+    tags: ["AI", "Next.js", "Tailwind"],
     color: CARD_COLORS[0],
     icon: "fa-robot",
     code: `const ai = new AI.Agent({
-  model: 'gemini-3-pro-low',
+  model: 'advanced-llm-v3',
   tools: ['web-search', 'code-interpreter'],
   temperature: 0.7
 });

@@ -30,7 +30,23 @@ export const getPreviewContent = (content: string | null) => {
     ''
   );
 
-  // 4. Re-inject stable scripts at the beginning of head
+  // 4. Fix Broken Unsplash URLs (AI sometimes outputs just the ID)
+  // Example: src="photo-123..." -> src="https://images.unsplash.com/photo-123..."
+  patchedContent = patchedContent.replace(
+    /src=["'](photo-[^"']+)["']/g, 
+    'src="https://images.unsplash.com/$1?auto=format&fit=crop&w=800&q=80"'
+  );
+  // Handle unquoted src (e.g. src=photo-123)
+  patchedContent = patchedContent.replace(
+    /src=(photo-[^"'\s>]+)/g, 
+    'src="https://images.unsplash.com/$1?auto=format&fit=crop&w=800&q=80"'
+  );
+  patchedContent = patchedContent.replace(
+    /url\(['"]?(photo-[^'"\)]+)['"]?\)/g, 
+    'url("https://images.unsplash.com/$1?auto=format&fit=crop&w=800&q=80")'
+  );
+
+  // 5. Re-inject stable scripts at the beginning of head
   // We inject them before any other scripts to ensure they are available.
   // Using cdn.staticfile.org (Seven Niu Cloud) for maximum stability in China, and jsdelivr for others.
   const stableScripts = `
@@ -166,7 +182,7 @@ export const getPreviewContent = (content: string | null) => {
 
       } catch (e) {
         // Fallback for restricted environments
-        console.warn('Storage access restricted, switching to memory storage');
+        // console.log('Storage access restricted, switching to memory storage');
         
         try {
           // Try to replace the global properties

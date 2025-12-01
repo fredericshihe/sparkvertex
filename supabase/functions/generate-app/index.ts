@@ -120,7 +120,7 @@ serve(async (req) => {
 
     // 4. Credit Check (No deduction yet)
     const isModification = type === 'modification';
-    const COST = 2;
+    const COST = 0.5;
     
     // Fetch current credits
     const { data: profile, error: profileError } = await supabaseAdmin
@@ -142,12 +142,10 @@ serve(async (req) => {
 
     // --- SECURITY CHECK END ---
 
-    // 使用环境变量中的 Google API Key
+    // Get API Key from environment
     const apiKey = Deno.env.get('GOOGLE_API_KEY');
     
     // Determine model based on task type
-    // Creation -> gemini-3-pro-preview
-    // Modification -> gemini-3-pro-low
     let modelName = 'gemini-3-pro-preview';
     if (type === 'modification') {
         modelName = 'gemini-3-pro-low';
@@ -160,14 +158,14 @@ serve(async (req) => {
     }
     
     if (!apiKey) {
-      console.error('Missing GOOGLE_API_KEY environment variable');
+      console.error('Missing API Key configuration');
       return new Response(JSON.stringify({ error: 'Server Configuration Error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    console.log('Using Google Gemini API (OpenAI Compatible)...');
+    console.log('Using LLM API...');
 
     // 2. 构造请求
-    // Google Gemini OpenAI Compatibility Endpoint
+    // Upstream API Endpoint
     const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
       method: 'POST',
       headers: {
@@ -177,7 +175,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: modelName,
         max_tokens: 65536, // Increased to ~65k to support very large generations
-        // reasoning_effort: 'high', // Not supported on 1.5-pro
+        // reasoning_effort: 'high',
         messages: [
           {
             role: 'system',
@@ -194,7 +192,7 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Google API Error:', response.status, errorText);
+      console.error('Upstream API Error:', response.status, errorText);
       return new Response(JSON.stringify({
         error: errorText || 'Generation failed',
       }), {
@@ -219,7 +217,7 @@ serve(async (req) => {
     }
 
     // 3. 响应处理与脱敏 (Response Sanitization)
-    // 我们需要拦截流，过滤掉可能包含模型名称的字段 (如 "model": "gemini-3-pro-preview")
+    // 我们需要拦截流，过滤掉可能包含模型名称的字段
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
     const reader = response.body?.getReader();

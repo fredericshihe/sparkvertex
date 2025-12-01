@@ -10,7 +10,7 @@ drop policy if exists "Authenticated users can upload" on storage.objects;
 drop policy if exists "Users can delete own images" on storage.objects;
 
 -- Re-create policies
--- 1. Allow public read access (so Gemini can read the image)
+-- 1. Allow public read access (so LLM can read the image)
 create policy "Public Access"
   on storage.objects for select
   using ( bucket_id = 'temp-generations' );

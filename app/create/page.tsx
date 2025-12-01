@@ -8,6 +8,7 @@ import { useToast } from '@/context/ToastContext';
 import { copyToClipboard } from '@/lib/utils';
 import { getPreviewContent } from '@/lib/preview';
 import { X } from 'lucide-react';
+import { applyPatches } from '@/lib/patch';
 
 // --- Constants ---
 const CATEGORIES = [
@@ -397,8 +398,24 @@ root.render(<App/>);
     `;
   };
 
-  const startGeneration = async (isModification = false, overridePrompt = '', displayPrompt = '') => {
-    const COST = isModification ? 1 : 2;
+  const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '') => {
+    // Auto-detect modification mode: If we are in 'preview' mode, it MUST be a modification.
+    const isModification = isModificationArg || step === 'preview';
+    
+    console.log('startGeneration called:', { 
+        isModificationArg, 
+        isModification, 
+        step, 
+        overridePrompt,
+        stack: new Error().stack 
+    });
+
+    if (isModification) {
+      // toast.success('正在提交修改请求...'); // Optional: Feedback
+      console.log('Modification Mode Active');
+    }
+
+    const COST = isModification ? 0.5 : 2;
     
     try {
       // Check Auth first
@@ -459,9 +476,12 @@ root.render(<App/>);
            else increment = 0.1; // Just a tiny bit to show life
         } else {
            // Still waiting for server response
-           if (prev < 30) increment = Math.random() * 3 + 2; // Initial burst
-           else if (prev < 60) increment = Math.random() * 1 + 0.5; // Steady thinking
-           else if (prev < 85) increment = 0.2; // Waiting for stream start
+           // Optimized for Modification: Modification takes longer to start (upload + process context)
+           // So we slow down the initial phase to match reality better
+           if (prev < 20) increment = Math.random() * 2 + 1; // Initial burst
+           else if (prev < 50) increment = Math.random() * 0.5 + 0.2; // Slow down significantly
+           else if (prev < 75) increment = 0.1; // Crawl
+           else if (prev < 85) increment = 0.05; // Almost stop
            else increment = 0; // Hold at 85% until stream starts
         }
 
@@ -518,7 +538,25 @@ root.render(<App/>);
         setModificationCount(prev => prev + 1);
       }
 
-      const SYSTEM_PROMPT = isModification ? '' : `You are a World-Class Senior Frontend Architect and UI/UX Designer.
+      const SYSTEM_PROMPT = isModification ? `You are an expert code editor.
+Your task is to modify the provided code according to the user's request.
+DO NOT return the full file. Only return the specific code blocks that need to be changed.
+Use the following format for every change:
+
+<<<<SEARCH
+[Exact code to be replaced]
+====
+[New code]
+>>>>
+
+CRITICAL RULES:
+1. The SEARCH block must match the original code EXACTLY, character-for-character, including all indentation and whitespace.
+2. Include at least 3-5 lines of context in the SEARCH block to ensure uniqueness.
+3. If the code appears multiple times, include enough surrounding code in SEARCH to disambiguate.
+4. If you need to delete code, the REPLACE block can be empty.
+5. Output multiple blocks if needed.
+6. Do NOT include any markdown formatting (like \`\`\`html) inside the blocks.
+` : `You are a World-Class Senior Frontend Architect and UI/UX Designer.
 Your goal is to create a "Production-Grade", visually stunning, and highly interactive single-file web application.
 
 Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse Interaction)' : 'Mobile (Touch First, Responsive)'}
@@ -570,25 +608,40 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 `;
 
       const finalUserPrompt = isModification 
-        ? `Here is the current code:\n\n${streamingCode}\n\nUser Modification Request:\n${prompt}\n\nPlease modify the code according to the request. Output the FULL updated HTML file.\n${TECHNICAL_CONSTRAINTS}`
+        ? `Here is the current code:\n\n${generatedCode}\n\nUser Modification Request:\n${prompt}\n\nPlease modify the code according to the request. Output ONLY the diffs using the <<<<SEARCH ... ==== ... >>>> format.`
         : prompt;
 
-      // Use Next.js Proxy API to hide Supabase Edge Function URL
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          type: isModification ? 'modification' : 'generation',
-          system_prompt: SYSTEM_PROMPT,
-          user_prompt: finalUserPrompt
-        })
-      });
+      // Optimization: For modification, we only send the user's request to the DB log, not the full code.
+      // This prevents payload size issues on the Next.js API route and speeds up the request.
+      const dbPrompt = isModification ? prompt : finalUserPrompt;
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: response.statusText }));
-        throw new Error(errorData.error || `Generation failed: ${response.status}`);
+      console.log('Calling /api/generate with prompt length:', dbPrompt.length);
+
+      // Use Next.js Proxy API to hide Supabase Edge Function URL
+      let response;
+      try {
+        response = await fetch('/api/generate', {
+            method: 'POST',
+            headers: { 
+            'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+            type: isModification ? 'modification' : 'generation',
+            system_prompt: SYSTEM_PROMPT,
+            user_prompt: dbPrompt // Send optimized prompt to DB
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: response.statusText }));
+            throw new Error(errorData.error || `Generation failed: ${response.status}`);
+        }
+      } catch (e: any) {
+          console.error('Failed to call /api/generate:', e);
+          if (e.message === 'Load failed' || e.message === 'Failed to fetch') {
+              throw new Error('网络连接失败，请检查您的网络设置');
+          }
+          throw e;
       }
 
       const { taskId } = await response.json();
@@ -601,6 +654,13 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       // We use fetch directly to handle the streaming response (keep-alive) without parsing it
       const { data: { session } } = await supabase.auth.getSession();
       
+      console.log('Triggering generation task:', taskId, 'Modification:', isModification);
+      if (isModification) {
+          console.log('Original Code Length:', generatedCode.length);
+          console.log('Prompt:', prompt);
+      }
+
+      // Trigger async generation and maintain the connection
       fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-app-async`, {
         method: 'POST',
         headers: {
@@ -613,7 +673,35 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             user_prompt: finalUserPrompt, 
             type: isModification ? 'modification' : 'generation'
         })
-      }).catch(err => console.error('Trigger error:', err));
+      }).then(async (res) => {
+          if (!res.ok) {
+              const errText = await res.text();
+              console.error('Edge Function Error:', res.status, errText);
+              toastError(`生成服务连接失败: ${res.status}`);
+              setIsGenerating(false);
+              return;
+          }
+          
+          console.log('Edge Function triggered successfully');
+          
+          // Keep the connection alive by consuming the stream
+          // This prevents the "stream controller cannot close or enqueue" error
+          try {
+              const reader = res.body?.getReader();
+              if (reader) {
+                  while (true) {
+                      const { done } = await reader.read();
+                      if (done) break;
+                  }
+              }
+          } catch (streamErr) {
+              console.log('Stream reading ended:', streamErr);
+          }
+      }).catch(err => {
+          console.error('Trigger error:', err);
+          toastError('网络连接异常');
+          setIsGenerating(false);
+      });
 
       // Shared Task Handler
       let isFinished = false;
@@ -624,12 +712,15 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
         if (isFinished) return;
         lastUpdateTimestamp = Date.now(); // Update heartbeat on any activity
 
+        console.log('Task Update:', newTask.status, newTask.result_code?.length || 0, newTask.error_message);
+
         if (newTask.result_code && newTask.status === 'processing') {
             setStreamingCode(newTask.result_code);
             hasStartedStreaming = true;
         }
         
         if (newTask.status === 'completed') {
+            console.log('Task Completed. Result length:', newTask.result_code?.length);
             isFinished = true;
             clearInterval(progressInterval);
             if (pollInterval) clearInterval(pollInterval);
@@ -640,45 +731,48 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             let cleanCode = newTask.result_code || '';
             setStreamingCode(cleanCode);
             
-            // Clean code
-            cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
-            const htmlStart = cleanCode.indexOf('<!DOCTYPE html>');
-            if (htmlStart !== -1) {
-                cleanCode = cleanCode.substring(htmlStart);
-            } else {
-                const htmlTagStart = cleanCode.indexOf('<html');
-                if (htmlTagStart !== -1) {
-                    cleanCode = '<!DOCTYPE html>\n' + cleanCode.substring(htmlTagStart);
-                }
-            }
-            
-            if (cleanCode.includes('root.render(<App />') && !cleanCode.includes('root.render(<App />);')) {
-                cleanCode = cleanCode.split('root.render(<App />')[0] + 'root.render(<App />);\n    </script>\n</body>\n</html>';
-            }
-
-            if (!cleanCode.includes('<meta name="viewport"')) {
-                cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
-            }
-
-            setGeneratedCode(cleanCode);
-            
-            if (!isModification) {
-              setStep('preview');
-              setPreviewMode(wizardData.device as any);
-            }
-
             if (isModification) {
-                setChatHistory(prev => [...prev, { role: 'ai', content: '代码已更新，请查看预览效果。' }]);
+                // Apply patches
+                try {
+                    console.log('Applying patches...');
+                    console.log('Original Code Length:', generatedCode.length);
+                    console.log('Patch Text Length:', cleanCode.length);
+                    
+                    const patched = applyPatches(generatedCode, cleanCode);
+                    setGeneratedCode(patched);
+                    toastSuccess('修改成功！');
+                } catch (e: any) {
+                    console.error('Patch failed:', e);
+                    toastError(e.message || '应用修改失败，请重试');
+                    // Keep original code but stop loading
+                }
+            } else {
+                // New Generation
+                // Clean up code (remove markdown)
+                cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
+                
+                // Ensure meta viewport
+                if (!cleanCode.includes('<meta name="viewport"')) {
+                    cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
+                }
+
+                setGeneratedCode(cleanCode);
+                setStep('preview');
+                setPreviewMode(wizardData.device as any);
             }
+            
             setIsGenerating(false);
             setProgress(100);
         } else if (newTask.status === 'failed') {
+            console.error('Task Failed:', newTask.error_message);
             isFinished = true;
             clearInterval(progressInterval);
             if (pollInterval) clearInterval(pollInterval);
             supabase.removeChannel(channel);
             
             toastError(newTask.error_message || '生成失败');
+            // Show error in the UI text as well
+            setLoadingText(`生成失败: ${newTask.error_message || '未知错误'}`);
             setIsGenerating(false);
             setProgress(100);
         }
@@ -716,19 +810,26 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                 console.warn('Realtime connection issue:', status);
             }
         });
-
       // Fallback Polling (Robustness for network issues)
       // Optimized: Only polls if no Realtime updates received for 5 seconds
+      let isPolling = false;
       pollInterval = setInterval(async () => {
-        if (isFinished) return;
+        if (isFinished || isPolling) return;
         
         // Smart Polling: If we received data recently via WebSocket, skip this poll
         // This drastically reduces server load while maintaining robustness
         if (Date.now() - lastUpdateTimestamp < 5000) return;
 
-        const { data, error } = await supabase.from('generation_tasks').select('*').eq('id', taskId).single();
-        if (data && !error) {
-            handleTaskUpdate(data);
+        isPolling = true;
+        try {
+            const { data, error } = await supabase.from('generation_tasks').select('*').eq('id', taskId).single();
+            if (data && !error) {
+                handleTaskUpdate(data);
+            }
+        } catch (e) {
+            console.warn('Polling failed:', e);
+        } finally {
+            isPolling = false;
         }
       }, 3000);
 
@@ -1198,7 +1299,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
         
         <div className="p-3 lg:p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
           <h3 className="font-bold text-white text-sm lg:text-base">创作助手</h3>
-          <span className="text-[10px] lg:text-xs text-slate-500">剩余积分: {credits} (修改消耗 1 积分)</span>
+          <span className="text-[10px] lg:text-xs text-slate-500">剩余积分: {credits} (修改消耗 0.5 积分)</span>
         </div>
         
         {/* Chat History */}

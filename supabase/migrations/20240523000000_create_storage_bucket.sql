@@ -4,7 +4,7 @@ insert into storage.buckets (id, name, public)
 values ('temp-generations', 'temp-generations', true)
 on conflict (id) do nothing;
 
--- Policy to allow public read access (so Gemini can read the image)
+-- Policy to allow public read access (so LLM can read the image)
 create policy "Public Access"
   on storage.objects for select
   using ( bucket_id = 'temp-generations' );
