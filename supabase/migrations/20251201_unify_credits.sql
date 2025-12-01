@@ -45,6 +45,9 @@ END;
 $$;
 
 -- Function to deduct credits safely
+-- NOTE: This integer version is deprecated. Use the numeric version instead.
+-- We comment it out to prevent accidental creation if this file is run again.
+/*
 CREATE OR REPLACE FUNCTION deduct_credits(amount int)
 RETURNS json
 LANGUAGE plpgsql
@@ -76,3 +79,4 @@ BEGIN
   END IF;
 END;
 $$;
+*/

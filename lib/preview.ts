@@ -55,7 +55,7 @@ export const getPreviewContent = (content: string | null) => {
     <script src="https://cdn.staticfile.org/prop-types/15.8.1/prop-types.min.js"></script>
     <script src="https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.0/Recharts.min.js"></script>
-    <script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     <script>
       // Polyfill for legacy code expecting global lucideReact
       // The UMD build exports as 'lucide' (lowercase) in newer versions, or 'LucideReact' in older ones.

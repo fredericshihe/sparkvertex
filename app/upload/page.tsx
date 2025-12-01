@@ -123,53 +123,19 @@ async function analyzeTechStack(htmlContent: string) {
 }
 
 async function analyzePrompt(htmlContent: string) {
-  const systemPrompt = '你是一个世界级的逆向工程专家、产品架构师和 Prompt 工程师。你需要深入剖析 HTML/JS 代码的每一个原子细节，并重构出一个能够让 AI 完美复刻该产品的"终极 Prompt"。';
-  const userPrompt = `请对以下代码进行"像素级"的深度分析，并撰写一个能够生成此代码的**终极 Prompt**。
-这个 Prompt 将被用于指导另一个 AI 重新生成这个应用，因此必须包含所有隐性逻辑和显性设计。
+  const systemPrompt = '你是一个资深的 Prompt 工程师。你需要分析 HTML 代码并生成一个简洁、核心的 Prompt，用于指导 AI 重新生成类似应用。';
+  const userPrompt = `请分析以下代码，生成一个**核心功能 Prompt** (100-200字)。
+重点描述：
+1. 核心功能与目标。
+2. 关键交互逻辑。
+3. 视觉风格关键词。
 
-请严格按照以下结构撰写：
+不要包含冗长的技术细节或边缘情况，只保留最核心的生成指令。
 
-# 1. Role & Goal (角色与目标)
-- 定义 AI 的专家角色（如：WebGL 动效大师、金融算法工程师）。
-- 设定核心目标：不仅仅是功能实现，更要达到什么样的用户体验标准。
-
-# 2. Project Essence (项目本质)
-- 用一句话精准概括产品。
-- 核心价值主张是什么？
-
-# 3. Detailed Features (功能细节 - 核心)
-- **交互逻辑**: 详尽描述点击、拖拽、滑动后的每一步反应。
-- **数据逻辑**: 具体的计算公式、数据转换规则、状态流转。
-- **隐性逻辑**: 代码中处理的边缘情况（如空状态、错误处理、边界值）。
-- **输入输出**: 明确的数据格式要求。
-
-# 4. UI/UX Design System (设计系统)
-- **视觉风格**: 具体的风格流派（Glassmorphism, Neumorphism, Brutalism 等）。
-- **配色方案**: 提取具体的 HEX 颜色代码或 Tailwind 颜色类。
-- **动效细节**: 描述动画的曲线、持续时间、触发条件。
-- **布局结构**: 详细的组件层级和排版规则。
-
-# 5. Mobile Experience (移动端极致体验)
-- **视口设置**: 必须包含 viewport-fit=cover, user-scalable=no。
-- **触控优化**: 禁用系统默认长按 (touch-callout: none)，确保 44px+ 点击热区。
-- **适配策略**: Flex/Grid 布局，rem/vw 单位，安全区域适配 (pb-safe)。
-
-# 6. Technical Stack & Constraints (技术栈与约束)
-- **核心库**: React 18, Tailwind CSS, Lucide Icons。
-- **第三方库**: 识别并列出所有使用的外部库 (esm.sh)。
-- **代码规范**: 单文件 HTML，无 Markdown，模块化代码结构。
-
-# 7. Edge Cases & Robustness (边界与鲁棒性)
-- 如何处理网络延迟？
-- 如何处理非法输入？
-- 性能优化策略（防抖、节流、虚拟列表）。
-
-请确保生成的 Prompt 极其详尽，逻辑严密，使得生成的代码能够直接达到生产级标准。
-
-代码:\n\n${htmlContent.substring(0, 50000)}`;
+代码:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
-  if (!result) return '# Role\nCreative Developer\n\n# Task\nCreate a web application.\n\n# Style\nModern, Clean.';
+  if (!result) return 'Create a web application with modern UI.';
   
   return typeof result === 'string' ? result : String(result);
 }
@@ -1295,6 +1261,16 @@ export default function UploadPage() {
                           const blob = await res.blob();
                           const file = new File([blob], 'icon.png', { type: 'image/png' });
                           setIconFile(file);
+
+                          // Update analysis state to reflect the new icon in the status panel
+                          setAnalysisState(prev => ({
+                            ...prev,
+                            data: {
+                              ...(prev.data || {}),
+                              iconUrl: data.url
+                            }
+                          }));
+
                           toastSuccess(`图标生成成功 (剩余 ${3 - (generationCount + 1)} 次)`);
                         }
                       } catch (error: any) {

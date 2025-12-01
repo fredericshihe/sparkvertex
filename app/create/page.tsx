@@ -1443,17 +1443,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
                className="w-full h-full"
                sandbox="allow-scripts allow-forms allow-modals allow-popups"
              />
-             
-             {/* Loading Overlay for Modification */}
-             {isGenerating && (
-                <div className="absolute inset-0 z-30 bg-slate-900/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white animate-fade-in">
-                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700 shadow-2xl flex flex-col items-center">
-                      <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                      <p className="font-bold text-lg">正在应用修改...</p>
-                      <p className="text-sm text-slate-400 mt-1">请稍候，预览即将刷新</p>
-                    </div>
-                </div>
-             )}
           </div>
           
           {/* Floating Preview Controls */}
@@ -1475,6 +1464,17 @@ Please apply this change to the code. Ensure the modification is precise and aff
                </button>
             </div>
           </div>
+
+          {/* Loading Overlay for Modification */}
+          {isGenerating && (
+            <div className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white animate-fade-in">
+                <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700 shadow-2xl flex flex-col items-center">
+                  <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <p className="font-bold text-lg">正在应用修改...</p>
+                  <p className="text-sm text-slate-400 mt-1">请稍候，预览即将刷新</p>
+                </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
