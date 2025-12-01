@@ -471,7 +471,7 @@ root.render(<App/>);
         setModificationCount(prev => prev + 1);
       }
 
-      const SYSTEM_PROMPT = `You are a World-Class Senior Frontend Architect and UI/UX Designer.
+      const SYSTEM_PROMPT = isModification ? '' : `You are a World-Class Senior Frontend Architect and UI/UX Designer.
 Your goal is to create a "Production-Grade", visually stunning, and highly interactive single-file web application.
 
 Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse Interaction)' : 'Mobile (Touch First, Responsive)'}
@@ -510,6 +510,22 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 2. **Design**: Plan the component structure (Header, Main, Sidebar/Nav, Modals).
 3. **Implement**: Write the code with the constraints above.`;
 
+      // For modification, we send the full code + user request
+      // IMPORTANT: We MUST append the technical constraints to ensure the AI generates valid, runnable code.
+      // Without this, the AI might use Node.js imports or forget the single-file requirement.
+      const TECHNICAL_CONSTRAINTS = `
+### Technical Constraints (MUST FOLLOW):
+1. **Single File**: Output ONLY a single valid HTML file. No Markdown.
+2. **Imports**: Use \`https://esm.sh/...\` for imports. DO NOT use bare imports like \`import React from 'react'\`.
+3. **Icons**: Use \`window.lucideReact\`. Example: \`<lucideReact.Activity />\`.
+4. **Styling**: Use Tailwind CSS classes.
+5. **Fonts**: DO NOT use external fonts (Google Fonts) unless absolutely necessary and ensure the URL is valid. Prefer system fonts.
+`;
+
+      const finalUserPrompt = isModification 
+        ? `Here is the current code:\n\n${streamingCode}\n\nUser Modification Request:\n${prompt}\n\nPlease modify the code according to the request. Output the FULL updated HTML file.\n${TECHNICAL_CONSTRAINTS}`
+        : prompt;
+
       // Use Next.js Proxy API to hide Supabase Edge Function URL
       const response = await fetch('/api/generate', {
         method: 'POST',
@@ -519,7 +535,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
         body: JSON.stringify({
           type: isModification ? 'modification' : 'generation',
           system_prompt: SYSTEM_PROMPT,
-          user_prompt: prompt
+          user_prompt: finalUserPrompt
         })
       });
 
@@ -541,7 +557,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
         body: { 
             taskId, 
             system_prompt: SYSTEM_PROMPT, 
-            user_prompt: prompt, 
+            user_prompt: finalUserPrompt, 
             type: isModification ? 'modification' : 'generation',
             image_url: uploadedImageUrl
         }
