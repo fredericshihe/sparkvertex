@@ -7,7 +7,7 @@ import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
 import { copyToClipboard } from '@/lib/utils';
 import { getPreviewContent } from '@/lib/preview';
-import { Image, Upload, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 // --- Constants ---
 const CATEGORIES = [
@@ -86,12 +86,6 @@ export default function CreatePage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editRequest, setEditRequest] = useState('');
   
-  // State: Image Upload
-  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
-  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   // State: User Credits
   const [credits, setCredits] = useState(20);
   const [userId, setUserId] = useState<string | null>(null);
@@ -312,10 +306,6 @@ export default function CreatePage() {
     
     // Compact description
     let description = `Type:${categoryLabel}, Device:${deviceLabel}, Style:${styleLabel}. Features:${wizardData.features}. Notes:${wizardData.description}`;
-
-    if (uploadedImageUrl && !isModification) {
-        description += `\n\n[IMPORTANT] An image reference has been provided. You MUST analyze this image and replicate its layout, UI structure, and visual style as closely as possible. The image takes precedence over the category description.`;
-    }
 
     if (isModification) {
       // User requested full HTML context to avoid issues
@@ -615,8 +605,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             taskId, 
             system_prompt: SYSTEM_PROMPT, 
             user_prompt: finalUserPrompt, 
-            type: isModification ? 'modification' : 'generation',
-            image_url: uploadedImageUrl
+            type: isModification ? 'modification' : 'generation'
         }
       }).catch(err => console.error('Trigger error:', err));
 
@@ -776,63 +765,6 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     toastSuccess('下载成功！请妥善保存源文件');
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type and size
-    if (!file.type.startsWith('image/')) {
-      toastError('请上传图片文件');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toastError('图片大小不能超过 5MB');
-      return;
-    }
-
-    setIsUploadingImage(true);
-    try {
-      // 1. Compress/Resize Image (Client-side) - Simplified for now, just upload
-      // Ideally use a canvas or library to resize to max 1536px
-
-      // 2. Upload to Supabase Storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('temp-generations')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // 3. Get Signed URL (Valid for 1 hour) to ensure AI can access it even if bucket is private
-      const { data, error: signError } = await supabase.storage
-        .from('temp-generations')
-        .createSignedUrl(filePath, 3600);
-
-      if (signError || !data?.signedUrl) throw signError || new Error('Failed to get signed URL');
-
-      const signedUrl = data.signedUrl;
-
-      setUploadedImage(file);
-      setUploadedImageUrl(signedUrl);
-      toastSuccess('图片上传成功');
-    } catch (error) {
-      console.error('Image upload failed:', error);
-      toastError('图片上传失败，请重试');
-    } finally {
-      setIsUploadingImage(false);
-      // Reset input
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const removeUploadedImage = () => {
-    setUploadedImage(null);
-    setUploadedImageUrl(null);
   };
 
   const handleRollback = (item: typeof codeHistory[0]) => {
@@ -1146,52 +1078,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
                   className="w-full h-32 bg-slate-900 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 focus:ring-2 focus:ring-brand-500 focus:border-transparent transition resize-none"
                   placeholder="例如：做一个番茄钟，背景是星空，倒计时结束时播放烟花动画..."
                 ></textarea>
-                
-                {/* Image Upload Section */}
-                <div className="mt-4">
-                    <label className="block text-sm font-medium text-slate-300 mb-2">参考图片 (可选)</label>
-                    <p className="text-xs text-slate-500 mb-3">上传手绘草图、截图或设计稿，AI 将为您复刻界面。</p>
-                    
-                    {!uploadedImageUrl ? (
-                        <div 
-                            onClick={() => fileInputRef.current?.click()}
-                            className={`border-2 border-dashed border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:border-brand-500 hover:bg-slate-800/50 transition group ${isUploadingImage ? 'opacity-50 pointer-events-none' : ''}`}
-                        >
-                            <input 
-                                type="file" 
-                                ref={fileInputRef} 
-                                className="hidden" 
-                                accept="image/*" 
-                                onChange={handleImageUpload}
-                            />
-                            {isUploadingImage ? (
-                                <i className="fa-solid fa-circle-notch fa-spin text-2xl text-brand-500 mb-2"></i>
-                            ) : (
-                                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                                    <Image className="w-6 h-6 text-slate-400 group-hover:text-brand-400" />
-                                </div>
-                            )}
-                            <span className="text-sm text-slate-400 group-hover:text-white transition">
-                                {isUploadingImage ? '正在上传...' : '点击上传图片'}
-                            </span>
-                        </div>
-                    ) : (
-                        <div className="relative inline-block group">
-                            <img 
-                                src={uploadedImageUrl} 
-                                alt="Reference" 
-                                className="h-32 w-auto rounded-xl border border-slate-600 object-cover"
-                            />
-                            <button 
-                                onClick={removeUploadedImage}
-                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-red-600 transition transform hover:scale-110"
-                            >
-                                <X size={14} />
-                            </button>
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition rounded-xl pointer-events-none"></div>
-                        </div>
-                    )}
-                </div>
               </div>
 
               <div className="flex gap-4">
@@ -1203,7 +1089,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                 </button>
                 <button
                   onClick={() => startGeneration()}
-                  disabled={(!wizardData.description && !uploadedImageUrl) || isUploadingImage}
+                  disabled={!wizardData.description}
                   className="flex-1 bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <span>开始生成</span>
@@ -1236,11 +1122,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
               <p className="text-sm leading-relaxed opacity-95 whitespace-pre-wrap">
                 {currentGenerationPrompt}
               </p>
-              {uploadedImageUrl && (
-                <div className="mt-3 rounded-lg overflow-hidden border border-white/20">
-                    <img src={uploadedImageUrl} alt="Reference" className="w-full h-auto max-h-48 object-cover" />
-                </div>
-              )}
             </div>
           </div>
 
