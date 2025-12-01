@@ -46,7 +46,10 @@ export async function POST(request: Request) {
 
     if (creditError) {
       console.error('Credit Deduction Error (Final):', creditError);
-      return NextResponse.json({ error: 'Failed to process credits (Network Error)' }, { status: 500 });
+      return NextResponse.json({ 
+          error: creditError.message || 'Failed to process credits',
+          details: creditError
+      }, { status: 500 });
     }
 
     if (!creditResult || !creditResult.success) {
