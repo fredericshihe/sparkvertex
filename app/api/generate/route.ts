@@ -27,10 +27,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Server Configuration Error' }, { status: 500 });
     }
 
-    // 0. Deduct Credits (Unified Cost: 2 points)
-    // We deduct upfront to ensure immediate UI update and prevent abuse.
+    // 0. Deduct Credits
+    // Creation: 2 points, Modification: 1 point
+    const cost = body.type === 'modification' ? 1 : 2;
+    
     const { data: creditResult, error: creditError } = await supabase
-      .rpc('deduct_credits', { amount: 2 });
+      .rpc('deduct_credits', { amount: cost });
 
     if (creditError) {
       console.error('Credit Deduction Error:', creditError);

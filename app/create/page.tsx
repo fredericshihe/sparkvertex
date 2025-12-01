@@ -79,6 +79,12 @@ export default function CreatePage() {
   // State: History
   const [codeHistory, setCodeHistory] = useState<{code: string, prompt: string, timestamp: number}[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // State: Point-and-Click Edit
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [selectedElement, setSelectedElement] = useState<{tagName: string, className: string, innerText: string, path: string} | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editRequest, setEditRequest] = useState('');
   
   // State: Image Upload
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
@@ -180,6 +186,24 @@ export default function CreatePage() {
       clearInterval(keepAliveInterval);
       if (profileSubscription) supabase.removeChannel(profileSubscription);
     };
+  }, []);
+
+  // Listen for messages from iframe (Point-and-Click Edit)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'spark-element-selected') {
+        setSelectedElement(event.data.payload);
+        setShowEditModal(true);
+        setIsEditMode(false); // Turn off edit mode after selection
+        // Notify iframe to turn off edit mode
+        if (iframeRef.current?.contentWindow) {
+            iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: false }, '*');
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
 
   useEffect(() => {
@@ -379,7 +403,9 @@ root.render(<App/>);
     `;
   };
 
-  const startGeneration = async (isModification = false) => {
+  const startGeneration = async (isModification = false, overridePrompt = '', displayPrompt = '') => {
+    const COST = isModification ? 1 : 2;
+    
     try {
       // Check Auth first
       const { data: { session } } = await supabase.auth.getSession();
@@ -388,8 +414,7 @@ root.render(<App/>);
         return;
       }
 
-      // Check Credits (Unified Cost: 2 points)
-      const COST = 2;
+      // Check Credits
       if (credits < COST) {
         setIsCreditModalOpen(true);
         return;
@@ -463,10 +488,24 @@ root.render(<App/>);
 
 
     try {
-      const prompt = constructPrompt(isModification, chatInput);
+      const prompt = constructPrompt(isModification, overridePrompt || chatInput);
       
       // Set current prompt for display in generating screen
-      const promptContent = isModification ? chatInput : (wizardData.description || wizardData.features || `创建一个${CATEGORIES.find(c => c.id === wizardData.category)?.label}应用...`);
+      let promptContent = '';
+      if (isModification) {
+        promptContent = displayPrompt || overridePrompt || chatInput;
+      } else {
+        // Combine description and features for display
+        const displayParts = [];
+        if (wizardData.description) displayParts.push(wizardData.description);
+        if (wizardData.features) displayParts.push(`功能需求：${wizardData.features}`);
+        
+        if (displayParts.length > 0) {
+            promptContent = displayParts.join('\n\n');
+        } else {
+            promptContent = `创建一个${CATEGORIES.find(c => c.id === wizardData.category)?.label}应用...`;
+        }
+      }
       
       // Save history before modification
       if (isModification && generatedCode) {
@@ -480,7 +519,7 @@ root.render(<App/>);
       setCurrentGenerationPrompt(promptContent);
 
       if (isModification) {
-        setChatHistory(prev => [...prev, { role: 'user', content: chatInput }]);
+        setChatHistory(prev => [...prev, { role: 'user', content: displayPrompt || overridePrompt || chatInput }]);
         setChatInput('');
         setModificationCount(prev => prev + 1);
       }
@@ -561,7 +600,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       const { taskId } = await response.json();
       
       // Immediate Credit Update (Optimistic & Sync)
-      setCredits(prev => Math.max(0, prev - 2));
+      setCredits(prev => Math.max(0, prev - COST));
       checkAuth(); // Fetch latest from DB to be sure
 
       // Trigger Async Generation (Fire and Forget)
@@ -577,6 +616,75 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
         }
       }).catch(err => console.error('Trigger error:', err));
 
+      // Shared Task Handler
+      let isFinished = false;
+      let pollInterval: NodeJS.Timeout;
+      let lastUpdateTimestamp = Date.now(); // Heartbeat to optimize polling
+
+      const handleTaskUpdate = (newTask: any) => {
+        if (isFinished) return;
+        lastUpdateTimestamp = Date.now(); // Update heartbeat on any activity
+
+        if (newTask.result_code && newTask.status === 'processing') {
+            setStreamingCode(newTask.result_code);
+            hasStartedStreaming = true;
+        }
+        
+        if (newTask.status === 'completed') {
+            isFinished = true;
+            clearInterval(progressInterval);
+            if (pollInterval) clearInterval(pollInterval);
+            supabase.removeChannel(channel);
+
+            // Finish logic
+            checkAuth();
+            let cleanCode = newTask.result_code || '';
+            setStreamingCode(cleanCode);
+            
+            // Clean code
+            cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
+            const htmlStart = cleanCode.indexOf('<!DOCTYPE html>');
+            if (htmlStart !== -1) {
+                cleanCode = cleanCode.substring(htmlStart);
+            } else {
+                const htmlTagStart = cleanCode.indexOf('<html');
+                if (htmlTagStart !== -1) {
+                    cleanCode = '<!DOCTYPE html>\n' + cleanCode.substring(htmlTagStart);
+                }
+            }
+            
+            if (cleanCode.includes('root.render(<App />') && !cleanCode.includes('root.render(<App />);')) {
+                cleanCode = cleanCode.split('root.render(<App />')[0] + 'root.render(<App />);\n    </script>\n</body>\n</html>';
+            }
+
+            if (!cleanCode.includes('<meta name="viewport"')) {
+                cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
+            }
+
+            setGeneratedCode(cleanCode);
+            
+            if (!isModification) {
+              setStep('preview');
+              setPreviewMode(wizardData.device as any);
+            }
+
+            if (isModification) {
+                setChatHistory(prev => [...prev, { role: 'ai', content: '代码已更新，请查看预览效果。' }]);
+            }
+            setIsGenerating(false);
+            setProgress(100);
+        } else if (newTask.status === 'failed') {
+            isFinished = true;
+            clearInterval(progressInterval);
+            if (pollInterval) clearInterval(pollInterval);
+            supabase.removeChannel(channel);
+            
+            toastError(newTask.error_message || '生成失败');
+            setIsGenerating(false);
+            setProgress(100);
+        }
+      };
+
       // Subscribe to Task Updates
       const channel = supabase
         .channel(`task-${taskId}`)
@@ -588,6 +696,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
              if (fullContent) {
                  setStreamingCode(fullContent);
                  hasStartedStreaming = true;
+                 lastUpdateTimestamp = Date.now(); // Update heartbeat
              }
           }
         )
@@ -600,74 +709,29 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             filter: `id=eq.${taskId}`
           },
           (payload) => {
-            const newTask = payload.new as any;
-            
-            if (newTask.result_code) {
-                // Only update streaming code if status is processing
-                // If completed, we will handle it in the completed block
-                if (newTask.status === 'processing') {
-                    setStreamingCode(newTask.result_code);
-                    hasStartedStreaming = true;
-                }
-            }
-            
-            if (newTask.status === 'completed') {
-                // Finish
-                // Force sync credits to ensure accuracy
-                checkAuth();
-
-                let cleanCode = newTask.result_code || '';
-                
-                // Ensure we have the full content from the final update
-                setStreamingCode(cleanCode);
-                
-                // ... (Cleaning logic same as before)
-                cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
-                const htmlStart = cleanCode.indexOf('<!DOCTYPE html>');
-                if (htmlStart !== -1) {
-                    cleanCode = cleanCode.substring(htmlStart);
-                } else {
-                    const htmlTagStart = cleanCode.indexOf('<html');
-                    if (htmlTagStart !== -1) {
-                        cleanCode = '<!DOCTYPE html>\n' + cleanCode.substring(htmlTagStart);
-                    }
-                }
-                
-                if (cleanCode.includes('root.render(<App />') && !cleanCode.includes('root.render(<App />);')) {
-                    cleanCode = cleanCode.split('root.render(<App />')[0] + 'root.render(<App />);\n    </script>\n</body>\n</html>';
-                }
-
-                // Force inject viewport meta if missing (Critical for mobile preview)
-                if (!cleanCode.includes('<meta name="viewport"')) {
-                    cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
-                }
-
-                setGeneratedCode(cleanCode);
-                
-                if (!isModification) {
-                  setStep('preview');
-                  setPreviewMode(wizardData.device as any);
-                }
-
-                if (isModification) {
-                    setChatHistory(prev => [...prev, { role: 'ai', content: '代码已更新，请查看预览效果。' }]);
-                }
-                setIsGenerating(false);
-                clearInterval(progressInterval);
-                setProgress(100);
-                supabase.removeChannel(channel);
-            } else if (newTask.status === 'failed') {
-                toastError(newTask.error_message || '生成失败');
-                setIsGenerating(false);
-                clearInterval(progressInterval);
-                supabase.removeChannel(channel);
-            }
+            handleTaskUpdate(payload.new);
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                console.warn('Realtime connection issue:', status);
+            }
+        });
 
-      // Fallback polling in case realtime fails? 
-      // For now rely on Realtime.
+      // Fallback Polling (Robustness for network issues)
+      // Optimized: Only polls if no Realtime updates received for 5 seconds
+      pollInterval = setInterval(async () => {
+        if (isFinished) return;
+        
+        // Smart Polling: If we received data recently via WebSocket, skip this poll
+        // This drastically reduces server load while maintaining robustness
+        if (Date.now() - lastUpdateTimestamp < 5000) return;
+
+        const { data, error } = await supabase.from('generation_tasks').select('*').eq('id', taskId).single();
+        if (data && !error) {
+            handleTaskUpdate(data);
+        }
+      }, 3000);
 
     } catch (error: any) {
       console.error('Generation error:', error);
@@ -767,17 +831,66 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
     if (!confirm('确定要回退到此版本吗？当前未保存的修改将被保存到历史记录中。')) return;
 
     // Save current state to history before rolling back
-    setCodeHistory(prev => [...prev, {
-        code: generatedCode,
-        prompt: currentGenerationPrompt || 'Before Rollback',
-        timestamp: Date.now()
-    }]);
+    // Only if it's not already in history (to avoid duplicates when switching back and forth)
+    const isAlreadyInHistory = codeHistory.some(h => h.code === generatedCode);
+    
+    if (!isAlreadyInHistory) {
+      setCodeHistory(prev => [...prev, {
+          code: generatedCode,
+          prompt: currentGenerationPrompt || 'Before Rollback',
+          timestamp: Date.now()
+      }]);
+    }
     
     setGeneratedCode(item.code);
     setStreamingCode(item.code);
     setCurrentGenerationPrompt(item.prompt);
     setShowHistoryModal(false);
     toastSuccess('已回退到选定版本');
+  };
+
+  const toggleEditMode = () => {
+    const newMode = !isEditMode;
+    setIsEditMode(newMode);
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: newMode }, '*');
+    }
+    if (newMode) {
+        toastSuccess('点击预览窗口中的元素进行修改');
+    }
+  };
+
+  const handleElementEditSubmit = () => {
+    if (!selectedElement || !editRequest.trim()) return;
+    
+    const prompt = `
+I want to modify a specific element in the UI.
+
+Target Element Details:
+- Tag: <${selectedElement.tagName}>
+- Text Content: "${selectedElement.innerText}"
+- Current Classes: "${selectedElement.className}"
+- DOM Path: ${selectedElement.path}
+
+Modification Request:
+"${editRequest}"
+
+Please apply this change to the code. Ensure the modification is precise and affects only the intended element or logic.
+    `.trim();
+
+    // Close modal
+    setShowEditModal(false);
+    setEditRequest('');
+    setSelectedElement(null);
+    
+    // Start generation with this prompt
+    // We set chatInput to the prompt so it shows up in the chat history correctly
+    // setChatInput(prompt); // No longer needed as we pass displayPrompt
+    
+    // We need to call startGeneration with isModification=true
+    // But startGeneration uses 'chatInput' state or 'prompt' argument.
+    // Let's modify startGeneration to accept an optional override prompt.
+    startGeneration(true, prompt, editRequest);
   };
 
   const renderHistoryModal = () => {
@@ -949,9 +1062,9 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                 <textarea
                   value={wizardData.features}
                   onChange={(e) => {
-                    if (e.target.value.length <= 500) {
-                      setWizardData(prev => ({ ...prev, features: e.target.value }));
-                    }
+                    const val = e.target.value;
+                    // Allow paste but truncate to 500 chars
+                    setWizardData(prev => ({ ...prev, features: val.slice(0, 500) }));
                   }}
                   placeholder="例如：我需要一个计分板，左边是红队，右边是蓝队，点击加分..."
                   className="w-full h-32 bg-transparent border-none outline-none appearance-none p-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-sm leading-relaxed"
@@ -1189,7 +1302,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
         
         <div className="p-3 lg:p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
           <h3 className="font-bold text-white text-sm lg:text-base">创作助手</h3>
-          <span className="text-[10px] lg:text-xs text-slate-500">剩余积分: {credits} (修改消耗 2 积分)</span>
+          <span className="text-[10px] lg:text-xs text-slate-500">剩余积分: {credits} (修改消耗 1 积分)</span>
         </div>
         
         {/* Chat History */}
@@ -1353,6 +1466,17 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
               <button onClick={() => setPreviewMode('tablet')} className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`} title="平板端"><i className="fa-solid fa-tablet-screen-button text-xs lg:text-base"></i></button>
               <button onClick={() => setPreviewMode('mobile')} className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`} title="移动端"><i className="fa-solid fa-mobile-screen text-xs lg:text-base"></i></button>
             </div>
+
+            {/* Edit Mode Toggle */}
+            <div className="bg-slate-900/80 backdrop-blur border border-slate-700 rounded-full p-1 flex shadow-xl">
+               <button 
+                 onClick={toggleEditMode}
+                 className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center transition ${isEditMode ? 'bg-brand-600 text-white shadow-[0_0_10px_rgba(79,70,229,0.5)]' : 'text-slate-400 hover:text-white'}`} 
+                 title={isEditMode ? "退出点选编辑" : "开启点选编辑"}
+               >
+                 <i className="fa-solid fa-arrow-pointer text-xs lg:text-base"></i>
+               </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1377,7 +1501,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                 积分不足
               </h3>
               <p className="text-gray-400">
-                您的积分已不足（需要 2 积分）。想要继续创作，请前往个人中心获取更多积分，或明日登录领取奖励。
+                您的积分已不足。想要继续创作，请前往个人中心获取更多积分，或明日登录领取奖励。
               </p>
             </div>
             
@@ -1393,6 +1517,70 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                 className="flex-1 px-4 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium transition-all shadow-lg shadow-blue-900/20"
               >
                 获取额度
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Element Modal */}
+      {showEditModal && selectedElement && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full shadow-2xl animate-fade-in-up">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <i className="fa-solid fa-pen-to-square text-brand-500"></i>
+                修改元素
+              </h3>
+              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-white transition">
+                <i className="fa-solid fa-xmark text-lg"></i>
+              </button>
+            </div>
+            
+            <div className="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700/50">
+              <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-2">已选中元素</div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="bg-brand-500/20 text-brand-300 px-2 py-0.5 rounded text-xs font-mono border border-brand-500/30">
+                  &lt;{selectedElement.tagName.toLowerCase()}&gt;
+                </span>
+                {selectedElement.className && (
+                  <span className="text-slate-400 text-xs truncate max-w-[200px]" title={selectedElement.className}>
+                    .{selectedElement.className.split(' ')[0]}...
+                  </span>
+                )}
+              </div>
+              <div className="text-sm text-slate-300 italic border-l-2 border-slate-600 pl-2 py-1 mt-2 line-clamp-2">
+                "{selectedElement.innerText.substring(0, 100) || '无文本内容'}"
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                您希望如何修改此元素？
+              </label>
+              <textarea
+                value={editRequest}
+                onChange={(e) => setEditRequest(e.target.value)}
+                placeholder="例如：把背景色改为深蓝色，文字改为白色..."
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 min-h-[100px] resize-none"
+                autoFocus
+              />
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleElementEditSubmit}
+                disabled={!editRequest.trim()}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-all shadow-lg shadow-brand-900/20 flex items-center justify-center gap-2"
+              >
+                <i className="fa-solid fa-wand-magic-sparkles"></i>
+                生成修改
               </button>
             </div>
           </div>

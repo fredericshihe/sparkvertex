@@ -72,11 +72,41 @@ export const getPreviewContent = (content: string | null) => {
   // AND Security: Namespace storage to prevent collision/overwriting parent data
   const safetyScript = `<script>
     (function() {
+      var mockStorage = {
+        _data: {},
+        getItem: function(k) { return this._data[k] || null; },
+        setItem: function(k, v) { this._data[k] = String(v); },
+        removeItem: function(k) { delete this._data[k]; },
+        clear: function() { this._data = {}; },
+        length: 0,
+        key: function(i) { return Object.keys(this._data)[i] || null; }
+      };
+
+      function patchStoragePrototype() {
+         try {
+             // If we can't replace the global object, we patch the prototype to use memory storage
+             // This affects all Storage instances (localStorage and sessionStorage)
+             var memoryStore = {}; // Shared store for fallback
+             
+             Storage.prototype.setItem = function(k, v) { memoryStore[k] = String(v); };
+             Storage.prototype.getItem = function(k) { return memoryStore[k] || null; };
+             Storage.prototype.removeItem = function(k) { delete memoryStore[k]; };
+             Storage.prototype.clear = function() { memoryStore = {}; };
+             Storage.prototype.key = function(i) { return Object.keys(memoryStore)[i] || null; };
+             console.warn('Patched Storage.prototype to use memory store');
+         } catch(e) {
+             console.error('Failed to patch Storage prototype', e);
+         }
+      }
+
       try {
-        // 1. Storage Protection & Namespacing
+        // 0. Test Storage Access
+        // This will throw SecurityError in restricted iframes (e.g. Safari) immediately
+        window.localStorage.setItem('__test__', '1');
+        window.localStorage.removeItem('__test__');
+
+        // 1. Storage Protection & Namespacing (If storage works)
         // We wrap localStorage to prefix keys, preventing the app from accidentally overwriting parent site data.
-        // Note: This is a soft protection. Malicious code can still access window.parent.localStorage if allow-same-origin is on.
-        // But for "tools", this prevents collisions.
         
         var originalSetItem = Storage.prototype.setItem;
         var originalGetItem = Storage.prototype.getItem;
@@ -84,7 +114,6 @@ export const getPreviewContent = (content: string | null) => {
         var originalClear = Storage.prototype.clear;
         var originalKey = Storage.prototype.key;
         
-        // Prefix for this specific iframe context (if we could inject ID, it would be better, but generic is safer than raw)
         var PREFIX = 'app_data_'; 
         
         Storage.prototype.setItem = function(key, value) {
@@ -108,7 +137,6 @@ export const getPreviewContent = (content: string | null) => {
             return originalRemoveItem.call(this, PREFIX + key);
         };
         
-        // Clear only app data, not parent data
         Storage.prototype.clear = function() {
             var keysToRemove = [];
             for (var i = 0; i < this.length; i++) {
@@ -124,24 +152,15 @@ export const getPreviewContent = (content: string | null) => {
 
       } catch (e) {
         // Fallback for restricted environments
-        console.warn('Storage access restricted, using memory storage');
-        var mockStorage = {
-          _data: {},
-          getItem: function(k) { return this._data[k] || null; },
-          setItem: function(k, v) { this._data[k] = String(v); },
-          removeItem: function(k) { delete this._data[k]; },
-          clear: function() { this._data = {}; },
-          length: 0,
-          key: function(i) { return Object.keys(this._data)[i] || null; }
-        };
+        console.warn('Storage access restricted, switching to memory storage');
+        
         try {
-          // In some browsers, these properties are not configurable.
-          // We try to overwrite them, but if it fails, we just ignore it.
-          // The app might still crash if it tries to access the original storage.
+          // Try to replace the global properties
           Object.defineProperty(window, 'localStorage', { value: mockStorage, configurable: true, writable: true });
           Object.defineProperty(window, 'sessionStorage', { value: mockStorage, configurable: true, writable: true });
-        } catch(e) {
-            console.error("Failed to mock storage", e);
+        } catch(e2) {
+            console.warn("Failed to replace global storage objects, attempting prototype patch", e2);
+            patchStoragePrototype();
         }
       }
       
@@ -177,9 +196,15 @@ export const getPreviewContent = (content: string | null) => {
 
       // Global Promise Rejection Handler for SecurityError
       window.onunhandledrejection = function(event) {
-        if (String(event.reason).includes('SecurityError') || String(event.reason).includes('The operation is insecure')) {
+        const reason = String(event.reason);
+        if (reason.includes('SecurityError') || reason.includes('The operation is insecure')) {
             console.warn('Suppressed Unhandled SecurityError:', event.reason);
             event.preventDefault();
+        }
+        // Suppress Audio Autoplay errors (NotAllowedError: play() failed)
+        if (reason.includes('NotAllowedError') || reason.includes('play failed')) {
+             console.warn('Suppressed Autoplay Error:', event.reason);
+             event.preventDefault();
         }
       };
 
@@ -229,6 +254,119 @@ export const getPreviewContent = (content: string | null) => {
     body { -ms-overflow-style: none; scrollbar-width: none; }
   </style>`;
   
+  const probeScript = `
+    <style>
+      .__spark_highlight__ {
+        outline: 2px dashed #3b82f6 !important;
+        background-color: rgba(59, 130, 246, 0.1) !important;
+        cursor: crosshair !important;
+        transition: all 0.1s ease;
+        position: relative;
+        z-index: 9999;
+      }
+    </style>
+    <script>
+      (function() {
+        let isEditMode = false;
+        let hoveredElement = null;
+        const originalRAF = window.requestAnimationFrame;
+
+        function getElementPath(element) {
+            const path = [];
+            while (element && element.nodeType === Node.ELEMENT_NODE) {
+                let selector = element.nodeName.toLowerCase();
+                if (element.id) {
+                    selector += '#' + element.id;
+                    path.unshift(selector);
+                    break;
+                } else {
+                    let sib = element, nth = 1;
+                    while (sib = sib.previousElementSibling) {
+                        if (sib.nodeName.toLowerCase() == selector)
+                           nth++;
+                    }
+                    if (nth != 1)
+                        selector += ":nth-of-type("+nth+")";
+                }
+                path.unshift(selector);
+                element = element.parentNode;
+            }
+            return path.join(" > ");
+        }
+
+        function handleMouseOver(e) {
+          if (!isEditMode) return;
+          e.stopPropagation();
+          if (hoveredElement) {
+            hoveredElement.classList.remove('__spark_highlight__');
+          }
+          hoveredElement = e.target;
+          hoveredElement.classList.add('__spark_highlight__');
+        }
+
+        function handleMouseOut(e) {
+          if (!isEditMode) return;
+          e.stopPropagation();
+          if (hoveredElement) {
+            hoveredElement.classList.remove('__spark_highlight__');
+            hoveredElement = null;
+          }
+        }
+
+        function handleClick(e) {
+          if (!isEditMode) return;
+          e.preventDefault();
+          e.stopPropagation();
+          
+          const el = e.target;
+          const info = {
+            tagName: el.tagName.toLowerCase(),
+            className: el.className.replace('__spark_highlight__', '').trim(),
+            innerText: el.innerText ? el.innerText.substring(0, 50) : '',
+            path: getElementPath(el)
+          };
+          
+          window.parent.postMessage({ type: 'spark-element-selected', payload: info }, '*');
+        }
+
+        window.addEventListener('message', (event) => {
+          if (event.data && event.data.type === 'toggle-edit-mode') {
+            isEditMode = event.data.enabled;
+            if (isEditMode) {
+              document.body.addEventListener('mouseover', handleMouseOver, true);
+              document.body.addEventListener('mouseout', handleMouseOut, true);
+              document.body.addEventListener('click', handleClick, true);
+              
+              // Pause animations for easier selection
+              const style = document.createElement('style');
+              style.id = 'spark-pause-animations';
+              style.innerHTML = '* { animation-play-state: paused !important; transition: none !important; }';
+              document.head.appendChild(style);
+
+              // Freeze JS animations (RAF)
+              window.requestAnimationFrame = function() { return -1; };
+            } else {
+              document.body.removeEventListener('mouseover', handleMouseOver, true);
+              document.body.removeEventListener('mouseout', handleMouseOut, true);
+              document.body.removeEventListener('click', handleClick, true);
+              if (hoveredElement) {
+                hoveredElement.classList.remove('__spark_highlight__');
+                hoveredElement = null;
+              }
+              
+              // Resume animations
+              const style = document.getElementById('spark-pause-animations');
+              if (style) style.remove();
+
+              // Restore RAF
+              window.requestAnimationFrame = originalRAF;
+            }
+          }
+        });
+      })();
+    </script>
+  `;
+
   let newContent = patchedContent;
   if (newContent.includes('<head>')) {
       newContent = newContent.replace('<head>', `<head>${viewportMeta}${safetyScript}${injectedStyle}`);
@@ -237,5 +375,13 @@ export const getPreviewContent = (content: string | null) => {
   } else {
       newContent = `<head>${viewportMeta}${safetyScript}${injectedStyle}</head>${newContent}`;
   }
+  
+  // Inject probe script before body end
+  if (newContent.includes('</body>')) {
+      newContent = newContent.replace('</body>', `${probeScript}</body>`);
+  } else {
+      newContent += probeScript;
+  }
+
   return newContent;
 };
