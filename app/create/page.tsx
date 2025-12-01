@@ -991,7 +991,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                   上一步
                 </button>
                 <button
-                  onClick={startGeneration}
+                  onClick={() => startGeneration()}
                   disabled={(!wizardData.description && !uploadedImageUrl) || isUploadingImage}
                   className="flex-1 bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
