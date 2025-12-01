@@ -313,6 +313,10 @@ export default function CreatePage() {
     // Compact description
     let description = `Type:${categoryLabel}, Device:${deviceLabel}, Style:${styleLabel}. Features:${wizardData.features}. Notes:${wizardData.description}`;
 
+    if (uploadedImageUrl && !isModification) {
+        description += `\n\n[IMPORTANT] An image reference has been provided. You MUST analyze this image and replicate its layout, UI structure, and visual style as closely as possible. The image takes precedence over the category description.`;
+    }
+
     if (isModification) {
       // User requested full HTML context to avoid issues
       description = `Modify this HTML:
@@ -804,13 +808,15 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 
       if (uploadError) throw uploadError;
 
-      // 3. Get Public URL
-      const { data: { publicUrl } } = supabase.storage
+      // 3. Get Signed URL (Valid for 1 hour) to ensure AI can access it even if bucket is private
+      const { data: { signedUrl }, error: signError } = await supabase.storage
         .from('temp-generations')
-        .getPublicUrl(filePath);
+        .createSignedUrl(filePath, 3600);
+
+      if (signError) throw signError;
 
       setUploadedImage(file);
-      setUploadedImageUrl(publicUrl);
+      setUploadedImageUrl(signedUrl);
       toastSuccess('图片上传成功');
     } catch (error) {
       console.error('Image upload failed:', error);
