@@ -7,6 +7,7 @@ import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
 import { copyToClipboard } from '@/lib/utils';
 import { getPreviewContent } from '@/lib/preview';
+import { Image, Upload, X } from 'lucide-react';
 
 // --- Constants ---
 const CATEGORIES = [
@@ -75,6 +76,12 @@ export default function CreatePage() {
   const [streamingCode, setStreamingCode] = useState('');
   const [currentGenerationPrompt, setCurrentGenerationPrompt] = useState('');
   
+  // State: Image Upload
+  const [uploadedImage, setUploadedImage] = useState<File | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // State: User Credits
   const [credits, setCredits] = useState(20);
   const [userId, setUserId] = useState<string | null>(null);
@@ -672,6 +679,59 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
     toastSuccess('下载成功！请妥善保存源文件');
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type and size
+    if (!file.type.startsWith('image/')) {
+      toastError('请上传图片文件');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toastError('图片大小不能超过 5MB');
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      // 1. Compress/Resize Image (Client-side) - Simplified for now, just upload
+      // Ideally use a canvas or library to resize to max 1536px
+
+      // 2. Upload to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('temp-generations')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // 3. Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('temp-generations')
+        .getPublicUrl(filePath);
+
+      setUploadedImage(file);
+      setUploadedImageUrl(publicUrl);
+      toastSuccess('图片上传成功');
+    } catch (error) {
+      console.error('Image upload failed:', error);
+      toastError('图片上传失败，请重试');
+    } finally {
+      setIsUploadingImage(false);
+      // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removeUploadedImage = () => {
+    setUploadedImage(null);
+    setUploadedImageUrl(null);
+  };
+
   // --- Render Helpers ---
   const renderWizard = () => (
     <div className="max-w-4xl mx-auto pt-32 pb-12 px-4 min-h-screen flex flex-col">
@@ -819,6 +879,37 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                 <div className="grid grid-cols-1 gap-3">
                   {/* @ts-ignore */}
                   {FEATURE_TEMPLATES[wizardData.category]?.map((tpl: any, index: number) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        const newFeatures = wizardData.features 
+                          ? wizardData.features + '\n' + tpl.desc 
+                          : tpl.desc;
+                        if (newFeatures.length <= 500) {
+                          setWizardData(prev => ({ ...prev, features: newFeatures }));
+                        }
+                      }}
+                      className="text-left p-4 rounded-xl bg-slate-800 border border-slate-700 hover:border-brand-500 hover:bg-slate-800/80 transition group"
+                    >
+                      <div className="font-bold text-white text-sm mb-1 group-hover:text-brand-400 transition-colors">{tpl.label}</div>
+                      <div className="text-xs text-slate-400 leading-relaxed">{tpl.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button
+                  onClick={() => setStep('style')}
+                  className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                >
+                  上一步
+                </button>
+                <button
+                  onClick={() => setStep('desc')}
+                  disabled={!wizardData.features}
+                  className={`flex-1 py-3 rounded-xl font-bold shadow-lg transition flex items-center justify-center gap-2 ${
+                    !wizardData.features
                       ? 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none' 
                       : 'bg-brand-600 hover:bg-brand-500 text-white shadow-brand-500/20'
                   }`}
@@ -831,34 +922,81 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 
           {step === 'desc' && (
             <div className="space-y-6 animate-fade-in">
-              <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold text-white">最后补充</h2>
-                <p className="text-slate-400">还有什么特别的要求吗？比如配色、音效等</p>
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-white mb-2">最后一步：描述您的创意</h2>
+                <p className="text-slate-400">越详细的描述，生成的应用越符合您的预期</p>
               </div>
-              <div className="bg-slate-900/50 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors relative overflow-hidden">
+
+              <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700">
+                <label className="block text-sm font-medium text-slate-300 mb-2">应用描述</label>
                 <textarea
                   value={wizardData.description}
-                  onChange={(e) => {
-                    if (e.target.value.length <= 500) {
-                      setWizardData(prev => ({ ...prev, description: e.target.value }));
-                    }
-                  }}
-                  placeholder="例如：我希望背景是深蓝色的，按钮要有点击音效，计分板在顶部..."
-                  className="w-full h-40 bg-transparent border-none outline-none appearance-none p-4 text-white placeholder-slate-500 focus:ring-0 resize-none leading-relaxed"
+                  onChange={(e) => setWizardData({ ...wizardData, description: e.target.value })}
+                  className="w-full h-32 bg-slate-900 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 focus:ring-2 focus:ring-brand-500 focus:border-transparent transition resize-none"
+                  placeholder="例如：做一个番茄钟，背景是星空，倒计时结束时播放烟花动画..."
                 ></textarea>
-                <div className="absolute bottom-2 right-4 text-xs text-slate-500">
-                  {wizardData.description.length}/500
+                
+                {/* Image Upload Section */}
+                <div className="mt-4">
+                    <label className="block text-sm font-medium text-slate-300 mb-2">参考图片 (可选)</label>
+                    <p className="text-xs text-slate-500 mb-3">上传手绘草图、截图或设计稿，AI 将为您复刻界面。</p>
+                    
+                    {!uploadedImageUrl ? (
+                        <div 
+                            onClick={() => fileInputRef.current?.click()}
+                            className={`border-2 border-dashed border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer hover:border-brand-500 hover:bg-slate-800/50 transition group ${isUploadingImage ? 'opacity-50 pointer-events-none' : ''}`}
+                        >
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                className="hidden" 
+                                accept="image/*" 
+                                onChange={handleImageUpload}
+                            />
+                            {isUploadingImage ? (
+                                <i className="fa-solid fa-circle-notch fa-spin text-2xl text-brand-500 mb-2"></i>
+                            ) : (
+                                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                    <Image className="w-6 h-6 text-slate-400 group-hover:text-brand-400" />
+                                </div>
+                            )}
+                            <span className="text-sm text-slate-400 group-hover:text-white transition">
+                                {isUploadingImage ? '正在上传...' : '点击上传图片'}
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="relative inline-block group">
+                            <img 
+                                src={uploadedImageUrl} 
+                                alt="Reference" 
+                                className="h-32 w-auto rounded-xl border border-slate-600 object-cover"
+                            />
+                            <button 
+                                onClick={removeUploadedImage}
+                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-red-600 transition transform hover:scale-110"
+                            >
+                                <X size={14} />
+                            </button>
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition rounded-xl pointer-events-none"></div>
+                        </div>
+                    )}
                 </div>
               </div>
-              <div className="flex justify-between items-center pt-4">
-                <button onClick={() => setStep('features')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-800 transition">
-                  <i className="fa-solid fa-arrow-left"></i> 返回上一步
-                </button>
-                <button 
-                  onClick={() => startGeneration(false)}
-                  className="px-8 py-3 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/30 flex items-center gap-2 hover:scale-105 active:scale-95"
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setStep('features')}
+                  className="flex-1 py-4 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition"
                 >
-                  <i className="fa-solid fa-wand-magic-sparkles"></i> 开始创作
+                  上一步
+                </button>
+                <button
+                  onClick={startGeneration}
+                  disabled={(!wizardData.description && !uploadedImageUrl) || isUploadingImage}
+                  className="flex-1 bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <span>开始生成</span>
+                  <i className="fa-solid fa-wand-magic-sparkles"></i>
                 </button>
               </div>
             </div>
@@ -884,9 +1022,14 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             <div className="bg-gradient-to-br from-brand-600 to-brand-700 text-white p-5 rounded-2xl rounded-tr-none shadow-lg max-w-[85%] relative group">
               <div className="absolute -right-2 top-0 w-4 h-4 bg-brand-700 transform rotate-45"></div>
               <p className="text-xs font-bold text-brand-200 mb-2 uppercase tracking-wider">我的需求</p>
-              <p className="text-sm leading-relaxed opacity-95">
+              <p className="text-sm leading-relaxed opacity-95 whitespace-pre-wrap">
                 {currentGenerationPrompt}
               </p>
+              {uploadedImageUrl && (
+                <div className="mt-3 rounded-lg overflow-hidden border border-white/20">
+                    <img src={uploadedImageUrl} alt="Reference" className="w-full h-auto max-h-48 object-cover" />
+                </div>
+              )}
             </div>
           </div>
 

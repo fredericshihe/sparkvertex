@@ -30,7 +30,7 @@ serve(async (req) => {
     }
 
     // 2. Input
-    const { taskId, system_prompt, user_prompt, type } = await req.json();
+    const { taskId, system_prompt, user_prompt, type, image_url } = await req.json();
     if (!taskId) throw new Error('Missing taskId');
 
     // 3. Admin Client for DB operations
@@ -83,6 +83,28 @@ serve(async (req) => {
         throw new Error('Missing GOOGLE_API_KEY');
     }
 
+    // Construct messages
+    const messages = [
+        { role: 'system', content: system_prompt || 'You are a helpful assistant.' }
+    ];
+
+    if (image_url) {
+        messages.push({
+            role: 'user',
+            content: [
+                { type: 'text', text: String(user_prompt) },
+                {
+                    type: 'image_url',
+                    image_url: {
+                        url: image_url
+                    }
+                }
+            ]
+        });
+    } else {
+        messages.push({ role: 'user', content: String(user_prompt) });
+    }
+
     const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
       method: 'POST',
       headers: {
@@ -92,10 +114,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: modelName,
         max_tokens: 65536,
-        messages: [
-          { role: 'system', content: system_prompt || 'You are a helpful assistant.' },
-          { role: 'user', content: String(user_prompt) }
-        ],
+        messages: messages,
         stream: true
       })
     });
