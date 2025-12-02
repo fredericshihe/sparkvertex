@@ -13,38 +13,48 @@ import { translations } from '@/lib/i18n/translations';
 const KNOWN_CATEGORIES: Record<string, { key: string, icon: string }> = {
   // Game
   'game': { key: 'game', icon: 'fa-gamepad' },
+  'Game': { key: 'game', icon: 'fa-gamepad' },
   '游戏': { key: 'game', icon: 'fa-gamepad' },
   
   // Design
   'design': { key: 'design', icon: 'fa-palette' },
+  'Design': { key: 'design', icon: 'fa-palette' },
   '设计': { key: 'design', icon: 'fa-palette' },
   
   // Productivity
   'productivity': { key: 'productivity', icon: 'fa-list-check' },
+  'Productivity': { key: 'productivity', icon: 'fa-list-check' },
   '效率': { key: 'productivity', icon: 'fa-list-check' },
   
   // Tool
   'tool': { key: 'tool', icon: 'fa-screwdriver-wrench' },
+  'Tool': { key: 'tool', icon: 'fa-screwdriver-wrench' },
   '工具': { key: 'tool', icon: 'fa-screwdriver-wrench' },
   
   // Devtool
   'devtool': { key: 'devtool', icon: 'fa-code' },
+  'DevTool': { key: 'devtool', icon: 'fa-code' },
+  'Devtool': { key: 'devtool', icon: 'fa-code' },
   '开发者工具': { key: 'devtool', icon: 'fa-code' },
   
   // Entertainment
   'entertainment': { key: 'entertainment', icon: 'fa-film' },
+  'Entertainment': { key: 'entertainment', icon: 'fa-film' },
   '娱乐': { key: 'entertainment', icon: 'fa-film' },
   
   // Education
   'education': { key: 'education', icon: 'fa-graduation-cap' },
+  'Education': { key: 'education', icon: 'fa-graduation-cap' },
   '教育': { key: 'education', icon: 'fa-graduation-cap' },
   
   // Visualization
   'visualization': { key: 'visualization', icon: 'fa-chart-pie' },
+  'Visualization': { key: 'visualization', icon: 'fa-chart-pie' },
   '可视化': { key: 'visualization', icon: 'fa-chart-pie' },
   
   // Lifestyle
   'lifestyle': { key: 'lifestyle', icon: 'fa-mug-hot' },
+  'Lifestyle': { key: 'lifestyle', icon: 'fa-mug-hot' },
   '生活': { key: 'lifestyle', icon: 'fa-mug-hot' },
 };
 
@@ -91,7 +101,7 @@ export default function Explore() {
   const fetchCategories = async () => {
     const { data, error } = await supabase
       .from('items')
-      .select('tags')
+      .select('tags, category')
       .eq('is_public', true);
 
     if (error) {
@@ -105,8 +115,10 @@ export default function Explore() {
     CORE_KEYS.forEach(k => categoryCounts[k] = 0);
 
     data.forEach(item => {
+      const itemCategories = new Set<string>();
+      
+      // Check tags
       if (Array.isArray(item.tags)) {
-        const itemCategories = new Set<string>();
         item.tags.forEach((tag: string) => {
           if (!tag) return;
           const normalizedTag = tag.trim();
@@ -115,11 +127,20 @@ export default function Explore() {
              itemCategories.add(mapping.key);
           }
         });
-        
-        itemCategories.forEach(catKey => {
-           categoryCounts[catKey] = (categoryCounts[catKey] || 0) + 1;
-        });
       }
+      
+      // Check category field
+      if (item.category) {
+        const normalizedCat = item.category.trim();
+        const mapping = KNOWN_CATEGORIES[normalizedCat] || KNOWN_CATEGORIES[normalizedCat.toLowerCase()];
+        if (mapping) {
+           itemCategories.add(mapping.key);
+        }
+      }
+        
+      itemCategories.forEach(catKey => {
+         categoryCounts[catKey] = (categoryCounts[catKey] || 0) + 1;
+      });
     });
 
     // Build the categories array for UI
@@ -221,7 +242,11 @@ export default function Explore() {
         tagsToSearch.push(category);
       }
 
-      query = query.overlaps('tags', tagsToSearch);
+      const quotedTags = tagsToSearch.map(t => `"${t}"`).join(',');
+      const tagsStr = `{${quotedTags}}`;
+      const catStr = `(${quotedTags})`;
+      
+      query = query.or(`tags.ov.${tagsStr},category.in.${catStr}`);
     }
 
     if (searchQuery) {
