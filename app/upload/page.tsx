@@ -1415,8 +1415,8 @@ export default function UploadPage() {
                   </h4>
                   <p className="text-sm text-slate-400">
                     {isPublic 
-                      ? '作品将显示在探索页面，所有人可见' 
-                      : '作品仅在个人中心可见，其他人无法查看'}
+                      ? '作品将公开展示在灵枢广场，所有人可见' 
+                      : '作品不公开展示，仅拥有分享链接的人可见'}
                   </p>
                 </div>
                 <button 

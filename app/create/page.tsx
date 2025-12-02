@@ -429,7 +429,7 @@ export default function CreatePage() {
         try {
           const { data: bonusData, error: bonusError } = await supabase.rpc('check_daily_bonus');
           if (bonusData && bonusData.awarded) {
-            toastSuccess(`每日登录奖励：+0.5 积分！当前积分：${bonusData.credits}`);
+            toastSuccess(`每日登录奖励：+1 积分！当前积分：${bonusData.credits}`);
           }
         } catch (error) {
           console.error('Failed to check daily rewards:', error);

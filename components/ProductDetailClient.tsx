@@ -349,7 +349,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   };
 
   return (
-    <div className={`min-h-screen bg-slate-900 flex flex-col ${viewMode === 'app' ? 'pt-0' : 'pt-16'}`}>
+    <div className={`h-[100dvh] bg-slate-900 flex flex-col overflow-hidden ${viewMode === 'app' ? 'pt-0' : 'pt-16'}`}>
       {/* Add to Home Screen Hint - Only show on mobile browser (not standalone) */}
       {showInstallHint && viewMode === 'app' && !isWeChat && (
         <div 
@@ -384,7 +384,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
       )}
 
       {/* Content */}
-      <div className="flex-grow flex flex-col md:flex-row overflow-hidden relative h-[100dvh]">
+      <div className="flex-grow flex flex-col md:flex-row overflow-hidden relative w-full">
         {/* Preview Area / App Mode Container */}
         <div className={`
             transition-all duration-300 bg-slate-900 relative group flex flex-col
