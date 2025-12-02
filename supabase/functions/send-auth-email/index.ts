@@ -67,10 +67,14 @@ serve(async (req) => {
     
     // Fallback: Check if redirect_to has lang param (e.g. for password reset initiated from a specific page)
     if (email_data.redirect_to) {
-        const url = new URL(email_data.redirect_to);
-        const langParam = url.searchParams.get('lang');
-        if (langParam === 'zh' || langParam === 'en') {
-            locale = langParam;
+        try {
+            const url = new URL(email_data.redirect_to);
+            const langParam = url.searchParams.get('lang');
+            if (langParam === 'zh' || langParam === 'en') {
+                locale = langParam;
+            }
+        } catch (e) {
+            console.warn("Invalid URL in redirect_to, skipping lang detection from URL:", email_data.redirect_to);
         }
     }
 
@@ -138,17 +142,19 @@ serve(async (req) => {
     console.log(`Sending ${email_data.email_action_type} email to ${user.email} in ${lang}`);
 
     // 4. Send Email (using Resend as an example)
-    if (RESEND_API_KEY) {
-        // IMPORTANT: You must verify a domain in Resend to send from it.
-        // For testing without a domain, use 'onboarding@resend.dev'
-        // Once you have a domain, change this to 'noreply@yourdomain.com'
-        const fromEmail = "noreply@sparkvertex.com"; 
+    const apiKey = RESEND_API_KEY ? RESEND_API_KEY.trim() : "";
+    
+    if (apiKey) {
+        // Use the verified domain email
+        const fromEmail = "noreply@sparkvertex.com";
+        
+        console.log(`Attempting to send email from ${fromEmail} to ${user.email}`);
         
         const res = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${RESEND_API_KEY}`,
+                "Authorization": `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
                 from: `Spark Vertex <${fromEmail}>`, 
@@ -159,10 +165,13 @@ serve(async (req) => {
         });
 
         if (!res.ok) {
-            const error = await res.text();
-            console.error("Resend API Error:", error);
+            const errorText = await res.text();
+            console.error(`Resend API Error (${res.status}):`, errorText);
             // Return 500 so Supabase knows it failed, but include details
-            return new Response(JSON.stringify({ error: `Resend Error: ${error}` }), { status: 500 });
+            return new Response(JSON.stringify({ 
+                error: `Resend Error (${res.status}): ${errorText}`,
+                details: "Check Resend API Key and Domain Verification"
+            }), { status: 500 });
         }
     } else {
         console.log("RESEND_API_KEY not set. Logging email content:");
