@@ -55,7 +55,21 @@ async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, tempera
   }
 }
 
-async function analyzeCategory(htmlContent: string) {
+async function analyzeCategory(htmlContent: string, language: string = 'en') {
+  const isZh = language === 'zh';
+
+  if (isZh) {
+    const categories = ['游戏', '工具', '效率', '教育', '生活', '设计', '可视化', '娱乐', '开发者工具'];
+    const systemPrompt = '你是一个应用商店分类专家。分析 HTML 代码并将其归类到最合适的类别中。';
+    const userPrompt = `分析以下 HTML 代码的核心功能，并将其归类为以下类别之一：\n${categories.join(', ')}\n\n只返回类别名称，不要解释。代码：\n\n${htmlContent.substring(0, 20000)}`;
+    
+    const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
+    if (!result) return '工具';
+    
+    let categoryText = typeof result === 'string' ? result : String(result);
+    return categoryText.trim().replace(/["'《》]/g, '');
+  }
+
   const categories = ['Game', 'Utility', 'Productivity', 'Education', 'Lifestyle', 'Design', 'Visualization', 'Entertainment', 'DevTool', 'AI'];
   const systemPrompt = 'You are an App Store category expert. Analyze the HTML code and categorize it into the most suitable category.';
   const userPrompt = `Analyze the core function of the following HTML code and categorize it into one of these categories:\n${categories.join(', ')}\n\nReturn only the category name. No explanation. Code:\n\n${htmlContent.substring(0, 20000)}`;
@@ -755,7 +769,7 @@ export default function UploadPage() {
       
       const [securityResult, category, titleRes, descRes, techTags, promptRes, appTypes, mobileResult, iconRes] = await Promise.all([
         runTask(0, checkMaliciousCode(html)),
-        runTask(1, analyzeCategory(html)),
+        runTask(1, analyzeCategory(html, language)),
         runTask(2, titlePromise),
         runTask(3, descPromise),
         runTask(4, analyzeTechStack(html)),
