@@ -248,11 +248,11 @@ Output ONLY the generated prompt string. Do not include any other text.`
         style = "Playful 3D cartoon style, bubbly shapes, low poly, vibrant, fortnite style";
         colors = "Bright and energetic colors, orange, purple and blue";
         metaphor = "stylized game controller or character mascot";
-      } else if (combinedText.includes("tool") || combinedText.includes("utility") || combinedText.includes("calculator") || combinedText.includes("converter")) {
+      } else if (combinedText.includes("tool") || combinedText.includes("utility") || combinedText.includes("calculator") || combinedText.includes("converter") || combinedText.includes("productivity")) {
         style = "Clean flat design, vector art, swiss design, minimalist, apple ios style";
         colors = "Professional solid background, blue and white, high contrast";
         metaphor = "simplified gear or wrench or mathematical symbol";
-      } else if (combinedText.includes("finance") || combinedText.includes("money") || combinedText.includes("wallet")) {
+      } else if (combinedText.includes("finance") || combinedText.includes("money") || combinedText.includes("wallet") || combinedText.includes("lifestyle")) {
         style = "Premium glassmorphism, frosted glass, metallic texture, secure";
         colors = "Emerald green, gold, and dark navy";
         metaphor = "stylized coin or shield or wallet";
@@ -260,11 +260,11 @@ Output ONLY the generated prompt string. Do not include any other text.`
         style = "Organic, soft lighting, zen, nature-inspired, rounded corners";
         colors = "Sage green, soft teal, bamboo color, white";
         metaphor = "lotus flower or heartbeat line or leaf";
-      } else if (combinedText.includes("social") || combinedText.includes("chat") || combinedText.includes("connect")) {
+      } else if (combinedText.includes("social") || combinedText.includes("chat") || combinedText.includes("connect") || combinedText.includes("entertainment") || combinedText.includes("music") || combinedText.includes("video")) {
         style = "Friendly, rounded, bubble-like, gradient mesh";
         colors = "Hot pink, electric blue, purple gradient";
         metaphor = "speech bubble or connecting nodes or smiling face";
-      } else if (combinedText.includes("cyber") || combinedText.includes("future") || combinedText.includes("ai") || combinedText.includes("bot")) {
+      } else if (combinedText.includes("cyber") || combinedText.includes("future") || combinedText.includes("ai") || combinedText.includes("bot") || combinedText.includes("dev") || combinedText.includes("code")) {
         style = "Cyberpunk neon style, glowing edges, glassmorphism, futuristic, holographic";
         colors = "Dark background with neon purple and cyan accents";
         metaphor = "glowing brain circuit or robot eye or digital spark";
@@ -272,6 +272,14 @@ Output ONLY the generated prompt string. Do not include any other text.`
         style = "Abstract fluid shapes, watercolor, artistic, surreal, colorful";
         colors = "Colorful, rainbow, pastel, vivid";
         metaphor = "palette or brush or camera lens or abstract splash";
+      } else if (combinedText.includes("education") || combinedText.includes("learn") || combinedText.includes("study") || combinedText.includes("quiz")) {
+         style = "Playful yet professional, book illustration style, warm colors";
+         colors = "Blue, yellow, and white";
+         metaphor = "open book or graduation cap or lightbulb";
+      } else if (combinedText.includes("data") || combinedText.includes("chart") || combinedText.includes("graph") || combinedText.includes("visualization")) {
+         style = "Modern data viz style, isometric, clean lines, tech-focused";
+         colors = "Dark background, neon data lines, gradient bars";
+         metaphor = "3d chart or graph node or abstract data flow";
       }
 
       const subject = title || prompt || "app icon";

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Item } from '@/types/supabase';
 import { getPreviewContent } from '@/lib/preview';
 import dynamic from 'next/dynamic';
+import { useLanguage } from '@/context/LanguageContext';
 
 const QRCodeSVG = dynamic(() => import('qrcode.react').then(mod => mod.QRCodeSVG), { ssr: false });
 
@@ -23,6 +24,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [isClient, setIsClient] = useState(false); // Add isClient state
   const cardRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
 
   useEffect(() => {
     setIsClient(true); // Set isClient to true on mount
@@ -102,7 +104,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
         }}
       >
         <i className={`fa-solid ${isFlipped ? 'fa-rotate-left' : 'fa-qrcode'} mr-1.5`}></i> 
-        {isFlipped ? '返回' : '扫码'}
+        {isFlipped ? t.project_card.flip_back : t.project_card.scan}
       </div>
 
       <div className="flip-card-inner relative w-full h-full transition-all duration-500" style={{ transformStyle: 'preserve-3d' }}>
@@ -114,7 +116,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
             className="flip-trigger-zone hidden md:flex" 
             onMouseEnter={() => setIsFlipped(true)}
           >
-            <i className="fa-solid fa-qrcode mr-1"></i> 扫码体验
+            <i className="fa-solid fa-qrcode mr-1"></i> {t.project_card.scan_experience}
           </div>
 
           <div className="h-[220px] md:h-44 relative bg-slate-800 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
@@ -138,14 +140,14 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                 <button 
                   onClick={(e) => { e.stopPropagation(); onEdit && onEdit(item); }}
                   className="w-7 h-7 rounded-full bg-slate-900/80 backdrop-blur text-white hover:bg-brand-600 transition flex items-center justify-center border border-slate-700 shadow-lg"
-                  title="编辑作品"
+                  title={t.project_card.edit}
                 >
                   <i className="fa-solid fa-pen text-xs"></i>
                 </button>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onDelete && onDelete(item.id); }}
                   className="w-7 h-7 rounded-full bg-slate-900/80 backdrop-blur text-white hover:bg-rose-600 transition flex items-center justify-center border border-slate-700 shadow-lg"
-                  title="删除作品"
+                  title={t.project_card.delete}
                 >
                   <i className="fa-solid fa-trash text-xs"></i>
                 </button>
@@ -156,12 +158,12 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
             <div className="absolute top-2 right-2 z-20 flex flex-col gap-1 items-end" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'translateZ(0)' }}>
               {item.is_public === false && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-slate-900/80 text-slate-400 border border-slate-700 flex items-center gap-1 shadow-lg">
-                  <i className="fa-solid fa-lock text-[10px]"></i> 私有
+                  <i className="fa-solid fa-lock text-[10px]"></i> {t.project_card.private}
                 </span>
               )}
               {(item.tags || []).includes('AI Verified') && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(234,179,8,0.3)]">
-                  <i className="fa-solid fa-shield-halved text-[10px]"></i> AI 认证
+                  <i className="fa-solid fa-shield-halved text-[10px]"></i> {t.project_card.ai_verified}
                 </span>
               )}
             </div>
@@ -186,18 +188,18 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <div className="flex gap-2 text-[10px] text-slate-500">
-                  <span className="flex items-center gap-1" title="查看"><i className="fa-solid fa-eye"></i> {item.page_views || 0}</span>
-                  <span className="hidden sm:flex items-center gap-1" title="下载"><i className="fa-solid fa-download"></i> {item.views || 0}</span>
+                  <span className="flex items-center gap-1" title={t.project_card.view}><i className="fa-solid fa-eye"></i> {item.page_views || 0}</span>
+                  <span className="hidden sm:flex items-center gap-1" title={t.project_card.download}><i className="fa-solid fa-download"></i> {item.views || 0}</span>
                   <button 
                     onClick={(e) => { e.stopPropagation(); onLike(item.id); }} 
                     className="flex items-center gap-1 hover:scale-110 transition" 
-                    title="点赞"
+                    title={t.project_card.like}
                   >
                     <i className={`fa-solid fa-heart ${isLiked ? 'text-rose-500' : ''}`}></i> {item.likes || 0}
                   </button>
                 </div>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex-shrink-0 ${item.price > 0 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
-                  {item.price > 0 ? '¥' + item.price : '免费'}
+                  {item.price > 0 ? '¥' + item.price : t.project_card.free}
                 </span>
               </div>
             </div>
@@ -238,8 +240,8 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
               )}
             </div>
             <div className="text-center mt-3">
-              <div className="text-white font-bold text-sm mb-1 drop-shadow-md"><i className="fa-solid fa-mobile-screen-button mr-1"></i> 扫码即刻体验</div>
-              <div className="text-slate-400 text-[10px] drop-shadow-md">手机全屏模式运行</div>
+              <div className="text-white font-bold text-sm mb-1 drop-shadow-md"><i className="fa-solid fa-mobile-screen-button mr-1"></i> {t.project_card.scan_now}</div>
+              <div className="text-slate-400 text-[10px] drop-shadow-md">{t.project_card.mobile_fullscreen}</div>
             </div>
           </div>
 

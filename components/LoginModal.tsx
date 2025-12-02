@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
 import { useModal } from '@/context/ModalContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function LoginModal() {
+  const { t } = useLanguage();
   const { isLoginModalOpen, closeLoginModal } = useModal();
   const [view, setView] = useState<'login' | 'register' | 'forgot_password'>('login');
   const [email, setEmail] = useState('');
@@ -46,7 +48,7 @@ export default function LoginModal() {
 
   const handleResetPassword = async () => {
     if (!validateEmail(email)) {
-      setMessage('请输入有效的邮箱地址');
+      setMessage(t.auth_modal.error_invalid_email);
       return;
     }
     setLoading(true);
@@ -74,14 +76,14 @@ export default function LoginModal() {
         redirectTo: redirectUrl,
       });
       if (error) throw error;
-      setMessage('重置密码邮件已发送，请检查您的邮箱');
+      setMessage(t.auth_modal.success_reset_sent);
     } catch (error: any) {
       console.error('Reset password error:', error.message);
       if (error.message?.includes('security purposes') && error.message?.includes('seconds')) {
         const seconds = error.message.match(/after (\d+) seconds/)?.[1] || '60';
-        setMessage(`操作过于频繁，请 ${seconds} 秒后再试`);
+        setMessage(t.auth_modal.error_too_many_attempts.replace('{n}', seconds));
       } else {
-        setMessage('发送请求失败，请稍后重试');
+        setMessage(t.auth_modal.error_generic);
       }
     } finally {
       setLoading(false);
@@ -92,17 +94,17 @@ export default function LoginModal() {
     // Security: Rate Limiting Check
     if (lockoutUntil && Date.now() < lockoutUntil) {
       const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000);
-      setMessage(`尝试次数过多，请 ${remaining} 秒后再试`);
+      setMessage(t.auth_modal.error_too_many_attempts.replace('{n}', remaining.toString()));
       return;
     }
 
     if (!validateEmail(email)) {
-      setMessage('请输入有效的邮箱地址');
+      setMessage(t.auth_modal.error_invalid_email);
       return;
     }
 
     if (!validatePassword(password)) {
-      setMessage('密码需至少8位，且包含字母和数字');
+      setMessage(t.auth_modal.error_invalid_password);
       return;
     }
 
@@ -125,7 +127,7 @@ export default function LoginModal() {
 
         // Check if user already exists (Supabase might return success with empty identities for existing users)
         if (data.user && data.user.identities && data.user.identities.length === 0) {
-          setMessage('该邮箱已被注册，请直接登录');
+          setMessage(t.auth_modal.error_email_exists);
         } else {
           setShowEmailSent(true);
           setMessage('');
@@ -155,15 +157,15 @@ export default function LoginModal() {
          const isFirstAttempt = loginAttempts === 0;
 
          if (waitSeconds) {
-             setMessage(`操作过于频繁，请等待 ${waitSeconds} 秒后再试`);
+             setMessage(t.auth_modal.error_too_many_attempts.replace('{n}', waitSeconds));
          } else if (waitMinutes) {
-             setMessage(`操作过于频繁，请等待 ${waitMinutes} 分钟后再试`);
+             setMessage(t.auth_modal.error_too_many_attempts_min.replace('{n}', waitMinutes));
          } else {
              // Generic 429
              if (isFirstAttempt) {
-                 setMessage('当前网络IP触发了安全限制（可能是共享网络导致）。建议：1.切换手机热点 2.等待15分钟');
+                 setMessage(t.auth_modal.error_ip_limit);
              } else {
-                 setMessage('操作过于频繁，系统已暂时限制请求，请稍后（建议等待 15 分钟）再试');
+                 setMessage(t.auth_modal.error_rate_limit);
              }
          }
          setLoading(false);
@@ -180,7 +182,7 @@ export default function LoginModal() {
         
         if (newAttempts >= 10) { // Increased limit to 10
           setLockoutUntil(Date.now() + 60000); // 1 minute lockout
-          setMessage('尝试次数过多，请 1 分钟后再试');
+          setMessage(t.auth_modal.error_too_many_attempts_min.replace('{n}', '1'));
           setLoading(false);
           return;
         }
@@ -188,17 +190,17 @@ export default function LoginModal() {
 
       // Security: Generic Error Messages
       if (isRegistrationError) {
-          setMessage('该邮箱已被注册，请直接登录');
+          setMessage(t.auth_modal.error_email_exists);
       } else if (type === 'login') {
           if (error.message?.includes('Invalid login credentials')) {
-             setMessage('邮箱或密码错误');
+             setMessage(t.auth_modal.error_wrong_credentials);
           } else if (error.message?.includes('Email not confirmed')) {
-             setMessage('邮箱未验证，请检查您的邮箱');
+             setMessage(t.auth_modal.error_email_not_confirmed);
           } else {
-             setMessage('登录失败，请稍后重试');
+             setMessage(t.auth_modal.error_login_failed);
           }
       } else {
-          setMessage('操作失败，请稍后重试');
+          setMessage(t.auth_modal.error_generic);
       }
     } finally {
       setLoading(false);
@@ -211,19 +213,16 @@ export default function LoginModal() {
         <i className="fa-solid fa-envelope-circle-check text-4xl text-green-500"></i>
       </div>
       <div>
-        <h3 className="text-xl font-bold text-white mb-2">验证邮件已发送</h3>
-        <p className="text-slate-400 text-sm leading-relaxed">
-          我们已向 <span className="text-brand-400 font-bold">{email}</span> 发送了一封验证邮件。
-          <br />
-          请查收邮件并点击链接完成注册。
+        <h3 className="text-xl font-bold text-white mb-2">{t.auth_modal.email_sent_title}</h3>
+        <p className="text-slate-400 text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: t.auth_modal.email_sent_desc.replace('{email}', email) }}>
         </p>
       </div>
       <div className="bg-slate-800/50 rounded-lg p-4 text-xs text-slate-500 text-left">
-        <p className="mb-2 font-bold"><i className="fa-solid fa-circle-info mr-1"></i> 没收到邮件？</p>
+        <p className="mb-2 font-bold"><i className="fa-solid fa-circle-info mr-1"></i> {t.auth_modal.email_not_received}</p>
         <ul className="list-disc list-inside space-y-1 pl-1">
-          <li>请检查垃圾邮件箱</li>
-          <li>稍等几分钟再次刷新邮箱</li>
-          <li>确认邮箱地址输入正确</li>
+          <li>{t.auth_modal.check_spam}</li>
+          <li>{t.auth_modal.wait_retry}</li>
+          <li>{t.auth_modal.check_email}</li>
         </ul>
       </div>
       <button 
@@ -234,7 +233,7 @@ export default function LoginModal() {
         }}
         className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-lg transition border border-slate-700"
       >
-        返回登录
+        {t.auth_modal.back_login}
       </button>
     </div>
   );
@@ -245,9 +244,9 @@ export default function LoginModal() {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl animate-float-up overscroll-contain">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-white">
-            {showEmailSent ? '注册成功' : 
-             view === 'login' ? '欢迎回来' : 
-             view === 'register' ? '创建账号' : '重置密码'}
+            {showEmailSent ? t.auth_modal.register_success : 
+             view === 'login' ? t.auth_modal.welcome_back : 
+             view === 'register' ? t.auth_modal.create_account : t.auth_modal.reset_password}
           </h2>
           <button onClick={closeLoginModal} className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 transition">
             <i className="fa-solid fa-xmark"></i>
@@ -257,18 +256,18 @@ export default function LoginModal() {
         {showEmailSent ? renderEmailSent() : view === 'login' ? (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">邮箱</label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">{t.auth_modal.email_label}</label>
               <input 
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition"
-                placeholder="your@email.com"
+                placeholder={t.auth_modal.email_placeholder}
               />
             </div>
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium text-slate-400">密码</label>
+                <label className="block text-sm font-medium text-slate-400">{t.auth_modal.password_label}</label>
                 <button 
                   onClick={() => {
                     setView('forgot_password');
@@ -276,7 +275,7 @@ export default function LoginModal() {
                   }}
                   className="text-xs text-brand-500 hover:text-brand-400 transition"
                 >
-                  忘记密码？
+                  {t.auth_modal.forgot_password}
                 </button>
               </div>
               <input 
@@ -284,7 +283,7 @@ export default function LoginModal() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition"
-                placeholder="••••••••"
+                placeholder={t.auth_modal.password_placeholder}
               />
             </div>
             
@@ -295,11 +294,11 @@ export default function LoginModal() {
               disabled={loading}
               className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-brand-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? '登录中...' : '立即登录'}
+              {loading ? t.auth_modal.logging_in : t.auth_modal.login_btn}
             </button>
             
             <div className="text-center mt-4">
-              <span className="text-slate-500 text-sm">还没有账号？</span>
+              <span className="text-slate-500 text-sm">{t.auth_modal.no_account}</span>
               <button 
                 onClick={() => {
                   setView('register');
@@ -307,7 +306,7 @@ export default function LoginModal() {
                 }}
                 className="text-brand-400 hover:text-brand-300 text-sm font-bold ml-2 transition"
               >
-                去注册
+                {t.auth_modal.go_register}
               </button>
             </div>
           </div>
@@ -316,27 +315,27 @@ export default function LoginModal() {
             <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 mb-4">
               <p className="text-xs text-blue-400 flex items-start gap-2">
                 <i className="fa-solid fa-circle-info mt-0.5"></i>
-                <span>注册即代表同意我们的服务条款。注册后需要验证邮箱才能登录。</span>
+                <span>{t.auth_modal.register_terms}</span>
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">邮箱</label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">{t.auth_modal.email_label}</label>
               <input 
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition"
-                placeholder="your@email.com"
+                placeholder={t.auth_modal.email_placeholder}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">密码</label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">{t.auth_modal.password_label}</label>
               <input 
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition"
-                placeholder="至少8位，包含字母和数字"
+                placeholder={t.auth_modal.password_hint}
               />
             </div>
             
@@ -347,11 +346,11 @@ export default function LoginModal() {
               disabled={loading}
               className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-brand-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? '注册中...' : '注册账号'}
+              {loading ? t.auth_modal.registering : t.auth_modal.register_btn}
             </button>
             
             <div className="text-center mt-4">
-              <span className="text-slate-500 text-sm">已有账号？</span>
+              <span className="text-slate-500 text-sm">{t.auth_modal.has_account}</span>
               <button 
                 onClick={() => {
                   setView('login');
@@ -359,23 +358,23 @@ export default function LoginModal() {
                 }}
                 className="text-brand-400 hover:text-brand-300 text-sm font-bold ml-2 transition"
               >
-                去登录
+                {t.auth_modal.go_login}
               </button>
             </div>
           </div>
         ) : (
           <div className="space-y-4">
             <p className="text-slate-400 text-sm mb-4">
-              请输入您的注册邮箱，我们将向您发送重置密码的链接。
+              {t.auth_modal.reset_desc}
             </p>
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">邮箱</label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">{t.auth_modal.email_label}</label>
               <input 
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition"
-                placeholder="your@email.com"
+                placeholder={t.auth_modal.email_placeholder}
               />
             </div>
 
@@ -390,7 +389,7 @@ export default function LoginModal() {
               disabled={loading}
               className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-brand-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? '发送中...' : '发送重置链接'}
+              {loading ? t.auth_modal.sending : t.auth_modal.send_reset}
             </button>
 
             <button 
@@ -400,7 +399,7 @@ export default function LoginModal() {
               }}
               className="w-full text-slate-400 hover:text-white text-sm py-2 transition"
             >
-              返回登录
+              {t.auth_modal.back_login}
             </button>
           </div>
         )}

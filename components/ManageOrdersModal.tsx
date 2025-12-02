@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function ManageOrdersModal() {
   const { isManageOrdersModalOpen, closeManageOrdersModal } = useModal();
+  const { t } = useLanguage();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -40,7 +42,7 @@ export default function ManageOrdersModal() {
   };
 
   const confirmOrder = async (orderId: string) => {
-    if (!confirm('确认已收到款项？')) return;
+    if (!confirm(t.manage_orders.confirm_alert)) return;
 
     const { error } = await supabase
       .from('orders')
@@ -48,7 +50,7 @@ export default function ManageOrdersModal() {
       .eq('id', orderId);
 
     if (error) {
-      alert('操作失败');
+      alert(t.manage_orders.fail_alert);
     } else {
       fetchOrders(); // Refresh list
     }
@@ -63,7 +65,7 @@ export default function ManageOrdersModal() {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-white">
             <i className="fa-solid fa-list-check text-brand-500 mr-2"></i>
-            订单管理
+            {t.manage_orders.title}
           </h2>
           <button onClick={closeManageOrdersModal} className="text-slate-400 hover:text-white">
             <i className="fa-solid fa-xmark text-xl"></i>
@@ -77,7 +79,7 @@ export default function ManageOrdersModal() {
         ) : orders.length === 0 ? (
           <div className="text-center py-10 text-slate-500">
             <i className="fa-solid fa-check-circle text-4xl mb-4 opacity-50"></i>
-            <p>暂无待处理订单</p>
+            <p>{t.manage_orders.no_orders}</p>
           </div>
         ) : (
           <div className="overflow-y-auto max-h-[60vh] custom-scrollbar space-y-4 p-1">
@@ -93,34 +95,34 @@ export default function ManageOrdersModal() {
                         order.status === 'completed' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
                         'bg-slate-700 text-slate-400'
                       }`}>
-                        {order.status === 'paid' ? '待确认' : order.status === 'completed' ? '已完成' : order.status}
+                        {order.status === 'paid' ? t.manage_orders.status_pending : order.status === 'completed' ? t.manage_orders.status_completed : order.status}
                       </span>
                     </div>
                     
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm text-slate-400">
                       <div>
-                        <span className="block text-xs text-slate-500 mb-0.5">买家</span>
+                        <span className="block text-xs text-slate-500 mb-0.5">{t.manage_orders.buyer}</span>
                         <div className="flex items-center gap-2">
                           <i className="fa-solid fa-user-circle"></i>
                           <span className="text-slate-300">{order.profiles?.username || 'Unknown'}</span>
                         </div>
                       </div>
                       <div>
-                        <span className="block text-xs text-slate-500 mb-0.5">金额</span>
+                        <span className="block text-xs text-slate-500 mb-0.5">{t.manage_orders.amount}</span>
                         <div className="flex items-center gap-2">
                           <i className="fa-solid fa-yen-sign"></i>
                           <span className="text-white font-bold">{order.amount}</span>
                         </div>
                       </div>
                       <div>
-                        <span className="block text-xs text-slate-500 mb-0.5">时间</span>
+                        <span className="block text-xs text-slate-500 mb-0.5">{t.manage_orders.time}</span>
                         <span suppressHydrationWarning>{new Date(order.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>
 
                     {order.remark && (
                       <div className="bg-slate-950/50 p-2 rounded border border-slate-800 text-xs mt-2">
-                        <span className="text-slate-500 mr-2">备注码:</span>
+                        <span className="text-slate-500 mr-2">{t.manage_orders.remark}</span>
                         <span className="font-mono text-brand-400">{order.remark}</span>
                       </div>
                     )}
@@ -134,11 +136,11 @@ export default function ManageOrdersModal() {
                         className="w-full md:w-auto px-6 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold shadow-lg shadow-brand-500/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
                       >
                         <i className="fa-solid fa-check-circle"></i>
-                        确认收款
+                        {t.manage_orders.confirm_btn}
                       </button>
                     ) : (
                       <div className="text-slate-500 flex items-center gap-2 cursor-default opacity-50">
-                        <i className="fa-solid fa-check"></i> 已处理
+                        <i className="fa-solid fa-check"></i> {t.manage_orders.processed}
                       </div>
                     )}
                   </div>

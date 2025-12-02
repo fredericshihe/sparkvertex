@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
+import { useLanguage } from '@/lib/i18n/useLanguage';
 import { getPreviewContent } from '@/lib/preview';
 import { copyToClipboard } from '@/lib/utils';
 
@@ -55,65 +56,80 @@ async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, tempera
 }
 
 async function analyzeCategory(htmlContent: string) {
-  const categories = ['休闲游戏', '实用工具', '办公效率', '教育学习', '生活便利', '创意设计', '数据可视化', '影音娱乐', '开发者工具', 'AI应用'];
-  const systemPrompt = '你是一个资深的应用市场分类专家。你需要精准分析 HTML 代码的核心功能，并将其归类到一个最合适的类别中。';
-  const userPrompt = `请分析以下 HTML 代码的核心功能和用户场景，将其归类为以下类别之一:\n${categories.join(', ')}\n\n只返回类别名称，不要解释，不要标点符号。代码:\n\n${htmlContent.substring(0, 20000)}`;
+  const categories = ['Game', 'Utility', 'Productivity', 'Education', 'Lifestyle', 'Design', 'Visualization', 'Entertainment', 'DevTool', 'AI'];
+  const systemPrompt = 'You are an App Store category expert. Analyze the HTML code and categorize it into the most suitable category.';
+  const userPrompt = `Analyze the core function of the following HTML code and categorize it into one of these categories:\n${categories.join(', ')}\n\nReturn only the category name. No explanation. Code:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
-  if (!result) return '实用工具';
+  if (!result) return 'tool'; // Default to tool (utility)
   
   let categoryText = typeof result === 'string' ? result : String(result);
   const category = categoryText.trim().replace(/["'《》]/g, '');
-  return categories.includes(category) ? category : '实用工具';
+  
+  // Map to lowercase keys
+  const map: Record<string, string> = {
+    'Game': 'game',
+    'Utility': 'tool',
+    'Productivity': 'productivity',
+    'Education': 'education',
+    'Lifestyle': 'lifestyle',
+    'Design': 'design',
+    'Visualization': 'visualization',
+    'Entertainment': 'entertainment',
+    'DevTool': 'devtool',
+    'AI': 'ai'
+  };
+  
+  return map[category] || 'tool';
 }
 
 async function analyzeTitle(htmlContent: string) {
-  const systemPrompt = '你是一个专业的 SEO 专家和产品经理。你需要分析 HTML 代码并提取或创作一个简洁、吸引人且符合 SEO 规范的标题。';
-  const userPrompt = `请分析以下 HTML 代码，提取或创作一个标题 (10-30字)。
-要求：
-1. 包含核心关键词。
-2. 具有吸引力，能提高点击率。
-3. 如果代码中有 <title>，请优化它。
-4. **严禁包含视觉风格描述词**（如：可爱、赛博朋克、极简、复古等），标题必须只关注核心功能和用途。
+  const systemPrompt = 'You are an SEO expert and Product Manager. Analyze the HTML code and extract or create a concise, attractive title.';
+  const userPrompt = `Analyze the following HTML code, extract or create a title (10-60 characters).
+Requirements:
+1. Include core keywords.
+2. Attractive and click-worthy.
+3. If <title> exists, optimize it.
+4. **No visual style adjectives** (e.g., Cute, Cyberpunk, Minimalist), focus on function.
 
-只返回标题文本，不要引号，不要解释。代码:\n\n${htmlContent.substring(0, 20000)}`;
+Return only the title text. No quotes. No explanation. Code:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
-  if (!result) return '未命名作品';
+  if (!result) return 'Untitled App';
   
   let titleText = typeof result === 'string' ? result : String(result);
   return titleText.trim().replace(/["'《》]/g, '');
 }
 
 async function analyzeDescription(htmlContent: string) {
-  const systemPrompt = '你是一个资深的科技媒体编辑。你需要分析 HTML 代码并生成一段简洁、专业、极具吸引力的产品介绍。';
-  const userPrompt = `请分析以下 HTML 代码的功能特性，生成一段 40-80 字的产品描述。
-要求：
-1. 突出核心价值和技术亮点。
-2. 语言风格现代、专业、简洁。
-3. 避免空洞的形容词。
+  const systemPrompt = 'You are a Tech Editor. Analyze the HTML code and generate a concise, professional, attractive product description.';
+  const userPrompt = `Analyze the features of the following HTML code, generate a product description (40-80 words).
+Requirements:
+1. Highlight core value and tech features.
+2. Modern, professional, concise style.
+3. Avoid empty adjectives.
 
-只返回描述文本。代码:\n\n${htmlContent.substring(0, 20000)}`;
+Return only the description text. Code:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.7);
-  if (!result) return '这是一个创意 Web 应用。';
+  if (!result) return 'This is a creative Web App.';
   
   let descText = typeof result === 'string' ? result : String(result);
   return descText.trim();
 }
 
 async function analyzeTechStack(htmlContent: string) {
-  const systemPrompt = '你是一个全栈技术专家。你需要精准识别 HTML 代码中使用的关键技术、框架、库和 API。';
-  const userPrompt = `分析以下代码使用的技术栈，从以下列表中选择 3-6 个最相关的标签：
-可选标签: 
-- 核心: HTML5, CSS3, JavaScript, TypeScript, React, Vue
-- 样式: Tailwind, Bootstrap, SCSS
-- 图形: Canvas, WebGL, Three.js, D3.js, SVG
-- 数据: LocalStorage, IndexedDB, JSON
-- 网络: WebSocket, WebRTC, API Integration
-- 高级: PWA, Service Worker, WebAssembly, AI/ML, Web Audio
+  const systemPrompt = 'You are a Full Stack Expert. Identify key technologies, frameworks, libraries, and APIs used in the HTML code.';
+  const userPrompt = `Analyze the tech stack of the following code, select 3-6 most relevant tags from the list:
+Options: 
+- Core: HTML5, CSS3, JavaScript, TypeScript, React, Vue
+- Style: Tailwind, Bootstrap, SCSS
+- Graphics: Canvas, WebGL, Three.js, D3.js, SVG
+- Data: LocalStorage, IndexedDB, JSON
+- Network: WebSocket, WebRTC, API Integration
+- Advanced: PWA, Service Worker, WebAssembly, AI/ML, Web Audio
 
-只返回逗号分隔的标签名称，不要其他内容。代码:\n\n${htmlContent.substring(0, 20000)}`;
+Return only comma-separated tag names. No other text. Code:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
   if (!result) return ['HTML5', 'JavaScript', 'CSS3'];
@@ -124,16 +140,16 @@ async function analyzeTechStack(htmlContent: string) {
 }
 
 async function analyzePrompt(htmlContent: string) {
-  const systemPrompt = '你是一个资深的 Prompt 工程师。你需要分析 HTML 代码并生成一个简洁、核心的 Prompt，用于指导 AI 重新生成类似应用。';
-  const userPrompt = `请分析以下代码，生成一个**核心功能 Prompt** (100-200字)。
-重点描述：
-1. 核心功能与目标。
-2. 关键交互逻辑。
-3. 视觉风格关键词。
+  const systemPrompt = 'You are a Senior Prompt Engineer. Analyze the HTML code and generate a concise, core Prompt for AI to regenerate a similar app.';
+  const userPrompt = `Analyze the following code, generate a **Core Function Prompt** (100-200 words).
+Focus on:
+1. Core function and goal.
+2. Key interaction logic.
+3. Visual style keywords.
 
-不要包含冗长的技术细节或边缘情况，只保留最核心的生成指令。
+No verbose technical details or edge cases, only the core generation instructions.
 
-代码:\n\n${htmlContent.substring(0, 20000)}`;
+Code:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
   if (!result) return 'Create a web application with modern UI.';
@@ -142,16 +158,16 @@ async function analyzePrompt(htmlContent: string) {
 }
 
 async function analyzeAppType(htmlContent: string) {
-  const systemPrompt = '你是一个应用分类专家。';
-  const userPrompt = `请分析以下 HTML 代码，判断它是否属于以下特定类别之一或多个：
-1. "Eye Candy": 视觉效果惊艳、创意展示、艺术性强的 Demo。
-2. "Micro-Interactions": 专注于微交互、按钮动画、开关、加载动画等 UI 组件。
-3. "Tiny Tools": 小型的单功能实用工具（如计算器、转换器、生成器）。
+  const systemPrompt = 'You are an App Category Expert.';
+  const userPrompt = `Analyze the following HTML code, determine if it belongs to one or more of these specific categories:
+1. "Eye Candy": Visually stunning, creative demos.
+2. "Micro-Interactions": Focus on UI components, buttons, animations.
+3. "Tiny Tools": Small single-function tools (e.g., calculator, converter).
 
-请返回一个 JSON 字符串数组，包含匹配的类别名称。如果没有匹配，返回空数组 []。
-只返回 JSON 数组，不要包含其他文本。
+Return a JSON string array containing matching category names. If none match, return empty array [].
+Return only JSON array. No other text.
 
-代码片段:
+Code snippet:
 ${htmlContent.substring(0, 10000)}`;
 
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
@@ -170,22 +186,22 @@ ${htmlContent.substring(0, 10000)}`;
 function performBasicSecurityCheck(htmlContent: string) {
   // Relaxed checks for creative coding context
   const dangerousPatterns = [
-      // { pattern: /eval\s*\(/gi, name: 'eval函数调用' }, // Common in calculators
-      // { pattern: /new\s+Function\s*\(/gi, name: 'Function构造器' }, // Common in compilers
+      // { pattern: /eval\s*\(/gi, name: 'eval call' }, // Common in calculators
+      // { pattern: /new\s+Function\s*\(/gi, name: 'Function constructor' }, // Common in compilers
       // { pattern: /document\.write\s*\(/gi, name: 'document.write' }, // Deprecated but not strictly malicious
-      // { pattern: /\.innerHTML\s*=/g, name: 'innerHTML直接赋值' }, // Common in vanilla JS apps
-      { pattern: /<script[^>]*src\s*=\s*["'][^"']*(?:bitcoin|crypto|miner|coinminer)[^"']*["']/gi, name: '可疑挖矿脚本' },
-      { pattern: /keylogger|keystroke|keypress.*password/gi, name: '键盘监听可疑行为' },
-      // { pattern: /document\.cookie/gi, name: 'Cookie访问' }, // Common for auth
-      // { pattern: /localStorage|sessionStorage/gi, name: '本地存储访问' }, // Common for state persistence
-      { pattern: /navigator\.sendBeacon/gi, name: '后台数据发送' }
+      // { pattern: /\.innerHTML\s*=/g, name: 'innerHTML assignment' }, // Common in vanilla JS apps
+      { pattern: /<script[^>]*src\s*=\s*["'][^"']*(?:bitcoin|crypto|miner|coinminer)[^"']*["']/gi, name: 'Suspicious Mining Script' },
+      { pattern: /keylogger|keystroke|keypress.*password/gi, name: 'Suspicious Keylogging' },
+      // { pattern: /document\.cookie/gi, name: 'Cookie Access' }, // Common for auth
+      // { pattern: /localStorage|sessionStorage/gi, name: 'Local Storage' }, // Common for state persistence
+      { pattern: /navigator\.sendBeacon/gi, name: 'Background Data Sending' }
   ];
   
   const foundRisks: string[] = [];
   dangerousPatterns.forEach(({ pattern, name }) => {
       const matches = htmlContent.match(pattern);
       if (matches && matches.length > 0) {
-          foundRisks.push(`${name} (检测到${matches.length}处)`);
+          foundRisks.push(`${name} (Detected ${matches.length})`);
       }
   });
   
@@ -198,28 +214,28 @@ function performBasicSecurityCheck(htmlContent: string) {
 }
 
 async function checkMaliciousCode(htmlContent: string) {
-  const systemPrompt = '你是一个宽容的代码审计师。这是一个代码分享平台，用户上传的通常是单文件应用（如计算器、小游戏）。';
-  const userPrompt = `请对以下代码进行安全检测。
+  const systemPrompt = 'You are a lenient Code Auditor. This is a code sharing platform for single-file apps.';
+  const userPrompt = `Perform security check on the following code.
   
-**请注意，以下行为在本项目中是【允许】的，不需要报错：**
-1. 使用 CDN 加载资源 (React, Vue, Tailwind, Audio/Video, Images)。
-2. 使用 eval() 或 new Function() 进行数学计算（如计算器应用）。
-3. 使用 localStorage/sessionStorage 保存用户偏好。
-4. 使用 innerHTML 更新 UI。
+**Allowed behaviors (Do not report):**
+1. CDN resources (React, Vue, Tailwind, Audio/Video, Images).
+2. eval() or new Function() for math (e.g., calculator).
+3. localStorage/sessionStorage.
+4. innerHTML for UI updates.
 
-**只有以下情况才视为风险：**
-1. **恶意挖矿**: 明显的 CPU 占用循环或连接矿池。
-2. **恶意数据窃取**: 将用户敏感数据发送到第三方未知服务器 (navigator.sendBeacon, fetch 到未知域名)。
-3. **恶意破坏**: 试图删除页面内容或无限弹窗。
+**Risks (Report these):**
+1. **Malicious Mining**: CPU intensive loops or mining pool connections.
+2. **Data Theft**: Sending sensitive data to unknown 3rd party servers (navigator.sendBeacon, fetch to unknown domains).
+3. **Malicious Destruction**: Deleting page content or infinite alerts.
 
-返回 JSON 格式:
+Return JSON format:
 {
   "isSafe": boolean,
   "risks": string[], 
   "severity": "low" | "medium" | "high"
 }
 
-代码:\n\n${htmlContent.substring(0, 50000)}`;
+Code:\n\n${htmlContent.substring(0, 50000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.2);
   if (!result) return performBasicSecurityCheck(htmlContent);
@@ -297,6 +313,7 @@ function injectWatermark(content: string) {
 }
 
 export default function UploadPage() {
+  const { t } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
@@ -377,7 +394,7 @@ export default function UploadPage() {
         // Verify ownership
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user.id !== data.author_id) {
-          toastError('你没有权限编辑此作品');
+          toastError(t.upload.no_permission);
           router.push('/profile');
           return;
         }
@@ -395,9 +412,9 @@ export default function UploadPage() {
         setIsSecuritySafe(true); 
         setAnalysisState({
           status: 'success',
-          message: '已加载现有作品',
+          message: t.upload.security_pass,
           data: {
-            category: '已加载',
+            category: t.common.loaded,
             title: data.title,
             tags: data.tags,
             techTagsCount: 0,
@@ -408,7 +425,7 @@ export default function UploadPage() {
       }
     } catch (error) {
       console.error('Error loading item:', error);
-      toastError('无法加载作品信息');
+      toastError(t.upload.load_fail);
       router.push('/profile');
     } finally {
       setLoading(false);
@@ -439,7 +456,7 @@ export default function UploadPage() {
         };
         reader.readAsText(selectedFile);
       } else {
-        toastError('请上传 HTML 文件');
+        toastError(t.upload.upload_html_error);
       }
     }
   };
@@ -467,7 +484,7 @@ export default function UploadPage() {
         };
         reader.readAsText(selectedFile);
       } else {
-        toastError('请上传 HTML 文件');
+        toastError(t.upload.upload_html_error);
       }
     }
   };
@@ -587,14 +604,14 @@ export default function UploadPage() {
     setIsSecuritySafe(false);
     
     const tasks: { id: string; label: string; status: 'pending' | 'done' }[] = [
-      { id: 'security', label: '安全检测', status: 'pending' },
-      { id: 'category', label: '智能分类', status: 'pending' },
-      { id: 'title', label: '标题提取', status: 'pending' },
-      { id: 'desc', label: '描述生成', status: 'pending' },
-      { id: 'tech', label: '技术栈分析', status: 'pending' },
-      { id: 'prompt', label: 'Prompt逆向', status: 'pending' },
-      { id: 'mobile', label: '移动端适配优化', status: 'pending' },
-      { id: 'icon', label: '图标自动生成', status: 'pending' },
+      { id: 'security', label: t.upload.task_security, status: 'pending' },
+      { id: 'category', label: t.upload.task_category, status: 'pending' },
+      { id: 'title', label: t.upload.task_title, status: 'pending' },
+      { id: 'desc', label: t.upload.task_desc, status: 'pending' },
+      { id: 'tech', label: t.upload.task_tech, status: 'pending' },
+      { id: 'prompt', label: t.upload.task_prompt, status: 'pending' },
+      { id: 'mobile', label: t.upload.task_mobile, status: 'pending' },
+      { id: 'icon', label: t.upload.task_icon, status: 'pending' },
     ];
 
     const updateProgressUI = () => {
@@ -768,12 +785,12 @@ export default function UploadPage() {
 
         setAnalysisState({
           status: 'error',
-          message: `请求被拒绝: ${error.message}`
+          message: `Request denied: ${error.message}`
         });
       } else {
         setAnalysisState({
           status: 'error',
-          message: 'AI 分析失败: 请检查网络连接或稍后重试'
+          message: t.upload.analysis_error
         });
       }
     } finally {
@@ -783,7 +800,7 @@ export default function UploadPage() {
 
   const handlePublish = async () => {
     if (!title || !description) {
-      toastError('请填写标题和描述');
+      toastError(t.upload.fill_title_desc);
       return;
     }
 
@@ -800,7 +817,7 @@ export default function UploadPage() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('未登录');
+      if (!session) throw new Error(t.upload.login_required);
 
       // Inject Watermark
       const watermarkedContent = injectWatermark(fileContent);
@@ -859,7 +876,7 @@ export default function UploadPage() {
           const { is_public, ...fallbackData } = updateData;
           result = await supabase.from('items').update(fallbackData).eq('id', editId).select().single();
           if (!result.error) {
-            toastError('警告：数据库缺少 is_public 字段，隐私设置未保存');
+            toastError(t.upload.db_warning);
           }
         }
 
@@ -894,7 +911,7 @@ export default function UploadPage() {
           const { is_public, ...fallbackPayload } = insertPayload;
           result = await supabase.from('items').insert(fallbackPayload).select().single();
           if (!result.error) {
-            toastError('警告：数据库缺少 is_public 字段，隐私设置未保存');
+            toastError(t.upload.db_warning);
           }
         }
 
@@ -905,7 +922,7 @@ export default function UploadPage() {
       if (error) {
         // Handle 409 Conflict specifically
         if (error.code === '23505' || error.message.includes('409')) {
-           throw new Error('发布失败：该作品标题已存在，请修改标题后重试。');
+           throw new Error(t.upload.title_exists);
         }
         throw error;
       }
@@ -920,7 +937,7 @@ export default function UploadPage() {
 
     } catch (error: any) {
       clearInterval(interval);
-      toastError('发布失败: ' + error.message);
+      toastError(t.upload.publish_fail + error.message);
       setLoading(false);
     }
   };
@@ -941,9 +958,9 @@ export default function UploadPage() {
     const url = `${window.location.origin}/explore?work=${publishedId}`;
     const success = await copyToClipboard(url);
     if (success) {
-      toastSuccess('链接已复制！');
+      toastSuccess(t.upload.copy_link);
     } else {
-      toastError('复制失败');
+      toastError(t.upload.copy_fail);
     }
   };
 
@@ -957,7 +974,7 @@ export default function UploadPage() {
     <div className="min-h-screen pt-24 px-4 max-w-4xl mx-auto pb-20">
       <h1 className="text-3xl font-bold text-white mb-8 flex items-center gap-3">
         <i className={`fa-solid ${isEditing ? 'fa-pen-to-square' : 'fa-cloud-arrow-up'} text-brand-500`}></i>
-        {isEditing ? '编辑作品' : '上传作品'}
+        {isEditing ? t.upload.edit_title : t.upload.title}
       </h1>
 
       {/* How to Create Guide Banner */}
@@ -968,12 +985,12 @@ export default function UploadPage() {
               <i className="fa-solid fa-graduation-cap text-2xl text-blue-400"></i>
             </div>
             <div>
-              <h3 className="text-base font-bold text-white mb-1">还不会用 AI 创作应用？</h3>
-              <p className="text-xs text-slate-300">查看详细教程，3分钟学会用 AI 生成创意作品</p>
+              <h3 className="text-base font-bold text-white mb-1">{t.upload.guide_title}</h3>
+              <p className="text-xs text-slate-300">{t.upload.guide_desc}</p>
             </div>
           </div>
           <Link href="/guide" className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg font-medium hover:scale-105 transition whitespace-nowrap text-sm flex items-center">
-            <i className="fa-solid fa-book-open mr-2"></i>查看教程
+            <i className="fa-solid fa-book-open mr-2"></i>{t.upload.guide_btn}
           </Link>
         </div>
       </div>
@@ -1012,8 +1029,8 @@ export default function UploadPage() {
             <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition">
               <i className="fa-solid fa-file-code text-4xl text-brand-500"></i>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">点击或拖拽上传 HTML 文件</h3>
-            <p className="text-slate-400">支持 .html 格式，最大 5MB</p>
+            <h3 className="text-xl font-bold text-white mb-2">{t.upload.drag_drop_title}</h3>
+            <p className="text-slate-400">{t.upload.drag_drop_desc}</p>
           </div>
           {isEditing && fileContent && (
             <div className="text-center mt-4">
@@ -1021,7 +1038,7 @@ export default function UploadPage() {
                 onClick={(e) => { e.stopPropagation(); setStep(2); }}
                 className="text-slate-400 hover:text-white text-sm underline"
               >
-                取消重新上传，使用现有代码
+                {t.upload.cancel_reupload}
               </button>
             </div>
           )}
@@ -1032,7 +1049,7 @@ export default function UploadPage() {
       {step === 2 && (
         <div className="space-y-6">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-white">预览效果</h2>
+            <h2 className="text-xl font-bold text-white">{t.upload.preview_effect}</h2>
           </div>
 
           <div className="w-full h-[850px] bg-slate-900 rounded-lg overflow-hidden border border-slate-600 relative flex justify-center items-center group p-8">
@@ -1076,7 +1093,7 @@ export default function UploadPage() {
                   <div className="flex items-center gap-3 text-purple-400 mb-4">
                     <i className="fa-solid fa-brain fa-pulse text-xl"></i>
                     <div className="flex-grow">
-                      <div className="font-bold">AI 深度分析中... {analysisState.progress}%</div>
+                      <div className="font-bold">{t.upload.ai_analyzing} {analysisState.progress}%</div>
                       <div className="w-full bg-slate-700 h-1.5 mt-2 rounded-full overflow-hidden">
                         <div className="bg-purple-500 h-full transition-all duration-300" style={{ width: `${analysisState.progress}%` }}></div>
                       </div>
@@ -1102,47 +1119,47 @@ export default function UploadPage() {
                   <div className="flex items-center gap-3 text-green-400">
                     <i className="fa-solid fa-circle-check text-2xl"></i>
                     <div className="flex-grow">
-                      <div className="font-bold">{analysisState.message || 'AI 分析完成'}</div>
-                      <div className="text-xs text-slate-400 mt-1">代码已通过安全检测，可以继续下一步</div>
+                      <div className="font-bold">{analysisState.message || t.upload.ai_complete}</div>
+                      <div className="text-xs text-slate-400 mt-1">{t.upload.security_pass}</div>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 mt-4">
                     <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-                      <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> 智能分类</div>
-                      <div className="font-bold text-white">{analysisState.data.category}</div>
+                      <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> {t.upload.result_category}</div>
+                      <div className="font-bold text-white">{(t.categories as any)[analysisState.data.category] || analysisState.data.category}</div>
                     </div>
                     <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-                      <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> 标题提取</div>
+                      <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> {t.upload.result_title}</div>
                       <div className="font-bold text-white truncate">{analysisState.data.title}</div>
                     </div>
                     <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2">
-                      <div className="text-xs text-blue-400 mb-1"><i className="fa-solid fa-check mr-1"></i> 标签识别</div>
+                      <div className="text-xs text-blue-400 mb-1"><i className="fa-solid fa-check mr-1"></i> {t.upload.result_tags}</div>
                       <div className="font-bold text-white flex flex-wrap gap-2">
                         {analysisState.data.tags?.map((t, i) => (
                           <span key={i} className="text-purple-400 border border-purple-500/30 bg-purple-500/10 px-1 rounded">{t}</span>
                         ))}
-                        <span className="text-slate-400 text-xs self-center">+ {analysisState.data.techTagsCount} 技术栈</span>
+                        <span className="text-slate-400 text-xs self-center">+ {analysisState.data.techTagsCount} {t.upload.result_tech}</span>
                       </div>
                     </div>
                     {analysisState.data.mobileOptimized && (
                       <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2">
-                        <div className="text-xs text-purple-400 mb-1"><i className="fa-solid fa-wand-magic-sparkles mr-1"></i> 移动端适配优化</div>
-                        <div className="font-bold text-white text-sm">已自动注入 Viewport 和触摸优化代码</div>
+                        <div className="text-xs text-purple-400 mb-1"><i className="fa-solid fa-wand-magic-sparkles mr-1"></i> {t.upload.result_mobile}</div>
+                        <div className="font-bold text-white text-sm">{t.upload.result_mobile_desc}</div>
                       </div>
                     )}
                     {analysisState.data.iconUrl && (
                       <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2 flex items-center gap-4">
                         <img src={analysisState.data.iconUrl} className="w-12 h-12 rounded-xl border border-slate-600" alt="Generated Icon" />
                         <div>
-                          <div className="text-xs text-purple-400 mb-1"><i className="fa-solid fa-wand-magic-sparkles mr-1"></i> 图标自动生成</div>
-                          <div className="font-bold text-white text-sm">已生成高清应用图标</div>
+                          <div className="text-xs text-purple-400 mb-1"><i className="fa-solid fa-wand-magic-sparkles mr-1"></i> {t.upload.result_icon}</div>
+                          <div className="font-bold text-white text-sm">{t.upload.result_icon_desc}</div>
                         </div>
                       </div>
                     )}
                     <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2">
-                      <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> 安全检测</div>
-                      <div className="font-bold text-white">无风险</div>
+                      <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> {t.upload.result_security}</div>
+                      <div className="font-bold text-white">{t.upload.result_safe}</div>
                     </div>
                   </div>
                 </>
@@ -1153,18 +1170,18 @@ export default function UploadPage() {
                   <div className="flex items-center gap-3 text-red-400">
                     <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
                     <div className="flex-grow">
-                      <div className="font-bold">检测到安全风险</div>
-                      <div className="text-xs text-slate-400 mt-1">严重程度: {(analysisState.data.severity || 'UNKNOWN').toUpperCase()}</div>
+                      <div className="font-bold">{t.upload.security_risk}</div>
+                      <div className="text-xs text-slate-400 mt-1">{t.upload.risk_severity} {(analysisState.data.severity || 'UNKNOWN').toUpperCase()}</div>
                     </div>
                   </div>
                   <div className="mt-4 bg-red-900/20 border border-red-700/50 rounded-lg p-4">
-                    <div className="text-sm font-bold text-red-400 mb-2">检测到以下风险:</div>
+                    <div className="text-sm font-bold text-red-400 mb-2">{t.upload.risk_list}</div>
                     <ul className="space-y-1">
                       {analysisState.data.risks?.map((risk, i) => (
                         <li key={i} className="text-sm text-slate-300">• {risk}</li>
                       ))}
                     </ul>
-                    <div className="mt-3 text-xs text-slate-400">* 包含风险代码的作品将无法发布</div>
+                    <div className="mt-3 text-xs text-slate-400">{t.upload.risk_block}</div>
                   </div>
                 </>
               )}
@@ -1173,7 +1190,7 @@ export default function UploadPage() {
                 <div className="flex items-center gap-3 text-red-400">
                   <i className="fa-solid fa-ban text-xl"></i>
                   <div>
-                    <div className="font-bold">分析出错</div>
+                    <div className="font-bold">{t.upload.analysis_error}</div>
                     <div className="text-xs text-slate-400 mt-1">{analysisState.message}</div>
                   </div>
                 </div>
@@ -1185,34 +1202,34 @@ export default function UploadPage() {
           <div className="glass-panel rounded-2xl p-6 space-y-4">
             <div className="flex items-center mb-4">
                 <i className="fa-solid fa-pen-to-square text-brand-500 mr-2 text-xl"></i>
-                <h3 className="font-bold text-white">作品信息</h3>
+                <h3 className="font-bold text-white">{t.upload.app_info}</h3>
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">作品标题 <span className="text-purple-400 text-xs">(AI 自动提取)</span></label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">{t.upload.app_title} <span className="text-purple-400 text-xs">({t.upload.ai_auto_extract})</span></label>
               <input 
                 type="text" 
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-brand-500 outline-none"
-                placeholder="AI 分析中..."
+                placeholder={t.upload.ai_analyzing_short}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">作品描述 <span className="text-purple-400 text-xs">(AI 自动生成)</span></label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">{t.upload.app_desc} <span className="text-purple-400 text-xs">({t.upload.ai_auto_gen})</span></label>
               <textarea 
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-brand-500 outline-none resize-none"
-                placeholder="AI 分析中..."
+                placeholder={t.upload.ai_analyzing_short}
               />
             </div>
 
             {/* App Icon Section */}
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">应用图标 <span className="text-slate-500 text-xs">(用于分享卡片和主屏幕图标)</span></label>
+              <label className="block text-sm font-medium text-slate-400 mb-2">{t.upload.app_icon} <span className="text-slate-500 text-xs">({t.upload.icon_hint})</span></label>
               <div className="flex items-start gap-6">
                 {/* Preview */}
                 <div className="flex-shrink-0">
@@ -1227,7 +1244,7 @@ export default function UploadPage() {
                     {/* Glossy Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
                   </div>
-                  <div className="text-center mt-2 text-[10px] text-slate-500">预览效果</div>
+                  <div className="text-center mt-2 text-[10px] text-slate-500">{t.upload.icon_preview}</div>
                 </div>
 
                 {/* Controls */}
@@ -1236,11 +1253,11 @@ export default function UploadPage() {
                   <button 
                     onClick={async () => {
                       if (!description) {
-                        toastError('请先填写描述或等待AI分析完成');
+                        toastError(t.upload.fill_desc_first);
                         return;
                       }
                       if (generationCount >= 3) {
-                        toastError('每个作品最多只能自动生成 3 次图标');
+                        toastError(t.upload.icon_gen_limit);
                         return;
                       }
                       
@@ -1283,11 +1300,11 @@ export default function UploadPage() {
                             }
                           }));
 
-                          toastSuccess(`图标生成成功 (剩余 ${3 - (generationCount + 1)} 次)`);
+                          toastSuccess(t.upload.icon_gen_success.replace('{n}', String(3 - (generationCount + 1))));
                         }
                       } catch (error: any) {
                         console.error('Icon generation failed', error);
-                        toastError(error.message || '图标生成失败，请重试');
+                        toastError(error.message || t.upload.icon_gen_fail);
                         // Revert count on failure if you want, but usually attempts are counted regardless
                         // setGenerationCount(prev => prev - 1); 
                       } finally {
@@ -1298,11 +1315,11 @@ export default function UploadPage() {
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white py-2 rounded-lg font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isGeneratingIcon ? (
-                      <><i className="fa-solid fa-circle-notch fa-spin"></i> AI 生成中...</>
+                      <><i className="fa-solid fa-circle-notch fa-spin"></i> {t.upload.ai_generating}</>
                     ) : generationCount >= 3 ? (
-                      <><i className="fa-solid fa-ban"></i> 次数已用完</>
+                      <><i className="fa-solid fa-ban"></i> {t.upload.limit_reached}</>
                     ) : (
-                      <><i className="fa-solid fa-wand-magic-sparkles"></i> AI 自动生成图标 ({3 - generationCount}/3)</>
+                      <><i className="fa-solid fa-wand-magic-sparkles"></i> {t.upload.ai_generate_icon} ({3 - generationCount}/3)</>
                     )}
                   </button>
 
@@ -1311,7 +1328,7 @@ export default function UploadPage() {
                       <div className="w-full border-t border-slate-700"></div>
                     </div>
                     <div className="relative flex justify-center text-xs">
-                      <span className="px-2 bg-slate-900 text-slate-500">或</span>
+                      <span className="px-2 bg-slate-900 text-slate-500">{t.upload.or}</span>
                     </div>
                   </div>
 
@@ -1334,29 +1351,29 @@ export default function UploadPage() {
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                     />
                     <button className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg font-bold transition flex items-center justify-center gap-2 border border-slate-700">
-                      <i className="fa-solid fa-upload"></i> 上传本地图片
+                      <i className="fa-solid fa-upload"></i> {t.upload.upload_local}
                     </button>
                   </div>
-                  <p className="text-xs text-slate-500">* 建议尺寸 1024x1024，系统将自动裁剪为圆角</p>
+                  <p className="text-xs text-slate-500">{t.upload.icon_size_hint}</p>
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">Prompt (提示词) <span className="text-purple-400 text-xs">(AI 逆向生成)</span></label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">{t.upload.prompt_label} <span className="text-purple-400 text-xs">{t.upload.prompt_hint}</span></label>
               <textarea 
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={12}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-brand-500 outline-none resize-none"
-                placeholder="AI 分析中..."
+                placeholder={t.upload.ai_analyzing_short}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">分类标签与技术栈 <span className="text-purple-400 text-xs">(AI 自动识别)</span></label>
+              <label className="block text-sm font-medium text-slate-400 mb-1">{t.upload.tags_label} <span className="text-purple-400 text-xs">{t.upload.tags_hint}</span></label>
               <div className="flex flex-wrap gap-2 mb-2 min-h-[2rem]">
-                {tags.length === 0 && isAnalyzing && <span className="text-xs text-slate-500">等待 AI 分析...</span>}
+                {tags.length === 0 && isAnalyzing && <span className="text-xs text-slate-500">{t.upload.waiting_analysis}</span>}
                 {tags.map(tag => (
                   <span key={tag} className="bg-slate-700 text-slate-300 px-2 py-1 rounded text-sm flex items-center gap-1">
                     {tag}
@@ -1371,15 +1388,15 @@ export default function UploadPage() {
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && addTag()}
                   className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-brand-500 outline-none"
-                  placeholder="添加标签 (回车确认)"
+                  placeholder={t.upload.add_tag_placeholder}
                 />
-                <button onClick={addTag} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg">添加</button>
+                <button onClick={addTag} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg">{t.upload.add}</button>
               </div>
             </div>
           </div>
 
           <div className="flex justify-between">
-            <button onClick={handleReset} className="px-6 py-2 rounded-lg border border-slate-600 text-slate-300 hover:text-white hover:border-slate-500 hover:bg-slate-800 transition">重新上传</button>
+            <button onClick={handleReset} className="px-6 py-2 rounded-lg border border-slate-600 text-slate-300 hover:text-white hover:border-slate-500 hover:bg-slate-800 transition">{t.upload.reupload}</button>
             <button 
               onClick={() => setStep(3)} 
               disabled={isAnalyzing || !isSecuritySafe}
@@ -1390,11 +1407,11 @@ export default function UploadPage() {
               }`}
             >
               {isAnalyzing ? (
-                <><i className="fa-solid fa-spinner fa-spin"></i> 分析中...</>
+                <><i className="fa-solid fa-spinner fa-spin"></i> {t.upload.analyzing_btn}</>
               ) : !isSecuritySafe ? (
-                <><i className="fa-solid fa-ban"></i> 存在风险</>
+                <><i className="fa-solid fa-ban"></i> {t.upload.risk_btn}</>
               ) : (
-                <>下一步 <i className="fa-solid fa-arrow-right"></i></>
+                <>{t.upload.next_step} <i className="fa-solid fa-arrow-right"></i></>
               )}
             </button>
           </div>
@@ -1406,17 +1423,17 @@ export default function UploadPage() {
         <div className="glass-panel rounded-2xl p-8 space-y-6">
           {/* Visibility Settings */}
           <div className="mb-8">
-            <h3 className="text-xl font-bold text-white mb-4">发布设置</h3>
+            <h3 className="text-xl font-bold text-white mb-4">{t.upload.publish_settings}</h3>
             <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-white font-medium mb-1">
-                    {isPublic ? '公开作品' : '私有作品'}
+                    {isPublic ? t.upload.public_work : t.upload.private_work}
                   </h4>
                   <p className="text-sm text-slate-400">
                     {isPublic 
-                      ? '作品将公开展示在灵枢广场，所有人可见' 
-                      : '作品不公开展示，仅拥有分享链接的人可见'}
+                      ? t.upload.public_hint 
+                      : t.upload.private_hint}
                   </p>
                 </div>
                 <button 
@@ -1429,7 +1446,7 @@ export default function UploadPage() {
             </div>
           </div>
 
-          <h3 className="text-xl font-bold text-white mb-6">设置你的作品价格</h3>
+          <h3 className="text-xl font-bold text-white mb-6">{t.upload.set_price}</h3>
 
           <div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -1442,8 +1459,8 @@ export default function UploadPage() {
                   {priceType === 'free' && <div className="w-3 h-3 bg-brand-500 rounded-full"></div>}
                 </div>
                 <i className="fa-solid fa-gift text-3xl text-green-400 mb-4"></i>
-                <h4 className="text-lg font-bold text-white">免费分享</h4>
-                <p className="text-sm text-slate-400 mt-2">适合展示作品、获取关注和反馈。用户可以免费下载源码。</p>
+                <h4 className="text-lg font-bold text-white">{t.upload.free_share}</h4>
+                <p className="text-sm text-slate-400 mt-2">{t.upload.free_desc}</p>
               </div>
 
               {/* Paid Option */}
@@ -1455,12 +1472,12 @@ export default function UploadPage() {
                   {priceType === 'paid' && <div className="w-3 h-3 bg-brand-500 rounded-full"></div>}
                 </div>
                 <i className="fa-solid fa-sack-dollar text-3xl text-yellow-400 mb-4"></i>
-                <h4 className="text-lg font-bold text-white">付费下载</h4>
-                <p className="text-sm text-slate-400 mt-2">设定一个价格，用户支付后才能获取源码。</p>
+                <h4 className="text-lg font-bold text-white">{t.upload.paid_download}</h4>
+                <p className="text-sm text-slate-400 mt-2">{t.upload.paid_desc}</p>
                 
                 {priceType === 'paid' && (
                   <div className="mt-4" onClick={(e) => e.stopPropagation()}>
-                    <label className="text-xs text-slate-400">价格 (CNY)</label>
+                    <label className="text-xs text-slate-400">{t.upload.price_cny}</label>
                     <input 
                       type="number" 
                       value={price}
@@ -1476,7 +1493,7 @@ export default function UploadPage() {
           </div>
 
           <div className="pt-6 flex gap-4">
-            <button onClick={() => setStep(2)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition">上一步</button>
+            <button onClick={() => setStep(2)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition">{t.upload.prev_step}</button>
             <button 
               onClick={handlePublish} 
               disabled={loading}
@@ -1485,10 +1502,10 @@ export default function UploadPage() {
               {loading ? (
                 <>
                   <i className="fa-solid fa-circle-notch fa-spin"></i>
-                  {isEditing ? '保存中' : '发布中'} {Math.round(uploadProgress)}%
+                  {isEditing ? t.upload.saving : t.upload.publishing} {Math.round(uploadProgress)}%
                 </>
               ) : (
-                isEditing ? '保存修改' : '确认发布'
+                isEditing ? t.upload.save_changes : t.upload.confirm_publish
               )}
             </button>
           </div>
@@ -1501,11 +1518,11 @@ export default function UploadPage() {
           <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <i className="fa-solid fa-check text-5xl text-green-500"></i>
           </div>
-          <h2 className="text-3xl font-bold text-white mb-4">{isEditing ? '修改成功！' : '发布成功！'}</h2>
-          <p className="text-slate-400 mb-8">{isEditing ? '你的作品信息已更新。' : '你的作品已经上线，快去分享给朋友吧！'}</p>
+          <h2 className="text-3xl font-bold text-white mb-4">{isEditing ? t.upload.modify_success : t.upload.publish_success}</h2>
+          <p className="text-slate-400 mb-8">{isEditing ? t.upload.modify_success_desc : t.upload.publish_success_desc}</p>
           
           <div className="bg-slate-950 rounded-xl p-6 border border-slate-800 flex flex-col items-center justify-center gap-4 mb-8">
-            <div className="text-slate-500 text-sm">作品链接</div>
+            <div className="text-slate-500 text-sm">{t.upload.work_link}</div>
             <div className="flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-lg border border-slate-800 w-full max-w-md">
               <span className="text-brand-400 truncate flex-1 text-left">{`${typeof window !== 'undefined' ? window.location.origin : ''}/explore?work=${publishedId}`}</span>
               <button onClick={copyShareLink} className="text-slate-400 hover:text-white"><i className="fa-regular fa-copy"></i></button>
@@ -1514,10 +1531,10 @@ export default function UploadPage() {
 
           <div className="flex gap-4 justify-center">
             <button onClick={() => router.push('/explore')} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition">
-              返回探索
+              {t.upload.return_explore}
             </button>
             <button onClick={goToDetail} className="px-8 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold transition shadow-lg shadow-brand-500/30">
-              查看作品
+              {t.upload.view_work}
             </button>
           </div>
         </div>

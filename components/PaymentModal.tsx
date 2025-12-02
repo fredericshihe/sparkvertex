@@ -4,8 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function PaymentModal() {
+  const { t } = useLanguage();
   const { isPaymentModalOpen, closePaymentModal, paymentItem } = useModal();
   const { info } = useToast();
   const [qrUrl, setQrUrl] = useState('');
@@ -26,7 +28,7 @@ export default function PaymentModal() {
   useEffect(() => {
     if (qrUrl && isPaymentModalOpen && status === 'waiting') {
       if (window.innerWidth < 768) {
-        info('长按二维码可保存图片到相册', 2000);
+        info(t.payment_modal.long_press_save, 2000);
       }
     }
   }, [qrUrl, isPaymentModalOpen, status]);
@@ -55,7 +57,7 @@ export default function PaymentModal() {
         .single();
 
       if (!sellerProfile?.payment_qr) {
-        alert('卖家尚未设置收款码，无法购买');
+        alert(t.payment_modal.no_qr_code);
         closePaymentModal();
         return;
       }
@@ -144,7 +146,7 @@ export default function PaymentModal() {
       setStatus('paid_waiting');
     } catch (error) {
       console.error('Failed to confirm payment:', error);
-      alert('确认支付失败，请重试');
+      alert(t.payment_modal.confirm_fail);
     }
   };
 
@@ -174,7 +176,7 @@ export default function PaymentModal() {
         {status === 'loading' && (
           <div className="py-10">
             <i className="fa-solid fa-circle-notch fa-spin text-4xl text-brand-500 mb-4"></i>
-            <p className="text-slate-400">正在创建订单...</p>
+            <p className="text-slate-400">{t.payment_modal.creating_order}</p>
           </div>
         )}
 
@@ -183,18 +185,18 @@ export default function PaymentModal() {
             <h2 className="text-xl font-bold mb-2 text-white">
               <i className="fa-brands fa-weixin text-green-500 mr-2"></i>
               <i className="fa-brands fa-alipay text-blue-500 mr-2"></i>
-              扫码支付
+              {t.payment_modal.scan_pay}
             </h2>
-            <p className="text-sm text-slate-400 mb-6">请扫描下方二维码支付 <span className="text-brand-400 font-bold text-lg">¥{paymentItem?.price}</span></p>
+            <p className="text-sm text-slate-400 mb-6">{t.payment_modal.scan_hint} <span className="text-brand-400 font-bold text-lg">¥{paymentItem?.price}</span></p>
             
             <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 mb-6">
-              <p className="text-xs text-slate-400 mb-2">支付备注码 (必填)</p>
+              <p className="text-xs text-slate-400 mb-2">{t.payment_modal.remark_code}</p>
               <div className="text-2xl font-mono font-bold text-white tracking-widest select-all bg-slate-900 py-2 rounded border border-slate-700">
                 {remarkCode}
               </div>
               <p className="text-xs text-rose-400 mt-2">
                 <i className="fa-solid fa-circle-exclamation mr-1"></i>
-                支付时请务必在备注中填写此6位数字，否则无法自动发货
+                {t.payment_modal.remark_hint}
               </p>
             </div>
 
@@ -214,16 +216,16 @@ export default function PaymentModal() {
             {/* Mobile Hint */}
             <p className="text-xs text-slate-500 text-center -mt-4 mb-6 md:hidden animate-pulse">
                 <i className="fa-regular fa-hand-point-up mr-1"></i>
-                长按二维码可保存图片
+                {t.payment_modal.mobile_hint}
             </p>
 
             <button 
               onClick={handleBuyerConfirm}
               className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-lg shadow-brand-500/30 transition mb-2"
             >
-              我已支付
+              {t.payment_modal.paid_btn}
             </button>
-            <p className="text-xs text-slate-500">支付完成后请点击上方按钮</p>
+            <p className="text-xs text-slate-500">{t.payment_modal.paid_hint}</p>
           </>
         )}
 
@@ -232,16 +234,15 @@ export default function PaymentModal() {
             <div className="w-20 h-20 bg-brand-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
               <i className="fa-solid fa-hourglass-half text-4xl text-brand-500"></i>
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">等待卖家确认</h2>
-            <p className="text-slate-400 mb-6 px-4">
-              已通知卖家，您可以暂时离开，后续到 <span className="text-brand-400 font-bold">个人中心-已购买</span> 中查看订单状态
+            <h2 className="text-xl font-bold text-white mb-2">{t.payment_modal.waiting_confirm}</h2>
+            <p className="text-slate-400 mb-6 px-4" dangerouslySetInnerHTML={{ __html: t.payment_modal.waiting_desc }}>
             </p>
             <div className="flex items-center justify-center gap-2 text-slate-500 text-sm mb-6">
               <i className="fa-solid fa-spinner fa-spin"></i>
-              <span>正在等待卖家确认收款...</span>
+              <span>{t.payment_modal.waiting_status}</span>
             </div>
             <button onClick={closePaymentModal} className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition">
-              关闭窗口
+              {t.payment_modal.close_window}
             </button>
           </div>
         )}
@@ -251,15 +252,15 @@ export default function PaymentModal() {
             <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
               <i className="fa-solid fa-check text-4xl text-green-500"></i>
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">支付成功！</h2>
-            <p className="text-slate-400 mb-8">感谢您的购买，现在可以下载了</p>
+            <h2 className="text-2xl font-bold text-white mb-2">{t.payment_modal.success_title}</h2>
+            <p className="text-slate-400 mb-8">{t.payment_modal.success_desc}</p>
             
             <button 
               onClick={handleDownload}
               className="w-full py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-lg shadow-brand-500/30 transition flex items-center justify-center gap-2"
             >
               <i className="fa-solid fa-download"></i>
-              立即下载
+              {t.payment_modal.download_now}
             </button>
           </div>
         )}
@@ -267,8 +268,8 @@ export default function PaymentModal() {
         {status === 'error' && (
           <div className="py-10">
             <i className="fa-solid fa-circle-exclamation text-4xl text-rose-500 mb-4"></i>
-            <p className="text-slate-400 mb-6">订单创建失败，请稍后重试</p>
-            <button onClick={closePaymentModal} className="px-6 py-2 bg-slate-800 rounded-lg text-white">关闭</button>
+            <p className="text-slate-400 mb-6">{t.payment_modal.create_fail}</p>
+            <button onClick={closePaymentModal} className="px-6 py-2 bg-slate-800 rounded-lg text-white">{t.payment_modal.close}</button>
           </div>
         )}
 

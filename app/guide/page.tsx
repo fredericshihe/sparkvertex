@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { copyToClipboard } from '@/lib/utils';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function Guide() {
+  const { t } = useLanguage();
   const [currentPromptMode, setCurrentPromptMode] = useState<'vanilla' | 'react'>('vanilla');
 
   const copyCurrentPrompt = async () => {
@@ -13,9 +15,9 @@ export default function Guide() {
     if (element) {
       const success = await copyToClipboard(element.innerText);
       if (success) {
-        alert('Prompt 协议已复制！');
+        alert(t.guide.manual.step1.copy_success);
       } else {
-        alert('复制失败，请手动复制');
+        alert(t.guide.manual.step1.copy_fail);
       }
     }
   };
@@ -30,14 +32,14 @@ export default function Guide() {
           <div className="relative z-10">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 backdrop-blur-sm text-brand-400 text-xs font-bold mb-6 shadow-lg shadow-brand-500/10">
               <span className="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
-              SPARK WORKFLOW
+              {t.guide.hero.badge}
             </div>
             <h1 className="text-5xl md:text-7xl font-bold mb-8 text-white tracking-tight">
-              从灵感到现实<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 via-purple-400 to-blue-400">只需 5 分钟</span>
+              {t.guide.hero.title}<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 via-purple-400 to-blue-400">{t.guide.hero.title_highlight}</span>
             </h1>
             <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
-              无论你是编程小白还是资深极客，这里都有适合你的创作路径。
+              {t.guide.hero.subtitle}
             </p>
           </div>
         </div>
@@ -51,13 +53,13 @@ export default function Guide() {
               <div className="w-12 h-12 rounded-xl bg-brand-500 flex items-center justify-center text-white text-xl font-bold mb-6 shadow-lg shadow-brand-500/20">
                 <i className="fa-solid fa-bolt"></i>
               </div>
-              <h3 className="text-2xl font-bold text-white mb-2">路径一：极速创作</h3>
-              <p className="text-brand-200 text-sm font-bold mb-4 uppercase tracking-wider">推荐新手使用</p>
+              <h3 className="text-2xl font-bold text-white mb-2">{t.guide.path1.title}</h3>
+              <p className="text-brand-200 text-sm font-bold mb-4 uppercase tracking-wider">{t.guide.path1.badge}</p>
               <p className="text-slate-400 mb-8 h-20">
-                无需离开网站，直接使用 Spark 内置的 AI 引擎。输入一句话，立刻生成可交互的应用预览。所见即所得。
+                {t.guide.path1.desc}
               </p>
               <Link href="/create" className="inline-flex items-center justify-center w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20">
-                进入创作向导 <i className="fa-solid fa-arrow-right ml-2"></i>
+                {t.guide.path1.btn} <i className="fa-solid fa-arrow-right ml-2"></i>
               </Link>
             </div>
           </div>
@@ -69,13 +71,13 @@ export default function Guide() {
               <div className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-purple-400 text-xl font-bold mb-6">
                 <i className="fa-solid fa-terminal"></i>
               </div>
-              <h3 className="text-2xl font-bold text-white mb-2">路径二：极客模式</h3>
-              <p className="text-slate-500 text-sm font-bold mb-4 uppercase tracking-wider">适合高阶玩家</p>
+              <h3 className="text-2xl font-bold text-white mb-2">{t.guide.path2.title}</h3>
+              <p className="text-slate-500 text-sm font-bold mb-4 uppercase tracking-wider">{t.guide.path2.badge}</p>
               <p className="text-slate-400 mb-8 h-20">
-                使用 ChatGPT、Claude 或 DeepSeek 等外部强力模型。配合 Spark 标准协议 Prompt，获得最极致的代码控制权。
+                {t.guide.path2.desc}
               </p>
               <button onClick={() => document.getElementById('manual-guide')?.scrollIntoView({ behavior: 'smooth' })} className="inline-flex items-center justify-center w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition border border-slate-700">
-                查看详细教程 <i className="fa-solid fa-arrow-down ml-2"></i>
+                {t.guide.path2.btn} <i className="fa-solid fa-arrow-down ml-2"></i>
               </button>
             </div>
           </div>
@@ -85,7 +87,7 @@ export default function Guide() {
         <div id="manual-guide" className="relative pt-12">
           <div className="flex items-center gap-4 mb-12">
             <div className="h-px bg-slate-800 flex-grow"></div>
-            <h2 className="text-2xl font-bold text-slate-300">极客模式详细流程</h2>
+            <h2 className="text-2xl font-bold text-slate-300">{t.guide.manual.title}</h2>
             <div className="h-px bg-slate-800 flex-grow"></div>
           </div>
 
@@ -94,9 +96,9 @@ export default function Guide() {
             <div className="absolute left-[-53px] top-0 w-6 h-6 rounded-full bg-purple-500 border-4 border-slate-900 hidden md:block"></div>
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 relative group hover:border-purple-500/50 transition duration-500">
               <div className="absolute -top-4 -left-4 w-12 h-12 rounded-xl bg-purple-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-purple-500/30">1</div>
-              <h3 className="text-2xl font-bold text-white mb-4 mt-2">获取 Spark 协议 Prompt</h3>
+              <h3 className="text-2xl font-bold text-white mb-4 mt-2">{t.guide.manual.step1.title}</h3>
               <p className="text-slate-400 mb-4">
-                为了确保生成的代码能完美适配 Spark 平台（移动端优化、单文件结构），请务必使用以下标准 Prompt 模板。
+                {t.guide.manual.step1.desc}
               </p>
               
               {/* Mode Switcher */}
@@ -105,19 +107,19 @@ export default function Guide() {
                   onClick={() => setCurrentPromptMode('vanilla')} 
                   className={`px-4 py-1.5 rounded-full text-xs font-bold transition border ${currentPromptMode === 'vanilla' ? 'bg-purple-600 text-white border-transparent' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:border-purple-400'}`}
                 >
-                  <i className="fa-brands fa-js"></i> 原生 JS (推荐)
+                  <i className="fa-brands fa-js"></i> {t.guide.manual.step1.btn_vanilla}
                 </button>
                 <button 
                   onClick={() => setCurrentPromptMode('react')} 
                   className={`px-4 py-1.5 rounded-full text-xs font-bold transition border ${currentPromptMode === 'react' ? 'bg-purple-600 text-white border-transparent' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:border-purple-400'}`}
                 >
-                  <i className="fa-brands fa-react"></i> React 单文件
+                  <i className="fa-brands fa-react"></i> {t.guide.manual.step1.btn_react}
                 </button>
               </div>
 
               <div className="bg-black/50 rounded-xl border border-slate-700/50 p-4 font-mono text-xs text-slate-300 relative">
                 <button className="absolute top-3 right-3 text-purple-400 hover:text-white transition flex items-center gap-1" onClick={copyCurrentPrompt}>
-                  <i className="fa-regular fa-copy"></i> 一键复制
+                  <i className="fa-regular fa-copy"></i> {t.guide.manual.step1.copy}
                 </button>
                 
                 {/* Vanilla Prompt */}
@@ -180,9 +182,9 @@ export default function Guide() {
             <div className="absolute right-[-53px] top-0 w-6 h-6 rounded-full bg-blue-500 border-4 border-slate-900 hidden md:block"></div>
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 relative group hover:border-blue-500/50 transition duration-500">
               <div className="absolute -top-4 -right-4 w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-500/30">2</div>
-              <h3 className="text-2xl font-bold text-white mb-4 mt-2">AI 铸造 (Generate)</h3>
+              <h3 className="text-2xl font-bold text-white mb-4 mt-2">{t.guide.manual.step2.title}</h3>
               <p className="text-slate-400 mb-6">
-                将复制的 Prompt 发送给任意主流 AI 模型。等待它吐出完整的 HTML 代码。
+                {t.guide.manual.step2.desc}
               </p>
               <div className="flex gap-4 justify-center mb-4">
                 <div className="flex flex-col items-center gap-2">
@@ -206,24 +208,18 @@ export default function Guide() {
             <div className="absolute left-[-53px] top-0 w-6 h-6 rounded-full bg-green-500 border-4 border-slate-900 hidden md:block"></div>
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 relative group hover:border-green-500/50 transition duration-500">
               <div className="absolute -top-4 -left-4 w-12 h-12 rounded-xl bg-green-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-green-500/30">3</div>
-              <h3 className="text-2xl font-bold text-white mb-4 mt-2">本地保存 (Save)</h3>
+              <h3 className="text-2xl font-bold text-white mb-4 mt-2">{t.guide.manual.step3.title}</h3>
               <p className="text-slate-400 mb-6">
-                将代码保存为 <code className="text-green-400">.html</code> 文件，它就变成了真正的应用。
+                {t.guide.manual.step3.desc}
               </p>
               <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
                 <ol className="space-y-3 text-sm text-slate-300">
-                  <li className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold">1</span>
-                    新建文本文档 (.txt)
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold">2</span>
-                    粘贴 AI 生成的代码
-                  </li>
-                  <li className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold">3</span>
-                    重命名为 <span className="text-green-400 font-mono">app.html</span>
-                  </li>
+                  {t.guide.manual.step3.list.map((item, index) => (
+                    <li key={index} className="flex items-center gap-3">
+                      <span className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold">{index + 1}</span>
+                      <span dangerouslySetInnerHTML={{ __html: item }} />
+                    </li>
+                  ))}
                 </ol>
               </div>
             </div>
@@ -234,26 +230,20 @@ export default function Guide() {
             <div className="absolute right-[-53px] top-0 w-6 h-6 rounded-full bg-brand-500 border-4 border-slate-900 hidden md:block"></div>
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 relative group hover:border-brand-500/50 transition duration-500">
               <div className="absolute -top-4 -right-4 w-12 h-12 rounded-xl bg-brand-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-brand-500/30">4</div>
-              <h3 className="text-2xl font-bold text-white mb-4 mt-2">上传增强 (Enhance)</h3>
+              <h3 className="text-2xl font-bold text-white mb-4 mt-2">{t.guide.manual.step4.title}</h3>
               <p className="text-slate-400 mb-6">
-                为什么要把本地文件上传回 SparkVertex？因为我们会为你的代码注入灵魂。
+                {t.guide.manual.step4.desc}
               </p>
               <ul className="space-y-3 mb-6">
-                <li className="flex items-center gap-3 text-sm text-slate-300">
-                  <i className="fa-solid fa-shield-halved text-green-400"></i> 安全审计 (排除恶意代码)
-                </li>
-                <li className="flex items-center gap-3 text-sm text-slate-300">
-                  <i className="fa-solid fa-mobile-screen text-blue-400"></i> 移动端触摸优化注入
-                </li>
-                <li className="flex items-center gap-3 text-sm text-slate-300">
-                  <i className="fa-solid fa-icons text-purple-400"></i> AI 自动生成应用图标
-                </li>
-                <li className="flex items-center gap-3 text-sm text-slate-300">
-                  <i className="fa-solid fa-sack-dollar text-yellow-400"></i> 开启打赏与付费查看源码
-                </li>
+                {t.guide.manual.step4.list.map((item, index) => (
+                  <li key={index} className="flex items-center gap-3 text-sm text-slate-300">
+                    <i className={`fa-solid ${index === 0 ? 'fa-shield-halved text-green-400' : index === 1 ? 'fa-mobile-screen text-blue-400' : index === 2 ? 'fa-icons text-purple-400' : 'fa-sack-dollar text-yellow-400'}`}></i>
+                    {item}
+                  </li>
+                ))}
               </ul>
               <Link href="/upload" className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition flex items-center justify-center gap-2">
-                <i className="fa-solid fa-cloud-arrow-up"></i> 立即上传增强
+                <i className="fa-solid fa-cloud-arrow-up"></i> {t.guide.manual.step4.btn}
               </Link>
             </div>
           </div>

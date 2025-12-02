@@ -9,56 +9,63 @@ import { copyToClipboard } from '@/lib/utils';
 import { getPreviewContent } from '@/lib/preview';
 import { X } from 'lucide-react';
 import { applyPatches } from '@/lib/patch';
+import { useLanguage } from '@/context/LanguageContext';
 import { QRCodeSVG } from 'qrcode.react';
 
 // --- Constants ---
 const CATEGORIES = [
-  { id: 'game', label: '游戏', icon: 'fa-gamepad', desc: '休闲、益智、动作' },
-  { id: 'tool', label: '工具', icon: 'fa-screwdriver-wrench', desc: '计算、记录、转换' },
-  { id: 'info', label: '资讯', icon: 'fa-newspaper', desc: '展示、列表、博客' },
-  { id: 'social', label: '社交', icon: 'fa-comments', desc: '聊天、社区、动态' },
-  { id: 'education', label: '教育', icon: 'fa-graduation-cap', desc: '课程、题库、学习' },
-  { id: 'productivity', label: '生产力', icon: 'fa-list-check', desc: '笔记、看板、文档' }
+  { id: 'game', icon: 'fa-gamepad' },
+  { id: 'design', icon: 'fa-palette' },
+  { id: 'productivity', icon: 'fa-list-check' },
+  { id: 'tool', icon: 'fa-screwdriver-wrench' },
+  { id: 'devtool', icon: 'fa-code' },
+  { id: 'entertainment', icon: 'fa-film' },
+  { id: 'education', icon: 'fa-graduation-cap' },
+  { id: 'visualization', icon: 'fa-chart-pie' },
+  { id: 'lifestyle', icon: 'fa-mug-hot' }
 ];
 
 const DEVICES = [
-  { id: 'mobile', label: '手机端', icon: 'fa-mobile-screen', desc: '竖屏设计，大按钮，适合单手操作' },
-  { id: 'tablet', label: '平板端', icon: 'fa-tablet-screen-button', desc: '自适应布局，兼顾触控与展示' },
-  { id: 'desktop', label: '电脑端', icon: 'fa-desktop', desc: '宽屏展示，精细交互，鼠标操作' }
+  { id: 'mobile', icon: 'fa-mobile-screen' },
+  { id: 'tablet', icon: 'fa-tablet-screen-button' },
+  { id: 'desktop', icon: 'fa-desktop' }
 ];
 
 const STYLES = [
-  { id: 'cyberpunk', label: '赛博朋克', color: 'from-pink-500 to-cyan-500', desc: '霓虹、故障风、高对比度' },
-  { id: 'minimalist', label: '极简主义', color: 'from-slate-200 to-slate-400', desc: '干净、留白、黑白灰' },
-  { id: 'cute', label: '可爱风格', color: 'from-pink-300 to-purple-300', desc: '圆角、柔和、卡通' },
-  { id: 'business', label: '商务科技', color: 'from-blue-600 to-indigo-700', desc: '专业、稳重、深色调' },
-  { id: 'retro', label: '复古像素', color: 'from-yellow-400 to-orange-500', desc: '8-bit、怀旧、像素风' },
-  { id: 'native', label: '原生复刻', color: 'from-blue-500 to-blue-600', desc: '复刻原生应用级别的体验，极致流畅' },
-  { id: 'glassmorphism', label: '玻璃拟态', color: 'from-white/20 to-white/10', desc: '透明、模糊、悬浮' },
-  { id: 'neobrutalism', label: '新粗野主义', color: 'from-yellow-300 to-red-500', desc: '高饱和、黑边框、大胆' },
-  { id: 'cartoon', label: '卡通手绘', color: 'from-orange-300 to-yellow-300', desc: '活泼、手绘线条、鲜艳' },
-  { id: 'lowpoly', label: '低多边形', color: 'from-indigo-400 to-purple-500', desc: '几何、3D感、棱角分明' },
-  { id: 'dark_fantasy', label: '暗黑幻想', color: 'from-slate-900 to-purple-900', desc: '神秘、沉浸、魔法光效' },
-  { id: 'neumorphism', label: '新拟态', color: 'from-gray-200 to-gray-300', desc: '软阴影、凸起、质感' },
-  { id: 'industrial', label: '工业硬朗', color: 'from-slate-700 to-slate-800', desc: '机械、蓝黑、数据感' },
-  { id: 'swiss', label: '瑞士平面', color: 'from-red-500 to-white', desc: '大字体、网格、强对比' },
-  { id: 'editorial', label: '杂志排版', color: 'from-stone-100 to-stone-200', desc: '衬线体、留白、优雅' },
-  { id: 'card', label: '卡片流', color: 'from-gray-100 to-gray-200', desc: '瀑布流、圆角、阴影' },
-  { id: 'bubble', label: '气泡多彩', color: 'from-blue-300 to-pink-300', desc: '圆形、渐变、亲和力' },
-  { id: 'material', label: 'Material', color: 'from-blue-500 to-indigo-500', desc: '纸张层级、波纹、安卓风' },
-  { id: 'paper', label: '纸质笔记', color: 'from-yellow-50 to-orange-50', desc: '纹理、手写体、便签' },
-  { id: 'gamified', label: '游戏化', color: 'from-purple-400 to-pink-400', desc: '徽章、进度条、动效' },
-  { id: 'dark_mode', label: '极客暗黑', color: 'from-gray-900 to-black', desc: '护眼、代码风、专注' },
-  { id: 'kanban', label: '看板贴纸', color: 'from-yellow-100 to-blue-100', desc: '便利贴、拖拽感、直观' }
+  { id: 'cyberpunk', color: 'from-pink-500 to-cyan-500' },
+  { id: 'minimalist', color: 'from-slate-200 to-slate-400' },
+  { id: 'cute', color: 'from-pink-300 to-purple-300' },
+  { id: 'business', color: 'from-blue-600 to-indigo-700' },
+  { id: 'retro', color: 'from-yellow-400 to-orange-500' },
+  { id: 'native', color: 'from-blue-500 to-blue-600' },
+  { id: 'glassmorphism', color: 'from-white/20 to-white/10' },
+  { id: 'neobrutalism', color: 'from-yellow-300 to-red-500' },
+  { id: 'cartoon', color: 'from-orange-300 to-yellow-300' },
+  { id: 'lowpoly', color: 'from-indigo-400 to-purple-500' },
+  { id: 'dark_fantasy', color: 'from-slate-900 to-purple-900' },
+  { id: 'neumorphism', color: 'from-gray-200 to-gray-300' },
+  { id: 'industrial', color: 'from-slate-700 to-slate-800' },
+  { id: 'swiss', color: 'from-red-500 to-white' },
+  { id: 'editorial', color: 'from-stone-100 to-stone-200' },
+  { id: 'card', color: 'from-gray-100 to-gray-200' },
+  { id: 'bubble', color: 'from-blue-300 to-pink-300' },
+  { id: 'material', color: 'from-blue-500 to-indigo-500' },
+  { id: 'paper', color: 'from-yellow-50 to-orange-50' },
+  { id: 'gamified', color: 'from-purple-400 to-pink-400' },
+  { id: 'dark_mode', color: 'from-gray-900 to-black' },
+  { id: 'kanban', color: 'from-yellow-100 to-blue-100' }
 ];
 
 const CATEGORY_STYLES: Record<string, string[]> = {
   game: ['retro', 'cyberpunk', 'cartoon', 'lowpoly', 'dark_fantasy', 'neobrutalism'],
   tool: ['minimalist', 'neumorphism', 'native', 'industrial', 'swiss', 'dark_mode'],
-  info: ['editorial', 'minimalist', 'glassmorphism', 'card', 'swiss', 'native'],
-  social: ['bubble', 'native', 'material', 'glassmorphism', 'cute', 'neobrutalism'],
+  design: ['minimalist', 'swiss', 'editorial', 'glassmorphism', 'neobrutalism', 'dark_mode'],
+  productivity: ['minimalist', 'dark_mode', 'kanban', 'business', 'swiss', 'neumorphism'],
+  devtool: ['dark_mode', 'industrial', 'minimalist', 'swiss', 'neobrutalism', 'retro'],
+  entertainment: ['glassmorphism', 'dark_fantasy', 'cyberpunk', 'material', 'neumorphism', 'card'],
   education: ['cute', 'business', 'paper', 'gamified', 'minimalist', 'card'],
-  productivity: ['minimalist', 'dark_mode', 'kanban', 'business', 'swiss', 'neumorphism']
+  visualization: ['dark_mode', 'swiss', 'minimalist', 'industrial', 'glassmorphism', 'card'],
+  lifestyle: ['cute', 'bubble', 'minimalist', 'native', 'paper', 'material']
 };
 
 const STYLE_PROMPTS: Record<string, string> = {
@@ -86,85 +93,11 @@ const STYLE_PROMPTS: Record<string, string> = {
   kanban: "Design Style: Kanban/Productivity. Use a board layout with columns. Cards should look like physical sticky notes (yellow, blue, pink). Drag-and-drop affordances (dots). Clean, functional typography."
 };
 
-const FEATURE_TEMPLATES: Record<string, { label: string, desc: string }[]> = {
-  game: [
-    { label: '计分板系统', desc: '包含红蓝双方计分，支持加减分动画，比赛时间倒计时，以及犯规次数统计。' },
-    { label: '排行榜功能', desc: '游戏结束后显示前10名高分玩家，支持本地存储记录，并有简单的颁奖动画。' },
-    { label: '音效与设置', desc: '背景音乐开关，点击音效，震动反馈开关，以及游戏难度选择（简单/普通/困难）。' },
-    { label: '关卡选择器', desc: '网格状关卡选择界面，显示每关星级评价，未解锁关卡显示锁头图标，支持滑动翻页。' },
-    { label: '角色状态栏', desc: '顶部显示生命值（红心）、魔法值（蓝条）和金币数量，带有数值变化时的跳动动画。' },
-    { label: '背包系统', desc: '网格背包界面，点击物品显示详情弹窗，支持物品拖拽整理，以及分类筛选（装备/消耗品）。' },
-    { label: '每日签到', desc: '7天签到奖励弹窗，显示每日不同奖励，已签到打钩，第7天有宝箱开启特效。' },
-    { label: '成就系统', desc: '列表展示成就任务，显示进度条（如：击败100个敌人 45/100），完成后可点击领取奖励。' },
-    { label: '虚拟摇杆', desc: '屏幕左下角显示虚拟摇杆控制移动，右下角显示技能按钮（攻击/跳跃/大招），带有冷却遮罩。' },
-    { label: '剧情对话框', desc: '底部显示半透明对话框，左侧显示角色立绘，文字逐字打出，点击屏幕继续下一句。' }
-  ],
-  tool: [
-    { label: '番茄专注钟', desc: '25分钟专注+5分钟休息循环，带有圆形进度条动画，白噪音播放（雨声/森林），以及每日专注时长统计。' },
-    { label: '多功能计算器', desc: '支持基础运算和科学计算，带有历史记录侧边栏，支持键盘输入，界面仿iOS风格。' },
-    { label: '智能待办清单', desc: '支持任务分组（工作/生活），拖拽排序，设置截止日期提醒，完成任务时有烟花特效。' },
-    { label: '单位换算器', desc: '支持长度、重量、货币等多种单位换算，实时输入实时转换，支持自定义汇率。' },
-    { label: '二维码生成器', desc: '输入文本或链接生成二维码，支持自定义颜色、中心Logo，以及下载保存为图片。' },
-    { label: '倒数日', desc: '列表展示重要日子（生日/纪念日），显示剩余天数，支持置顶和分类，背景可自定义图片。' },
-    { label: '记账本', desc: '快速记一笔，支持支出/收入分类，饼图展示月度消费结构，支持预算设置和超支提醒。' },
-    { label: '随机决定器', desc: '转盘或抽签形式，输入选项（如：中午吃什么），点击开始随机抽取，带有紧张的音效。' },
-    { label: 'BMI计算器', desc: '输入身高体重计算BMI指数，显示健康范围刻度条，并给出健康建议。' },
-    { label: '密码生成器', desc: '自定义长度，选择包含数字/符号/大小写，一键生成高强度密码并复制。' }
-  ],
-  info: [
-    { label: '数字名片', desc: '玻璃拟态风格，展示头像、职位、技能标签，点击社交图标有悬浮动效，支持生成二维码分享。' },
-    { label: '产品落地页', desc: '首屏大图Hero区域，功能特性网格展示，客户评价轮播，底部带有显眼的"立即购买"悬浮按钮。' },
-    { label: '每日心情卡片', desc: '选择今日心情（开心/难过等），自动匹配背景色和励志语录，支持一键生成精美图片保存到相册。' },
-    { label: '活动倒计时', desc: '全屏大字显示距离活动开始的时间（天/时/分/秒），背景为活动海报，支持预约提醒功能。' },
-    { label: '常见问题FAQ', desc: '折叠面板形式展示常见问题，点击标题展开答案，支持关键词搜索问题。' },
-    { label: '团队成员展示', desc: '卡片式展示团队成员，鼠标悬停显示详细介绍和社交链接，支持按部门筛选。' },
-    { label: '时间轴简历', desc: '垂直时间轴展示个人经历，左侧时间右侧事件，带有滚动入场动画。' },
-    { label: '价格表', desc: '三栏式价格对比（基础/专业/企业），推荐套餐高亮显示，列出功能差异打钩。' },
-    { label: '博客文章页', desc: '优雅的排版，包含标题、作者信息、正文、代码块高亮，以及底部的相关文章推荐。' },
-    { label: '相册画廊', desc: '瀑布流布局展示图片，点击图片放大预览（Lightbox），支持左右切换和缩放。' }
-  ],
-  social: [
-    { label: '即时聊天界面', desc: '仿微信/Telegram聊天窗口，支持发送文字、表情、图片，带有气泡动画和已读状态标记。' },
-    { label: '朋友圈动态', desc: '图文混排的信息流，支持点赞、评论互动，带有下拉刷新和上拉加载更多的交互效果。' },
-    { label: '个人主页', desc: '展示用户头像、背景墙、个人简介，以及发布的动态列表，支持关注/私信按钮。' },
-    { label: '附近的人', desc: '雷达扫描动画效果，列表展示附近用户，显示距离和在线状态，支持筛选性别。' },
-    { label: '话题广场', desc: '热门话题标签云，点击标签进入话题聚合页，显示该话题下的热门讨论。' },
-    { label: '匹配卡片', desc: '仿Tinder左滑不喜欢右滑喜欢，卡片堆叠效果，匹配成功时弹出全屏庆祝动画。' },
-    { label: '群组列表', desc: '展示加入的群组，显示群头像、名称、最新消息摘要和未读红点，支持置顶功能。' },
-    { label: '评论区组件', desc: '多级评论嵌套，支持点赞、回复，热评置顶，点击头像跳转个人主页。' },
-    { label: '直播间界面', desc: '视频背景，底部显示滚动弹幕、点赞爱心飘浮动画，以及礼物打赏特效。' },
-    { label: '通知中心', desc: '列表展示点赞/评论/关注通知，区分已读未读，支持一键清空。' }
-  ],
-  education: [
-    { label: '在线答题卡', desc: '单选/多选/判断题型，支持倒计时，答题进度条，提交后自动判分并显示解析。' },
-    { label: '课程播放器', desc: '视频播放界面，带有倍速播放、全屏切换，下方显示课程目录和笔记记录区域。' },
-    { label: '单词记忆卡', desc: '正面显示单词，点击翻转显示释义，支持"认识/不认识"分类，带有艾宾浩斯遗忘曲线复习提醒。' },
-    { label: '学习计划表', desc: '周视图日历，显示每天的学习任务，支持拖拽调整，完成任务打钩并计算周完成率。' },
-    { label: '知识图谱', desc: '力导向图展示知识点关联，点击节点展开子节点，支持缩放和平移查看。' },
-    { label: '错题本', desc: '列表展示做错的题目，支持按科目/题型筛选，点击可重新练习，掌握后可移除。' },
-    { label: '成绩分析图', desc: '雷达图展示各科能力分布，折线图展示成绩变化趋势，并给出学习建议。' },
-    { label: '专注自习室', desc: '模拟自习室场景，显示当前在线人数，计时器，以及白噪音背景音，支持发送加油弹幕。' },
-    { label: '电子书阅读器', desc: '支持字体大小/背景色调整，目录跳转，划线高亮，添加书签和笔记功能。' },
-    { label: '公式编辑器', desc: '提供数学符号键盘，实时预览LaTeX公式，支持一键复制图片或代码。' }
-  ],
-  productivity: [
-    { label: '看板任务管理', desc: '仿Trello看板，支持拖拽任务卡片在"待办/进行中/已完成"列之间移动，支持标签和成员分配。' },
-    { label: '思维导图', desc: '中心主题向外发散，支持节点展开/折叠，拖拽移动节点，以及导出为图片功能。' },
-    { label: 'Markdown笔记', desc: '左侧编辑右侧实时预览，支持常用Markdown语法高亮，以及本地自动保存功能。' },
-    { label: '甘特图', desc: '时间轴展示项目进度，支持任务依赖关系连线，拖拽调整任务起止时间。' },
-    { label: '文件管理器', desc: '网格/列表视图切换，支持文件夹层级导航，文件多选/移动/复制/删除操作。' },
-    { label: '日历日程', desc: '月/周/日视图切换，点击日期添加日程，支持重复事件设置和颜色标记。' },
-    { label: '在线表格', desc: '仿Excel界面，支持单元格编辑、公式计算、行列拖拽调整，以及基础的数据筛选排序。' },
-    { label: '流程图绘制', desc: '左侧拖拽形状到画布，连接线自动吸附，支持节点样式自定义和对齐辅助线。' },
-    { label: '仪表盘Dashboard', desc: '网格布局展示多个数据卡片（图表/统计数字），支持拖拽自定义布局。' },
-    { label: '番茄工作法统计', desc: '热力图展示每日专注时长，柱状图对比工作效率，支持导出周报。' }
-  ]
-};
-
 const MAX_MODIFICATIONS = 5;
 
 export default function CreatePage() {
   const router = useRouter();
+  const { t, language } = useLanguage();
   const { openLoginModal } = useModal();
   const { success: toastSuccess, error: toastError } = useToast();
   
@@ -188,7 +121,7 @@ export default function CreatePage() {
   const [modificationCount, setModificationCount] = useState(0);
   const [chatInput, setChatInput] = useState('');
   const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string}[]>([]);
-  const [loadingText, setLoadingText] = useState('正在分析需求...');
+  const [loadingText, setLoadingText] = useState(t.create.analyzing);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('mobile');
   const [streamingCode, setStreamingCode] = useState('');
   const [currentGenerationPrompt, setCurrentGenerationPrompt] = useState('');
@@ -223,6 +156,13 @@ export default function CreatePage() {
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const codeScrollRef = useRef<HTMLDivElement>(null);
+
+  // Update loading text when language changes
+  useEffect(() => {
+    if (isGenerating) {
+      setLoadingText(t.create.analyzing);
+    }
+  }, [language, t]);
 
   // Effect: Calculate Preview Scale
   useEffect(() => {
@@ -275,7 +215,7 @@ export default function CreatePage() {
   const shuffleTemplates = () => {
     if (!wizardData.category) return;
     // @ts-ignore
-    const templates = FEATURE_TEMPLATES[wizardData.category] || [];
+    const templates = t.templates?.[wizardData.category] || [];
     // Shuffle array
     const shuffled = [...templates].sort(() => 0.5 - Math.random());
     // Pick first 4
@@ -408,7 +348,7 @@ export default function CreatePage() {
         if (template.prompt) {
             setStep('desc');
             // Use a small timeout to ensure toast is shown after mount
-            setTimeout(() => toastSuccess('已加载同款模板，您可以修改后生成'), 500);
+            setTimeout(() => toastSuccess(t.create.template_loaded), 500);
         }
         
         // Clear it
@@ -429,7 +369,7 @@ export default function CreatePage() {
         try {
           const { data: bonusData, error: bonusError } = await supabase.rpc('check_daily_bonus');
           if (bonusData && bonusData.awarded) {
-            toastSuccess(`每日登录奖励：+1 积分！当前积分：${bonusData.credits}`);
+            toastSuccess(`${t.profile.daily_bonus} ${bonusData.credits}`);
           }
         } catch (error) {
           console.error('Failed to check daily rewards:', error);
@@ -461,7 +401,7 @@ export default function CreatePage() {
       router.push('/');
       return;
     }
-    if (confirm('确定要退出创作吗？当前进度将不会保存。')) {
+    if (confirm(t.create.confirm_exit)) {
       router.push('/');
     }
   };
@@ -486,7 +426,7 @@ export default function CreatePage() {
     setWizardData(prev => {
       const newFeatures = prev.features ? `${prev.features}\n${desc}` : desc;
       if (newFeatures.length > 800) {
-        toastError('功能描述已达到字数上限');
+        toastError(t.create.features_limit);
         return prev;
       }
       return { ...prev, features: newFeatures };
@@ -495,9 +435,9 @@ export default function CreatePage() {
 
   // --- Generation Logic ---
     const constructPrompt = (isModification = false, modificationRequest = '') => {
-    const categoryLabel = CATEGORIES.find(c => c.id === wizardData.category)?.label || 'App';
-    const styleLabel = STYLES.find(s => s.id === wizardData.style)?.label || 'Modern';
-    const deviceLabel = DEVICES.find(d => d.id === wizardData.device)?.label || 'Mobile';
+    const categoryLabel = t.categories[wizardData.category as keyof typeof t.categories] || 'App';
+    const styleLabel = t.styles[wizardData.style as keyof typeof t.styles] || 'Modern';
+    const deviceLabel = t.devices[wizardData.device as keyof typeof t.devices] || 'Mobile';
     const stylePrompt = STYLE_PROMPTS[wizardData.style] || '';
     
     // Compact description
@@ -527,13 +467,15 @@ ${generatedCode}
 `;
     }
 
+    const targetLang = language === 'zh' ? 'Chinese' : 'English';
+
     return `
 # Task
 Create single-file React app: ${categoryLabel} Generator for ${deviceLabel}.
 ${description}
 
 # Specs
-- Lang: Chinese
+- Lang: ${targetLang}
 - Stack: React 18, Tailwind CSS (CDN)
 - Device Target: ${deviceLabel} (${wizardData.device === 'mobile' ? 'Mobile-first, touch-friendly' : wizardData.device === 'desktop' ? 'Desktop-optimized, mouse-friendly' : 'Responsive, tablet-friendly'})
 - Dark mode (#0f172a)
@@ -644,7 +586,7 @@ root.render(<App/>);
       }
     } catch (e) {
       console.error("Pre-flight check failed", e);
-      toastError("验证失败，请刷新重试");
+      toastError(t.common.error);
       return;
     }
 
@@ -656,7 +598,7 @@ root.render(<App/>);
     setStreamingCode('');
     
     // Enhanced Progress Simulation - Friendly & Non-Stalling
-    const loadingMessages = [
+    const loadingMessages = t.create.loading_steps || [
       '正在深度分析您的需求...',
       'AI 正在构思最佳 UI 布局...',
       '正在编写 React 组件逻辑...',
@@ -724,12 +666,15 @@ root.render(<App/>);
         // Combine description and features for display
         const displayParts = [];
         if (wizardData.description) displayParts.push(wizardData.description);
-        if (wizardData.features) displayParts.push(`功能需求：${wizardData.features}`);
+        if (wizardData.features) displayParts.push(`${t.create.step_features}：${wizardData.features}`);
         
         if (displayParts.length > 0) {
             promptContent = displayParts.join('\n\n');
         } else {
-            promptContent = `创建一个${CATEGORIES.find(c => c.id === wizardData.category)?.label}应用...`;
+            const catLabel = t.categories[wizardData.category as keyof typeof t.categories] || 'App';
+            promptContent = language === 'zh' 
+                ? `创建一个${catLabel}应用...` 
+                : `Create a ${catLabel} app...`;
         }
       }
       
@@ -775,7 +720,7 @@ Your goal is to create a "Production-Grade", visually stunning, and highly inter
 Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse Interaction)' : 'Mobile (Touch First, Responsive)'}
 
 ### Core Requirements:
-1. **Language**: STRICTLY Simplified Chinese (简体中文) for all UI text.
+1. **Language**: STRICTLY ${language === 'zh' ? 'Simplified Chinese (简体中文)' : 'English'} for all UI text.
 2. **Single File Architecture**: Output a single valid HTML file containing CSS, JS (React), and Logic.
 3. **No Markdown**: Output ONLY the raw HTML code. Start immediately with <!DOCTYPE html>.
 4. **Emoji Usage**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters (e.g., 👀) or ES6 unicode escapes (e.g., \\u{1F440}).
@@ -860,7 +805,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       } catch (e: any) {
           console.error('Failed to call /api/generate:', e);
           if (e.message === 'Load failed' || e.message === 'Failed to fetch') {
-              throw new Error('网络连接失败，请检查您的网络设置');
+              throw new Error(t.common.unknown_error);
           }
           throw e;
       }
@@ -898,7 +843,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
           if (!res.ok) {
               const errText = await res.text();
               console.error('Edge Function Error:', res.status, errText);
-              toastError(`生成服务连接失败: ${res.status}`);
+              toastError(`${t.common.error}: ${res.status}`);
               setIsGenerating(false);
               return;
           }
@@ -920,7 +865,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
           }
       }).catch(err => {
           console.error('Trigger error:', err);
-          toastError('网络连接异常');
+          toastError(t.common.unknown_error);
           setIsGenerating(false);
       });
 
@@ -961,10 +906,10 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                     
                     const patched = applyPatches(generatedCode, cleanCode);
                     setGeneratedCode(patched);
-                    toastSuccess('修改成功！');
+                    toastSuccess(t.create.success_edit);
                 } catch (e: any) {
                     console.error('Patch failed:', e);
-                    toastError(e.message || '应用修改失败，请重试');
+                    toastError(e.message || t.common.error);
                     // Keep original code but stop loading
                 }
             } else {
@@ -991,9 +936,9 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             if (pollInterval) clearInterval(pollInterval);
             supabase.removeChannel(channel);
             
-            toastError(newTask.error_message || '生成失败');
+            toastError(newTask.error_message || t.common.error);
             // Show error in the UI text as well
-            setLoadingText(`生成失败: ${newTask.error_message || '未知错误'}`);
+            setLoadingText(`${t.common.error}: ${newTask.error_message || t.common.unknown_error}`);
             setIsGenerating(false);
             setProgress(100);
         }
@@ -1056,7 +1001,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 
     } catch (error: any) {
       console.error('Generation error:', error);
-      toastError(error.message || '生成失败，请重试');
+      toastError(error.message || t.create.generation_failed);
       
       if (!isModification) {
         setStep('desc');
@@ -1073,21 +1018,21 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 
 
   const handleUpload = () => {
-    if (!confirm('确定要发布作品吗？\n\n发布后将跳转至上传页面，您将无法返回此处继续编辑代码。\n建议您先点击“下载”保存代码备份。')) {
+    if (!confirm(t.create.confirm_publish)) {
       return;
     }
     try {
       // Save to localStorage to pass to upload page
       localStorage.setItem('spark_generated_code', generatedCode);
       localStorage.setItem('spark_generated_meta', JSON.stringify({
-        title: `${CATEGORIES.find(c => c.id === wizardData.category)?.label || 'App'}`,
+        title: `${t.categories[wizardData.category as keyof typeof t.categories] || 'App'}`,
         description: wizardData.description || wizardData.features,
         tags: [wizardData.category, wizardData.style]
       }));
       router.push('/upload?from=create');
     } catch (e) {
       console.error('Failed to save to localStorage:', e);
-      toastError('无法保存数据，请检查浏览器隐私设置');
+      toastError(t.common.error);
     }
   };
 
@@ -1101,11 +1046,11 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toastSuccess('下载成功！请妥善保存源文件');
+    toastSuccess(t.create.success_download);
   };
 
   const handleRollback = (item: typeof codeHistory[0]) => {
-    if (!confirm('确定要回退到此版本吗？当前未保存的修改将被保存到历史记录中。')) return;
+    if (!confirm(t.create.confirm_rollback)) return;
 
     // Save current state to history before rolling back
     // Only if it's not already in history (to avoid duplicates when switching back and forth)
@@ -1123,7 +1068,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
     setStreamingCode(item.code);
     setCurrentGenerationPrompt(item.prompt);
     setShowHistoryModal(false);
-    toastSuccess('已回退到选定版本');
+    toastSuccess(t.create.success_rollback);
   };
 
   const toggleEditMode = () => {
@@ -1133,7 +1078,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: newMode }, '*');
     }
     if (newMode) {
-        toastSuccess('点击预览窗口中的元素进行修改');
+        toastSuccess(t.create.edit_hint);
     }
   };
 
@@ -1190,7 +1135,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
       
     } catch (error) {
       console.error('Failed to create mobile preview:', error);
-      toastError('生成预览链接失败，请重试');
+      toastError(t.common.error);
     }
   };
 
@@ -1200,14 +1145,14 @@ Please apply this change to the code. Ensure the modification is precise and aff
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
         <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl">
           <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-            <h3 className="font-bold text-white">历史版本</h3>
+            <h3 className="font-bold text-white">{t.create.history}</h3>
             <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-white">
               <X size={20} />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {codeHistory.length === 0 ? (
-              <div className="text-center text-slate-500 py-8">暂无历史记录</div>
+              <div className="text-center text-slate-500 py-8">{t.create.no_history}</div>
             ) : (
               [...codeHistory].reverse().map((item, index) => (
                 <div key={item.timestamp} className="bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-brand-500 transition group">
@@ -1225,7 +1170,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                     onClick={() => handleRollback(item)}
                     className="w-full py-2 bg-slate-700 hover:bg-brand-600 text-white rounded-lg text-sm font-bold transition flex items-center justify-center gap-2"
                   >
-                    <i className="fa-solid fa-clock-rotate-left"></i> 恢复此版本
+                    <i className="fa-solid fa-clock-rotate-left"></i> {t.create.restore_version}
                   </button>
                 </div>
               ))
@@ -1268,7 +1213,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                   {i + 1}
                 </div>
                 <div className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-colors ${isActive ? 'text-brand-400' : 'text-slate-600'}`}>
-                  {s === 'category' ? '类型' : s === 'device' ? '设备' : s === 'style' ? '风格' : s === 'features' ? '功能' : '描述'}
+                  {t.create[`step_${s}` as keyof typeof t.create]}
                 </div>
               </div>
             );
@@ -1279,8 +1224,8 @@ Please apply this change to the code. Ensure the modification is precise and aff
           {step === 'category' && (
             <div className="space-y-8 animate-fade-in">
               <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold text-white">想做什么应用？</h2>
-                <p className="text-slate-400">选择一个基础类型，我们将为你构建框架</p>
+                <h2 className="text-3xl font-bold text-white">{t.create.category_title}</h2>
+                <p className="text-slate-400">{t.create.category_subtitle}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {CATEGORIES.map(cat => (
@@ -1292,8 +1237,8 @@ Please apply this change to the code. Ensure the modification is precise and aff
                     <div className="w-14 h-14 rounded-2xl bg-slate-900 flex items-center justify-center mb-4 group-hover:scale-110 transition shadow-inner">
                       <i className={`fa-solid ${cat.icon} text-2xl text-brand-400`}></i>
                     </div>
-                    <h3 className="text-xl font-bold text-white mb-2">{cat.label}</h3>
-                    <p className="text-sm text-slate-400 leading-relaxed">{cat.desc}</p>
+                    <h3 className="text-xl font-bold text-white mb-2">{t.categories[cat.id as keyof typeof t.categories]}</h3>
+                    <p className="text-sm text-slate-400 leading-relaxed">{t.categories[`${cat.id}_desc` as keyof typeof t.categories]}</p>
                   </button>
                 ))}
               </div>
@@ -1303,8 +1248,8 @@ Please apply this change to the code. Ensure the modification is precise and aff
           {step === 'device' && (
             <div className="space-y-8 animate-fade-in">
               <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold text-white">选择目标设备</h2>
-                <p className="text-slate-400">我们将根据设备特性优化交互体验</p>
+                <h2 className="text-3xl font-bold text-white">{t.create.device_title}</h2>
+                <p className="text-slate-400">{t.create.device_subtitle}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {DEVICES.map(dev => (
@@ -1316,14 +1261,14 @@ Please apply this change to the code. Ensure the modification is precise and aff
                     <div className="w-14 h-14 rounded-2xl bg-slate-900 flex items-center justify-center mb-4 group-hover:scale-110 transition shadow-inner">
                       <i className={`fa-solid ${dev.icon} text-2xl text-brand-400`}></i>
                     </div>
-                    <h3 className="text-xl font-bold text-white mb-2">{dev.label}</h3>
-                    <p className="text-sm text-slate-400 leading-relaxed">{dev.desc}</p>
+                    <h3 className="text-xl font-bold text-white mb-2">{t.devices[dev.id as keyof typeof t.devices]}</h3>
+                    <p className="text-sm text-slate-400 leading-relaxed">{t.devices[`${dev.id}_desc` as keyof typeof t.devices]}</p>
                   </button>
                 ))}
               </div>
               <div className="flex justify-center pt-4">
                 <button onClick={() => setStep('category')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-800 transition">
-                  <i className="fa-solid fa-arrow-left"></i> 返回上一步
+                  <i className="fa-solid fa-arrow-left"></i> {t.create.btn_back}
                 </button>
               </div>
             </div>
@@ -1332,8 +1277,8 @@ Please apply this change to the code. Ensure the modification is precise and aff
           {step === 'style' && (
             <div className="space-y-8 animate-fade-in">
               <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold text-white">选择设计风格</h2>
-                <p className="text-slate-400">为你的应用挑选一套独特的外观主题</p>
+                <h2 className="text-3xl font-bold text-white">{t.create.style_title}</h2>
+                <p className="text-slate-400">{t.create.style_subtitle}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {STYLES.filter(s => {
@@ -1349,16 +1294,16 @@ Please apply this change to the code. Ensure the modification is precise and aff
                   >
                     <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${style.color} transition duration-500`}></div>
                     <div className="flex items-center justify-between mb-3 relative z-10">
-                      <h3 className="text-xl font-bold text-white">{style.label}</h3>
+                      <h3 className="text-xl font-bold text-white">{t.styles[style.id as keyof typeof t.styles]}</h3>
                       <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${style.color} shadow-lg`}></div>
                     </div>
-                    <p className="text-sm text-slate-400 relative z-10">{style.desc}</p>
+                    <p className="text-sm text-slate-400 relative z-10">{t.styles[`${style.id}_desc` as keyof typeof t.styles]}</p>
                   </button>
                 ))}
               </div>
               <div className="flex justify-center pt-4">
                 <button onClick={() => setStep('device')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-800 transition">
-                  <i className="fa-solid fa-arrow-left"></i> 返回上一步
+                  <i className="fa-solid fa-arrow-left"></i> {t.create.btn_back}
                 </button>
               </div>
             </div>
@@ -1367,8 +1312,8 @@ Please apply this change to the code. Ensure the modification is precise and aff
           {step === 'features' && (
             <div className="space-y-6 animate-fade-in">
               <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold text-white">最后一步：具体功能需求</h2>
-                <p className="text-slate-400">描述你想要的功能，或使用下方模板快速组合</p>
+                <h2 className="text-3xl font-bold text-white">{t.create.features_title}</h2>
+                <p className="text-slate-400">{t.create.features_subtitle}</p>
               </div>
               
               {/* Custom Input */}
@@ -1380,7 +1325,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                     // Allow paste but truncate to 800 chars
                     setWizardData(prev => ({ ...prev, features: val.slice(0, 800) }));
                   }}
-                  placeholder="例如：我需要一个计分板，左边是红队，右边是蓝队，点击加分..."
+                  placeholder={t.create.features_placeholder}
                   className="w-full h-32 bg-transparent border-none outline-none appearance-none p-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-sm leading-relaxed"
                 ></textarea>
                 <div className="absolute bottom-2 right-4 text-xs text-slate-500">
@@ -1392,13 +1337,13 @@ Please apply this change to the code. Ensure the modification is precise and aff
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <i className="fa-solid fa-wand-magic-sparkles"></i> 推荐模板 (点击添加)
+                    <i className="fa-solid fa-wand-magic-sparkles"></i> {t.create.templates_title}
                   </h3>
                   <button 
                     onClick={shuffleTemplates}
                     className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1 transition"
                   >
-                    <i className="fa-solid fa-rotate"></i> 换一批
+                    <i className="fa-solid fa-rotate"></i> {t.create.shuffle}
                   </button>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
@@ -1427,14 +1372,14 @@ Please apply this change to the code. Ensure the modification is precise and aff
                   onClick={() => setStep('desc')}
                   className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition"
                 >
-                  上一步
+                  {t.create.btn_back}
                 </button>
                 <button
                   onClick={() => startGeneration()}
                   disabled={!wizardData.features}
                   className={`flex-1 bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
                 >
-                  <span>开始生成</span>
+                  <span>{t.create.btn_generate}</span>
                   <i className="fa-solid fa-wand-magic-sparkles"></i>
                 </button>
               </div>
@@ -1444,17 +1389,17 @@ Please apply this change to the code. Ensure the modification is precise and aff
           {step === 'desc' && (
             <div className="space-y-6 animate-fade-in">
               <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">描述您的创意</h2>
-                <p className="text-slate-400">越详细的描述，生成的应用越符合您的预期</p>
+                <h2 className="text-2xl font-bold text-white mb-2">{t.create.desc_title}</h2>
+                <p className="text-slate-400">{t.create.desc_subtitle}</p>
               </div>
 
               <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700">
-                <label className="block text-sm font-medium text-slate-300 mb-2">应用描述</label>
+                <label className="block text-sm font-medium text-slate-300 mb-2">{t.create.desc_label}</label>
                 <textarea
                   value={wizardData.description}
                   onChange={(e) => setWizardData({ ...wizardData, description: e.target.value })}
                   className="w-full h-32 bg-slate-900 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 focus:ring-2 focus:ring-brand-500 focus:border-transparent transition resize-none"
-                  placeholder="例如：做一个番茄钟，背景是星空，倒计时结束时播放烟花动画..."
+                  placeholder={t.create.desc_placeholder}
                 ></textarea>
               </div>
 
@@ -1463,7 +1408,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                   onClick={() => setStep('style')}
                   className="flex-1 py-4 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition"
                 >
-                  上一步
+                  {t.create.btn_back}
                 </button>
                 <button
                   onClick={() => setStep('features')}
@@ -1474,7 +1419,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                       : 'bg-brand-600 hover:bg-brand-500 text-white shadow-brand-500/20'
                   }`}
                 >
-                  <span>下一步</span>
+                  <span>{t.create.btn_next}</span>
                   <i className="fa-solid fa-arrow-right"></i>
                 </button>
               </div>
@@ -1500,7 +1445,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
             </div>
             <div className="bg-gradient-to-br from-brand-600 to-brand-700 text-white p-5 rounded-2xl rounded-tr-none shadow-lg max-w-[85%] relative group">
               <div className="absolute -right-2 top-0 w-4 h-4 bg-brand-700 transform rotate-45"></div>
-              <p className="text-xs font-bold text-brand-200 mb-2 uppercase tracking-wider">我的需求</p>
+              <p className="text-xs font-bold text-brand-200 mb-2 uppercase tracking-wider">{t.create.my_request}</p>
               <p className="text-sm leading-relaxed opacity-95 whitespace-pre-wrap">
                 {currentGenerationPrompt}
               </p>
@@ -1516,7 +1461,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
             <div className="bg-slate-800/80 border border-slate-700 text-slate-300 p-5 rounded-2xl rounded-tl-none shadow-lg max-w-[85%] relative w-full">
               <div className="absolute -left-2 top-0 w-4 h-4 bg-slate-800 transform rotate-45 border-l border-t border-slate-700"></div>
               <div className="flex items-center gap-3 mb-2">
-                <span className="text-xs font-bold text-brand-400 uppercase tracking-wider">AI 思考中</span>
+                <span className="text-xs font-bold text-brand-400 uppercase tracking-wider">{t.create.ai_thinking}</span>
                 <div className="flex space-x-1">
                   <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
                   <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
@@ -1556,9 +1501,9 @@ Please apply this change to the code. Ensure the modification is precise and aff
 
       {/* Bottom Status */}
       <div className="text-center space-y-3 animate-fade-in" style={{ animationDelay: '1s', animationFillMode: 'both' }}>
-        <h2 className="text-2xl font-bold text-white">正在施展魔法...</h2>
+        <h2 className="text-2xl font-bold text-white">{t.create.generating_title}</h2>
         <p className="text-slate-400 text-sm max-w-md mx-auto">
-          Spark Vertex 正在为你生成独一无二的应用，请稍候片刻，精彩即将呈现。
+          {t.create.generating_subtitle}
         </p>
       </div>
     </div>
@@ -1573,12 +1518,12 @@ Please apply this change to the code. Ensure the modification is precise and aff
         
         <div className="p-3 lg:p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
           <div className="flex items-center gap-3">
-            <button onClick={handleExit} className="hidden lg:flex w-8 h-8 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition" title="退出创作">
+            <button onClick={handleExit} className="hidden lg:flex w-8 h-8 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition" title={t.common.back}>
               <i className="fa-solid fa-chevron-left"></i>
             </button>
-            <h3 className="font-bold text-white text-sm lg:text-base">创作助手</h3>
+            <h3 className="font-bold text-white text-sm lg:text-base">{t.create.preview_title}</h3>
           </div>
-          <span className="text-[10px] lg:text-xs text-slate-500">剩余积分: {credits} (修改消耗 0.5 积分)</span>
+          <span className="text-[10px] lg:text-xs text-slate-500">{t.create.remaining_credits}: {credits} ({t.create.modification_cost})</span>
         </div>
         
         {/* Chat History */}
@@ -1588,7 +1533,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
               <i className="fa-solid fa-robot"></i>
             </div>
             <div className="bg-slate-800 p-3 rounded-2xl rounded-tl-none text-sm text-slate-300">
-              应用已生成！你可以在上方预览效果。如果需要调整，请直接告诉我。
+              {t.create.app_generated}
             </div>
           </div>
           {chatHistory.map((msg, i) => (
@@ -1610,7 +1555,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
               </div>
               <div className="bg-slate-800 p-3 rounded-2xl rounded-tl-none text-sm text-slate-300 w-full border border-brand-500/30">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="font-bold text-brand-400">AI 正在修改代码...</span>
+                  <span className="font-bold text-brand-400">{t.create.ai_thinking}</span>
                   <span className="text-xs text-slate-500">{Math.floor(progress)}%</span>
                 </div>
                 <p className="text-xs text-slate-400 mb-2">{loadingText}</p>
@@ -1637,7 +1582,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !isGenerating && chatInput.trim() && startGeneration(true)}
-              placeholder="例如：把背景改成黑色..."
+              placeholder={t.create.chat_placeholder}
               disabled={isGenerating}
               className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-4 pr-12 py-2 lg:py-3 text-sm lg:text-base text-white focus:border-brand-500 outline-none disabled:opacity-50"
             />
@@ -1657,20 +1602,20 @@ Please apply this change to the code. Ensure the modification is precise and aff
             onClick={handleUpload}
             className="w-full py-3 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-xl font-bold transition shadow-lg flex items-center justify-center gap-2"
           >
-            <i className="fa-solid fa-rocket"></i> 发布作品
+            <i className="fa-solid fa-rocket"></i> {t.create.publish}
           </button>
           <div className="flex gap-2">
             <button 
               onClick={() => setShowHistoryModal(true)}
               className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition border border-slate-700 flex items-center justify-center gap-2 text-sm"
             >
-              <i className="fa-solid fa-clock-rotate-left"></i> 历史
+              <i className="fa-solid fa-clock-rotate-left"></i> {t.create.history}
             </button>
             <button 
               onClick={handleDownload}
               className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition border border-slate-700 flex items-center justify-center gap-2 text-sm"
             >
-              <i className="fa-solid fa-download"></i> 下载
+              <i className="fa-solid fa-download"></i> {t.create.download}
             </button>
             <button 
               onClick={() => {
@@ -1680,7 +1625,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
               }}
               className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition border border-slate-700 flex items-center justify-center gap-2 text-sm"
             >
-              <i className="fa-solid fa-code"></i> 查看代码
+              <i className="fa-solid fa-code"></i> {t.create.view_code}
             </button>
           </div>
         </div>
@@ -1692,15 +1637,15 @@ Please apply this change to the code. Ensure the modification is precise and aff
           h-[55vh] lg:h-full shrink-0 overflow-hidden">
         <div className="h-8 lg:h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-3">
-            <button onClick={handleExit} className="lg:hidden flex w-6 h-6 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition" title="退出创作">
+            <button onClick={handleExit} className="lg:hidden flex w-6 h-6 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition" title={t.common.back}>
               <i className="fa-solid fa-chevron-left"></i>
             </button>
-            <span className="text-sm font-bold text-slate-400">预览模式</span>
+            <span className="text-sm font-bold text-slate-400">{t.create.preview_mode}</span>
           </div>
           {/* Mobile Actions (Simplified) */}
           <div className="flex lg:hidden gap-2">
              <button onClick={handleUpload} className="text-xs px-3 py-1 rounded text-white flex items-center gap-1 bg-brand-600">
-                发布
+                {t.common.submit}
              </button>
           </div>
         </div>
@@ -1744,9 +1689,9 @@ Please apply this change to the code. Ensure the modification is precise and aff
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-10 w-max max-w-full px-4">
             {/* Device Switcher */}
             <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-full p-1.5 flex shadow-2xl">
-              <button onClick={() => setPreviewMode('desktop')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title="桌面端"><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
-              <button onClick={() => setPreviewMode('tablet')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title="平板端"><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
-              <button onClick={() => setPreviewMode('mobile')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title="移动端"><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
+              <button onClick={() => setPreviewMode('desktop')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.desktop}><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
+              <button onClick={() => setPreviewMode('tablet')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.tablet}><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
+              <button onClick={() => setPreviewMode('mobile')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.mobile}><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
             </div>
 
             {/* Separator */}
@@ -1756,7 +1701,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
             <button 
                 onClick={handleMobilePreview}
                 className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group" 
-                title="手机扫码预览"
+                title={t.create.mobile_preview}
             >
                 <i className="fa-solid fa-qrcode text-sm group-hover:scale-110 transition"></i>
             </button>
@@ -1773,7 +1718,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isEditMode ? 'bg-white/20' : 'bg-brand-500/20 group-hover:bg-brand-500/30'}`}>
                     <i className={`fa-solid ${isEditMode ? 'fa-check text-white' : 'fa-arrow-pointer text-brand-400'} ${isEditMode ? '' : 'animate-pulse'}`}></i>
                 </div>
-                <span className="text-sm whitespace-nowrap">{isEditMode ? '完成修改' : '点选修改'}</span>
+                <span className="text-sm whitespace-nowrap">{isEditMode ? t.create.finish_edit : t.create.edit_mode}</span>
             </button>
           </div>
 
@@ -1782,8 +1727,8 @@ Please apply this change to the code. Ensure the modification is precise and aff
             <div className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white animate-fade-in">
                 <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700 shadow-2xl flex flex-col items-center">
                   <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <p className="font-bold text-lg">正在应用修改...</p>
-                  <p className="text-sm text-slate-400 mt-1">请稍候，预览即将刷新</p>
+                  <p className="font-bold text-lg">{t.create.generating_title}</p>
+                  <p className="text-sm text-slate-400 mt-1">{t.create.generating_subtitle}</p>
                 </div>
             </div>
           )}
@@ -1798,7 +1743,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
         <button 
           onClick={handleExit}
           className="fixed top-6 left-6 z-50 w-10 h-10 bg-slate-800/50 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full flex items-center justify-center transition backdrop-blur-md border border-slate-700/50"
-          title="退出创作"
+          title={t.create.exit_creation}
         >
           <i className="fa-solid fa-chevron-left"></i>
         </button>
@@ -1817,10 +1762,10 @@ Please apply this change to the code. Ensure the modification is precise and aff
                 <i className="fa-solid fa-triangle-exclamation text-2xl text-red-500"></i>
               </div>
               <h3 className="text-xl font-bold text-white mb-2">
-                积分不足
+                {t.create.error_credits}
               </h3>
               <p className="text-gray-400">
-                您的积分已不足。想要继续创作，请前往个人中心获取更多积分，或明日登录领取奖励。
+                {t.create.error_credits_desc}
               </p>
             </div>
             
@@ -1829,13 +1774,13 @@ Please apply this change to the code. Ensure the modification is precise and aff
                 onClick={() => setIsCreditModalOpen(false)}
                 className="flex-1 px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium transition-colors"
               >
-                稍后再说
+                {t.common.later}
               </button>
               <button
                 onClick={() => router.push('/profile')}
                 className="flex-1 px-4 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium transition-all shadow-lg shadow-blue-900/20"
               >
-                获取额度
+                {t.create.get_credits}
               </button>
             </div>
           </div>
@@ -1849,7 +1794,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <i className="fa-solid fa-pen-to-square text-brand-500"></i>
-                修改元素
+                {t.create.edit_element_title}
               </h3>
               <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-white transition">
                 <i className="fa-solid fa-xmark text-lg"></i>
@@ -1857,7 +1802,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
             </div>
             
             <div className="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700/50">
-              <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-2">已选中元素</div>
+              <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-2">{t.create.edit_element_selected}</div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="bg-brand-500/20 text-brand-300 px-2 py-0.5 rounded text-xs font-mono border border-brand-500/30">
                   &lt;{selectedElement.tagName.toLowerCase()}&gt;
@@ -1869,18 +1814,18 @@ Please apply this change to the code. Ensure the modification is precise and aff
                 )}
               </div>
               <div className="text-sm text-slate-300 italic border-l-2 border-slate-600 pl-2 py-1 mt-2 line-clamp-2">
-                "{selectedElement.innerText.substring(0, 100) || '无文本内容'}"
+                "{selectedElement.innerText.substring(0, 100) || t.create.no_text_content}"
               </div>
             </div>
             
             <div className="mb-6">
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                您希望如何修改此元素？
+                {t.create.edit_element_label}
               </label>
               <textarea
                 value={editRequest}
                 onChange={(e) => setEditRequest(e.target.value)}
-                placeholder="例如：把背景色改为深蓝色，文字改为白色..."
+                placeholder={t.create.edit_element_placeholder}
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 min-h-[100px] resize-none"
                 autoFocus
               />
@@ -1891,7 +1836,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                 onClick={() => setShowEditModal(false)}
                 className="flex-1 px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors"
               >
-                取消
+                {t.common.cancel}
               </button>
               <button
                 onClick={handleElementEditSubmit}
@@ -1899,7 +1844,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                 className="flex-1 px-4 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-all shadow-lg shadow-brand-900/20 flex items-center justify-center gap-2"
               >
                 <i className="fa-solid fa-wand-magic-sparkles"></i>
-                生成修改
+                {t.create.btn_generate_edit}
               </button>
             </div>
           </div>
@@ -1917,9 +1862,9 @@ Please apply this change to the code. Ensure the modification is precise and aff
               <X size={24} />
             </button>
             
-            <h3 className="text-xl font-bold text-slate-900 mb-2">真机预览</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">{t.create.mobile_preview_title}</h3>
             <p className="text-sm text-slate-500 mb-6 text-center">
-              请使用手机相机或微信扫描下方二维码<br/>在真实设备上体验应用
+              {t.create.mobile_preview_desc}
             </p>
             
             <div className="bg-white p-2 rounded-xl border-2 border-slate-100 shadow-inner mb-6">
@@ -1932,7 +1877,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
             </div>
             
             <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full">
-              <i className="fa-solid fa-clock"></i> 链接有效期为 1 小时
+              <i className="fa-solid fa-clock"></i> {t.create.link_validity}
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface AddToHomeScreenGuideProps {
   isActive?: boolean;
@@ -9,6 +10,7 @@ interface AddToHomeScreenGuideProps {
 export default function AddToHomeScreenGuide({ isActive = true }: AddToHomeScreenGuideProps) {
   const [showGuide, setShowGuide] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (!isActive) {
@@ -45,23 +47,23 @@ export default function AddToHomeScreenGuide({ isActive = true }: AddToHomeScree
             <i className="fa-solid fa-mobile-screen-button text-2xl"></i>
           </div>
           <div>
-            <h3 className="font-bold text-white text-sm mb-1">获得最佳全屏体验</h3>
+            <h3 className="font-bold text-white text-sm mb-1">{t.pwa_guide.title}</h3>
             <p className="text-slate-400 text-xs mb-3">
-              将此应用添加到主屏幕，即可像原生 App 一样全屏运行，无浏览器干扰。
+              {t.pwa_guide.description}
             </p>
             
             <div className="flex items-center gap-2 text-xs text-brand-300 font-bold bg-brand-500/10 px-3 py-2 rounded-lg">
               {isIOS ? (
                 <>
-                  <span>点击底部</span>
+                  <span>{t.pwa_guide.ios_step1}</span>
                   <i className="fa-solid fa-arrow-up-from-bracket text-base mx-1"></i>
-                  <span>选择"添加到主屏幕"</span>
+                  <span>{t.pwa_guide.ios_step2}</span>
                 </>
               ) : (
                 <>
-                  <span>点击右上角菜单</span>
+                  <span>{t.pwa_guide.android_step1}</span>
                   <i className="fa-solid fa-ellipsis-vertical text-base mx-1"></i>
-                  <span>选择"安装应用"</span>
+                  <span>{t.pwa_guide.android_step2}</span>
                 </>
               )}
             </div>

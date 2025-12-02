@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { getPreviewContent } from '@/lib/preview';
 import { QRCodeSVG } from 'qrcode.react';
+import { useLanguage } from '@/context/LanguageContext';
 
 const CARD_COLORS = [
   "from-purple-500 to-pink-500",
@@ -15,33 +16,33 @@ const CARD_COLORS = [
   "from-indigo-500 to-violet-500"
 ];
 
-// Fallback data in case database is empty
-const DEMO_CARDS = [
-  {
-    id: 'demo-1',
-    title: "AI 智能助手",
-    description: "基于先进大模型的个人效率工具，支持语音对话和多模态输入。",
-    tags: ["AI", "Next.js", "Tailwind"],
-    color: CARD_COLORS[0],
-    icon: "fa-robot",
-    code: `const ai = new AI.Agent({
+export default function Hero() {
+  const { openDetailModal, openFeedbackModal } = useModal();
+  const { t, language } = useLanguage();
+
+  const demoCards = [
+    {
+      id: 'demo-1',
+      title: t.home.demo_card_title,
+      description: t.home.demo_card_desc,
+      tags: ["AI", "Next.js", "Tailwind"],
+      color: CARD_COLORS[0],
+      icon: "fa-robot",
+      code: `const ai = new AI.Agent({
   model: 'advanced-llm-v3',
   tools: ['web-search', 'code-interpreter'],
   temperature: 0.7
 });
 
 await ai.chat("Help me build a website");`
-  },
-  // ... other demo cards can remain as fallback
-];
+    }
+  ];
 
-export default function Hero() {
-  const { openDetailModal, openFeedbackModal } = useModal();
-  const [typingText, setTypingText] = useState('人人都是开发者的时代');
+  const [typingText, setTypingText] = useState(t.home.typing_texts[0]);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
-  const [cards, setCards] = useState<any[]>(DEMO_CARDS);
+  const [cards, setCards] = useState<any[]>(demoCards);
   const [isClient, setIsClient] = useState(false);
   
   useEffect(() => {
@@ -92,7 +93,7 @@ export default function Hero() {
   };
 
   useEffect(() => {
-    const texts = ['人人都是开发者的时代', '小白也能轻松上手', '极速分享成果'];
+    const texts = t.home.typing_texts;
     let count = 0;
     let index = 0;
     let currentText = '';
@@ -118,7 +119,7 @@ export default function Hero() {
 
     const timer = setTimeout(type, 2000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [language]); // Re-run when language changes
 
   // Random card rotation
   useEffect(() => {
@@ -188,7 +189,7 @@ export default function Hero() {
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <i className="fa-solid fa-qrcode"></i> 扫码体验
+              <i className="fa-solid fa-qrcode"></i> {t.home.scan_experience}
             </div>
 
             <div className="h-[220px] md:h-44 relative bg-slate-900 overflow-hidden flex-shrink-0">
@@ -198,7 +199,7 @@ export default function Hero() {
               {(activeCard?.tags || []).includes('AI Verified') && (
                 <div className="absolute top-2 right-2 z-20">
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(234,179,8,0.3)]">
-                    <i className="fa-solid fa-certificate"></i> AI 认证
+                    <i className="fa-solid fa-certificate"></i> {t.home.ai_verified}
                   </span>
                 </div>
               )}
@@ -221,7 +222,7 @@ export default function Hero() {
                     <span className="flex items-center gap-1"><i className="fa-solid fa-heart"></i> {activeCard?.likes || 0}</span>
                   </div>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${activeCard?.price > 0 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
-                    {activeCard?.price > 0 ? '¥' + activeCard?.price : '免费'}
+                    {activeCard?.price > 0 ? '¥' + activeCard?.price : t.home.free}
                   </span>
                 </div>
               </div>
@@ -262,8 +263,8 @@ export default function Hero() {
                 )}
               </div>
               <div className="text-center mt-3">
-                <div className="text-white font-bold text-sm mb-1 drop-shadow-md"><i className="fa-solid fa-mobile-screen-button mr-1"></i> 扫码即刻体验</div>
-                <div className="text-slate-400 text-[10px] drop-shadow-md">手机全屏模式运行</div>
+                <div className="text-white font-bold text-sm mb-1 drop-shadow-md"><i className="fa-solid fa-mobile-screen-button mr-1"></i> {t.home.scan_hint}</div>
+                <div className="text-slate-400 text-[10px] drop-shadow-md">{t.home.mobile_fullscreen}</div>
               </div>
             </div>
 
@@ -306,14 +307,14 @@ export default function Hero() {
 
             {/* Headline */}
             <h1 className="stagger-item text-5xl md:text-7xl font-bold tracking-tighter leading-tight mb-8 text-white" style={{ animationDelay: '0.1s' }}>
-              从灵感到现实<br />
-              <span className="gradient-text">只需 5 分钟</span>
+              {t.home.hero_title_1}<br />
+              <span className="gradient-text">{t.home.hero_title_2}</span>
             </h1>
 
             {/* Subheadline */}
             <div className="stagger-item mt-4 mb-12" style={{ animationDelay: '0.2s' }}>
               <p className="text-lg md:text-xl text-slate-400 leading-relaxed mb-8">
-                无需懂开发，无需懂编程。在这里，纯小白也能立刻将点子变为现实，并与大家分享这份喜悦。
+                {t.home.hero_desc}
               </p>
               
               <div 
@@ -332,14 +333,14 @@ export default function Hero() {
 
                     <div className="flex flex-col justify-center h-12">
                       <span className={`text-2xl font-bold transition-all duration-500 leading-none mb-1 ${isFlipped ? 'text-transparent bg-clip-text bg-gradient-to-r from-brand-300 to-purple-400 translate-x-1' : 'text-slate-300'}`}>
-                        扫码即用，原生体验
+                        {t.home.scan_native}
                       </span>
                       <div className="h-5 overflow-hidden relative">
                         <span className={`absolute left-0 text-sm flex items-center gap-2 transition-all duration-500 ${isFlipped ? 'top-1/2 -translate-y-1/2 opacity-100' : 'top-full opacity-0'}`}>
-                          <i className="fa-solid fa-arrow-right animate-bounce-x"></i> <span className="hidden lg:inline">立即查看右侧演示</span><span className="lg:hidden">立即查看下方演示</span>
+                          <i className="fa-solid fa-arrow-right animate-bounce-x"></i> <span className="hidden lg:inline">{t.home.check_demo_right}</span><span className="lg:hidden">{t.home.check_demo_below}</span>
                         </span>
                         <span className={`absolute left-0 text-sm flex items-center gap-2 transition-all duration-500 ${isFlipped ? '-top-full opacity-0' : 'top-1/2 -translate-y-1/2 opacity-100'}`}>
-                          <i className="fa-solid fa-hand-pointer animate-pulse"></i> <span className="hidden lg:inline">悬停查看二维码</span><span className="lg:hidden">点击查看二维码</span>
+                          <i className="fa-solid fa-hand-pointer animate-pulse"></i> <span className="hidden lg:inline">{t.home.hover_qr}</span><span className="lg:hidden">{t.home.click_qr}</span>
                         </span>
                       </div>
                     </div>
@@ -354,7 +355,7 @@ export default function Hero() {
               <div className="relative group">
                 {/* Floating Badge */}
                 <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-gradient-to-r from-brand-500 to-purple-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg animate-bounce opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap pointer-events-none z-20">
-                  ✨ 免费试用超强AI大模型生成！
+                  ✨ {t.home.free_trial}
                   <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-purple-600 rotate-45"></div>
                 </div>
 
@@ -364,7 +365,7 @@ export default function Hero() {
                   
                   <span className="relative z-10 flex items-center justify-center gap-2">
                     <i className="fa-solid fa-wand-magic-sparkles text-brand-600 animate-pulse"></i> 
-                    <span>开始创造</span>
+                    <span>{t.nav.create}</span>
                   </span>
                   
                   {/* Shine Effect */}
@@ -373,7 +374,7 @@ export default function Hero() {
               </div>
 
               <Link href="/explore" className="px-8 py-4 rounded-full bg-slate-800/40 text-white font-bold text-lg border border-slate-700/50 hover:bg-slate-800 hover:border-brand-500/50 transition duration-300 backdrop-blur-sm flex items-center justify-center gap-2 hover:shadow-[0_0_30px_rgba(168,85,247,0.2)]">
-                <i className="fa-solid fa-lightbulb text-yellow-400"></i> 探索灵感
+                <i className="fa-solid fa-lightbulb text-yellow-400"></i> {t.home.explore_ideas}
               </Link>
             </div>
           </div>
@@ -397,14 +398,14 @@ export default function Hero() {
 
                     <div className="flex flex-col justify-center h-12">
                       <span className={`text-2xl font-bold transition-all duration-500 leading-none mb-1 ${isFlipped ? 'text-transparent bg-clip-text bg-gradient-to-r from-brand-300 to-purple-400 translate-x-1' : 'text-slate-300'}`}>
-                        扫码即用，原生体验
+                        {t.home.scan_native}
                       </span>
                       <div className="h-5 overflow-hidden relative">
                         <span className={`absolute left-0 text-sm flex items-center gap-2 transition-all duration-500 ${isFlipped ? 'top-1/2 -translate-y-1/2 opacity-100' : 'top-full opacity-0'}`}>
-                          <i className="fa-solid fa-arrow-down animate-bounce"></i> <span>立即查看下方演示</span>
+                          <i className="fa-solid fa-arrow-down animate-bounce"></i> <span>{t.home.check_demo_below}</span>
                         </span>
                         <span className={`absolute left-0 text-sm flex items-center gap-2 transition-all duration-500 ${isFlipped ? '-top-full opacity-0' : 'top-1/2 -translate-y-1/2 opacity-100'}`}>
-                          <i className="fa-solid fa-hand-pointer animate-pulse"></i> <span>点击查看二维码</span>
+                          <i className="fa-solid fa-hand-pointer animate-pulse"></i> <span>{t.home.click_qr}</span>
                         </span>
                       </div>
                     </div>
@@ -433,7 +434,7 @@ export default function Hero() {
             <span className="font-bold text-sm text-slate-500 hover:text-slate-300 transition">SparkVertex</span>
           </div>
           <div className="text-slate-700 text-[10px]">
-            &copy; 2025 SparkVertex. <button onClick={openFeedbackModal} className="hover:text-brand-400 transition ml-2">反馈</button>
+            &copy; 2025 SparkVertex. <button onClick={openFeedbackModal} className="hover:text-brand-400 transition ml-2">{t.nav.feedback}</button>
           </div>
         </div>
       </footer>

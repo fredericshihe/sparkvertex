@@ -2,9 +2,11 @@
 
 import { useModal } from '@/context/ModalContext';
 import { usePathname } from 'next/navigation';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function Footer() {
   const { openFeedbackModal } = useModal();
+  const { t } = useLanguage();
   const pathname = usePathname();
 
   // Hide Footer on standalone product pages, Homepage (Hero handles it), and Create page (App-like UI)
@@ -25,7 +27,7 @@ export default function Footer() {
           <span className="font-bold text-sm text-slate-500 hover:text-slate-300 transition">SparkVertex</span>
         </div>
         <div className="text-slate-700 text-[10px]">
-          &copy; 2025 SparkVertex. <button onClick={openFeedbackModal} className="hover:text-brand-400 transition ml-2">反馈</button>
+          &copy; 2025 SparkVertex. <button onClick={openFeedbackModal} className="hover:text-brand-400 transition ml-2">{t.nav.feedback}</button>
         </div>
       </div>
     </footer>

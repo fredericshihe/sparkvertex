@@ -10,10 +10,12 @@ import dynamic from 'next/dynamic';
 import { getPreviewContent } from '@/lib/preview';
 import AddToHomeScreenGuide from '@/components/AddToHomeScreenGuide';
 import { copyToClipboard } from '@/lib/utils';
+import { useLanguage } from '@/context/LanguageContext';
 
 const QRCodeCanvas = dynamic(() => import('qrcode.react').then(mod => mod.QRCodeCanvas), { ssr: false });
 
 export default function DetailModal() {
+  const { t } = useLanguage();
   const { isDetailModalOpen, closeDetailModal, detailItemId, detailItemData, openLoginModal, openPaymentModal, openRewardModal } = useModal();
   const router = useRouter();
   const [item, setItem] = useState<Item | null>(null);
@@ -373,7 +375,7 @@ export default function DetailModal() {
         <div className="h-16 border-b border-slate-800 flex items-center justify-between px-4 md:px-6 bg-slate-900/50 backdrop-blur-md z-30 relative flex-shrink-0">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-2 h-6 bg-brand-500 rounded-full flex-shrink-0"></div>
-            <h2 className="text-lg font-bold text-white truncate">{loading ? 'Loading...' : item?.title}</h2>
+            <h2 className="text-lg font-bold text-white truncate">{loading ? t.common.loading : item?.title}</h2>
           </div>
           <button onClick={viewMode === 'app' ? exitAppMode : closeDetailModal} className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition text-slate-400 hover:text-white flex-shrink-0">
             <i className="fa-solid fa-xmark"></i>
@@ -426,7 +428,7 @@ export default function DetailModal() {
                   {viewMode !== 'app' && (
                     <div className="absolute top-6 right-6 bg-black/60 backdrop-blur-sm border border-white/10 px-4 py-2 rounded-full text-white text-xs font-bold flex items-center gap-2 pointer-events-none z-20">
                       <i className="fa-solid fa-eye"></i>
-                      <span>仅预览模式</span>
+                      <span>{t.detail.preview_only}</span>
                     </div>
                   )}
                 </>
@@ -469,7 +471,7 @@ export default function DetailModal() {
                         onClick={handleReward}
                         className="text-xs bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1.5 rounded-full font-bold transition shadow-lg shadow-orange-500/20 flex items-center gap-1 hover:from-yellow-600 hover:to-orange-600"
                       >
-                        <i className="fa-solid fa-gift"></i> 赏
+                        <i className="fa-solid fa-gift"></i> {t.detail.reward}
                       </button>
                       <button 
                         onClick={handleShare}
@@ -477,11 +479,11 @@ export default function DetailModal() {
                       >
                         {showCopiedTip ? (
                           <>
-                            <i className="fa-solid fa-check"></i> 已复制
+                            <i className="fa-solid fa-check"></i> {t.detail.copied}
                           </>
                         ) : (
                           <>
-                            <i className="fa-solid fa-share-nodes"></i> 分享
+                            <i className="fa-solid fa-share-nodes"></i> {t.detail.share}
                           </>
                         )}
                       </button>
@@ -510,7 +512,7 @@ export default function DetailModal() {
                   
                   {/* Description */}
                   <div className="mb-8">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">关于作品</h3>
+                    <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.about}</h3>
                     <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
                       {item?.description}
                     </p>
@@ -519,27 +521,27 @@ export default function DetailModal() {
                   {/* Prompt */}
                   <div className="mb-8">
                     <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider flex items-center justify-between">
-                      <span>Prompt (提示词)</span>
-                      <button onClick={() => {copyToClipboard(item?.prompt || '').then(() => alert('已复制'));}} className="text-brand-400 hover:text-brand-300 text-[10px] flex items-center gap-1 transition">
-                        <i className="fa-regular fa-copy"></i> 复制
+                      <span>{t.detail.prompt}</span>
+                      <button onClick={() => {copyToClipboard(item?.prompt || '').then(() => alert(t.detail.copied));}} className="text-brand-400 hover:text-brand-300 text-[10px] flex items-center gap-1 transition">
+                        <i className="fa-regular fa-copy"></i> {t.detail.copy}
                       </button>
                     </h3>
                     <div className="bg-slate-950 rounded-lg p-4 border border-slate-800 relative group max-h-60 overflow-y-auto custom-scrollbar">
-                      <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap break-words">{item?.prompt || '暂无 Prompt'}</pre>
+                      <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap break-words">{item?.prompt || t.detail.no_prompt}</pre>
                     </div>
                   </div>
 
                   {/* 分类标签与技术栈标签分组显示 */}
                   <div className="mb-8">
                     {/* 类型标签（中文） */}
-                    <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">类型</h3>
+                    <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.category}</h3>
                     <div className="flex flex-wrap gap-2 mb-4">
                       {item?.tags?.filter(tag => /[\u4e00-\u9fa5]/.test(tag)).map(tag => (
                         <span key={tag} className="bg-slate-800 text-blue-300 px-2 py-1 rounded text-xs border border-blue-700">{tag}</span>
                       ))}
                     </div>
                     {/* 技术栈标签（英文/数字/特殊） */}
-                    <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">技术栈</h3>
+                    <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.tech_stack}</h3>
                     <div className="flex flex-wrap gap-2">
                       {item?.tags?.filter(tag => !(/[\u4e00-\u9fa5]/.test(tag))).map(tag => (
                         <span key={tag} className="bg-slate-800 text-slate-400 px-2 py-1 rounded text-xs border border-slate-700">{tag}</span>
@@ -552,8 +554,8 @@ export default function DetailModal() {
                 <div className="p-6 border-t border-slate-800 bg-slate-900/95 backdrop-blur relative">
                   {/* Price Tag */}
                   <div className="absolute -top-5 right-6 bg-slate-900 border border-slate-700 px-4 py-1 rounded-full shadow-lg flex items-center gap-2">
-                    <span className="text-xs text-slate-400">价格</span>
-                    <span className="font-bold text-lg text-white">{item?.price && item.price > 0 ? `¥${item.price}` : '免费'}</span>
+                    <span className="text-xs text-slate-400">{t.detail.price}</span>
+                    <span className="font-bold text-lg text-white">{item?.price && item.price > 0 ? `¥${item.price}` : t.detail.free}</span>
                   </div>
 
                   <div className="flex gap-3 mt-2">
@@ -568,13 +570,13 @@ export default function DetailModal() {
                       className="flex-grow bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white h-12 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition flex items-center justify-center gap-2 group"
                     >
                       <i className="fa-solid fa-play group-hover:scale-110 transition-transform"></i>
-                      <span>体验 APP</span>
+                      <span>{t.detail.launch_app}</span>
                     </button>
                     <button 
                       onClick={handleDownload}
                       className="flex-grow bg-slate-800 hover:bg-slate-700 text-white h-12 rounded-xl font-bold transition flex items-center justify-center gap-2 group border border-slate-700"
                     >
-                      <span>下载源码</span>
+                      <span>{t.detail.download_source}</span>
                       <i className="fa-solid fa-download group-hover:translate-y-1 transition-transform text-slate-400 group-hover:text-white"></i>
                     </button>
                   </div>
@@ -592,7 +594,7 @@ export default function DetailModal() {
             
             <div className="relative z-10 bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full flex flex-col items-center animate-float-up shadow-2xl">
                 <div className="flex justify-between items-center w-full mb-4">
-                    <h3 className="text-lg font-bold text-white">分享</h3>
+                    <h3 className="text-lg font-bold text-white">{t.detail.share_modal_title}</h3>
                     <button onClick={closeShareModal} className="text-slate-400 hover:text-white transition">
                         <i className="fa-solid fa-xmark text-xl"></i>
                     </button>
@@ -601,11 +603,7 @@ export default function DetailModal() {
                 {isLocalhost && (
                     <div className="w-full mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-200 text-xs flex items-start gap-2">
                         <i className="fa-solid fa-triangle-exclamation mt-0.5"></i>
-                        <span>
-                            检测到 localhost 环境。手机扫码可能无法访问。
-                            <br/>
-                            请使用本机局域网 IP (如 192.168.x.x:3000) 访问网页后再点击分享。
-                        </span>
+                        <span dangerouslySetInnerHTML={{ __html: t.detail.localhost_warning }}></span>
                     </div>
                 )}
                 
@@ -662,7 +660,7 @@ export default function DetailModal() {
                                     </h1>
                                 </div>
                                 <div className="flex items-center justify-center w-full">
-                                    <span className="text-xs font-medium text-slate-400">开发者：{item?.author}</span>
+                                    <span className="text-xs font-medium text-slate-400">{t.detail.developer}{item?.author}</span>
                                 </div>
                             </div>
 
@@ -679,8 +677,8 @@ export default function DetailModal() {
                                             fgColor="#000000"
                                         />
                                     </div>
-                                    <span className="text-xs font-bold text-white mb-0.5">产品详情</span>
-                                    <span className="text-[10px] text-slate-500 scale-90">查看介绍与评价</span>
+                                    <span className="text-xs font-bold text-white mb-0.5">{t.detail.product_details}</span>
+                                    <span className="text-[10px] text-slate-500 scale-90">{t.detail.view_intro}</span>
                                 </div>
 
                                 {/* App QR */}
@@ -702,8 +700,8 @@ export default function DetailModal() {
                                             }}
                                         />
                                     </div>
-                                    <span className="text-xs font-bold text-brand-300 mb-0.5">全屏体验</span>
-                                    <span className="text-[10px] text-brand-500/60 scale-90">添加到主屏幕</span>
+                                    <span className="text-xs font-bold text-brand-300 mb-0.5">{t.detail.full_screen}</span>
+                                    <span className="text-[10px] text-brand-500/60 scale-90">{t.detail.add_to_home}</span>
                                 </div>
                             </div>
                         </div>
@@ -715,7 +713,7 @@ export default function DetailModal() {
                     {generatingImage && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-slate-900/50 backdrop-blur-sm rounded-xl border border-slate-700/50">
                             <i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500 mb-3"></i>
-                            <span className="text-slate-300 text-sm font-medium animate-pulse">正在生成分享卡片...</span>
+                            <span className="text-slate-300 text-sm font-medium animate-pulse">{t.detail.generating_card}</span>
                         </div>
                     )}
                     
@@ -738,18 +736,18 @@ export default function DetailModal() {
                         disabled={!shareImageUrl}
                         className="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
                     >
-                        <i className="fa-solid fa-download"></i> 保存图片
+                        <i className="fa-solid fa-download"></i> {t.detail.save_image}
                     </button>
                     <button 
                         onClick={() => {
                             if (item) {
                                 const url = `${window.location.origin}/p/${item.id}`;
-                                copyToClipboard(url).then(() => alert('链接已复制'));
+                                copyToClipboard(url).then(() => alert(t.detail.link_copied));
                             }
                         }}
                         className="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm"
                     >
-                        <i className="fa-regular fa-copy"></i> 复制链接
+                        <i className="fa-regular fa-copy"></i> {t.detail.copy_link}
                     </button>
                 </div>
             </div>

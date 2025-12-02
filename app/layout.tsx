@@ -40,6 +40,7 @@ import WeChatGuard from '@/components/WeChatGuard';
 import StorageManager from '@/components/StorageManager';
 import { ModalProvider } from '@/context/ModalContext';
 import { ToastProvider } from '@/context/ToastContext';
+import { LanguageProvider } from '@/context/LanguageContext';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 
 export default function RootLayout({
@@ -54,30 +55,32 @@ export default function RootLayout({
         <link rel="icon" href="/logo.png" />
       </head>
       <body className={inter.className}>
-        <WeChatGuard />
         <StorageManager />
         <ServiceWorkerRegister />
-        <ToastProvider>
-          <ModalProvider>
-            <canvas id="fluid-canvas" className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 opacity-20"></canvas>
-            <CityBackground />
-            <Suspense fallback={<div className="h-16 bg-white/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-gray-100" />}>
-              <Navbar />
-            </Suspense>
-            <main className="min-h-screen">
-              {children}
-            </main>
-            <Footer />
-            <LoginModal />
-            <DetailModal />
-            <FeedbackModal />
-            <EditProfileModal />
-            <PaymentQRModal />
-            <PaymentModal />
-            <RewardModal />
-            <ManageOrdersModal />
-          </ModalProvider>
-        </ToastProvider>
+        <LanguageProvider>
+          <WeChatGuard />
+          <ToastProvider>
+            <ModalProvider>
+              <canvas id="fluid-canvas" className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 opacity-20"></canvas>
+              <CityBackground />
+              <Suspense fallback={<div className="h-16 bg-white/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-gray-100" />}>
+                <Navbar />
+              </Suspense>
+              <main className="min-h-screen">
+                {children}
+              </main>
+              <Footer />
+              <LoginModal />
+              <DetailModal />
+              <FeedbackModal />
+              <EditProfileModal />
+              <PaymentQRModal />
+              <PaymentModal />
+              <RewardModal />
+              <ManageOrdersModal />
+            </ModalProvider>
+          </ToastProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

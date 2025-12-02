@@ -3,9 +3,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function PaymentQRModal() {
   const { isPaymentQRModalOpen, closePaymentQRModal, openLoginModal } = useModal();
+  const { t } = useLanguage();
   const [qrUrl, setQrUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -66,7 +68,7 @@ export default function PaymentQRModal() {
 
     } catch (error: any) {
       console.error('Error uploading QR:', error);
-      alert('上传失败: ' + error.message);
+      alert(t.payment_qr_modal.upload_fail + error.message);
     } finally {
       setLoading(false);
     }
@@ -80,12 +82,12 @@ export default function PaymentQRModal() {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-slate-900 rounded-2xl border border-slate-700 p-8 shadow-2xl text-center">
         <h2 className="text-xl font-bold mb-2 text-white">
           <i className="fa-solid fa-qrcode text-brand-500 mr-2"></i>
-          收款码
+          {t.payment_qr_modal.title}
         </h2>
         <div className="text-sm text-slate-400 mb-6 space-y-1">
-            <p>上传您的微信/支付宝收款码，用于：</p>
-            <p className="text-slate-300">1. 接收付费源码的收益</p>
-            <p className="text-slate-300">2. 接受他人的打赏</p>
+            <p>{t.payment_qr_modal.desc_1}</p>
+            <p className="text-slate-300">{t.payment_qr_modal.desc_2}</p>
+            <p className="text-slate-300">{t.payment_qr_modal.desc_3}</p>
         </div>
         
         <div 
@@ -97,12 +99,12 @@ export default function PaymentQRModal() {
           ) : (
             <div className="text-slate-400 flex flex-col items-center">
               <i className="fa-solid fa-plus text-4xl mb-2"></i>
-              <span>点击上传</span>
+              <span>{t.payment_qr_modal.upload}</span>
             </div>
           )}
           
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
-            <span className="text-white font-bold">更换图片</span>
+            <span className="text-white font-bold">{t.payment_qr_modal.change}</span>
           </div>
         </div>
         
@@ -118,7 +120,7 @@ export default function PaymentQRModal() {
           onClick={closePaymentQRModal}
           className="mt-6 w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition"
         >
-          关闭
+          {t.payment_qr_modal.close}
         </button>
       </div>
     </div>

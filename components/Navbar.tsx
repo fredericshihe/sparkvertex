@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -16,11 +17,12 @@ export default function Navbar() {
   const searchParams = useSearchParams();
   const { openLoginModal, openFeedbackModal } = useModal();
   const { success } = useToast();
+  const { t, language, setLanguage } = useLanguage();
 
   useEffect(() => {
     // Check for email verification hash
     if (typeof window !== 'undefined' && window.location.hash && window.location.hash.includes('type=signup')) {
-      success('邮箱验证成功，已自动登录', 5000);
+      success(t.nav.email_verified_success, 5000);
     }
 
     const fetchUserAvatar = async (userId: string) => {
@@ -95,6 +97,10 @@ export default function Navbar() {
 
   const isActive = (path: string) => pathname === path ? 'bg-slate-700' : '';
 
+  const toggleLanguage = () => {
+    setLanguage(language === 'zh' ? 'en' : 'zh');
+  };
+
   return (
     <nav className="fixed w-full z-50 glass-panel border-b border-slate-700/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -112,28 +118,31 @@ export default function Navbar() {
                 />
               </div>
               <div className="flex items-center">
-                <span className="font-bold text-lg md:text-xl tracking-tight text-white">Spark<span className="text-brand-500">Vertex</span> 灵枢</span>
+                <span className="font-bold text-lg md:text-xl tracking-tight text-white">Spark<span className="text-brand-500">Vertex</span> {language === 'zh' && '灵枢'}</span>
               </div>
             </Link>
             <div className="hidden md:block">
               <div className="flex items-baseline space-x-4">
-                <Link href="/" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/')}`}>首页</Link>
-                <Link href="/why" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/why')}`}>核心理念</Link>
-                <Link href="/guide" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/guide')}`}>开发流程</Link>
-                <Link href="/explore" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/explore')}`}>灵枢广场</Link>
+                <Link href="/" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/')}`}>{t.nav.home}</Link>
+                <Link href="/why" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/why')}`}>{t.nav.why}</Link>
+                <Link href="/guide" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/guide')}`}>{t.nav.guide}</Link>
+                <Link href="/explore" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/explore')}`}>{t.nav.explore}</Link>
                 <Link href="/create" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white flex items-center gap-2 ${isActive('/create')}`}>
-                  <i className="fa-solid fa-wand-magic-sparkles text-brand-400"></i> 开始创造
+                  <i className="fa-solid fa-wand-magic-sparkles text-brand-400"></i> {t.nav.create}
                 </Link>
               </div>
             </div>
           </div>
           <div className="hidden md:flex items-center ml-4 gap-4">
-            <button onClick={openFeedbackModal} className="text-slate-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition flex items-center gap-2" title="问题反馈">
+            <button onClick={toggleLanguage} className="text-slate-300 hover:text-white px-2 py-1 rounded-md text-xs font-bold border border-slate-600 hover:bg-slate-700 transition">
+              {language === 'zh' ? 'EN' : '中'}
+            </button>
+            <button onClick={openFeedbackModal} className="text-slate-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition flex items-center gap-2" title={t.nav.feedback}>
               <i className="fa-solid fa-comment-dots"></i>
-              <span>反馈</span>
+              <span>{t.nav.feedback}</span>
             </button>
             <Link href="/upload" className="bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 rounded-full text-sm font-medium transition shadow-lg shadow-brand-500/30">
-              <i className="fa-solid fa-cloud-arrow-up mr-2"></i>上传作品
+              <i className="fa-solid fa-cloud-arrow-up mr-2"></i>{t.nav.upload}
             </Link>
             <div id="nav-auth-container">
               {user ? (
@@ -152,11 +161,14 @@ export default function Navbar() {
                    )}
                 </Link>
               ) : (
-                <button onClick={openLoginModal} className="text-slate-300 hover:text-white font-medium text-sm transition">登录</button>
+                <button onClick={openLoginModal} className="text-slate-300 hover:text-white font-medium text-sm transition">{t.nav.login}</button>
               )}
             </div>
           </div>
-          <div className="md:hidden flex items-center">
+          <div className="md:hidden flex items-center gap-4">
+            <button onClick={toggleLanguage} className="text-slate-300 hover:text-white px-2 py-1 rounded-md text-xs font-bold border border-slate-600 hover:bg-slate-700 transition">
+              {language === 'zh' ? 'EN' : '中'}
+            </button>
             <button onClick={toggleMobileMenu} className="text-gray-300 hover:text-white p-2"><i className="fa-solid fa-bars text-xl"></i></button>
           </div>
         </div>
@@ -171,18 +183,18 @@ export default function Navbar() {
             onClick={e => e.stopPropagation()}
           >
             <div className="px-4 pt-2 pb-4 space-y-1">
-              <Link href="/" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-home w-6 text-center"></i> 首页</Link>
-              <Link href="/why" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-book w-6 text-center"></i> 核心理念</Link>
-              <Link href="/guide" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-wand-magic-sparkles w-6 text-center"></i> 开发流程</Link>
-              <Link href="/explore" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-lightbulb w-6 text-center"></i> 灵枢广场</Link>
-              <Link href="/create" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-wand-magic-sparkles w-6 text-center"></i> 开始创造</Link>
-              <button onClick={() => { toggleMobileMenu(); openFeedbackModal(); }} className="block w-full text-left px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-comment-dots w-6 text-center"></i> 问题反馈</button>
-              <Link href="/upload" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-brand-400 hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-cloud-arrow-up w-6 text-center"></i> 上传作品</Link>
+              <Link href="/" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-home w-6 text-center"></i> {t.nav.home}</Link>
+              <Link href="/why" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-book w-6 text-center"></i> {t.nav.why}</Link>
+              <Link href="/guide" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-wand-magic-sparkles w-6 text-center"></i> {t.nav.guide}</Link>
+              <Link href="/explore" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-lightbulb w-6 text-center"></i> {t.nav.explore}</Link>
+              <Link href="/create" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-wand-magic-sparkles w-6 text-center"></i> {t.nav.create}</Link>
+              <button onClick={() => { toggleMobileMenu(); openFeedbackModal(); }} className="block w-full text-left px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-comment-dots w-6 text-center"></i> {t.nav.feedback}</button>
+              <Link href="/upload" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-brand-400 hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-cloud-arrow-up w-6 text-center"></i> {t.nav.upload}</Link>
               <div className="border-t border-slate-800 my-2 pt-2">
                 {user ? (
-                   <Link href="/profile" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-user w-6 text-center"></i> 个人中心</Link>
+                   <Link href="/profile" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-user w-6 text-center"></i> {t.nav.profile}</Link>
                 ) : (
-                   <button onClick={() => { toggleMobileMenu(); openLoginModal(); }} className="w-full text-left px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-user w-6 text-center"></i> 登录 / 注册</button>
+                   <button onClick={() => { toggleMobileMenu(); openLoginModal(); }} className="w-full text-left px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-user w-6 text-center"></i> {t.nav.login_register}</button>
                 )}
               </div>
             </div>

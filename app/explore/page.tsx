@@ -7,46 +7,95 @@ import ProjectCard from '@/components/ProjectCard';
 import { useModal } from '@/context/ModalContext';
 import { exploreCache } from '@/lib/cache';
 import { getPreviewContent } from '@/lib/preview';
+import { useLanguage } from '@/context/LanguageContext';
+import { translations } from '@/lib/i18n/translations';
 
-const KNOWN_CATEGORIES: Record<string, { label: string, icon: string }> = {
+const KNOWN_CATEGORIES: Record<string, { key: string, icon: string }> = {
   // Core Categories (English keys)
-  game: { label: '游戏娱乐', icon: 'fa-gamepad' },
-  tool: { label: '实用工具', icon: 'fa-screwdriver-wrench' },
-  productivity: { label: '生产力', icon: 'fa-list-check' },
-  social: { label: '社交互动', icon: 'fa-comments' },
-  info: { label: '信息资讯', icon: 'fa-newspaper' },
-  education: { label: '教育学习', icon: 'fa-graduation-cap' },
+  game: { key: 'game', icon: 'fa-gamepad' },
+  tool: { key: 'tool', icon: 'fa-screwdriver-wrench' },
+  productivity: { key: 'productivity', icon: 'fa-list-check' },
+  design: { key: 'design', icon: 'fa-palette' },
+  devtool: { key: 'devtool', icon: 'fa-code' },
+  entertainment: { key: 'entertainment', icon: 'fa-film' },
+  education: { key: 'education', icon: 'fa-graduation-cap' },
+  visualization: { key: 'visualization', icon: 'fa-chart-pie' },
+  lifestyle: { key: 'lifestyle', icon: 'fa-mug-hot' },
   
-  // Chinese mappings (Direct match)
-  '游戏': { label: '游戏娱乐', icon: 'fa-gamepad' },
-  '游戏娱乐': { label: '游戏娱乐', icon: 'fa-gamepad' },
-  '休闲游戏': { label: '游戏娱乐', icon: 'fa-gamepad' },
+  // Chinese mappings
+  // 休闲游戏
+  '游戏': { key: 'game', icon: 'fa-gamepad' },
+  '游戏娱乐': { key: 'game', icon: 'fa-gamepad' },
+  '休闲游戏': { key: 'game', icon: 'fa-gamepad' },
+  '益智游戏': { key: 'game', icon: 'fa-gamepad' },
+  'Game': { key: 'game', icon: 'fa-gamepad' },
   
-  '工具': { label: '实用工具', icon: 'fa-screwdriver-wrench' },
-  '实用工具': { label: '实用工具', icon: 'fa-screwdriver-wrench' },
-  'Tiny Tools': { label: '实用工具', icon: 'fa-screwdriver-wrench' },
+  // 创意设计
+  '创意': { key: 'design', icon: 'fa-palette' },
+  '创意设计': { key: 'design', icon: 'fa-palette' },
+  '设计': { key: 'design', icon: 'fa-palette' },
+  '艺术': { key: 'design', icon: 'fa-palette' },
+  'Eye Candy': { key: 'design', icon: 'fa-palette' },
+  'Design': { key: 'design', icon: 'fa-palette' },
   
-  '生产力': { label: '生产力', icon: 'fa-list-check' },
-  '办公效率': { label: '生产力', icon: 'fa-list-check' },
+  // 办公效率
+  '生产力': { key: 'productivity', icon: 'fa-list-check' },
+  '办公效率': { key: 'productivity', icon: 'fa-list-check' },
+  '效率': { key: 'productivity', icon: 'fa-list-check' },
+  '办公': { key: 'productivity', icon: 'fa-list-check' },
+  'Productivity': { key: 'productivity', icon: 'fa-list-check' },
   
-  '社交': { label: '社交互动', icon: 'fa-comments' },
-  '社交互动': { label: '社交互动', icon: 'fa-comments' },
+  // 实用工具
+  '工具': { key: 'tool', icon: 'fa-screwdriver-wrench' },
+  '实用工具': { key: 'tool', icon: 'fa-screwdriver-wrench' },
+  'Tiny Tools': { key: 'tool', icon: 'fa-screwdriver-wrench' },
+  '计算器': { key: 'tool', icon: 'fa-screwdriver-wrench' },
+  'Tool': { key: 'tool', icon: 'fa-screwdriver-wrench' },
   
-  '资讯': { label: '信息资讯', icon: 'fa-newspaper' },
-  '信息资讯': { label: '信息资讯', icon: 'fa-newspaper' },
+  // 开发者工具
+  '开发者工具': { key: 'devtool', icon: 'fa-code' },
+  '开发': { key: 'devtool', icon: 'fa-code' },
+  '编程': { key: 'devtool', icon: 'fa-code' },
+  '代码': { key: 'devtool', icon: 'fa-code' },
+  'DevTool': { key: 'devtool', icon: 'fa-code' },
+  'Developer': { key: 'devtool', icon: 'fa-code' },
   
-  '教育': { label: '教育学习', icon: 'fa-graduation-cap' },
-  '教育学习': { label: '教育学习', icon: 'fa-graduation-cap' },
+  // 影音娱乐
+  '影音娱乐': { key: 'entertainment', icon: 'fa-film' },
+  '娱乐': { key: 'entertainment', icon: 'fa-film' },
+  '音乐': { key: 'entertainment', icon: 'fa-music' },
+  '视频': { key: 'entertainment', icon: 'fa-video' },
+  '影视': { key: 'entertainment', icon: 'fa-film' },
+  'Entertainment': { key: 'entertainment', icon: 'fa-film' },
   
-  '生活': { label: '生活便利', icon: 'fa-mug-hot' },
-  '生活便利': { label: '生活便利', icon: 'fa-mug-hot' },
+  // 教育学习
+  '教育': { key: 'education', icon: 'fa-graduation-cap' },
+  '教育学习': { key: 'education', icon: 'fa-graduation-cap' },
+  '学习': { key: 'education', icon: 'fa-graduation-cap' },
+  '知识': { key: 'education', icon: 'fa-graduation-cap' },
+  'Education': { key: 'education', icon: 'fa-graduation-cap' },
   
-  '创意': { label: '创意设计', icon: 'fa-palette' },
-  '创意设计': { label: '创意设计', icon: 'fa-palette' },
-  'Eye Candy': { label: '创意设计', icon: 'fa-palette' },
+  // 数据可视化
+  '数据可视化': { key: 'visualization', icon: 'fa-chart-pie' },
+  '图表': { key: 'visualization', icon: 'fa-chart-pie' },
+  '数据': { key: 'visualization', icon: 'fa-chart-pie' },
+  'Visualization': { key: 'visualization', icon: 'fa-chart-pie' },
   
-  'AI': { label: 'AI应用', icon: 'fa-robot' },
-  'AI应用': { label: 'AI应用', icon: 'fa-robot' },
+  // 生活便利
+  '生活': { key: 'lifestyle', icon: 'fa-mug-hot' },
+  '生活便利': { key: 'lifestyle', icon: 'fa-mug-hot' },
+  '日常': { key: 'lifestyle', icon: 'fa-mug-hot' },
+  '健康': { key: 'lifestyle', icon: 'fa-heart-pulse' },
+  'Lifestyle': { key: 'lifestyle', icon: 'fa-mug-hot' },
+  
+  // AI (Map to Tool or keep separate? User didn't specify AI, but it's common. Let's map to Tool or DevTool or keep separate if not in list. 
+  // User said "Unify into...". So I should probably map AI to something else or just let it be if it doesn't match.
+  // But wait, if I don't map it, it might show up as "AI" if I don't filter it out.
+  // The logic in fetchCategories filters out ignored tags, then checks KNOWN_CATEGORIES.
+  // If not known, it adds it as is.
+  // I'll map AI to 'tool' or 'devtool' depending on context, but here simple mapping:
+  'AI': { key: 'tool', icon: 'fa-robot' },
+  'AI应用': { key: 'tool', icon: 'fa-robot' },
 };
 
 const IGNORED_TAGS = new Set([
@@ -63,7 +112,7 @@ const IGNORED_TAGS = new Set([
 
 export default function Explore() {
   const [items, setItems] = useState<Item[]>(exploreCache.items);
-  const [categories, setCategories] = useState(exploreCache.categories?.length > 0 ? exploreCache.categories : [{ id: 'all', label: '发现', icon: 'fa-compass' }]);
+  const [categories, setCategories] = useState(exploreCache.categories?.length > 0 ? exploreCache.categories : [{ id: 'all', label: '发现', translationKey: 'discover', icon: 'fa-compass' }]);
   const [loading, setLoading] = useState(!exploreCache.hasLoaded);
   const [myLikes, setMyLikes] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(exploreCache.page);
@@ -71,6 +120,8 @@ export default function Explore() {
   const [category, setCategory] = useState(exploreCache.category || 'all');
   const [featuredItem, setFeaturedItem] = useState<Item | null>(null);
   const { openLoginModal, openDetailModal } = useModal();
+  const { language } = useLanguage();
+  const t = translations[language];
   const ITEMS_PER_PAGE = 12;
 
   useEffect(() => {
@@ -98,47 +149,44 @@ export default function Explore() {
       return;
     }
 
-    const tagCounts: Record<string, number> = {};
+    // Initialize counts for core categories
+    const CORE_KEYS = ['game', 'design', 'productivity', 'tool', 'devtool', 'entertainment', 'education', 'visualization', 'lifestyle'];
+    const categoryCounts: Record<string, number> = {};
+    CORE_KEYS.forEach(k => categoryCounts[k] = 0);
+
     data.forEach(item => {
       if (Array.isArray(item.tags)) {
-        item.tags.forEach((tag: string) => {
-          if (tag) {
-            const normalizedTag = tag.trim();
-            tagCounts[normalizedTag] = (tagCounts[normalizedTag] || 0) + 1;
+        // Rule: Only identify the first Chinese tag
+        const firstChineseTag = item.tags.find((tag: string) => tag && /[\u4e00-\u9fa5]/.test(tag));
+        
+        if (firstChineseTag) {
+          const normalizedTag = firstChineseTag.trim();
+          // Map to Core Key
+          const mapping = KNOWN_CATEGORIES[normalizedTag] || KNOWN_CATEGORIES[normalizedTag.toLowerCase()];
+          if (mapping) {
+             categoryCounts[mapping.key] = (categoryCounts[mapping.key] || 0) + 1;
           }
-        });
+        }
       }
     });
 
-    // Map tags to known categories or create new ones
-    const categoryMap = new Map<string, { id: string, label: string, icon: string, count: number }>();
-
-    Object.entries(tagCounts).forEach(([tag, count]) => {
-      // 1. Filter out ignored tags
-      if (IGNORED_TAGS.has(tag.toLowerCase())) return;
-
-      // 2. Only allow tags with Chinese characters (Match Detail Page logic)
-      if (!/[\u4e00-\u9fa5]/.test(tag)) return;
-
-      // 3. Use tag directly as label, try to find icon
-      const known = KNOWN_CATEGORIES[tag] || KNOWN_CATEGORIES[tag.toLowerCase()];
-      const icon = known ? known.icon : 'fa-hashtag';
-      
-      categoryMap.set(tag, {
-        id: tag,
-        label: tag,
-        icon,
-        count
-      });
+    // Build the categories array for UI
+    const dynamicCategories = CORE_KEYS.map(key => {
+       const def = KNOWN_CATEGORIES[key]; 
+       return {
+         id: key,
+         label: key,
+         translationKey: key,
+         icon: def ? def.icon : 'fa-folder',
+         count: categoryCounts[key] || 0
+       };
     });
-
-    const dynamicCategories = Array.from(categoryMap.values());
 
     // Sort by count
     dynamicCategories.sort((a, b) => b.count - a.count);
 
     const finalCategories = [
-      { id: 'all', label: '发现', icon: 'fa-compass', count: data.length },
+      { id: 'all', label: '发现', translationKey: 'discover', icon: 'fa-compass', count: data.length },
       ...dynamicCategories
     ];
 
@@ -211,7 +259,17 @@ export default function Explore() {
       .range(pageIndex * ITEMS_PER_PAGE, (pageIndex + 1) * ITEMS_PER_PAGE - 1);
 
     if (category !== 'all') {
-      query = query.overlaps('tags', [category]);
+      // Expand category key to all tags that map to it
+      const tagsToSearch = Object.entries(KNOWN_CATEGORIES)
+        .filter(([tag, def]) => def.key === category)
+        .map(([tag]) => tag);
+      
+      // Also include the category key itself
+      if (!tagsToSearch.includes(category)) {
+        tagsToSearch.push(category);
+      }
+
+      query = query.overlaps('tags', tagsToSearch);
     }
 
     if (searchQuery) {
@@ -289,13 +347,21 @@ export default function Explore() {
     fetchItems(nextPage, true);
   };
 
+  const getCategoryLabel = (cat: any) => {
+    if (cat.translationKey === 'discover') return t.explore.discover;
+    if (cat.translationKey && (t.categories as any)[cat.translationKey]) {
+      return (t.categories as any)[cat.translationKey];
+    }
+    return cat.label;
+  };
+
   return (
     <div className="flex h-screen pt-16 bg-slate-950 overflow-hidden">
       {/* Sidebar Navigation */}
       <aside className="w-64 flex-shrink-0 border-r border-slate-800 bg-slate-900/50 backdrop-blur-xl hidden md:flex flex-col">
         <div className="p-6">
           <h2 className="text-xl font-bold text-white flex items-center gap-2 px-2">
-            <i className="fa-solid fa-store text-brand-500"></i> 灵枢广场
+            <i className="fa-solid fa-store text-brand-500"></i> {t.explore.title}
           </h2>
         </div>
         
@@ -316,7 +382,7 @@ export default function Explore() {
                 }`}>
                   <i className={`fa-solid ${cat.icon}`}></i>
                 </div>
-                {cat.label}
+                {getCategoryLabel(cat)}
               </div>
               {(cat as any).count > 0 && (
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
@@ -332,14 +398,11 @@ export default function Explore() {
         <div className="p-4 border-t border-slate-800">
           <div className="bg-gradient-to-br from-purple-900/50 to-brand-900/50 rounded-xl p-4 border border-white/5 shadow-lg">
             <h3 className="text-white font-bold text-sm mb-2 flex items-center gap-2">
-              <i className="fa-solid fa-code-branch text-brand-400"></i> 开发者中心
+              <i className="fa-solid fa-code-branch text-brand-400"></i> {t.explore.dev_center}
             </h3>
-            <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-              仅需 <span className="text-brand-400 font-bold text-sm">5分钟</span>，<br/>
-              人人都能开发自己的应用。
-            </p>
+            <p className="text-xs text-slate-300 mb-4 leading-relaxed" dangerouslySetInnerHTML={{ __html: t.explore.dev_desc }} />
             <a href="/create" className="block w-full py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold text-center rounded-lg transition shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2">
-              <i className="fa-solid fa-wand-magic-sparkles"></i> 开始创作
+              <i className="fa-solid fa-wand-magic-sparkles"></i> {t.explore.start_create}
             </a>
           </div>
         </div>
@@ -359,7 +422,7 @@ export default function Explore() {
                   : 'bg-slate-900 border-slate-700 text-slate-400'
               }`}
             >
-              {cat.label}
+              {getCategoryLabel(cat)}
               {(cat as any).count > 0 && <span className="opacity-60">{(cat as any).count}</span>}
             </button>
           ))}
@@ -371,10 +434,12 @@ export default function Explore() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
             <div>
               <h1 className="text-3xl font-bold text-white mb-2">
-                {categories.find(c => c.id === category)?.label || '发现'}
+                {getCategoryLabel(categories.find(c => c.id === category) || categories[0])}
               </h1>
               <p className="text-slate-400 text-sm">
-                {category === 'all' ? '探索全网最热门的微应用' : `浏览 ${categories.find(c => c.id === category)?.label} 相关的应用`}
+                {category === 'all' 
+                  ? t.explore.explore_all_desc 
+                  : t.explore.browse_category.replace('{category}', getCategoryLabel(categories.find(c => c.id === category) || categories[0]))}
               </p>
             </div>
             
@@ -385,7 +450,7 @@ export default function Explore() {
               <input
                 type="text"
                 className="block w-full pl-10 pr-3 py-2.5 border border-slate-700 rounded-xl leading-5 bg-slate-900 text-slate-300 placeholder-slate-500 focus:outline-none focus:bg-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 sm:text-sm transition-all shadow-sm"
-                placeholder="搜索应用..."
+                placeholder={t.explore.search_placeholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -402,7 +467,7 @@ export default function Explore() {
               <div className="relative z-10 p-8 md:p-12 flex flex-col md:flex-row items-center gap-8">
                 <div className="flex-1 text-center md:text-left">
                   <span className="inline-block px-3 py-1 rounded-full bg-brand-500/20 text-brand-300 text-xs font-bold mb-4 border border-brand-500/30">
-                    🚀 本日精选
+                    🚀 {t.explore.featured_today}
                   </span>
                   <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 leading-tight line-clamp-2">
                     {featuredItem.title}
@@ -412,10 +477,10 @@ export default function Explore() {
                   </p>
                   <div className="flex flex-wrap gap-4 justify-center md:justify-start">
                     <button onClick={() => openDetailModal(featuredItem.id, featuredItem)} className="px-6 py-3 bg-white text-slate-900 rounded-xl font-bold hover:bg-slate-100 transition shadow-lg shadow-white/10 flex items-center gap-2">
-                      <i className="fa-solid fa-play"></i> 立即体验
+                      <i className="fa-solid fa-play"></i> {t.explore.try_now}
                     </button>
                     <a href="/create" className="px-6 py-3 bg-brand-600 text-white rounded-xl font-bold hover:bg-brand-500 transition shadow-lg shadow-brand-500/20">
-                      我也要创作
+                      {t.explore.create_too}
                     </a>
                   </div>
                 </div>
@@ -440,8 +505,8 @@ export default function Explore() {
               <div className="w-24 h-24 bg-slate-900 rounded-full flex items-center justify-center mb-6 border border-slate-800">
                 <i className="fa-solid fa-box-open text-4xl opacity-50"></i>
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">暂无相关应用</h3>
-              <p>换个关键词搜索，或者去创建一个吧！</p>
+              <h3 className="text-lg font-bold text-white mb-2">{t.explore.no_apps}</h3>
+              <p>{t.explore.no_apps_desc}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -469,7 +534,7 @@ export default function Explore() {
                 onClick={loadMore}
                 className="px-8 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl font-bold transition border border-slate-800 hover:border-slate-700 flex items-center gap-2"
               >
-                加载更多 <i className="fa-solid fa-chevron-down text-xs"></i>
+                {t.explore.load_more} <i className="fa-solid fa-chevron-down text-xs"></i>
               </button>
             </div>
           )}

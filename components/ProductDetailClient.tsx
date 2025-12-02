@@ -12,6 +12,8 @@ import { getPreviewContent } from '@/lib/preview';
 import AddToHomeScreenGuide from '@/components/AddToHomeScreenGuide';
 import { saveToHistory } from '@/lib/db';
 import { copyToClipboard } from '@/lib/utils';
+import { useLanguage } from '@/context/LanguageContext';
+import { translations } from '@/lib/i18n/translations';
 
 interface ProductDetailClientProps {
   initialItem: Item;
@@ -30,6 +32,8 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   const [showCopiedTip, setShowCopiedTip] = useState(false);
   const { openLoginModal, openPaymentModal, openRewardModal } = useModal();
   const { success } = useToast();
+  const { language } = useLanguage();
+  const t = translations[language];
   
   // View Mode: 'detail' (default) or 'app' (immersive)
   const [viewMode, setViewMode] = useState<'detail' | 'app'>(initialMode === 'app' ? 'app' : 'detail');
@@ -365,11 +369,11 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                 </div>
                 
                 <div className="flex-grow min-w-0 flex flex-col">
-                    <div className="font-bold text-white text-base">添加到主屏幕</div>
+                    <div className="font-bold text-white text-base">{t.detail.add_to_home}</div>
                     <div className="text-xs text-slate-400 flex items-center flex-wrap gap-1 mt-1">
-                        <span>点击底部</span>
+                        <span>{t.detail.click_bottom}</span>
                         <span className="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700"><i className="fa-solid fa-arrow-up-from-bracket text-[10px]"></i></span>
-                        <span>选择"添加到主屏幕"</span>
+                        <span>{t.detail.select_add_home}</span>
                     </div>
                 </div>
 
@@ -458,7 +462,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                   onClick={handleReward}
                   className="text-xs bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1.5 rounded-full font-bold transition shadow-lg shadow-orange-500/20 flex items-center gap-1 hover:from-yellow-600 hover:to-orange-600"
                 >
-                  <i className="fa-solid fa-gift"></i> 赏
+                  <i className="fa-solid fa-gift"></i> {t.detail.reward}
                 </button>
                 <button 
                   onClick={handleShare}
@@ -466,11 +470,11 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                 >
                   {showCopiedTip ? (
                     <>
-                      <i className="fa-solid fa-check"></i> 已复制
+                      <i className="fa-solid fa-check"></i> {t.detail.copied}
                     </>
                   ) : (
                     <>
-                      <i className="fa-solid fa-share-nodes"></i> 分享
+                      <i className="fa-solid fa-share-nodes"></i> {t.detail.share}
                     </>
                   )}
                 </button>
@@ -499,7 +503,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
             
             {/* Description */}
             <div className="mb-8">
-              <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">关于作品</h3>
+              <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.about}</h3>
               <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
                 {item.description}
               </p>
@@ -508,25 +512,25 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
             {/* Prompt */}
             <div className="mb-8">
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider flex items-center justify-between">
-                <span>Prompt (提示词)</span>
-                <button onClick={() => {copyToClipboard(item.prompt || '').then(() => alert('已复制'));}} className="text-brand-400 hover:text-brand-300 text-[10px] flex items-center gap-1 transition">
-                  <i className="fa-regular fa-copy"></i> 复制
+                <span>{t.detail.prompt}</span>
+                <button onClick={() => {copyToClipboard(item.prompt || '').then(() => alert(t.detail.copied));}} className="text-brand-400 hover:text-brand-300 text-[10px] flex items-center gap-1 transition">
+                  <i className="fa-regular fa-copy"></i> {t.detail.copy}
                 </button>
               </h3>
               <div className="bg-slate-950 rounded-lg p-4 border border-slate-800 relative group max-h-60 overflow-y-auto custom-scrollbar">
-                <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap break-words">{item.prompt || '暂无 Prompt'}</pre>
+                <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap break-words">{item.prompt || t.detail.no_prompt}</pre>
               </div>
             </div>
 
             {/* Tags */}
             <div className="mb-8">
-              <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">类型</h3>
+              <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.category}</h3>
               <div className="flex flex-wrap gap-2 mb-4">
                 {item.tags?.filter(tag => /[\u4e00-\u9fa5]/.test(tag)).map(tag => (
                   <span key={tag} className="bg-slate-800 text-blue-300 px-2 py-1 rounded text-xs border border-blue-700">{tag}</span>
                 ))}
               </div>
-              <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">技术栈</h3>
+              <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.tech_stack}</h3>
               <div className="flex flex-wrap gap-2">
                 {item.tags?.filter(tag => !(/[\u4e00-\u9fa5]/.test(tag))).map(tag => (
                   <span key={tag} className="bg-slate-800 text-slate-400 px-2 py-1 rounded text-xs border border-slate-700">{tag}</span>
@@ -538,8 +542,8 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
           {/* Bottom Action Bar */}
           <div className="p-6 border-t border-slate-800 bg-slate-900/95 backdrop-blur relative">
             <div className="absolute -top-5 right-6 bg-slate-900 border border-slate-700 px-4 py-1 rounded-full shadow-lg flex items-center gap-2">
-              <span className="text-xs text-slate-400">价格</span>
-              <span className="font-bold text-lg text-white">{item.price && item.price > 0 ? `¥${item.price}` : '免费'}</span>
+              <span className="text-xs text-slate-400">{t.detail.price}</span>
+              <span className="font-bold text-lg text-white">{item.price && item.price > 0 ? `¥${item.price}` : t.detail.free}</span>
             </div>
 
             <div className="flex gap-3 mt-2">
@@ -554,13 +558,13 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                 className="flex-grow bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white h-12 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition flex items-center justify-center gap-2 group"
               >
                 <i className="fa-solid fa-play group-hover:scale-110 transition-transform"></i>
-                <span>体验 APP</span>
+                <span>{t.detail.launch_app}</span>
               </button>
               <button 
                 onClick={handleDownload}
                 className="flex-grow bg-slate-800 hover:bg-slate-700 text-white h-12 rounded-xl font-bold transition flex items-center justify-center gap-2 group border border-slate-700"
               >
-                <span>下载源码</span>
+                <span>{t.detail.download_source}</span>
                 <i className="fa-solid fa-download group-hover:translate-y-1 transition-transform text-slate-400 group-hover:text-white"></i>
               </button>
             </div>
@@ -575,7 +579,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
             
             <div className="relative z-10 bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full flex flex-col items-center animate-float-up shadow-2xl">
                 <div className="flex justify-between items-center w-full mb-4">
-                    <h3 className="text-lg font-bold text-white">分享</h3>
+                    <h3 className="text-lg font-bold text-white">{t.detail.share_modal_title}</h3>
                     <button onClick={closeShareModal} className="text-slate-400 hover:text-white transition">
                         <i className="fa-solid fa-xmark text-xl"></i>
                     </button>
@@ -584,11 +588,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                 {isLocalhost && (
                     <div className="w-full mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-200 text-xs flex items-start gap-2">
                         <i className="fa-solid fa-triangle-exclamation mt-0.5"></i>
-                        <span>
-                            检测到 localhost 环境。手机扫码可能无法访问。
-                            <br/>
-                            请使用本机局域网 IP (如 192.168.x.x:3000) 访问网页后再点击分享。
-                        </span>
+                        <span dangerouslySetInnerHTML={{ __html: t.detail.localhost_warning }} />
                     </div>
                 )}
                 
@@ -614,7 +614,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                                     alt="Logo" 
                                     crossOrigin="anonymous"
                                 />
-                                <span className="font-bold text-xl tracking-tight text-white ml-3">Spark<span className="text-brand-500">Vertex</span> 灵枢</span>
+                                <span className="font-bold text-xl tracking-tight text-white ml-3">Spark<span className="text-brand-500">Vertex</span> {language === 'zh' && '灵枢'}</span>
                             </div>
 
                             {/* App Icon - Centered & Elegant */}
@@ -644,7 +644,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                                     </h1>
                                 </div>
                                 <div className="flex items-center justify-center w-full">
-                                    <span className="text-xs font-medium text-slate-400">开发者：{item?.author}</span>
+                                    <span className="text-xs font-medium text-slate-400">{t.detail.developer}{item?.author}</span>
                                 </div>
                             </div>
 
@@ -661,8 +661,8 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                                             fgColor="#000000"
                                         />
                                     </div>
-                                    <span className="text-xs font-bold text-white mb-0.5">产品详情</span>
-                                    <span className="text-[10px] text-slate-500 scale-90">查看介绍与评价</span>
+                                    <span className="text-xs font-bold text-white mb-0.5">{t.detail.product_details}</span>
+                                    <span className="text-[10px] text-slate-500 scale-90">{t.detail.view_intro}</span>
                                 </div>
 
                                 {/* App QR */}
@@ -684,8 +684,8 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                                             }}
                                         />
                                     </div>
-                                    <span className="text-xs font-bold text-brand-300 mb-0.5">全屏体验</span>
-                                    <span className="text-[10px] text-brand-500/60 scale-90">添加到主屏幕</span>
+                                    <span className="text-xs font-bold text-brand-300 mb-0.5">{t.detail.full_screen}</span>
+                                    <span className="text-[10px] text-brand-500/60 scale-90">{t.detail.add_to_home}</span>
                                 </div>
                             </div>
                         </div>
@@ -697,7 +697,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                     {generatingImage && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-slate-900/50 backdrop-blur-sm rounded-xl border border-slate-700/50">
                             <i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500 mb-3"></i>
-                            <span className="text-slate-300 text-sm font-medium animate-pulse">正在生成分享卡片...</span>
+                            <span className="text-slate-300 text-sm font-medium animate-pulse">{t.detail.generating_card}</span>
                         </div>
                     )}
                     
@@ -720,16 +720,16 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                         disabled={!shareImageUrl}
                         className="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
                     >
-                        <i className="fa-solid fa-download"></i> 保存图片
+                        <i className="fa-solid fa-download"></i> {t.detail.save_image}
                     </button>
                     <button 
                         onClick={() => {
                             const url = `${window.location.origin}/p/${item.id}`;
-                            copyToClipboard(url).then(() => alert('链接已复制'));
+                            copyToClipboard(url).then(() => alert(t.detail.link_copied));
                         }}
                         className="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm"
                     >
-                        <i className="fa-regular fa-copy"></i> 复制链接
+                        <i className="fa-regular fa-copy"></i> {t.detail.copy_link}
                     </button>
                 </div>
             </div>
@@ -744,7 +744,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
         <button 
           onClick={exitAppMode}
           className="fixed top-4 left-4 z-[60] w-10 h-10 bg-black/50 backdrop-blur-md rounded-full text-white flex items-center justify-center hover:bg-black/70 transition border border-white/10 group"
-          title="返回详情"
+          title={t.detail.back_to_detail}
         >
           <i className="fa-solid fa-chevron-left group-hover:-translate-x-0.5 transition-transform"></i>
         </button>

@@ -5,12 +5,14 @@ import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { exploreCache } from '@/lib/cache';
 import ProjectCard from '@/components/ProjectCard';
+import { useLanguage } from '@/context/LanguageContext';
 
 import { useRouter } from 'next/navigation';
 
 export default function Profile() {
   const router = useRouter();
   const { openLoginModal, openDetailModal, openEditProfileModal, openPaymentQRModal, openManageOrdersModal } = useModal();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'works' | 'purchased' | 'favorites'>('works');
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -207,7 +209,7 @@ export default function Profile() {
   };
 
   const handleDeleteItem = async (id: string) => {
-    if (!confirm('确定要删除这个作品吗？此操作无法撤销。')) return;
+    if (!confirm(t.profile.delete_confirm)) return;
 
     try {
       // Delete the item (Database cascade will handle orders and likes)
@@ -226,7 +228,7 @@ export default function Profile() {
       exploreCache.removeItem(id);
     } catch (error) {
       console.error('Error deleting item:', error);
-      alert('删除失败，请重试');
+      alert(t.profile.delete_failed);
     }
   };
 
@@ -258,26 +260,26 @@ export default function Profile() {
           </div>
           <div className="flex-grow mb-2 w-full md:w-auto">
             <h1 className="text-3xl font-bold text-white mb-1">{profile?.username || user?.email?.split('@')[0] || 'Loading...'}</h1>
-            <p className="text-slate-400 text-sm max-w-xl mx-auto md:mx-0">{profile?.bio || '这个家伙很懒，什么都没写'}</p>
+            <p className="text-slate-400 text-sm max-w-xl mx-auto md:mx-0">{profile?.bio || t.profile.default_bio}</p>
           </div>
           <div className="flex flex-wrap justify-center md:justify-end gap-3 mb-4 w-full md:w-auto">
             <button 
               onClick={openEditProfileModal}
               className="px-4 py-2 rounded-lg glass-panel border border-slate-600 hover:bg-slate-800 transition text-sm font-bold"
             >
-              <i className="fa-solid fa-pen-to-square mr-2"></i>编辑资料
+              <i className="fa-solid fa-pen-to-square mr-2"></i>{t.profile.edit_profile}
             </button>
             <button 
               onClick={openPaymentQRModal}
               className="px-4 py-2 rounded-lg glass-panel border border-slate-600 hover:bg-slate-800 transition text-sm font-bold"
             >
-              <i className="fa-solid fa-qrcode mr-2"></i>收款码
+              <i className="fa-solid fa-qrcode mr-2"></i>{t.profile.payment_qr}
             </button>
             <button 
               onClick={openManageOrdersModal}
               className="relative px-4 py-2 rounded-lg glass-panel border border-slate-600 hover:bg-slate-800 transition text-sm font-bold"
             >
-              <i className="fa-solid fa-list-check mr-2"></i>订单管理
+              <i className="fa-solid fa-list-check mr-2"></i>{t.profile.manage_orders}
               {pendingOrdersCount > 0 && (
                 <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center font-bold border-2 border-slate-900 animate-bounce">
                   {pendingOrdersCount}
@@ -288,7 +290,7 @@ export default function Profile() {
               onClick={handleLogout}
               className="px-4 py-2 rounded-lg glass-panel border border-slate-600 hover:bg-rose-900/30 hover:text-rose-400 hover:border-rose-500/50 transition text-sm font-bold"
             >
-              <i className="fa-solid fa-right-from-bracket mr-2"></i>退出
+              <i className="fa-solid fa-right-from-bracket mr-2"></i>{t.profile.logout}
             </button>
           </div>
         </div>
@@ -302,7 +304,7 @@ export default function Profile() {
               <i className="fa-solid fa-coins"></i>
             </div>
             <div>
-              <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">当前积分</div>
+              <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">{t.profile.credits}</div>
               <div className="flex items-baseline gap-2">
                 <span className="text-xl font-bold text-white">{profile?.credits ?? 30}</span>
                 <span className="text-xs text-slate-500">分</span>
@@ -316,8 +318,8 @@ export default function Profile() {
 
           <div className="flex items-center gap-4 flex-1 w-full">
              <div className="text-sm text-slate-400">
-                <p><i className="fa-solid fa-circle-info mr-1 text-blue-400"></i> 每日登录赠送 1 积分</p>
-                <p className="mt-1"><i className="fa-solid fa-bolt mr-1 text-yellow-400"></i> 创建消耗 3 积分，修改消耗 0.5 积分</p>
+                <p><i className="fa-solid fa-circle-info mr-1 text-blue-400"></i> {t.profile.daily_bonus}</p>
+                <p className="mt-1"><i className="fa-solid fa-bolt mr-1 text-yellow-400"></i> {t.profile.create_cost}</p>
              </div>
           </div>
 
@@ -330,19 +332,19 @@ export default function Profile() {
               onClick={() => setActiveTab('works')} 
               className={`px-4 py-3 font-bold text-sm transition whitespace-nowrap border-b-2 ${activeTab === 'works' ? 'text-brand-400 border-brand-500' : 'text-slate-400 border-transparent hover:text-white'}`}
             >
-              我的作品 <span className="ml-1 bg-brand-900/50 px-2 py-0.5 rounded-full text-xs">{counts.works}</span>
+              {t.profile.tabs.works} <span className="ml-1 bg-brand-900/50 px-2 py-0.5 rounded-full text-xs">{counts.works}</span>
             </button>
             <button 
               onClick={() => setActiveTab('purchased')} 
               className={`px-4 py-3 font-bold text-sm transition whitespace-nowrap border-b-2 ${activeTab === 'purchased' ? 'text-brand-400 border-brand-500' : 'text-slate-400 border-transparent hover:text-white'}`}
             >
-              已购买 <span className="ml-1 bg-slate-800 px-2 py-0.5 rounded-full text-xs">{counts.purchased}</span>
+              {t.profile.tabs.purchased} <span className="ml-1 bg-slate-800 px-2 py-0.5 rounded-full text-xs">{counts.purchased}</span>
             </button>
             <button 
               onClick={() => setActiveTab('favorites')} 
               className={`px-4 py-3 font-bold text-sm transition whitespace-nowrap border-b-2 ${activeTab === 'favorites' ? 'text-brand-400 border-brand-500' : 'text-slate-400 border-transparent hover:text-white'}`}
             >
-              我的喜欢 <span className="ml-1 bg-slate-800 px-2 py-0.5 rounded-full text-xs">{counts.favorites}</span>
+              {t.profile.tabs.favorites} <span className="ml-1 bg-slate-800 px-2 py-0.5 rounded-full text-xs">{counts.favorites}</span>
             </button>
           </div>
 
@@ -353,19 +355,19 @@ export default function Profile() {
                 onClick={() => setFilterVisibility('all')}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filterVisibility === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
               >
-                全部
+                {t.profile.filter.all}
               </button>
               <button 
                 onClick={() => setFilterVisibility('public')}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filterVisibility === 'public' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
               >
-                公开
+                {t.profile.filter.public}
               </button>
               <button 
                 onClick={() => setFilterVisibility('private')}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filterVisibility === 'private' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
               >
-                私有
+                {t.profile.filter.private}
               </button>
             </div>
           )}
@@ -381,8 +383,8 @@ export default function Profile() {
             <div className="text-center py-20 text-slate-500">
               <i className="fa-solid fa-box-open text-4xl mb-4 opacity-50"></i>
               <p>
-                {filterVisibility === 'all' ? '这里空空如也' : 
-                 filterVisibility === 'public' ? '没有公开的作品' : '没有私有的作品'}
+                {filterVisibility === 'all' ? t.profile.empty.all : 
+                 filterVisibility === 'public' ? t.profile.empty.public : t.profile.empty.private}
               </p>
             </div>
           ) : (
@@ -403,8 +405,8 @@ export default function Profile() {
                         <div className="w-12 h-12 bg-brand-500/20 rounded-full flex items-center justify-center mb-3 animate-pulse">
                             <i className="fa-solid fa-hourglass-half text-brand-500 text-xl"></i>
                         </div>
-                        <span className="text-white font-bold mb-1">等待确认</span>
-                        <span className="text-xs text-slate-400">卖家确认收款中...</span>
+                        <span className="text-white font-bold mb-1">{t.profile.waiting_confirm}</span>
+                        <span className="text-xs text-slate-400">{t.profile.seller_confirming}</span>
                     </div>
                   )}
                 </div>
