@@ -496,10 +496,12 @@ export const translations = {
     },
     wechat_guard: {
       title: '请在浏览器中打开',
-      desc_1: '为了获得最佳的浏览体验，',
-      desc_2: '请点击右上角',
-      desc_3: '选择',
-      open_browser: '"在浏览器打开"',
+      description: '微信内置浏览器不支持部分功能，请跳转至系统浏览器继续访问',
+      step1: '点击右上角',
+      step2: '在浏览器打开',
+      how_to: '如何操作？',
+      already_in_browser: '已经在浏览器中？',
+      refresh: '刷新页面',
     },
     pwa_guide: {
       title: '获得最佳全屏体验',
@@ -1252,10 +1254,12 @@ export const translations = {
     },
     wechat_guard: {
       title: 'Open in Browser',
-      desc_1: 'For the best experience,',
-      desc_2: 'please click top right',
-      desc_3: 'and select',
-      open_browser: '"Open in Browser"',
+      description: 'WeChat browser does not support some features. Please open in system browser.',
+      step1: 'Tap top right',
+      step2: 'Open in Browser',
+      how_to: 'How to do it?',
+      already_in_browser: 'Already in browser?',
+      refresh: 'Refresh Page',
     },
     pwa_guide: {
       title: 'Get the Best Fullscreen Experience',
