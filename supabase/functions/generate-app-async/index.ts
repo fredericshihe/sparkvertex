@@ -208,7 +208,13 @@ serve(async (req) => {
 
                             // Try to send via Realtime, but don't crash if it fails
                             try {
-                                await taskChannel.send(msg);
+                                // Use httpSend if available to avoid warning about REST fallback
+                                const channelAny = taskChannel as any;
+                                if (typeof channelAny.httpSend === 'function') {
+                                    await channelAny.httpSend(msg);
+                                } else {
+                                    await taskChannel.send(msg);
+                                }
                             } catch (rtError) {
                                 console.warn('Realtime send failed:', rtError);
                             }
@@ -249,11 +255,18 @@ serve(async (req) => {
                 
                 // Broadcast completion via Realtime
                 try {
-                    await taskChannel.send({
+                    const completionMsg = {
                         type: 'broadcast',
                         event: 'completed',
                         payload: { taskId, fullContent }
-                    });
+                    };
+                    
+                    const channelAny = taskChannel as any;
+                    if (typeof channelAny.httpSend === 'function') {
+                        await channelAny.httpSend(completionMsg);
+                    } else {
+                        await taskChannel.send(completionMsg);
+                    }
                 } catch (rtErr) {
                     console.log('Realtime completion broadcast failed:', rtErr);
                 }
