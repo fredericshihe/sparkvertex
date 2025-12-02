@@ -580,6 +580,7 @@ export const translations = {
       history: '历史',
       download: '下载',
       view_code: '查看代码',
+      regenerate: '重新生成',
       remaining_credits: '剩余积分',
       modification_cost: '修改消耗 0.5 积分',
       app_generated: '应用已生成！你可以在上方预览效果。如果需要调整，请直接告诉我。',
@@ -588,6 +589,8 @@ export const translations = {
       edit_mode: '点选修改',
       finish_edit: '完成修改',
       edit_hint: '点击预览窗口中的元素进行修改',
+      
+      chat_mode: '对话模式',
       
       mobile_preview: '真机预览',
       scan_qr: '请使用手机相机或微信扫描下方二维码\n在真实设备上体验应用',
@@ -1350,6 +1353,7 @@ export const translations = {
       history: 'History',
       download: 'Download',
       view_code: 'Code',
+      regenerate: 'Regenerate',
       remaining_credits: 'Credits',
       modification_cost: 'Edit costs 0.5 credits',
       app_generated: 'App generated! Preview above. Tell me if you need changes.',
@@ -1358,6 +1362,8 @@ export const translations = {
       edit_mode: 'Point & Edit',
       finish_edit: 'Finish Edit',
       edit_hint: 'Click element in preview to modify',
+      
+      chat_mode: 'Chat Mode',
       
       mobile_preview: 'Mobile Preview',
       scan_qr: 'Scan QR code below to experience on real device',

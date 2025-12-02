@@ -47,7 +47,7 @@ export default function Profile() {
           },
           (payload) => {
             const newProfile = payload.new as any;
-            setProfile(prev => ({ ...prev, ...newProfile }));
+            setProfile((prev: any) => ({ ...prev, ...newProfile }));
           }
         )
         .subscribe();

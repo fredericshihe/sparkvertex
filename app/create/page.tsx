@@ -979,7 +979,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             
             // SAFETY FIX: Remove Python-style Unicode escapes that crash JS
             // Replaces \U0001F600 with \u{1F600}
-            cleanCode = cleanCode.replace(/\\U([0-9a-fA-F]{8})/g, (match, p1) => {
+            cleanCode = cleanCode.replace(/\\U([0-9a-fA-F]{8})/g, (match: string, p1: string) => {
                 return '\\u{' + p1.replace(/^0+/, '') + '}';
             });
 
@@ -998,7 +998,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                 cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
                 
                 // SAFETY FIX: Remove Python-style Unicode escapes that crash JS
-                cleanCode = cleanCode.replace(/\\U([0-9a-fA-F]{8})/g, (match, p1) => {
+                cleanCode = cleanCode.replace(/\\U([0-9a-fA-F]{8})/g, (match: string, p1: string) => {
                     return '\\u{' + p1.replace(/^0+/, '') + '}';
                 });
 
