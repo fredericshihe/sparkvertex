@@ -7,7 +7,7 @@ import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
 import { copyToClipboard } from '@/lib/utils';
 import { getPreviewContent } from '@/lib/preview';
-import { X } from 'lucide-react';
+import { X, RefreshCw, MessageSquare, Eye, Wand2, Edit3, Play } from 'lucide-react';
 import { applyPatches } from '@/lib/patch';
 import { useLanguage } from '@/context/LanguageContext';
 import { QRCodeSVG } from 'qrcode.react';
@@ -93,7 +93,78 @@ const STYLE_PROMPTS: Record<string, string> = {
   kanban: "Design Style: Kanban/Productivity. Use a board layout with columns. Cards should look like physical sticky notes (yellow, blue, pink). Drag-and-drop affordances (dots). Clean, functional typography."
 };
 
-const MAX_MODIFICATIONS = 5;
+const LOADING_TIPS_DATA = {
+  zh: [
+    "你知道吗？赛博朋克风格通常使用高对比度的霓虹色。",
+    "正在为移动用户优化触摸目标...",
+    "正在生成适应不同屏幕尺寸的响应式布局...",
+    "正在为卡片应用玻璃拟态效果...",
+    "正在确保无障碍对比度...",
+    "正在构建组件层级结构...",
+    "正在添加交互式悬停状态...",
+    "正在打磨动画和过渡效果...",
+    "正在检查暗黑模式兼容性...",
+    "正在注入 React Hooks 进行状态管理..."
+  ],
+  en: [
+    "Did you know? Cyberpunk style often uses high-contrast neon colors.",
+    "Optimizing touch targets for mobile users...",
+    "Generating responsive layout for different screen sizes...",
+    "Applying glassmorphism effects to cards...",
+    "Ensuring accessibility contrast ratios...",
+    "Structuring component hierarchy...",
+    "Adding interactive hover states...",
+    "Polishing animations and transitions...",
+    "Checking for dark mode compatibility...",
+    "Injecting React hooks for state management..."
+  ]
+};
+
+const QUICK_TAGS_DATA = {
+  zh: [
+    { label: "登录页", text: "包含社交登录按钮的现代登录界面。" },
+    { label: "仪表盘", text: "带有图表和统计卡片的数据仪表盘。" },
+    { label: "个人主页", text: "带有头像和设置的用户个人资料页面。" },
+    { label: "设置", text: "带有开关和滑块的设置面板。" },
+    { label: "暗黑模式", text: "确保完全支持暗黑模式。" },
+    { label: "画廊", text: "带有瀑布流布局的图片画廊。" },
+    { label: "聊天", text: "带有消息气泡的实时聊天界面。" },
+    { label: "地图", text: "带有标记的交互式地图视图。" }
+  ],
+  en: [
+    { label: "Login", text: "Include a modern login screen with social auth buttons." },
+    { label: "Dashboard", text: "Create a data dashboard with charts and stats cards." },
+    { label: "Profile", text: "User profile page with avatar and settings." },
+    { label: "Settings", text: "Settings panel with toggles and sliders." },
+    { label: "Dark Mode", text: "Ensure full dark mode support." },
+    { label: "Gallery", text: "Image gallery with masonry layout." },
+    { label: "Chat", text: "Real-time chat interface with message bubbles." },
+    { label: "Map", text: "Interactive map view with markers." }
+  ]
+};
+
+const LOADING_MESSAGES_DATA = {
+  zh: [
+      '正在深度分析您的需求...',
+      'AI 正在构思最佳 UI 布局...',
+      '正在编写 React 组件逻辑...',
+      '正在优化移动端触控响应...',
+      '正在配置 Tailwind 美学样式...',
+      '正在进行代码安全性检查...',
+      '正在做最后的性能优化...',
+      '即将完成，准备预览...'
+  ],
+  en: [
+      'Deeply analyzing your requirements...',
+      'AI is conceptualizing the best UI layout...',
+      'Writing React component logic...',
+      'Optimizing touch response for mobile...',
+      'Configuring Tailwind aesthetic styles...',
+      'Performing code security checks...',
+      'Doing final performance optimizations...',
+      'Almost done, preparing preview...'
+  ]
+};
 
 export default function CreatePage() {
   const router = useRouter();
@@ -101,18 +172,25 @@ export default function CreatePage() {
   const { openLoginModal } = useModal();
   const { success: toastSuccess, error: toastError } = useToast();
   
+  const LOADING_TIPS = LOADING_TIPS_DATA[language === 'zh' ? 'zh' : 'en'];
+  const QUICK_TAGS = QUICK_TAGS_DATA[language === 'zh' ? 'zh' : 'en'];
+  
+  const stepNames = {
+    category: language === 'zh' ? '分类' : 'Category',
+    device: language === 'zh' ? '设备' : 'Device',
+    style: language === 'zh' ? '风格' : 'Style',
+    concept: language === 'zh' ? '构思' : 'Concept'
+  };
+  
   // State: Wizard
-  const [step, setStep] = useState<'category' | 'device' | 'style' | 'features' | 'desc' | 'generating' | 'preview'>('category');
+  // Merged 'features' and 'desc' into 'concept'
+  const [step, setStep] = useState<'category' | 'device' | 'style' | 'concept' | 'generating' | 'preview'>('category');
   const [wizardData, setWizardData] = useState({
     category: '',
     device: 'mobile',
     style: '',
-    features: '',
     description: ''
   });
-
-  // State: Random Templates
-  const [randomTemplates, setRandomTemplates] = useState<{ label: string, desc: string }[]>([]);
 
   // State: Generation
   const [generatedCode, setGeneratedCode] = useState('');
@@ -125,6 +203,7 @@ export default function CreatePage() {
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('mobile');
   const [streamingCode, setStreamingCode] = useState('');
   const [currentGenerationPrompt, setCurrentGenerationPrompt] = useState('');
+  const [loadingTipIndex, setLoadingTipIndex] = useState(0);
   
   // State: History
   const [codeHistory, setCodeHistory] = useState<{code: string, prompt: string, timestamp: number}[]>([]);
@@ -135,10 +214,12 @@ export default function CreatePage() {
   const [selectedElement, setSelectedElement] = useState<{tagName: string, className: string, innerText: string, path: string} | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editRequest, setEditRequest] = useState('');
+  const [hasSeenEditGuide, setHasSeenEditGuide] = useState(false);
   
   // State: Mobile Preview
   const [showMobilePreview, setShowMobilePreview] = useState(false);
   const [mobilePreviewUrl, setMobilePreviewUrl] = useState('');
+  const [activeMobileTab, setActiveMobileTab] = useState<'preview' | 'chat'>('preview');
 
   // State: User Credits
   const [credits, setCredits] = useState(30);
@@ -164,6 +245,29 @@ export default function CreatePage() {
     }
   }, [language, t]);
 
+  // Rotating Tips Effect
+  useEffect(() => {
+    if (step === 'generating') {
+      const interval = setInterval(() => {
+        setLoadingTipIndex(prev => (prev + 1) % LOADING_TIPS.length);
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [step]);
+
+  // Edit Guide Effect
+  useEffect(() => {
+    if (step === 'preview' && !hasSeenEditGuide) {
+      // Small delay to let UI settle
+      const timer = setTimeout(() => {
+        // We can show a toast or just rely on the pulse animation
+        // toastSuccess(t.create.edit_hint); // Optional: Show toast
+        setHasSeenEditGuide(true);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [step, hasSeenEditGuide]);
+
   // Effect: Calculate Preview Scale
   useEffect(() => {
     if (step !== 'preview') return;
@@ -178,29 +282,22 @@ export default function CreatePage() {
       const { width: containerW, height: containerH } = container.getBoundingClientRect();
       
       // Target dimensions based on mode
-      // Mobile: iPhone 14 Pro (393x852) - Standardized to 375x812 for dev consistency
-      // Tablet: iPad Mini (768x1024)
       const targetW = previewMode === 'mobile' ? 375 : 768;
       const targetH = previewMode === 'mobile' ? 812 : 1024;
       
       // Available space (subtract padding)
-      // We reserve 80px at bottom for toolbar + 40px padding top/bottom
       const availableW = containerW - 40;
       const availableH = containerH - 120; 
 
       const scaleW = availableW / targetW;
       const scaleH = availableH / targetH;
       
-      // Use the smaller scale to fit both dimensions, max 1 (don't upscale pixelated)
-      // Allow slight upscale (1.1) for very large screens if needed, but usually 1 is max
       const newScale = Math.min(scaleW, scaleH, 1);
       setPreviewScale(newScale);
     };
 
     window.addEventListener('resize', updateScale);
-    // Initial calculation
     updateScale();
-    // Recalculate after a short delay to ensure layout is stable
     setTimeout(updateScale, 100);
 
     return () => window.removeEventListener('resize', updateScale);
@@ -211,22 +308,6 @@ export default function CreatePage() {
       codeScrollRef.current.scrollTop = codeScrollRef.current.scrollHeight;
     }
   }, [streamingCode]);
-
-  const shuffleTemplates = () => {
-    if (!wizardData.category) return;
-    // @ts-ignore
-    const templates = t.templates?.[wizardData.category] || [];
-    // Shuffle array
-    const shuffled = [...templates].sort(() => 0.5 - Math.random());
-    // Pick first 4
-    setRandomTemplates(shuffled.slice(0, 4));
-  };
-
-  useEffect(() => {
-    if (step === 'features') {
-      shuffleTemplates();
-    }
-  }, [step, wizardData.category]);
 
   useEffect(() => {
     checkAuth();
@@ -240,21 +321,17 @@ export default function CreatePage() {
       }
     });
 
-    // Keep-alive mechanism: Periodically check session to ensure token refresh
-    // This prevents session expiry during long creation/editing sessions (e.g. hours)
     const keepAliveInterval = setInterval(async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          // Accessing session triggers internal refresh logic if close to expiry
           console.debug('Session keep-alive check passed');
         }
       } catch (e) {
         console.error('Keep-alive check failed', e);
       }
-    }, 1000 * 60 * 4); // Check every 4 minutes
+    }, 1000 * 60 * 4);
 
-    // Realtime subscription for credit updates
     let profileSubscription: any;
 
     const setupSubscription = async () => {
@@ -262,7 +339,6 @@ export default function CreatePage() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        // Remove existing subscription if any
         if (profileSubscription) supabase.removeChannel(profileSubscription);
 
         profileSubscription = supabase
@@ -288,10 +364,8 @@ export default function CreatePage() {
       }
     };
 
-    // Setup subscription initially and whenever auth state changes (via checkAuth/onAuthStateChange)
     setupSubscription();
 
-    // Also listen to auth changes to re-setup subscription
     const authListener = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
         setupSubscription();
@@ -306,14 +380,12 @@ export default function CreatePage() {
     };
   }, []);
 
-  // Listen for messages from iframe (Point-and-Click Edit)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'spark-element-selected') {
         setSelectedElement(event.data.payload);
         setShowEditModal(true);
-        setIsEditMode(false); // Turn off edit mode after selection
-        // Notify iframe to turn off edit mode
+        setIsEditMode(false);
         if (iframeRef.current?.contentWindow) {
             iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: false }, '*');
         }
@@ -331,7 +403,6 @@ export default function CreatePage() {
   }, [chatHistory]);
 
   useEffect(() => {
-    // Check for remix template
     const remixData = localStorage.getItem('remix_template');
     if (remixData) {
       try {
@@ -341,17 +412,13 @@ export default function CreatePage() {
           category: template.category || 'tool',
           style: template.style || 'minimalist',
           description: template.prompt || template.description || '',
-          // Keep default device or infer? Let's keep default 'mobile' for now as it's the trend
         }));
         
-        // If we have a prompt, jump to description step to let user edit
         if (template.prompt) {
-            setStep('desc');
-            // Use a small timeout to ensure toast is shown after mount
+            setStep('concept');
             setTimeout(() => toastSuccess(t.create.template_loaded), 500);
         }
         
-        // Clear it
         localStorage.removeItem('remix_template');
       } catch (e) {
         console.error('Failed to parse remix template', e);
@@ -365,7 +432,6 @@ export default function CreatePage() {
       if (session) {
         setUserId(session.user.id);
         
-        // Check for daily rewards
         try {
           const { data: bonusData, error: bonusError } = await supabase.rpc('check_daily_bonus');
           if (bonusData && bonusData.awarded) {
@@ -373,10 +439,8 @@ export default function CreatePage() {
           }
         } catch (error) {
           console.error('Failed to check daily rewards:', error);
-          // Continue execution even if rewards check fails
         }
 
-        // Fetch user credits
         const { data } = await supabase
           .from('profiles')
           .select('credits, full_name, username')
@@ -384,10 +448,9 @@ export default function CreatePage() {
           .maybeSingle();
           
         if (data) {
-          setCredits(data.credits ?? 30);
+          setCredits(Number(data.credits ?? 30));
           setUserName(data.full_name || data.username || 'Spark Creator');
         } else {
-          // New profile handling (if not created by trigger)
           setCredits(30);
         }
       }
@@ -397,7 +460,7 @@ export default function CreatePage() {
   };
 
   const handleExit = () => {
-    if (step === 'category' && !wizardData.features && !wizardData.description) {
+    if (step === 'category' && !wizardData.description) {
       router.push('/');
       return;
     }
@@ -408,7 +471,7 @@ export default function CreatePage() {
 
   // --- Wizard Handlers ---
   const handleCategorySelect = (id: string) => {
-    setWizardData(prev => ({ ...prev, category: id, features: '' }));
+    setWizardData(prev => ({ ...prev, category: id }));
     setStep('device');
   };
 
@@ -419,18 +482,21 @@ export default function CreatePage() {
 
   const handleStyleSelect = (id: string) => {
     setWizardData(prev => ({ ...prev, style: id }));
-    setStep('desc');
+    setStep('concept');
   };
 
-  const addTemplateFeature = (desc: string) => {
+  const appendToDescription = (text: string) => {
     setWizardData(prev => {
-      const newFeatures = prev.features ? `${prev.features}\n${desc}` : desc;
-      if (newFeatures.length > 800) {
-        toastError(t.create.features_limit);
-        return prev;
-      }
-      return { ...prev, features: newFeatures };
+      const newDesc = prev.description ? `${prev.description}\n${text}` : text;
+      return { ...prev, description: newDesc };
     });
+  };
+
+  const useMadLibsTemplate = () => {
+    const template = language === 'zh' 
+      ? "我想做一个 [分类] 应用，主要给 [目标用户] 使用，核心功能是 [功能1] 和 [功能2]。"
+      : "I want to build a [Category] app for [Target User]. Core features include [Feature 1] and [Feature 2].";
+    appendToDescription(template);
   };
 
   // --- Generation Logic ---
@@ -445,11 +511,9 @@ export default function CreatePage() {
     
     ${stylePrompt}
     
-    Features:${wizardData.features}. Notes:${wizardData.description}`;
+    Requirements:${wizardData.description}`;
 
     if (isModification) {
-      // Optimization: For modification, we return a focused prompt without the redundant template.
-      // This significantly reduces token usage and speeds up the request.
       return `
 # Task
 Modify the following React app based on the user's request.
@@ -476,7 +540,7 @@ ${description}
 
 # Specs
 - Lang: ${targetLang}
-- Stack: React 18, Tailwind CSS (CDN), Lucide React, Framer Motion (optional but recommended for polish).
+- Stack: React 18, Tailwind CSS (CDN). NO External Libraries (Lucide, Framer Motion). Use CSS for animations and Emojis for icons.
 - Device Target: ${deviceLabel} (${wizardData.device === 'mobile' ? 'Mobile-first, touch-friendly' : wizardData.device === 'desktop' ? 'Desktop-optimized, mouse-friendly' : 'Responsive, tablet-friendly'})
 - Dark mode (#0f172a)
 - Single HTML file, NO markdown.
@@ -566,7 +630,7 @@ ${description}
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    overflow: hidden; /* Prevent scrolling on body, handle in app */
+    overflow: hidden;
   }
   ::-webkit-scrollbar { display: none; }
   #root { height: 100vh; width: 100vw; overflow: hidden; }
@@ -578,14 +642,7 @@ ${description}
 <script type="text/babel" data-type="module">
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'https://esm.sh/react@18.2.0';
 import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0';
-import * as LucideReact from 'https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0';
-import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@10.16.4?deps=react@18.2.0';
-// Add other imports here if needed, e.g.:
-// import confetti from 'https://esm.sh/canvas-confetti@1.6.0';
 
-const { Camera, Home, Settings, User, Menu, X, ChevronLeft, ChevronRight, ...LucideIcons } = LucideReact;
-
-// Error Boundary Component
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -608,13 +665,9 @@ class ErrorBoundary extends React.Component {
 const App = () => {
   return (
     <div className="h-full w-full flex flex-col items-center justify-center bg-background text-foreground">
-      <motion.h1 
-        initial={{ opacity: 0, y: 20 }} 
-        animate={{ opacity: 1, y: 0 }} 
-        className="text-4xl font-bold text-primary"
-      >
+      <h1 className="text-4xl font-bold text-primary animate-bounce">
         Hello World
-      </motion.h1>
+      </h1>
     </div>
   );
 };
@@ -630,8 +683,8 @@ root.render(
   };
 
   const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '') => {
-    // Auto-detect modification mode: If we are in 'preview' mode, it MUST be a modification.
-    const isModification = isModificationArg || step === 'preview';
+    // Explicitly rely on the argument to determine if it's a modification or a new generation (regenerate)
+    const isModification = isModificationArg;
     
     console.log('startGeneration called:', { 
         isModificationArg, 
@@ -641,22 +694,16 @@ root.render(
         stack: new Error().stack 
     });
 
-    if (isModification) {
-      // toast.success('正在提交修改请求...'); // Optional: Feedback
-      console.log('Modification Mode Active');
-    }
-
+    // Cost: Modification = 0.5, New Generation / Regenerate = 3.0
     const COST = isModification ? 0.5 : 3.0;
     
     try {
-      // Check Auth first
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         openLoginModal();
         return;
       }
 
-      // Check Credits
       if (credits < COST) {
         setIsCreditModalOpen(true);
         return;
@@ -674,51 +721,30 @@ root.render(
     setProgress(0);
     setStreamingCode('');
     
-    // Enhanced Progress Simulation - Friendly & Non-Stalling
-    const loadingMessages = t.create.loading_steps || [
-      '正在深度分析您的需求...',
-      'AI 正在构思最佳 UI 布局...',
-      '正在编写 React 组件逻辑...',
-      '正在优化移动端触控响应...',
-      '正在配置 Tailwind 美学样式...',
-      '正在进行代码安全性检查...',
-      '正在做最后的性能优化...',
-      '即将完成，准备预览...'
-    ];
+    const loadingMessages = t.create.loading_steps || LOADING_MESSAGES_DATA[language === 'zh' ? 'zh' : 'en'];
     
     let messageIndex = 0;
     setLoadingText(loadingMessages[0]);
     
-    // Flag to track if we started receiving data
     let hasStartedStreaming = false;
 
     const progressInterval = setInterval(() => {
       setProgress(prev => {
-        // Smart Progress Logic
-        // We want to avoid the "stuck at 99%" feeling.
-        // Instead of slowing down to a crawl, we keep a steady pace until ~85%, 
-        // then we wait for the stream to actually finish.
-        
         let increment = 0;
         
         if (hasStartedStreaming) {
-           // If we are receiving data, move faster!
            if (prev < 95) increment = Math.random() * 2 + 1;
-           else increment = 0.1; // Just a tiny bit to show life
+           else increment = 0.1;
         } else {
-           // Still waiting for server response
-           // Optimized for Modification: Modification takes longer to start (upload + process context)
-           // So we slow down the initial phase to match reality better
-           if (prev < 20) increment = Math.random() * 2 + 1; // Initial burst
-           else if (prev < 50) increment = Math.random() * 0.5 + 0.2; // Slow down significantly
-           else if (prev < 75) increment = 0.1; // Crawl
-           else if (prev < 85) increment = 0.05; // Almost stop
-           else increment = 0; // Hold at 85% until stream starts
+           if (prev < 20) increment = Math.random() * 2 + 1;
+           else if (prev < 50) increment = Math.random() * 0.5 + 0.2;
+           else if (prev < 75) increment = 0.1;
+           else if (prev < 85) increment = 0.05;
+           else increment = 0;
         }
 
         const nextProgress = Math.min(prev + increment, 99);
         
-        // Cycle messages based on progress milestones to keep user engaged
         const totalMessages = loadingMessages.length;
         const messageStage = Math.floor((nextProgress / 100) * totalMessages);
         
@@ -729,21 +755,18 @@ root.render(
 
         return nextProgress;
       });
-    }, 200); // Update every 200ms for smooth animation
+    }, 200);
 
 
     try {
       const prompt = constructPrompt(isModification, overridePrompt || chatInput);
       
-      // Set current prompt for display in generating screen
       let promptContent = '';
       if (isModification) {
         promptContent = displayPrompt || overridePrompt || chatInput;
       } else {
-        // Combine description and features for display
         const displayParts = [];
         if (wizardData.description) displayParts.push(wizardData.description);
-        if (wizardData.features) displayParts.push(`${t.create.step_features}：${wizardData.features}`);
         
         if (displayParts.length > 0) {
             promptContent = displayParts.join('\n\n');
@@ -755,7 +778,6 @@ root.render(
         }
       }
       
-      // Save history before modification
       if (isModification && generatedCode) {
         setCodeHistory(prev => [...prev, {
             code: generatedCode,
@@ -791,6 +813,7 @@ CRITICAL RULES:
 5. Output multiple blocks if needed.
 6. Do NOT include any markdown formatting (like \`\`\`html) inside the blocks.
 7. **Emoji Usage**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters (e.g., 👀) or ES6 unicode escapes (e.g., \\u{1F440}).
+8. **No External Libraries**: DO NOT import Lucide, Framer Motion, or any other external libraries. Use CSS for animations and Emojis/SVGs for icons.
 ` : `You are a World-Class Senior Frontend Architect and UI/UX Designer.
 Your goal is to create a "Production-Grade", visually stunning, and highly interactive single-file web application.
 
@@ -800,23 +823,22 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 1. **Language**: STRICTLY ${language === 'zh' ? 'Simplified Chinese (简体中文)' : 'English'} for all UI text.
 2. **Single File Architecture**: Output a single valid HTML file containing CSS, JS (React), and Logic.
 3. **No Markdown**: Output ONLY the raw HTML code. Start immediately with <!DOCTYPE html>.
-4. **Emoji Usage**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters (e.g., 👀) or ES6 unicode escapes (e.g., \\u{1F440}).
+4. **Emoji Usage**: 
+   - ❌ STRICTLY FORBIDDEN: Python-style unicode escapes (e.g., \\U0001F440). This causes SyntaxError in JS.
+   - ✅ ALLOWED: Direct Emoji characters (e.g., 👀) or ES6 unicode escapes (e.g., \\u{1F440}).
 5. **No Unescaped Characters**: Ensure all strings in JavaScript/React are properly escaped. Avoid unescaped backticks (\`) inside template literals.
 6. **No Infinite Loops**: Ensure all \`useEffect\` hooks have proper dependency arrays.
 7. **No Console Blocking**: Remove excessive \`console.log\` that might slow down the browser.
 8. **Valid HTML Structure**: Ensure all tags are properly closed. Do not nest \`<a>\` inside \`<a>\` or \`<button>\` inside \`<button>\`.
 9. **Perfect Rendering**: Ensure the app takes up the full height of the viewport (h-screen, w-full) and handles overflow correctly. Prevent white screens by using Error Boundaries.
 
-### Tech Stack (Advanced & Modern):
+### Tech Stack (Minimalist & Robust):
 - **React 18**: Use Functional Components, Hooks (useState, useEffect, useMemo, useCallback).
 - **Tailwind CSS**: Use for ALL styling. Use arbitrary values (e.g., \`bg-[#1a1a1a]\`) if specific colors are needed.
-- **Lucide Icons**: Access via \`window.lucideReact\`. Example: \`<lucideReact.Activity />\`.
-- **Framer Motion**: Use \`framer-motion\` for smooth animations (layout transitions, entry effects).
-- **External Libraries (ESM)**: You are ENCOURAGED to use modern libraries via \`https://esm.sh/...\` to add advanced functionality.
-  - *Visuals*: \`canvas-confetti\`, \`three\` (via \`@react-three/fiber\` - only if requested/necessary), \`lottie-react\`.
-  - *Data*: \`recharts\`, \`chart.js\`.
-  - *Utils*: \`date-fns\`, \`lodash\`, \`uuid\`.
-  - *UI*: \`radix-ui\` primitives (if compatible with single-file).
+- **NO External Libraries**: 
+  - ❌ NO \`lucide-react\`. Use **Emojis** (e.g., 🏠, ⚙️) or **Inline SVGs** for icons.
+  - ❌ NO \`framer-motion\`. Use **Tailwind CSS** classes (e.g., \`animate-bounce\`, \`transition-all\`, \`hover:scale-105\`) for animations.
+  - ❌ NO \`require()\`. Use ES Modules syntax only.
 
 ### Design System & UX (The "Wow" Factor):
 - **Visual Style**: Modern, Clean, Apple-esque or Linear-style design. Use subtle shadows, rounded corners (rounded-xl, rounded-2xl), and plenty of whitespace.
@@ -840,14 +862,11 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 2. **Design**: Plan the component structure (Header, Main, Sidebar/Nav, Modals).
 3. **Implement**: Write the code with the constraints above.`;
 
-      // For modification, we send the full code + user request
-      // IMPORTANT: We MUST append the technical constraints to ensure the AI generates valid, runnable code.
-      // Without this, the AI might use Node.js imports or forget the single-file requirement.
       const TECHNICAL_CONSTRAINTS = `
 ### Technical Constraints (MUST FOLLOW):
 1. **Single File**: Output ONLY a single valid HTML file. No Markdown.
 2. **Imports**: Use \`https://esm.sh/...\` for imports. DO NOT use bare imports like \`import React from 'react'\`.
-3. **Icons**: Use ESM imports for icons. Example: \`import { Activity } from 'https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0'\`.
+3. **Icons**: Use Emojis or Inline SVGs. DO NOT import icon libraries.
 4. **Styling**: Use Tailwind CSS classes.
 5. **Fonts**: DO NOT use external fonts (Google Fonts) unless absolutely necessary and ensure the URL is valid. Prefer system fonts.
 6. **Emoji**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters or ES6 unicode escapes (e.g., \\u{1F440}).
@@ -859,13 +878,10 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
         ? `Here is the current code:\n\n${generatedCode}\n\nUser Modification Request:\n${prompt}\n\nPlease modify the code according to the request. Output ONLY the diffs using the <<<<SEARCH ... ==== ... >>>> format.`
         : prompt;
 
-      // Optimization: For modification, we only send the user's request to the DB log, not the full code.
-      // This prevents payload size issues on the Next.js API route and speeds up the request.
       const dbPrompt = isModification ? prompt : finalUserPrompt;
 
       console.log('Calling /api/generate with prompt length:', dbPrompt.length);
 
-      // Use Next.js Proxy API to hide Supabase Edge Function URL
       let response: Response;
       try {
         response = await fetch('/api/generate', {
@@ -876,7 +892,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             body: JSON.stringify({
             type: isModification ? 'modification' : 'generation',
             system_prompt: SYSTEM_PROMPT,
-            user_prompt: dbPrompt // Send optimized prompt to DB
+            user_prompt: dbPrompt
             })
         });
 
@@ -894,21 +910,11 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 
       const { taskId } = await response.json();
       
-      // Immediate Credit Update (Optimistic & Sync)
       setCredits(prev => Math.max(0, prev - COST));
-      checkAuth(); // Fetch latest from DB to be sure
+      // checkAuth(); // Removed to prevent overwriting optimistic update with stale DB data
 
-      // Trigger Async Generation (Fire and Forget)
-      // We use fetch directly to handle the streaming response (keep-alive) without parsing it
       const { data: { session } } = await supabase.auth.getSession();
       
-      console.log('Triggering generation task:', taskId, 'Modification:', isModification);
-      if (isModification) {
-          console.log('Original Code Length:', generatedCode.length);
-          console.log('Prompt:', prompt);
-      }
-
-      // Trigger async generation and maintain the connection
       fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-app-async`, {
         method: 'POST',
         headers: {
@@ -930,10 +936,6 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
               return;
           }
           
-          console.log('Edge Function triggered successfully');
-          
-          // Keep the connection alive by consuming the stream
-          // This prevents the "stream controller cannot close or enqueue" error
           try {
               const reader = res.body?.getReader();
               if (reader) {
@@ -951,14 +953,13 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
           setIsGenerating(false);
       });
 
-      // Shared Task Handler
       let isFinished = false;
       let pollInterval: NodeJS.Timeout;
-      let lastUpdateTimestamp = Date.now(); // Heartbeat to optimize polling
+      let lastUpdateTimestamp = Date.now();
 
       const handleTaskUpdate = (newTask: any) => {
         if (isFinished) return;
-        lastUpdateTimestamp = Date.now(); // Update heartbeat on any activity
+        lastUpdateTimestamp = Date.now();
 
         console.log('Task Update:', newTask.status, newTask.result_code?.length || 0, newTask.error_message);
 
@@ -968,38 +969,39 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
         }
         
         if (newTask.status === 'completed') {
-            console.log('Task Completed. Result length:', newTask.result_code?.length);
             isFinished = true;
             clearInterval(progressInterval);
             if (pollInterval) clearInterval(pollInterval);
             supabase.removeChannel(channel);
 
-            // Finish logic
             checkAuth();
             let cleanCode = newTask.result_code || '';
+            
+            // SAFETY FIX: Remove Python-style Unicode escapes that crash JS
+            // Replaces \U0001F600 with \u{1F600}
+            cleanCode = cleanCode.replace(/\\U([0-9a-fA-F]{8})/g, (match, p1) => {
+                return '\\u{' + p1.replace(/^0+/, '') + '}';
+            });
+
             setStreamingCode(cleanCode);
             
             if (isModification) {
-                // Apply patches
                 try {
-                    console.log('Applying patches...');
-                    console.log('Original Code Length:', generatedCode.length);
-                    console.log('Patch Text Length:', cleanCode.length);
-                    
                     const patched = applyPatches(generatedCode, cleanCode);
                     setGeneratedCode(patched);
                     toastSuccess(t.create.success_edit);
                 } catch (e: any) {
                     console.error('Patch failed:', e);
                     toastError(e.message || t.common.error);
-                    // Keep original code but stop loading
                 }
             } else {
-                // New Generation
-                // Clean up code (remove markdown)
                 cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
                 
-                // Ensure meta viewport
+                // SAFETY FIX: Remove Python-style Unicode escapes that crash JS
+                cleanCode = cleanCode.replace(/\\U([0-9a-fA-F]{8})/g, (match, p1) => {
+                    return '\\u{' + p1.replace(/^0+/, '') + '}';
+                });
+
                 if (!cleanCode.includes('<meta name="viewport"')) {
                     cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
                 }
@@ -1012,21 +1014,18 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             setIsGenerating(false);
             setProgress(100);
         } else if (newTask.status === 'failed') {
-            console.error('Task Failed:', newTask.error_message);
             isFinished = true;
             clearInterval(progressInterval);
             if (pollInterval) clearInterval(pollInterval);
             supabase.removeChannel(channel);
             
             toastError(newTask.error_message || t.common.error);
-            // Show error in the UI text as well
             setLoadingText(`${t.common.error}: ${newTask.error_message || t.common.unknown_error}`);
             setIsGenerating(false);
             setProgress(100);
         }
       };
 
-      // Subscribe to Task Updates
       const channel = supabase
         .channel(`task-${taskId}`)
         .on(
@@ -1037,7 +1036,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
              if (fullContent) {
                  setStreamingCode(fullContent);
                  hasStartedStreaming = true;
-                 lastUpdateTimestamp = Date.now(); // Update heartbeat
+                 lastUpdateTimestamp = Date.now();
              }
           }
         )
@@ -1053,19 +1052,12 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             handleTaskUpdate(payload.new);
           }
         )
-        .subscribe((status) => {
-            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                console.warn('Realtime connection issue:', status);
-            }
-        });
-      // Fallback Polling (Robustness for network issues)
-      // Optimized: Only polls if no Realtime updates received for 5 seconds
+        .subscribe();
+
       let isPolling = false;
       pollInterval = setInterval(async () => {
         if (isFinished || isPolling) return;
         
-        // Smart Polling: If we received data recently via WebSocket, skip this poll
-        // This drastically reduces server load while maintaining robustness
         if (Date.now() - lastUpdateTimestamp < 5000) return;
 
         isPolling = true;
@@ -1086,29 +1078,22 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       toastError(error.message || t.create.generation_failed);
       
       if (!isModification) {
-        setStep('desc');
+        setStep('concept');
       }
       setIsGenerating(false);
       clearInterval(progressInterval);
     }
   };
 
-
-
-
-
-
-
   const handleUpload = () => {
     if (!confirm(t.create.confirm_publish)) {
       return;
     }
     try {
-      // Save to localStorage to pass to upload page
       localStorage.setItem('spark_generated_code', generatedCode);
       localStorage.setItem('spark_generated_meta', JSON.stringify({
         title: `${t.categories[wizardData.category as keyof typeof t.categories] || 'App'}`,
-        description: wizardData.description || wizardData.features,
+        description: wizardData.description,
         tags: [wizardData.category, wizardData.style]
       }));
       router.push('/upload?from=create');
@@ -1134,8 +1119,6 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
   const handleRollback = (item: typeof codeHistory[0]) => {
     if (!confirm(t.create.confirm_rollback)) return;
 
-    // Save current state to history before rolling back
-    // Only if it's not already in history (to avoid duplicates when switching back and forth)
     const isAlreadyInHistory = codeHistory.some(h => h.code === generatedCode);
     
     if (!isAlreadyInHistory) {
@@ -1182,18 +1165,10 @@ Modification Request:
 Please apply this change to the code. Ensure the modification is precise and affects only the intended element or logic.
     `.trim();
 
-    // Close modal
     setShowEditModal(false);
     setEditRequest('');
     setSelectedElement(null);
     
-    // Start generation with this prompt
-    // We set chatInput to the prompt so it shows up in the chat history correctly
-    // setChatInput(prompt); // No longer needed as we pass displayPrompt
-    
-    // We need to call startGeneration with isModification=true
-    // But startGeneration uses 'chatInput' state or 'prompt' argument.
-    // Let's modify startGeneration to accept an optional override prompt.
     startGeneration(true, prompt, editRequest);
   };
 
@@ -1201,7 +1176,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
     if (!generatedCode) return;
     
     try {
-      // 1. Upload to temp_previews
       const { data, error } = await supabase
         .from('temp_previews')
         .insert({ content: generatedCode })
@@ -1210,7 +1184,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
         
       if (error) throw error;
       
-      // 2. Generate URL
       const url = `${window.location.origin}/preview/mobile/${data.id}`;
       setMobilePreviewUrl(url);
       setShowMobilePreview(true);
@@ -1240,8 +1213,8 @@ Please apply this change to the code. Ensure the modification is precise and aff
                 <div key={item.timestamp} className="bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-brand-500 transition group">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-xs text-slate-400 font-mono">
-                      {new Date(item.timestamp).toLocaleTimeString()} 
-                      <span className="ml-2 opacity-50">{new Date(item.timestamp).toLocaleDateString()}</span>
+                      {new Date(item.timestamp).toLocaleTimeString(language === 'zh' ? 'zh-CN' : 'en-US')} 
+                      <span className="ml-2 opacity-50">{new Date(item.timestamp).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US')}</span>
                     </span>
                     <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
                       v{codeHistory.length - index}
@@ -1263,19 +1236,9 @@ Please apply this change to the code. Ensure the modification is precise and aff
     );
   };
 
-
-
-  // --- Share Handlers ---
-
-  // --- Render Components ---
-
-
-
-  // --- Render Helpers ---
   const renderWizard = () => (
     <div className="max-w-4xl mx-auto pt-12 pb-12 px-4 min-h-screen flex flex-col">
       <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700/50 rounded-3xl p-8 shadow-2xl animate-fade-in relative overflow-hidden">
-        {/* Decorative background elements */}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand-500/50 to-transparent"></div>
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-brand-500/20 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
@@ -1283,8 +1246,8 @@ Please apply this change to the code. Ensure the modification is precise and aff
         {/* Progress Steps */}
         <div className="flex justify-between mb-12 relative max-w-lg mx-auto w-full z-10">
           <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-800 -z-10 rounded-full"></div>
-          {['category', 'device', 'style', 'features', 'desc'].map((s, i) => {
-            const steps = ['category', 'device', 'style', 'features', 'desc'];
+          {['category', 'device', 'style', 'concept'].map((s, i) => {
+            const steps = ['category', 'device', 'style', 'concept'];
             const currentIndex = steps.indexOf(step);
             const stepIndex = steps.indexOf(s);
             const isActive = stepIndex <= currentIndex;
@@ -1295,7 +1258,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                   {i + 1}
                 </div>
                 <div className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-colors ${isActive ? 'text-brand-400' : 'text-slate-600'}`}>
-                  {t.create[`step_${s}` as keyof typeof t.create]}
+                  {stepNames[s as keyof typeof stepNames]}
                 </div>
               </div>
             );
@@ -1365,7 +1328,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {STYLES.filter(s => {
                   const allowed = CATEGORY_STYLES[wizardData.category] || [];
-                  // Fallback: if no category selected or no mapping, show first 8 (basic styles)
                   if (allowed.length === 0) return STYLES.indexOf(s) < 8;
                   return allowed.includes(s.id);
                 }).map(style => (
@@ -1391,59 +1353,54 @@ Please apply this change to the code. Ensure the modification is precise and aff
             </div>
           )}
 
-          {step === 'features' && (
+          {step === 'concept' && (
             <div className="space-y-6 animate-fade-in">
               <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold text-white">{t.create.features_title}</h2>
-                <p className="text-slate-400">{t.create.features_subtitle}</p>
+                <h2 className="text-3xl font-bold text-white">{language === 'zh' ? '描述您的应用构思' : 'Describe your App Concept'}</h2>
+                <p className="text-slate-400">{language === 'zh' ? '越详细的描述，生成的应用越精准。您也可以使用下方的快捷标签。' : 'The more detailed the description, the better the result. You can also use the quick tags below.'}</p>
               </div>
               
-              {/* Custom Input */}
+              {/* Main Input */}
               <div className="bg-slate-900/50 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors relative overflow-hidden">
                 <textarea
-                  value={wizardData.features}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    // Allow paste but truncate to 800 chars
-                    setWizardData(prev => ({ ...prev, features: val.slice(0, 800) }));
-                  }}
-                  placeholder={t.create.features_placeholder}
-                  className="w-full h-32 bg-transparent border-none outline-none appearance-none p-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-sm leading-relaxed"
+                  value={wizardData.description}
+                  onChange={(e) => setWizardData(prev => ({ ...prev, description: e.target.value }))}
+                  maxLength={5000}
+                  placeholder={language === 'zh' ? '例如：我想做一个待办事项应用，风格要极简，支持暗黑模式...' : 'E.g. I want to build a Todo app, minimalist style, dark mode support...'}
+                  className="w-full h-48 bg-transparent border-none outline-none appearance-none p-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-base leading-relaxed"
                 ></textarea>
-                <div className="absolute bottom-2 right-4 text-xs text-slate-500">
-                  {wizardData.features.length}/800
+                
+                {/* Mad Libs Button */}
+                <div className="absolute bottom-4 left-4">
+                   <button 
+                     onClick={useMadLibsTemplate}
+                     className="text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-lg transition flex items-center gap-1 border border-slate-700"
+                   >
+                     <Edit3 size={12} />
+                     {language === 'zh' ? '使用填空模板' : 'Use Template'}
+                   </button>
+                </div>
+
+                <div className="absolute bottom-4 right-4 text-xs text-slate-500">
+                  {wizardData.description.length}/5000
                 </div>
               </div>
 
-              {/* Templates */}
+              {/* Quick Tags */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <i className="fa-solid fa-wand-magic-sparkles"></i> {t.create.templates_title}
+                    <Wand2 size={12} /> {language === 'zh' ? '快捷标签' : 'Quick Tags'}
                   </h3>
-                  <button 
-                    onClick={shuffleTemplates}
-                    className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1 transition"
-                  >
-                    <i className="fa-solid fa-rotate"></i> {t.create.shuffle}
-                  </button>
                 </div>
-                <div className="grid grid-cols-1 gap-3">
-                  {randomTemplates.map((tpl, index) => (
+                <div className="flex flex-wrap gap-2">
+                  {QUICK_TAGS.map((tag, index) => (
                     <button
                       key={index}
-                      onClick={() => {
-                        const newFeatures = wizardData.features 
-                          ? wizardData.features + '\n' + tpl.desc 
-                          : tpl.desc;
-                        if (newFeatures.length <= 800) {
-                          setWizardData(prev => ({ ...prev, features: newFeatures }));
-                        }
-                      }}
-                      className="text-left p-4 rounded-xl bg-slate-800 border border-slate-700 hover:border-brand-500 hover:bg-slate-800/80 transition group animate-fade-in"
+                      onClick={() => appendToDescription(tag.text)}
+                      className="px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 hover:border-brand-500 hover:bg-slate-700 transition text-xs text-slate-300 hover:text-white"
                     >
-                      <div className="font-bold text-white text-sm mb-1 group-hover:text-brand-400 transition-colors">{tpl.label}</div>
-                      <div className="text-xs text-slate-400 leading-relaxed">{tpl.desc}</div>
+                      + {tag.label}
                     </button>
                   ))}
                 </div>
@@ -1451,58 +1408,18 @@ Please apply this change to the code. Ensure the modification is precise and aff
 
               <div className="flex gap-4 pt-4">
                 <button
-                  onClick={() => setStep('desc')}
+                  onClick={() => setStep('style')}
                   className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition"
                 >
                   {t.create.btn_back}
                 </button>
                 <button
                   onClick={() => startGeneration()}
-                  disabled={!wizardData.features}
+                  disabled={!wizardData.description}
                   className={`flex-1 bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
                 >
                   <span>{t.create.btn_generate}</span>
-                  <i className="fa-solid fa-wand-magic-sparkles"></i>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {step === 'desc' && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">{t.create.desc_title}</h2>
-                <p className="text-slate-400">{t.create.desc_subtitle}</p>
-              </div>
-
-              <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700">
-                <label className="block text-sm font-medium text-slate-300 mb-2">{t.create.desc_label}</label>
-                <textarea
-                  value={wizardData.description}
-                  onChange={(e) => setWizardData({ ...wizardData, description: e.target.value })}
-                  className="w-full h-32 bg-slate-900 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-500 focus:ring-2 focus:ring-brand-500 focus:border-transparent transition resize-none"
-                  placeholder={t.create.desc_placeholder}
-                ></textarea>
-              </div>
-
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setStep('style')}
-                  className="flex-1 py-4 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                >
-                  {t.create.btn_back}
-                </button>
-                <button
-                  onClick={() => setStep('features')}
-                  disabled={!wizardData.description}
-                  className={`flex-1 py-4 rounded-xl font-bold shadow-lg transition flex items-center justify-center gap-2 ${
-                    !wizardData.description
-                      ? 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none' 
-                      : 'bg-brand-600 hover:bg-brand-500 text-white shadow-brand-500/20'
-                  }`}
-                >
-                  <span>{t.create.btn_next}</span>
-                  <i className="fa-solid fa-arrow-right"></i>
+                  <Wand2 size={18} />
                 </button>
               </div>
             </div>
@@ -1514,9 +1431,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
 
   const renderGenerating = () => (
     <div className="flex flex-col items-center justify-center min-h-[100dvh] pt-0 pb-8 px-4 w-full max-w-2xl mx-auto">
-      {/* Chat Simulation Container */}
       <div className="w-full bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl mb-8 relative overflow-hidden">
-        {/* Progress Line at top */}
         <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-brand-500 via-purple-500 to-brand-500 w-full animate-pulse"></div>
         
         <div className="space-y-8">
@@ -1534,7 +1449,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
             </div>
           </div>
 
-          {/* AI Thinking Bubble */}
+          {/* AI Thinking Bubble & Skeleton */}
           <div className="flex gap-4 animate-slide-up" style={{ animationDelay: '0.5s', animationFillMode: 'both' }}>
             <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center flex-shrink-0 border-2 border-brand-500/30 relative shadow-lg shadow-brand-500/20">
               <i className="fa-solid fa-robot text-brand-400 text-lg animate-bounce"></i>
@@ -1542,7 +1457,9 @@ Please apply this change to the code. Ensure the modification is precise and aff
             </div>
             <div className="bg-slate-800/80 border border-slate-700 text-slate-300 p-5 rounded-2xl rounded-tl-none shadow-lg max-w-[85%] relative w-full">
               <div className="absolute -left-2 top-0 w-4 h-4 bg-slate-800 transform rotate-45 border-l border-t border-slate-700"></div>
-              <div className="flex items-center gap-3 mb-2">
+              
+              {/* Rotating Tips */}
+              <div className="flex items-center gap-3 mb-4">
                 <span className="text-xs font-bold text-brand-400 uppercase tracking-wider">{t.create.ai_thinking}</span>
                 <div className="flex space-x-1">
                   <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
@@ -1550,9 +1467,39 @@ Please apply this change to the code. Ensure the modification is precise and aff
                   <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce"></div>
                 </div>
               </div>
-              <p className="text-sm text-slate-400 min-h-[1.5em] transition-all duration-300 mb-4">
-                {loadingText} <span className="text-brand-400 font-mono ml-2">{Math.floor(progress)}%</span>
-              </p>
+              
+              <div className="min-h-[3em] mb-4">
+                 <div className="flex justify-between items-center mb-2">
+                    <p className="text-sm text-slate-400 transition-all duration-500 animate-fade-in">
+                        {LOADING_TIPS[loadingTipIndex]}
+                    </p>
+                    <span className="text-xs font-bold font-mono transition-colors duration-300" style={{ color: `hsl(${progress * 1.2}, 85%, 60%)` }}>
+                        {Math.round(progress)}%
+                    </span>
+                 </div>
+                 <div className="h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
+                    <div 
+                        className="h-full transition-all duration-300 ease-out" 
+                        style={{ 
+                            width: `${progress}%`,
+                            backgroundColor: `hsl(${progress * 1.2}, 85%, 60%)`,
+                            boxShadow: `0 0 10px hsl(${progress * 1.2}, 85%, 50%)`
+                        }}
+                    ></div>
+                 </div>
+              </div>
+
+              {/* Skeleton Preview */}
+              {!streamingCode && (
+                  <div className="border border-slate-700 rounded-lg p-4 bg-slate-900/50 space-y-3 animate-pulse opacity-50">
+                      <div className="h-4 bg-slate-700 rounded w-3/4"></div>
+                      <div className="h-32 bg-slate-700 rounded w-full"></div>
+                      <div className="flex gap-2">
+                          <div className="h-8 bg-slate-700 rounded w-1/3"></div>
+                          <div className="h-8 bg-slate-700 rounded w-1/3"></div>
+                      </div>
+                  </div>
+              )}
               
               {/* Real-time Code Waterfall */}
               {streamingCode && (
@@ -1580,23 +1527,17 @@ Please apply this change to the code. Ensure the modification is precise and aff
           </div>
         </div>
       </div>
-
-      {/* Bottom Status */}
-      <div className="text-center space-y-3 animate-fade-in" style={{ animationDelay: '1s', animationFillMode: 'both' }}>
-        <h2 className="text-2xl font-bold text-white">{t.create.generating_title}</h2>
-        <p className="text-slate-400 text-sm max-w-md mx-auto">
-          {t.create.generating_subtitle}
-        </p>
-      </div>
     </div>
   );
 
   const renderPreview = () => (
-    <div className="flex flex-col lg:flex-row h-full pt-0 overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-full pt-0 overflow-hidden relative">
       {/* Left (Desktop) / Bottom (Mobile): Chat & Controls */}
-      <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col 
+      <div className={`w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col 
           order-2 lg:order-1 
-          h-[45vh] lg:h-full shrink-0 z-10 relative shadow-[0_-4px_20px_rgba(0,0,0,0.3)] lg:shadow-none">
+          h-full shrink-0 z-10 relative shadow-[0_-4px_20px_rgba(0,0,0,0.3)] lg:shadow-none
+          ${activeMobileTab === 'chat' ? 'flex' : 'hidden lg:flex'}
+      `}>
         
         <div className="p-3 lg:p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
           <div className="flex items-center gap-3">
@@ -1605,7 +1546,30 @@ Please apply this change to the code. Ensure the modification is precise and aff
             </button>
             <h3 className="font-bold text-white text-sm lg:text-base">{t.create.preview_title}</h3>
           </div>
-          <span className="text-[10px] lg:text-xs text-slate-500">{t.create.remaining_credits}: {credits} ({t.create.modification_cost})</span>
+          <div className="flex items-center gap-2">
+             {/* Regenerate Button */}
+             <div className="relative group">
+               <button 
+                  onClick={() => startGeneration(false, currentGenerationPrompt)}
+                  className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded flex items-center gap-1 transition border border-slate-700"
+               >
+                  <RefreshCw size={12} />
+                  <span className="hidden sm:inline">{t.create.regenerate}</span>
+               </button>
+               <div className="absolute top-full right-0 mt-2 w-64 p-3 bg-slate-800 text-xs text-slate-300 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-slate-700">
+                  <div className="font-bold text-white mb-1 flex items-center gap-2">
+                    <RefreshCw size={10} />
+                    {language === 'zh' ? '重新生成' : 'Regenerate'}
+                  </div>
+                  <p className="leading-relaxed opacity-90">
+                    {language === 'zh' 
+                      ? '使用当前的提示词和设置重新生成应用。如果对当前结果不满意（如布局错乱、功能缺失），可以尝试此操作。这将消耗积分。' 
+                      : 'Regenerate the app using the current prompt and settings. Use this if the current result is not ideal (e.g., layout issues, missing features). This will consume credits.'}
+                  </p>
+               </div>
+             </div>
+             <span className="text-[10px] lg:text-xs text-slate-500">{Number.isInteger(credits) ? credits : credits.toFixed(1)} {language === 'zh' ? '积分' : 'Credits'}</span>
+          </div>
         </div>
         
         {/* Chat History */}
@@ -1629,7 +1593,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
             </div>
           ))}
           
-          {/* Loading State for Modification */}
           {isGenerating && (
             <div className="flex gap-3 animate-fade-in">
               <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 flex-shrink-0">
@@ -1657,7 +1620,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
         </div>
 
         {/* Input Area */}
-        <div className="p-3 lg:p-4 border-t border-slate-800 bg-slate-900 pb-safe shrink-0">
+        <div className="p-3 lg:p-4 border-t border-slate-800 bg-slate-900 pb-safe shrink-0 mb-16 lg:mb-0">
           <div className="relative">
             <input
               type="text"
@@ -1714,17 +1677,18 @@ Please apply this change to the code. Ensure the modification is precise and aff
       </div>
 
       {/* Right (Desktop) / Top (Mobile): Preview */}
-      <div className="flex-1 bg-slate-950 relative flex flex-col group 
+      <div className={`flex-1 bg-slate-950 relative flex flex-col group 
           order-1 lg:order-2 
-          h-[55vh] lg:h-full shrink-0 overflow-hidden">
-        <div className="h-8 lg:h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
+          h-full shrink-0 overflow-hidden
+          ${activeMobileTab === 'preview' ? 'flex' : 'hidden lg:flex'}
+      `}>
+        <div className="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-3">
             <button onClick={handleExit} className="lg:hidden flex w-6 h-6 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition" title={t.common.back}>
               <i className="fa-solid fa-chevron-left"></i>
             </button>
             <span className="text-sm font-bold text-slate-400">{t.create.preview_mode}</span>
           </div>
-          {/* Mobile Actions (Simplified) */}
           <div className="flex lg:hidden gap-2">
              <button onClick={handleUpload} className="text-xs px-3 py-1 rounded text-white flex items-center gap-1 bg-brand-600">
                 {t.common.submit}
@@ -1735,9 +1699,8 @@ Please apply this change to the code. Ensure the modification is precise and aff
         {/* Preview Container */}
         <div 
           ref={previewContainerRef}
-          className="flex-1 relative overflow-hidden flex items-center justify-center bg-[url('/grid.svg')] bg-center"
+          className="flex-1 relative overflow-hidden flex items-center justify-center bg-[url('/grid.svg')] bg-center pb-16 lg:pb-0"
         >
-          {/* Device Wrapper with Dynamic Scale */}
           <div 
             className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 origin-center
               ${previewMode === 'mobile' 
@@ -1754,7 +1717,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
               transform: previewMode !== 'desktop' ? `scale(${previewScale})` : 'none'
             }}
           >
-             {/* Notch - Only show on Mobile */}
              {previewMode === 'mobile' && (
                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-slate-800 rounded-b-2xl z-20 pointer-events-none"></div>
              )}
@@ -1768,18 +1730,15 @@ Please apply this change to the code. Ensure the modification is precise and aff
           </div>
           
           {/* Floating Preview Controls */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-10 w-max max-w-full px-4">
-            {/* Device Switcher */}
+          <div className="absolute bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-10 w-max max-w-full px-4">
             <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-full p-1.5 flex shadow-2xl">
               <button onClick={() => setPreviewMode('desktop')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.desktop}><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
               <button onClick={() => setPreviewMode('tablet')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.tablet}><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
               <button onClick={() => setPreviewMode('mobile')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.mobile}><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
             </div>
 
-            {/* Separator */}
             <div className="w-px h-8 bg-slate-700/50 mx-1"></div>
 
-            {/* Mobile QR Code */}
             <button 
                 onClick={handleMobilePreview}
                 className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group" 
@@ -1788,7 +1747,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
                 <i className="fa-solid fa-qrcode text-sm group-hover:scale-110 transition"></i>
             </button>
 
-            {/* Edit Mode Toggle - Prominent */}
             <button 
                 onClick={toggleEditMode}
                 className={`h-11 px-5 rounded-full flex items-center gap-2.5 font-bold transition-all shadow-xl border ${
@@ -1804,17 +1762,49 @@ Please apply this change to the code. Ensure the modification is precise and aff
             </button>
           </div>
 
-          {/* Loading Overlay for Modification */}
           {isGenerating && (
             <div className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white animate-fade-in">
-                <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700 shadow-2xl flex flex-col items-center">
-                  <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <p className="font-bold text-lg">{t.create.generating_title}</p>
-                  <p className="text-sm text-slate-400 mt-1">{t.create.generating_subtitle}</p>
+                <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700 shadow-2xl flex flex-col items-center max-w-xs text-center">
+                  {/* Dynamic Icon based on mode */}
+                  <div className="relative mb-4">
+                     <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+                     <div className="absolute inset-0 flex items-center justify-center">
+                        <i className={`fa-solid ${step === 'preview' ? 'fa-wand-magic-sparkles' : 'fa-robot'} text-brand-500 text-xs animate-pulse`}></i>
+                     </div>
+                  </div>
+                  
+                  <p className="font-bold text-lg text-white">
+                    {step === 'preview' 
+                        ? (language === 'zh' ? '正在优化应用...' : 'Refining App...') 
+                        : t.create.generating_title}
+                  </p>
+                  <p className="text-sm text-slate-400 mt-2 leading-relaxed">
+                    {step === 'preview'
+                        ? (language === 'zh' ? 'AI 正在根据您的反馈调整代码，请稍候...' : 'AI is adjusting the code based on your feedback, please wait...')
+                        : t.create.generating_subtitle}
+                  </p>
                 </div>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Mobile Bottom Tab Bar */}
+      <div className="lg:hidden fixed bottom-0 left-0 w-full bg-slate-900 border-t border-slate-800 flex z-50 pb-safe">
+        <button 
+          onClick={() => setActiveMobileTab('preview')}
+          className={`flex-1 py-3 flex flex-col items-center gap-1 ${activeMobileTab === 'preview' ? 'text-brand-400' : 'text-slate-500'}`}
+        >
+          <Eye size={20} />
+          <span className="text-[10px] font-bold">{t.create.preview_mode}</span>
+        </button>
+        <button 
+          onClick={() => setActiveMobileTab('chat')}
+          className={`flex-1 py-3 flex flex-col items-center gap-1 ${activeMobileTab === 'chat' ? 'text-brand-400' : 'text-slate-500'}`}
+        >
+          <MessageSquare size={20} />
+          <span className="text-[10px] font-bold">{t.create.chat_mode}</span>
+        </button>
       </div>
     </div>
   );
@@ -1835,7 +1825,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
        step === 'preview' ? renderPreview() : 
        renderWizard()}
 
-      {/* Credit Exhausted Modal */}
       {isCreditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-[#1a1b26] border border-gray-800 rounded-xl p-6 max-w-md w-full shadow-2xl transform transition-all">
@@ -1869,7 +1858,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
         </div>
       )}
 
-      {/* Edit Element Modal */}
       {showEditModal && selectedElement && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full shadow-2xl animate-fade-in-up">
@@ -1933,7 +1921,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
         </div>
       )}
 
-      {/* Mobile Preview QR Modal */}
       {showMobilePreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center relative">

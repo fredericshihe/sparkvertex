@@ -146,7 +146,8 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: 'Failed to fetch user profile' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
-    const currentCredits = profile.credits ?? 0;
+    const currentCredits = Number(profile.credits || 0);
+    console.log(`User ${userId} has ${currentCredits} credits. Cost: ${COST}`);
     
     if (currentCredits < COST) {
         return new Response(JSON.stringify({ error: '您的积分不足，无法进行操作' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -217,15 +218,18 @@ serve(async (req) => {
     }
 
     // 5. Credit Deduction (Deduct only after successful upstream response)
+    const newCredits = currentCredits - COST;
     const { error: creditUpdateError } = await supabaseAdmin
         .from('profiles')
-        .update({ credits: currentCredits - COST })
+        .update({ credits: newCredits })
         .eq('id', userId);
         
     if (creditUpdateError) {
         console.error('Credit update error (Post-Generation):', creditUpdateError);
         // We don't stop the stream here, but we log the error. 
         // Ideally we should have a reliable queue or transaction, but for now logging is sufficient.
+    } else {
+        console.log(`Deducted ${COST} credits. New balance: ${newCredits}`);
     }
 
     // 3. 响应处理与脱敏 (Response Sanitization)

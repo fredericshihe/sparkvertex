@@ -56,6 +56,41 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Task not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // 5. Credit Deduction
+    const COST = type === 'modification' ? 0.5 : 3.0;
+    
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('credits')
+      .eq('id', user.id)
+      .single();
+      
+    if (profileError || !profile) {
+       console.error('Profile fetch error:', profileError);
+       return new Response(JSON.stringify({ error: 'Profile not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
+    const currentCredits = Number(profile.credits || 0);
+    console.log(`User ${user.id} has ${currentCredits} credits. Cost: ${COST}`);
+
+    if (currentCredits < COST) {
+       return new Response(JSON.stringify({ error: 'Insufficient credits' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
+    const newCredits = currentCredits - COST;
+    
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({ credits: newCredits })
+      .eq('id', user.id);
+      
+    if (updateError) {
+       console.error('Credit deduction error:', updateError);
+       return new Response(JSON.stringify({ error: 'Failed to deduct credits' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    
+    console.log(`Deducted ${COST} credits. New balance: ${newCredits}`);
+
     // Update status to processing
     await supabaseAdmin
       .from('generation_tasks')
@@ -220,12 +255,7 @@ serve(async (req) => {
                         };
 
                         try {
-                            const channelAny = taskChannel as any;
-                            if (typeof channelAny.httpSend === 'function') {
-                                await channelAny.httpSend(msg);
-                            } else {
-                                await taskChannel.send(msg);
-                            }
+                            await taskChannel.send(msg);
                         } catch (rtError) {
                             console.warn('Realtime send failed:', rtError);
                         }
@@ -250,9 +280,15 @@ serve(async (req) => {
 
                 // Final Update - Always save to DB even if client disconnected
                 console.log('Generation completed, saving result...');
+                
+                // SAFETY FIX: Remove Python-style Unicode escapes that crash JS (Backend Sync)
+                const sanitizedContent = fullContent.replace(/\\U([0-9a-fA-F]{8})/g, (match, p1) => {
+                    return '\\u{' + p1.replace(/^0+/, '') + '}';
+                });
+
                 await supabaseAdmin
                     .from('generation_tasks')
-                    .update({ result_code: fullContent, status: 'completed' })
+                    .update({ result_code: sanitizedContent, status: 'completed' })
                     .eq('id', taskId);
                 console.log('Result saved successfully');
                 
@@ -264,12 +300,7 @@ serve(async (req) => {
                         payload: { taskId, fullContent }
                     };
                     
-                    const channelAny = taskChannel as any;
-                    if (typeof channelAny.httpSend === 'function') {
-                        await channelAny.httpSend(completionMsg);
-                    } else {
-                        await taskChannel.send(completionMsg);
-                    }
+                    await taskChannel.send(completionMsg);
                 } catch (rtErr) {
                     console.log('Realtime completion broadcast failed:', rtErr);
                 }

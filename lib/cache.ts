@@ -32,3 +32,5 @@ export const exploreCache = {
     exploreCache.hasLoaded = false;
   }
 };
+
+export const itemDetailsCache = new Map<string, Item>();

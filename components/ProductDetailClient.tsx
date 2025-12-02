@@ -526,13 +526,19 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
             <div className="mb-8">
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.category}</h3>
               <div className="flex flex-wrap gap-2 mb-4">
-                {item.tags?.filter(tag => /[\u4e00-\u9fa5]/.test(tag)).map(tag => (
+                {item.tags?.filter(tag => {
+                  const CATEGORY_TAGS = ['game', 'design', 'productivity', 'tool', 'devtool', 'entertainment', 'education', 'visualization', 'lifestyle'];
+                  return /[\u4e00-\u9fa5]/.test(tag) || CATEGORY_TAGS.includes(tag.toLowerCase());
+                }).map(tag => (
                   <span key={tag} className="bg-slate-800 text-blue-300 px-2 py-1 rounded text-xs border border-blue-700">{tag}</span>
                 ))}
               </div>
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.tech_stack}</h3>
               <div className="flex flex-wrap gap-2">
-                {item.tags?.filter(tag => !(/[\u4e00-\u9fa5]/.test(tag))).map(tag => (
+                {item.tags?.filter(tag => {
+                  const CATEGORY_TAGS = ['game', 'design', 'productivity', 'tool', 'devtool', 'entertainment', 'education', 'visualization', 'lifestyle'];
+                  return !(/[\u4e00-\u9fa5]/.test(tag)) && !CATEGORY_TAGS.includes(tag.toLowerCase());
+                }).map(tag => (
                   <span key={tag} className="bg-slate-800 text-slate-400 px-2 py-1 rounded text-xs border border-slate-700">{tag}</span>
                 ))}
               </div>

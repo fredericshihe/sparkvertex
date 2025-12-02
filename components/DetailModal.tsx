@@ -11,6 +11,7 @@ import { getPreviewContent } from '@/lib/preview';
 import AddToHomeScreenGuide from '@/components/AddToHomeScreenGuide';
 import { copyToClipboard } from '@/lib/utils';
 import { useLanguage } from '@/context/LanguageContext';
+import { itemDetailsCache } from '@/lib/cache';
 
 const QRCodeCanvas = dynamic(() => import('qrcode.react').then(mod => mod.QRCodeCanvas), { ssr: false });
 
@@ -106,9 +107,12 @@ export default function DetailModal() {
 
   useEffect(() => {
     if (isDetailModalOpen && detailItemId) {
-      if (detailItemData) {
-        setItem(detailItemData);
-        setLikesCount(detailItemData.likes || 0);
+      const cachedItem = itemDetailsCache.get(detailItemId);
+      const initialItem = detailItemData || cachedItem;
+
+      if (initialItem) {
+        setItem(initialItem);
+        setLikesCount(initialItem.likes || 0);
         setLoading(false);
         checkIfLiked(detailItemId);
         incrementViews(detailItemId);
@@ -168,6 +172,7 @@ export default function DetailModal() {
         authorAvatar: data.profiles?.avatar_url
       };
       setItem(formattedItem);
+      itemDetailsCache.set(id, formattedItem);
       setLikesCount(formattedItem.likes || 0);
       if (showLoading) {
         checkIfLiked(id);
@@ -533,17 +538,23 @@ export default function DetailModal() {
 
                   {/* 分类标签与技术栈标签分组显示 */}
                   <div className="mb-8">
-                    {/* 类型标签（中文） */}
+                    {/* 类型标签（中文或指定英文分类） */}
                     <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.category}</h3>
                     <div className="flex flex-wrap gap-2 mb-4">
-                      {item?.tags?.filter(tag => /[\u4e00-\u9fa5]/.test(tag)).map(tag => (
+                      {item?.tags?.filter(tag => {
+                        const CATEGORY_KEYS = ['game', 'design', 'productivity', 'tool', 'devtool', 'entertainment', 'education', 'visualization', 'lifestyle'];
+                        return /[\u4e00-\u9fa5]/.test(tag) || CATEGORY_KEYS.includes(tag.toLowerCase());
+                      }).map(tag => (
                         <span key={tag} className="bg-slate-800 text-blue-300 px-2 py-1 rounded text-xs border border-blue-700">{tag}</span>
                       ))}
                     </div>
-                    {/* 技术栈标签（英文/数字/特殊） */}
+                    {/* 技术栈标签（英文/数字/特殊，排除分类） */}
                     <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.tech_stack}</h3>
                     <div className="flex flex-wrap gap-2">
-                      {item?.tags?.filter(tag => !(/[\u4e00-\u9fa5]/.test(tag))).map(tag => (
+                      {item?.tags?.filter(tag => {
+                        const CATEGORY_KEYS = ['game', 'design', 'productivity', 'tool', 'devtool', 'entertainment', 'education', 'visualization', 'lifestyle'];
+                        return !(/[\u4e00-\u9fa5]/.test(tag)) && !CATEGORY_KEYS.includes(tag.toLowerCase());
+                      }).map(tag => (
                         <span key={tag} className="bg-slate-800 text-slate-400 px-2 py-1 rounded text-xs border border-slate-700">{tag}</span>
                       ))}
                     </div>

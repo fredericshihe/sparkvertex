@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Item } from '@/types/supabase';
 import ProjectCard from '@/components/ProjectCard';
 import { useModal } from '@/context/ModalContext';
-import { exploreCache } from '@/lib/cache';
+import { exploreCache, itemDetailsCache } from '@/lib/cache';
 import { getPreviewContent } from '@/lib/preview';
 import { useLanguage } from '@/context/LanguageContext';
 import { translations } from '@/lib/i18n/translations';
@@ -355,6 +355,12 @@ export default function Explore() {
     return cat.label;
   };
 
+  const prefetchItem = (item: Item) => {
+    if (!itemDetailsCache.has(item.id)) {
+      itemDetailsCache.set(item.id, item);
+    }
+  };
+
   return (
     <div className="flex h-screen pt-16 bg-slate-950 overflow-hidden">
       {/* Sidebar Navigation */}
@@ -408,10 +414,10 @@ export default function Explore() {
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto custom-scrollbar relative">
-        {/* Mobile Category Filter (Horizontal Scroll) */}
-        <div className="md:hidden sticky top-0 z-30 bg-slate-950/95 backdrop-blur border-b border-slate-800 px-4 py-3 flex gap-2 overflow-x-auto no-scrollbar">
+      {/* Main Content Area Wrapper */}
+      <div className="flex-1 flex flex-col min-w-0 bg-slate-950 relative">
+        {/* Mobile Category Filter (Fixed at top) */}
+        <div className="md:hidden z-30 bg-slate-950/95 backdrop-blur border-b border-slate-800 px-4 py-3 flex gap-2 overflow-x-auto no-scrollbar flex-shrink-0">
           {categories.map(cat => (
             <button
               key={cat.id}
@@ -428,7 +434,8 @@ export default function Explore() {
           ))}
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="flex-1 overflow-y-auto custom-scrollbar relative">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           
           {/* Header & Search */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -517,6 +524,7 @@ export default function Explore() {
                   isLiked={myLikes.has(item.id)} 
                   onLike={handleLike}
                   onClick={(id) => openDetailModal(id, item)}
+                  onHover={prefetchItem}
                 />
               ))}
             </div>
@@ -540,6 +548,7 @@ export default function Explore() {
           )}
         </div>
       </main>
+      </div>
     </div>
   );
 }

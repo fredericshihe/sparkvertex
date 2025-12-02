@@ -59,132 +59,135 @@ serve(async (req) => {
 
   try {
     const payload: EmailPayload = await req.json();
-    const { user, email_data } = payload;
+    console.log("Received payload for:", payload.user?.email);
     
-    // 1. Determine Locale
-    // Priority: User Metadata -> URL Param in redirect_to -> Default 'en'
-    let locale = user.user_metadata?.locale || 'en';
-    
-    // Fallback: Check if redirect_to has lang param (e.g. for password reset initiated from a specific page)
-    if (email_data.redirect_to) {
+    // Prepare the email sending task
+    const sendEmailTask = async () => {
         try {
-            const url = new URL(email_data.redirect_to);
-            const langParam = url.searchParams.get('lang');
-            if (langParam === 'zh' || langParam === 'en') {
-                locale = langParam;
+            const { user, email_data } = payload;
+            
+            // 1. Determine Locale
+            let locale = user.user_metadata?.locale || 'en';
+            
+            if (email_data.redirect_to) {
+                try {
+                    const url = new URL(email_data.redirect_to);
+                    const langParam = url.searchParams.get('lang');
+                    if (langParam === 'zh' || langParam === 'en') {
+                        locale = langParam;
+                    }
+                } catch (e) {
+                    console.warn("Invalid URL in redirect_to, skipping lang detection from URL:", email_data.redirect_to);
+                }
             }
-        } catch (e) {
-            console.warn("Invalid URL in redirect_to, skipping lang detection from URL:", email_data.redirect_to);
+
+            const lang = (locale === 'zh' ? 'zh' : 'en') as keyof typeof translations;
+            const t = translations[lang];
+
+            // 2. Construct Link
+            let frontendOrigin = '';
+            try {
+                if (email_data.redirect_to) {
+                    const url = new URL(email_data.redirect_to);
+                    frontendOrigin = url.origin;
+                }
+            } catch (e) {
+                console.error('Error parsing redirect_to:', e);
+            }
+            
+            if (!frontendOrigin) {
+                frontendOrigin = email_data.site_url;
+            }
+            
+            frontendOrigin = frontendOrigin.replace(/\/$/, '');
+            
+            const verifyUrl = `${frontendOrigin}/api/auth/verify?token_hash=${email_data.token_hash}&type=${email_data.email_action_type}&redirect_to=${encodeURIComponent(email_data.redirect_to)}`;
+
+            // 3. Select Content
+            let subject = "";
+            let htmlContent = "";
+
+            if (email_data.email_action_type === "signup") {
+                subject = t.signup.subject;
+                htmlContent = `
+                  <h2>${t.signup.heading}</h2>
+                  <p>${t.signup.text}</p>
+                  <a href="${verifyUrl}" style="background:#3b82f6;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">${t.signup.button}</a>
+                `;
+            } else if (email_data.email_action_type === "recovery") {
+                subject = t.recovery.subject;
+                htmlContent = `
+                  <h2>${t.recovery.heading}</h2>
+                  <p>${t.recovery.text}</p>
+                  <a href="${verifyUrl}" style="background:#3b82f6;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">${t.recovery.button}</a>
+                `;
+            } else {
+                subject = "Spark Vertex Notification";
+                htmlContent = `<p>Please click the link below:</p><a href="${verifyUrl}">Verify</a>`;
+            }
+
+            console.log(`Sending ${email_data.email_action_type} email to ${user.email} in ${lang}`);
+
+            // 4. Send Email
+            const apiKey = RESEND_API_KEY ? RESEND_API_KEY.trim() : "";
+            
+            if (apiKey) {
+                const fromEmail = "noreply@sparkvertex.com";
+                console.log(`Attempting to send email from ${fromEmail} to ${user.email}`);
+                
+                const res = await fetch("https://api.resend.com/emails", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`,
+                    },
+                    body: JSON.stringify({
+                        from: `Spark Vertex <${fromEmail}>`, 
+                        to: user.email,
+                        subject: subject,
+                        html: htmlContent,
+                    }),
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    console.error(`Resend API Error (${res.status}):`, errorText);
+                } else {
+                    console.log("Email sent successfully via Resend");
+                }
+            } else {
+                console.log("RESEND_API_KEY not set. Logging email content:");
+                console.log("Subject:", subject);
+                console.log("HTML:", htmlContent);
+            }
+        } catch (err) {
+            console.error("Background email task failed:", err);
         }
-    }
+    };
 
-    // Ensure valid locale
-    const lang = (locale === 'zh' ? 'zh' : 'en') as keyof typeof translations;
-    const t = translations[lang];
-
-    // 2. Construct Link
-    // Supabase sends the token. We need to construct the link that the user clicks.
-    // Usually: {{ .SiteURL }}/auth/v1/verify?token={{ .Token }}&type=signup&redirect_to={{ .RedirectTo }}
-    // But for Custom SMTP, we construct it manually.
-    // IMPORTANT: We must encode the redirect_to parameter because it contains query parameters (?lang=...)
-    // FIX: We also need to append the API Key because hitting the Supabase API directly requires it.
-    // FIX: Use SUPABASE_URL (API URL) instead of site_url (Frontend URL) for the verify endpoint.
-    // UPDATE: To solve VPN issues in China and Redirect issues, we now point to our own Next.js API route.
-    // This route (/api/auth/verify) will handle the verification server-side and redirect the user.
-    
-    // Robust way to determine the frontend origin from redirect_to
-    // This ensures we point to the actual frontend (localhost or production) and not the Supabase API URL
-    let frontendOrigin = '';
-    try {
-        if (email_data.redirect_to) {
-            const url = new URL(email_data.redirect_to);
-            frontendOrigin = url.origin;
-        }
-    } catch (e) {
-        console.error('Error parsing redirect_to:', e);
-    }
-    
-    if (!frontendOrigin) {
-        // Fallback to site_url if redirect_to is missing or invalid
-        frontendOrigin = email_data.site_url;
-    }
-    
-    // Remove trailing slash
-    frontendOrigin = frontendOrigin.replace(/\/$/, '');
-    
-    // We use token_hash for secure verification
-    const verifyUrl = `${frontendOrigin}/api/auth/verify?token_hash=${email_data.token_hash}&type=${email_data.email_action_type}&redirect_to=${encodeURIComponent(email_data.redirect_to)}`;
-
-    // 3. Select Content based on Action Type
-    let subject = "";
-    let htmlContent = "";
-
-    if (email_data.email_action_type === "signup") {
-        subject = t.signup.subject;
-        htmlContent = `
-          <h2>${t.signup.heading}</h2>
-          <p>${t.signup.text}</p>
-          <a href="${verifyUrl}" style="background:#3b82f6;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">${t.signup.button}</a>
-        `;
-    } else if (email_data.email_action_type === "recovery") {
-        subject = t.recovery.subject;
-        htmlContent = `
-          <h2>${t.recovery.heading}</h2>
-          <p>${t.recovery.text}</p>
-          <a href="${verifyUrl}" style="background:#3b82f6;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;">${t.recovery.button}</a>
-        `;
+    // Use EdgeRuntime.waitUntil to run in background without blocking the response
+    // @ts-ignore
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+        console.log("Using EdgeRuntime.waitUntil for background email sending");
+        // @ts-ignore
+        EdgeRuntime.waitUntil(sendEmailTask());
     } else {
-        // Fallback for other types
-        subject = "Spark Vertex Notification";
-        htmlContent = `<p>Please click the link below:</p><a href="${verifyUrl}">Verify</a>`;
+        console.warn("EdgeRuntime.waitUntil not available, running without await (might be killed)");
+        sendEmailTask();
     }
 
-    console.log(`Sending ${email_data.email_action_type} email to ${user.email} in ${lang}`);
-
-    // 4. Send Email (using Resend as an example)
-    const apiKey = RESEND_API_KEY ? RESEND_API_KEY.trim() : "";
-    
-    if (apiKey) {
-        // Use the verified domain email
-        const fromEmail = "noreply@sparkvertex.com";
-        
-        console.log(`Attempting to send email from ${fromEmail} to ${user.email}`);
-        
-        const res = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-                from: `Spark Vertex <${fromEmail}>`, 
-                to: user.email,
-                subject: subject,
-                html: htmlContent,
-            }),
-        });
-
-        if (!res.ok) {
-            const errorText = await res.text();
-            console.error(`Resend API Error (${res.status}):`, errorText);
-            // Return 500 so Supabase knows it failed, but include details
-            return new Response(JSON.stringify({ 
-                error: `Resend Error (${res.status}): ${errorText}`,
-                details: "Check Resend API Key and Domain Verification"
-            }), { status: 500 });
-        }
-    } else {
-        console.log("RESEND_API_KEY not set. Logging email content:");
-        console.log("Subject:", subject);
-        console.log("HTML:", htmlContent);
-    }
-
+    // Return success immediately to Supabase Auth
     return new Response(JSON.stringify({ success: true }), {
       headers: { "Content-Type": "application/json" },
+      status: 200
     });
 
   } catch (error: any) {
     console.error("Error handling email hook:", error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    // Always return 200 to prevent blocking auth
+    return new Response(JSON.stringify({ error: error.message }), { 
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+    });
   }
 });

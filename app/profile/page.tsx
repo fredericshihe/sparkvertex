@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
+import { useToast } from '@/context/ToastContext';
 import { exploreCache } from '@/lib/cache';
 import ProjectCard from '@/components/ProjectCard';
 import { useLanguage } from '@/context/LanguageContext';
@@ -12,6 +13,7 @@ import { useRouter } from 'next/navigation';
 export default function Profile() {
   const router = useRouter();
   const { openLoginModal, openDetailModal, openEditProfileModal, openPaymentQRModal, openManageOrdersModal } = useModal();
+  const { success: toastSuccess } = useToast();
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'works' | 'purchased' | 'favorites'>('works');
   const [user, setUser] = useState<any>(null);
@@ -31,6 +33,28 @@ export default function Profile() {
       fetchProfile();
       fetchItems();
       fetchCounts();
+
+      // Subscribe to profile changes for real-time credit updates
+      const channel = supabase
+        .channel('profile-updates')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${user.id}`
+          },
+          (payload) => {
+            const newProfile = payload.new as any;
+            setProfile(prev => ({ ...prev, ...newProfile }));
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user, activeTab]);
 
@@ -38,6 +62,18 @@ export default function Profile() {
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       setUser(session.user);
+      
+      // Check daily bonus
+      try {
+        const { data: bonusData } = await supabase.rpc('check_daily_bonus');
+        if (bonusData && bonusData.awarded) {
+          toastSuccess(`${t.profile.daily_bonus} ${bonusData.credits}`);
+          // Refresh profile to show new credits
+          fetchProfile();
+        }
+      } catch (error) {
+        console.error('Failed to check daily rewards:', error);
+      }
     } else {
       openLoginModal();
     }
@@ -306,7 +342,11 @@ export default function Profile() {
             <div>
               <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">{t.profile.credits}</div>
               <div className="flex items-baseline gap-2">
-                <span className="text-xl font-bold text-white">{profile?.credits ?? 30}</span>
+                <span className="text-xl font-bold text-white">
+                  {profile?.credits !== undefined 
+                    ? (Number.isInteger(profile.credits) ? profile.credits : Number(profile.credits).toFixed(1)) 
+                    : 30}
+                </span>
                 <span className="text-xs text-slate-500">分</span>
               </div>
             </div>
