@@ -828,9 +828,8 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
    - ✅ ALLOWED: Direct Emoji characters (e.g., 👀) or ES6 unicode escapes (e.g., \\u{1F440}).
 5. **No Unescaped Characters**: Ensure all strings in JavaScript/React are properly escaped. Avoid unescaped backticks (\`) inside template literals.
 6. **No Infinite Loops**: Ensure all \`useEffect\` hooks have proper dependency arrays.
-7. **No Console Blocking**: Remove excessive \`console.log\` that might slow down the browser.
-8. **Valid HTML Structure**: Ensure all tags are properly closed. Do not nest \`<a>\` inside \`<a>\` or \`<button>\` inside \`<button>\`.
-9. **Perfect Rendering**: Ensure the app takes up the full height of the viewport (h-screen, w-full) and handles overflow correctly. Prevent white screens by using Error Boundaries.
+7. **Valid HTML Structure**: Ensure all tags are properly closed. Do not nest \`<a>\` inside \`<a>\` or \`<button>\` inside \`<button>\`.
+8. **Perfect Rendering**: Ensure the app takes up the full height of the viewport (h-screen, w-full) and handles overflow correctly. Prevent white screens by using Error Boundaries.
 
 ### Tech Stack (Minimalist & Robust):
 - **React 18**: Use Functional Components, Hooks (useState, useEffect, useMemo, useCallback).
@@ -841,12 +840,9 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
   - ❌ NO \`require()\`. Use ES Modules syntax only.
 
 ### Design System & UX (The "Wow" Factor):
-- **Visual Style**: Modern, Clean, Apple-esque or Linear-style design. Use subtle shadows, rounded corners (rounded-xl, rounded-2xl), and plenty of whitespace.
-- **Color Palette**: Use a professional, harmonious color palette. Avoid default HTML colors. Use slate/zinc/neutral for grays, and a vibrant primary color (indigo, violet, emerald, or rose).
-- **Interactions**:
-  - Add hover effects (\`hover:scale-105\`, \`active:scale-95\`) to ALL interactive elements.
-  - Use transitions (\`transition-all duration-300 ease-in-out\`).
-  - Add loading states (skeletons or spinners) for async operations.
+- **Visual Style**: Modern, Clean, and Consistent. Use subtle shadows, rounded corners, and plenty of whitespace.
+- **Color Palette**: Use a professional, harmonious color palette. Avoid default HTML colors.
+- **Interactions**: Add hover effects and transitions to interactive elements.
 - **Mobile Specifics** (if mobile):
   - Bottom Navigation Bar for main tabs.
   - Large touch targets (min-h-[44px]).
@@ -854,7 +850,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 
 ### Code Quality Standards:
 - **Error Handling**: Wrap main logic in try-catch blocks. UI should not crash on error.
-- **State Management**: Use simple but effective state. Avoid prop drilling where possible (use Context if complex, but keep it simple for single file).
+- **State Management**: Use simple but effective state. Avoid prop drilling where possible.
 - **Performance**: Cleanup event listeners in \`useEffect\`.
 
 ### Execution Steps:
