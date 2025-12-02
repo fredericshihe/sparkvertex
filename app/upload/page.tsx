@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
-import { useLanguage } from '@/lib/i18n/useLanguage';
+import { useLanguage } from '@/context/LanguageContext';
 import { getPreviewContent } from '@/lib/preview';
 import { copyToClipboard } from '@/lib/utils';
 
