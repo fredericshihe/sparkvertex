@@ -1127,7 +1127,7 @@ export default function UploadPage() {
                   <div className="grid grid-cols-2 gap-4 mt-4">
                     <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
                       <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> {t.upload.result_category}</div>
-                      <div className="font-bold text-white">{(t.categories as any)[analysisState.data.category] || analysisState.data.category}</div>
+                      <div className="font-bold text-white">{analysisState.data.category ? ((t.categories as any)[analysisState.data.category] || analysisState.data.category) : ''}</div>
                     </div>
                     <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
                       <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> {t.upload.result_title}</div>
