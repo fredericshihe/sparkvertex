@@ -17,6 +17,7 @@ export const translations = {
       error: '错误',
       unknown_error: '未知错误',
       no_data: '暂无数据',
+      later: '稍后再说',
     },
     nav: {
       home: '首页',
@@ -772,6 +773,7 @@ export const translations = {
       error: 'Error',
       unknown_error: 'Unknown Error',
       no_data: 'No Data',
+      later: 'Later',
     },
     nav: {
       home: 'Home',
