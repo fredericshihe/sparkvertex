@@ -11,91 +11,41 @@ import { useLanguage } from '@/context/LanguageContext';
 import { translations } from '@/lib/i18n/translations';
 
 const KNOWN_CATEGORIES: Record<string, { key: string, icon: string }> = {
-  // Core Categories (English keys)
-  game: { key: 'game', icon: 'fa-gamepad' },
-  tool: { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  productivity: { key: 'productivity', icon: 'fa-list-check' },
-  design: { key: 'design', icon: 'fa-palette' },
-  devtool: { key: 'devtool', icon: 'fa-code' },
-  entertainment: { key: 'entertainment', icon: 'fa-film' },
-  education: { key: 'education', icon: 'fa-graduation-cap' },
-  visualization: { key: 'visualization', icon: 'fa-chart-pie' },
-  lifestyle: { key: 'lifestyle', icon: 'fa-mug-hot' },
-  
-  // Chinese mappings
-  // 休闲游戏
+  // Game
+  'game': { key: 'game', icon: 'fa-gamepad' },
   '游戏': { key: 'game', icon: 'fa-gamepad' },
-  '游戏娱乐': { key: 'game', icon: 'fa-gamepad' },
-  '休闲游戏': { key: 'game', icon: 'fa-gamepad' },
-  '益智游戏': { key: 'game', icon: 'fa-gamepad' },
-  'Game': { key: 'game', icon: 'fa-gamepad' },
   
-  // 创意设计
-  '创意': { key: 'design', icon: 'fa-palette' },
-  '创意设计': { key: 'design', icon: 'fa-palette' },
+  // Design
+  'design': { key: 'design', icon: 'fa-palette' },
   '设计': { key: 'design', icon: 'fa-palette' },
-  '艺术': { key: 'design', icon: 'fa-palette' },
-  'Eye Candy': { key: 'design', icon: 'fa-palette' },
-  'Design': { key: 'design', icon: 'fa-palette' },
   
-  // 办公效率
-  '生产力': { key: 'productivity', icon: 'fa-list-check' },
-  '办公效率': { key: 'productivity', icon: 'fa-list-check' },
+  // Productivity
+  'productivity': { key: 'productivity', icon: 'fa-list-check' },
   '效率': { key: 'productivity', icon: 'fa-list-check' },
-  '办公': { key: 'productivity', icon: 'fa-list-check' },
-  'Productivity': { key: 'productivity', icon: 'fa-list-check' },
   
-  // 实用工具
+  // Tool
+  'tool': { key: 'tool', icon: 'fa-screwdriver-wrench' },
   '工具': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  '实用工具': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  'Tiny Tools': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  '计算器': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  'Tool': { key: 'tool', icon: 'fa-screwdriver-wrench' },
   
-  // 开发者工具
+  // Devtool
+  'devtool': { key: 'devtool', icon: 'fa-code' },
   '开发者工具': { key: 'devtool', icon: 'fa-code' },
-  '开发': { key: 'devtool', icon: 'fa-code' },
-  '编程': { key: 'devtool', icon: 'fa-code' },
-  '代码': { key: 'devtool', icon: 'fa-code' },
-  'DevTool': { key: 'devtool', icon: 'fa-code' },
-  'Developer': { key: 'devtool', icon: 'fa-code' },
   
-  // 影音娱乐
-  '影音娱乐': { key: 'entertainment', icon: 'fa-film' },
+  // Entertainment
+  'entertainment': { key: 'entertainment', icon: 'fa-film' },
   '娱乐': { key: 'entertainment', icon: 'fa-film' },
-  '音乐': { key: 'entertainment', icon: 'fa-music' },
-  '视频': { key: 'entertainment', icon: 'fa-video' },
-  '影视': { key: 'entertainment', icon: 'fa-film' },
-  'Entertainment': { key: 'entertainment', icon: 'fa-film' },
   
-  // 教育学习
+  // Education
+  'education': { key: 'education', icon: 'fa-graduation-cap' },
   '教育': { key: 'education', icon: 'fa-graduation-cap' },
-  '教育学习': { key: 'education', icon: 'fa-graduation-cap' },
-  '学习': { key: 'education', icon: 'fa-graduation-cap' },
-  '知识': { key: 'education', icon: 'fa-graduation-cap' },
-  'Education': { key: 'education', icon: 'fa-graduation-cap' },
   
-  // 数据可视化
-  '数据可视化': { key: 'visualization', icon: 'fa-chart-pie' },
-  '图表': { key: 'visualization', icon: 'fa-chart-pie' },
-  '数据': { key: 'visualization', icon: 'fa-chart-pie' },
-  'Visualization': { key: 'visualization', icon: 'fa-chart-pie' },
+  // Visualization
+  'visualization': { key: 'visualization', icon: 'fa-chart-pie' },
+  '可视化': { key: 'visualization', icon: 'fa-chart-pie' },
   
-  // 生活便利
+  // Lifestyle
+  'lifestyle': { key: 'lifestyle', icon: 'fa-mug-hot' },
   '生活': { key: 'lifestyle', icon: 'fa-mug-hot' },
-  '生活便利': { key: 'lifestyle', icon: 'fa-mug-hot' },
-  '日常': { key: 'lifestyle', icon: 'fa-mug-hot' },
-  '健康': { key: 'lifestyle', icon: 'fa-heart-pulse' },
-  'Lifestyle': { key: 'lifestyle', icon: 'fa-mug-hot' },
-  
-  // AI (Map to Tool or keep separate? User didn't specify AI, but it's common. Let's map to Tool or DevTool or keep separate if not in list. 
-  // User said "Unify into...". So I should probably map AI to something else or just let it be if it doesn't match.
-  // But wait, if I don't map it, it might show up as "AI" if I don't filter it out.
-  // The logic in fetchCategories filters out ignored tags, then checks KNOWN_CATEGORIES.
-  // If not known, it adds it as is.
-  // I'll map AI to 'tool' or 'devtool' depending on context, but here simple mapping:
-  'AI': { key: 'tool', icon: 'fa-robot' },
-  'AI应用': { key: 'tool', icon: 'fa-robot' },
 };
 
 const IGNORED_TAGS = new Set([
@@ -156,17 +106,19 @@ export default function Explore() {
 
     data.forEach(item => {
       if (Array.isArray(item.tags)) {
-        // Rule: Only identify the first Chinese tag
-        const firstChineseTag = item.tags.find((tag: string) => tag && /[\u4e00-\u9fa5]/.test(tag));
-        
-        if (firstChineseTag) {
-          const normalizedTag = firstChineseTag.trim();
-          // Map to Core Key
+        const itemCategories = new Set<string>();
+        item.tags.forEach((tag: string) => {
+          if (!tag) return;
+          const normalizedTag = tag.trim();
           const mapping = KNOWN_CATEGORIES[normalizedTag] || KNOWN_CATEGORIES[normalizedTag.toLowerCase()];
           if (mapping) {
-             categoryCounts[mapping.key] = (categoryCounts[mapping.key] || 0) + 1;
+             itemCategories.add(mapping.key);
           }
-        }
+        });
+        
+        itemCategories.forEach(catKey => {
+           categoryCounts[catKey] = (categoryCounts[catKey] || 0) + 1;
+        });
       }
     });
 
