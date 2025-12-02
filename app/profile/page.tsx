@@ -316,7 +316,7 @@ export default function Profile() {
 
           <div className="flex items-center gap-4 flex-1 w-full">
              <div className="text-sm text-slate-400">
-                <p><i className="fa-solid fa-circle-info mr-1 text-blue-400"></i> 每日登录赠送 0.5 积分</p>
+                <p><i className="fa-solid fa-circle-info mr-1 text-blue-400"></i> 每日登录赠送 1 积分</p>
                 <p className="mt-1"><i className="fa-solid fa-bolt mr-1 text-yellow-400"></i> 创建消耗 3 积分，修改消耗 0.5 积分</p>
              </div>
           </div>
