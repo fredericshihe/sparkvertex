@@ -109,7 +109,7 @@ export async function POST(request: Request) {
       const systemLower = system_prompt.toLowerCase();
       
       // 1. Category Analysis
-      if (systemLower.includes('应用分类专家') && !promptLower.includes('特定类别')) {
+      if ((systemLower.includes('应用分类专家') || systemLower.includes('category expert')) && !promptLower.includes('特定类别')) {
         const categories = ['休闲游戏', '实用工具', '办公效率', '教育学习', '生活便利', '创意设计', '数据可视化', '影音娱乐', '开发者工具', 'AI应用'];
         return NextResponse.json({ content: '创意设计' });
       }
@@ -120,13 +120,13 @@ export async function POST(request: Request) {
       }
       
       // 3. Title Analysis
-      if (systemLower.includes('标题') || (systemLower.includes('前端代码分析专家') && promptLower.includes('标题'))) {
-        return NextResponse.json({ content: 'AI 生成的创意作品' });
+      if (systemLower.includes('标题') || systemLower.includes('title') || (systemLower.includes('前端代码分析专家') && promptLower.includes('标题'))) {
+        return NextResponse.json({ content: systemLower.includes('title') ? 'AI Generated Creative Work' : 'AI 生成的创意作品' });
       }
       
       // 4. Description Analysis
-      if (systemLower.includes('产品描述') || (systemLower.includes('描述') && !systemLower.includes('prompt'))) {
-        return NextResponse.json({ content: '这是一个由 AI 自动分析生成的描述。该作品包含 HTML/CSS/JS 代码，是一个交互式网页应用，具有现代化的界面设计。' });
+      if (systemLower.includes('产品描述') || systemLower.includes('description') || (systemLower.includes('描述') && !systemLower.includes('prompt'))) {
+        return NextResponse.json({ content: systemLower.includes('description') ? 'This is an AI analyzed description. The work contains HTML/CSS/JS code and is an interactive web app with modern UI.' : '这是一个由 AI 自动分析生成的描述。该作品包含 HTML/CSS/JS 代码，是一个交互式网页应用，具有现代化的界面设计。' });
       }
       
       // 5. Prompt Analysis (Check this BEFORE Tech Stack because Prompt request might contain "Tech")
@@ -135,12 +135,12 @@ export async function POST(request: Request) {
       }
 
       // 6. Tech Stack Analysis
-      if (systemLower.includes('技术栈') || (promptLower.includes('技术栈') && !promptLower.includes('prompt'))) {
+      if (systemLower.includes('技术栈') || systemLower.includes('tech stack') || (promptLower.includes('技术栈') && !promptLower.includes('prompt'))) {
         return NextResponse.json({ content: 'HTML5, CSS3, JavaScript, Tailwind CSS' });
       }
       
       // 7. Security Check
-      if (systemLower.includes('安全') || promptLower.includes('恶意行为')) {
+      if (systemLower.includes('安全') || systemLower.includes('security') || promptLower.includes('恶意行为')) {
         return NextResponse.json({ content: JSON.stringify({ isSafe: true, risks: [], severity: 'low' }) });
       }
 

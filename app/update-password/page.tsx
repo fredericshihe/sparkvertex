@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/context/ToastContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function UpdatePassword() {
   const [password, setPassword] = useState('');
@@ -11,10 +12,20 @@ export default function UpdatePassword() {
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(true);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { success, error } = useToast();
+  const { t, setLanguage } = useLanguage();
 
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  useEffect(() => {
+    // Auto-switch language if param exists
+    const langParam = searchParams.get('lang');
+    if (langParam === 'zh' || langParam === 'en') {
+      setLanguage(langParam);
+    }
+  }, [searchParams, setLanguage]);
 
   useEffect(() => {
     // Listen for auth state changes
@@ -78,14 +89,14 @@ export default function UpdatePassword() {
 
   const handleUpdatePassword = async () => {
     if (password !== confirmPassword) {
-      error('两次输入的密码不一致');
+      error(t.auth_modal.error_password_mismatch || '两次输入的密码不一致');
       return;
     }
     
     // Strong password validation
     const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}$/;
     if (!passwordRegex.test(password)) {
-      error('密码需至少8位，且包含字母和数字');
+      error(t.auth_modal.error_invalid_password || '密码需至少8位，且包含字母和数字');
       return;
     }
 
@@ -97,8 +108,8 @@ export default function UpdatePassword() {
 
       if (updateError) throw updateError;
 
-      success('密码修改成功，请重新登录');
-      setSuccessMsg('密码修改成功！正在跳转回首页...');
+      success(t.auth_modal.success_password_updated || '密码修改成功，请重新登录');
+      setSuccessMsg(t.auth_modal.success_password_updated_redirect || '密码修改成功！正在跳转回首页...');
       
       await supabase.auth.signOut();
       
@@ -107,7 +118,7 @@ export default function UpdatePassword() {
         router.push('/');
       }, 2000);
     } catch (err: any) {
-      error(err.message || '修改密码失败');
+      error(err.message || t.auth_modal.error_generic || '修改密码失败');
     } finally {
       setLoading(false);
     }
@@ -118,12 +129,12 @@ export default function UpdatePassword() {
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-white text-center max-w-md">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-lg mb-2">正在验证链接有效性...</p>
+          <p className="text-lg mb-2">{t.auth_modal.verifying_link || '正在验证链接有效性...'}</p>
           <button 
             onClick={() => router.push('/')}
             className="mt-8 text-sm text-slate-400 hover:text-white underline"
           >
-            返回首页
+            {t.auth_modal.back_home || '返回首页'}
           </button>
         </div>
       </div>
@@ -155,7 +166,7 @@ export default function UpdatePassword() {
             onClick={() => router.push('/')}
             className="mt-8 px-6 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-white transition"
           >
-            返回首页
+            {t.auth_modal.back_home || '返回首页'}
           </button>
         </div>
       </div>
@@ -165,27 +176,27 @@ export default function UpdatePassword() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl">
-        <h2 className="text-2xl font-bold text-white mb-6 text-center">设置新密码</h2>
+        <h2 className="text-2xl font-bold text-white mb-6 text-center">{t.auth_modal.set_new_password || '设置新密码'}</h2>
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">新密码</label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">{t.auth_modal.new_password || '新密码'}</label>
             <input 
               type="password" 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition"
-              placeholder="请输入新密码"
+              placeholder={t.auth_modal.enter_new_password || '请输入新密码'}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">确认新密码</label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">{t.auth_modal.confirm_new_password || '确认新密码'}</label>
             <input 
               type="password" 
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none transition"
-              placeholder="请再次输入新密码"
+              placeholder={t.auth_modal.reenter_new_password || '请再次输入新密码'}
             />
           </div>
 
@@ -194,7 +205,7 @@ export default function UpdatePassword() {
             disabled={loading}
             className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-brand-500/30 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
           >
-            {loading ? '提交中...' : '确认修改'}
+            {loading ? (t.auth_modal.submitting || '提交中...') : (t.auth_modal.confirm_change || '确认修改')}
           </button>
         </div>
       </div>

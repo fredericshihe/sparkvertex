@@ -62,18 +62,14 @@ serve(async (req) => {
       .update({ status: 'processing' })
       .eq('id', taskId);
 
-    // 5. Rate Limit & Credit Check (Logic copied from generate-app)
-    // ... (Simplified for brevity, assuming API route did initial checks, but strictly we should check again or trust the API created the task)
-    // Actually, since the API creates the task, we can assume basic checks passed. 
-    // But we still need to deduct credits at the end.
-
     // 6. Call LLM
     const apiKey = Deno.env.get('GOOGLE_API_KEY');
     
-    // Determine model based on task type
+    // OPTIMIZATION 1: Model Routing (Mixed Model Strategy)
+    // Use Gemini 3 Pro Preview for speed by default (Creation), Gemini 2.5 Flash for modifications (Point-and-Click)
     let modelName = 'gemini-3-pro-preview';
     if (type === 'modification') {
-        modelName = 'gemini-3-pro-preview';
+        modelName = 'gemini-2.5-flash';
     }
     
     const envModel = Deno.env.get('GOOGLE_MODEL_NAME');
@@ -85,9 +81,16 @@ serve(async (req) => {
         throw new Error('Missing API Key');
     }
 
+    // OPTIMIZATION 5: Precise Diff Strategy
+    // Enforce strict context limits in system prompt to reduce token usage
+    let finalSystemPrompt = system_prompt || 'You are a helpful assistant.';
+    if (type === 'modification') {
+        finalSystemPrompt += '\n\nCRITICAL INSTRUCTION: When generating diffs, DO NOT output large chunks of unchanged code. Only output the specific lines being modified with 3 lines of context before and after. This is for performance.';
+    }
+
     // Construct messages
     const messages = [
-        { role: 'system', content: system_prompt || 'You are a helpful assistant.' }
+        { role: 'system', content: finalSystemPrompt }
     ];
 
     if (image_url) {
@@ -107,8 +110,14 @@ serve(async (req) => {
         messages.push({ role: 'user', content: String(user_prompt) });
     }
 
+    // OPTIMIZATION 6: Prefill (Pre-computation)
+    // Force the model to start immediately with the diff format
+    // Note: We must manually initialize fullContent with this prefix later
+    if (type === 'modification') {
+        messages.push({ role: 'assistant', content: '<<<<SEARCH' });
+    }
+
     // Create a stream to return to the client immediately
-    // This prevents 504 Gateway Timeouts by keeping the connection active
     const stream = new ReadableStream({
         async start(controller) {
             const encoder = new TextEncoder();
@@ -145,13 +154,17 @@ serve(async (req) => {
                 // 7. Process Stream & Update DB
                 const reader = response.body?.getReader();
                 const decoder = new TextDecoder();
-                let fullContent = '';
+                
+                // Initialize fullContent with prefill if applicable
+                // This ensures the frontend receives the full valid syntax even if the model skips the prefilled part
+                let fullContent = (type === 'modification') ? '<<<<SEARCH' : '';
+                
                 let dbBuffer = ''; 
                 let streamBuffer = ''; 
                 let lastUpdate = Date.now();
-                let streamClosed = false; // Track if client disconnected
+                let lastBroadcastLength = fullContent.length; // Track last broadcast length for debounce
+                let streamClosed = false; 
                 
-                // Create channel once
                 const taskChannel = supabaseAdmin.channel(`task-${taskId}`);
                 taskChannel.subscribe((status) => {
                     if (status !== 'SUBSCRIBED') { 
@@ -160,10 +173,7 @@ serve(async (req) => {
                 });
 
                 if (reader) {
-                  let lastDbUpdate = Date.now();
-
                   while (true) {
-                    // Check if client disconnected
                     if (streamClosed) {
                         console.log('Client disconnected, stopping generation');
                         break;
@@ -191,57 +201,50 @@ serve(async (req) => {
                         }
                     }
 
-                    // Broadcast updates via Realtime
-                    if (Date.now() - lastUpdate > 100 || fullContent.length - dbBuffer.length > 50) {
-                        if (fullContent.length > dbBuffer.length) {
-                            const newChunk = fullContent.slice(dbBuffer.length);
-                            
-                            const msg = {
-                                type: 'broadcast',
-                                event: 'chunk',
-                                payload: { 
-                                    chunk: newChunk, 
-                                    fullContent: fullContent,
-                                    taskId: taskId
-                                }
-                            };
-
-                            // Try to send via Realtime, but don't crash if it fails
-                            try {
-                                // Use httpSend if available to avoid warning about REST fallback
-                                const channelAny = taskChannel as any;
-                                if (typeof channelAny.httpSend === 'function') {
-                                    await channelAny.httpSend(msg);
-                                } else {
-                                    await taskChannel.send(msg);
-                                }
-                            } catch (rtError) {
-                                console.warn('Realtime send failed:', rtError);
+                    // OPTIMIZATION 4: Realtime Debounce
+                    // Accumulate ~150 chars or wait 500ms before broadcasting
+                    // This significantly reduces the number of WebSocket messages
+                    const contentDiff = fullContent.length - lastBroadcastLength;
+                    
+                    if (contentDiff > 150 || (contentDiff > 0 && Date.now() - lastUpdate > 500)) {
+                        const newChunk = fullContent.slice(lastBroadcastLength);
+                        
+                        const msg = {
+                            type: 'broadcast',
+                            event: 'chunk',
+                            payload: { 
+                                chunk: newChunk, 
+                                fullContent: fullContent,
+                                taskId: taskId
                             }
-                            
-                            // Keep HTTP connection alive (check if stream is still open)
-                            try {
-                                controller.enqueue(encoder.encode(JSON.stringify({ status: 'processing', length: fullContent.length }) + '\n'));
-                            } catch (streamErr) {
-                                console.log('Stream closed by client, stopping updates');
-                                streamClosed = true;
-                                break; // Exit the loop if client disconnected
-                            }
-                        }
-                    }
+                        };
 
-                    // Fallback: Update DB every 2 seconds to support polling if Realtime fails
-                    if (Date.now() - lastDbUpdate > 2000 && fullContent.length > 0) {
                         try {
-                            await supabaseAdmin
-                                .from('generation_tasks')
-                                .update({ result_code: fullContent })
-                                .eq('id', taskId);
-                            lastDbUpdate = Date.now();
-                        } catch (dbError) {
-                            console.warn('DB update failed:', dbError);
+                            const channelAny = taskChannel as any;
+                            if (typeof channelAny.httpSend === 'function') {
+                                await channelAny.httpSend(msg);
+                            } else {
+                                await taskChannel.send(msg);
+                            }
+                        } catch (rtError) {
+                            console.warn('Realtime send failed:', rtError);
+                        }
+                        
+                        lastBroadcastLength = fullContent.length;
+                        lastUpdate = Date.now();
+                        
+                        try {
+                            controller.enqueue(encoder.encode(JSON.stringify({ status: 'processing', length: fullContent.length }) + '\n'));
+                        } catch (streamErr) {
+                            console.log('Stream closed by client, stopping updates');
+                            streamClosed = true;
+                            break; 
                         }
                     }
+
+                    // OPTIMIZATION 3: DB Throttling
+                    // REMOVED intermediate DB updates. 
+                    // We only write to the database once at the very end to reduce IOPS and latency.
                   }
                 }
 

@@ -7,7 +7,7 @@ import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
 
 export default function LoginModal() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { isLoginModalOpen, closeLoginModal } = useModal();
   const [view, setView] = useState<'login' | 'register' | 'forgot_password'>('login');
   const [email, setEmail] = useState('');
@@ -68,7 +68,8 @@ export default function LoginModal() {
 
       // Direct redirect to the update password page, skipping the server-side callback
       // This allows the client-side library to handle the session from the URL hash
-      const redirectUrl = `${window.location.origin}/update-password`;
+      // We append the language param so the landing page knows which language to display
+      const redirectUrl = `${window.location.origin}/update-password?lang=${language}`;
       
       console.log('Sending password reset (implicit) with redirect to:', redirectUrl);
 
@@ -120,6 +121,7 @@ export default function LoginModal() {
             data: {
               full_name: email.split('@')[0],
               username: email.split('@')[0],
+              locale: language, // Store user's preferred language
             },
           },
         });

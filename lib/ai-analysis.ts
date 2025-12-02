@@ -55,35 +55,59 @@ export async function analyzeCategory(htmlContent: string) {
   return categories.includes(category) ? category : '实用工具';
 }
 
-export async function analyzeTitle(htmlContent: string) {
-  const systemPrompt = '你是一个专业的 SEO 专家和产品经理。你需要分析 HTML 代码并提取或创作一个简洁、吸引人且符合 SEO 规范的标题。';
-  const userPrompt = `请分析以下 HTML 代码，提取或创作一个标题 (10-30字)。
+export async function analyzeTitle(htmlContent: string, language: string = 'zh') {
+  const isZh = language === 'zh';
+  const systemPrompt = isZh 
+    ? '你是一个专业的 SEO 专家和产品经理。你需要分析 HTML 代码并提取或创作一个简洁、吸引人且符合 SEO 规范的标题。'
+    : 'You are an SEO expert and Product Manager. Analyze the HTML code and extract or create a concise, attractive title.';
+    
+  const userPrompt = isZh
+    ? `请分析以下 HTML 代码，提取或创作一个标题 (10-30字)。
 要求：
 1. 包含核心关键词。
 2. 具有吸引力，能提高点击率。
 3. 如果代码中有 <title>，请优化它。
 
-只返回标题文本，不要引号，不要解释。代码:\n\n${htmlContent.substring(0, 20000)}`;
+只返回标题文本，不要引号，不要解释。代码:\n\n${htmlContent.substring(0, 20000)}`
+    : `Analyze the following HTML code, extract or create a title (10-60 characters).
+Requirements:
+1. Include core keywords.
+2. Attractive and click-worthy.
+3. If <title> exists, optimize it.
+
+Return only the title text. No quotes. No explanation. Code:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
-  if (!result) return '未命名作品';
+  if (!result) return isZh ? '未命名作品' : 'Untitled App';
   
   let titleText = typeof result === 'string' ? result : String(result);
   return titleText.trim().replace(/["'《》]/g, '');
 }
 
-export async function analyzeDescription(htmlContent: string) {
-  const systemPrompt = '你是一个资深的科技媒体编辑。你需要分析 HTML 代码并生成一段简洁、专业、极具吸引力的产品介绍。';
-  const userPrompt = `请分析以下 HTML 代码的功能特性，生成一段 40-80 字的产品描述。
+export async function analyzeDescription(htmlContent: string, language: string = 'zh') {
+  const isZh = language === 'zh';
+  const systemPrompt = isZh
+    ? '你是一个资深的科技媒体编辑。你需要分析 HTML 代码并生成一段简洁、专业、极具吸引力的产品介绍。'
+    : 'You are a Tech Editor. Analyze the HTML code and generate a concise, professional, attractive product description.';
+    
+  const userPrompt = isZh
+    ? `请分析以下 HTML 代码的功能特性，生成一段 40-80 字的产品描述。
 要求：
 1. 突出核心价值和技术亮点。
 2. 语言风格现代、专业、简洁。
 3. 避免空洞的形容词。
 
-只返回描述文本。代码:\n\n${htmlContent.substring(0, 20000)}`;
+只返回描述文本。代码:\n\n${htmlContent.substring(0, 20000)}`
+    : `Analyze the features of the following HTML code, generate a product description (40-80 words).
+Requirements:
+1. Highlight core value and tech features.
+2. Modern, professional, concise style.
+3. Avoid empty adjectives.
+
+Return only the description text. Code:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.7);
-  if (!result) return '这是一个创意 Web 应用。';
+  if (!result) return isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.';
   
   let descText = typeof result === 'string' ? result : String(result);
   return descText.trim();
@@ -110,9 +134,14 @@ export async function analyzeTechStack(htmlContent: string) {
   return tags.slice(0, 6);
 }
 
-export async function analyzePrompt(htmlContent: string) {
-  const systemPrompt = '你是一个资深的 Prompt 工程师。你需要分析 HTML 代码并生成一个简洁、核心的 Prompt，用于指导 AI 重新生成类似应用。';
-  const userPrompt = `请分析以下代码，生成一个**核心功能 Prompt** (100-200字)。
+export async function analyzePrompt(htmlContent: string, language: string = 'zh') {
+  const isZh = language === 'zh';
+  const systemPrompt = isZh
+    ? '你是一个资深的 Prompt 工程师。你需要分析 HTML 代码并生成一个简洁、核心的 Prompt，用于指导 AI 重新生成类似应用。'
+    : 'You are a Senior Prompt Engineer. Analyze the HTML code and generate a concise, core Prompt for AI to regenerate a similar app.';
+    
+  const userPrompt = isZh
+    ? `请分析以下代码，生成一个**核心功能 Prompt** (100-200字)。
 重点描述：
 1. 核心功能与目标。
 2. 关键交互逻辑。
@@ -120,10 +149,19 @@ export async function analyzePrompt(htmlContent: string) {
 
 不要包含冗长的技术细节或边缘情况，只保留最核心的生成指令。
 
-代码:\n\n${htmlContent.substring(0, 20000)}`;
+代码:\n\n${htmlContent.substring(0, 20000)}`
+    : `Analyze the following code, generate a **Core Function Prompt** (100-200 words).
+Focus on:
+1. Core function and goal.
+2. Key interaction logic.
+3. Visual style keywords.
+
+No verbose technical details or edge cases, only the core generation instructions.
+
+Code:\n\n${htmlContent.substring(0, 20000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
-  if (!result) return 'Create a web application with modern UI.';
+  if (!result) return isZh ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.';
   
   return typeof result === 'string' ? result : String(result);
 }

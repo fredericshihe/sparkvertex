@@ -471,12 +471,12 @@ ${generatedCode}
 
     return `
 # Task
-Create single-file React app: ${categoryLabel} Generator for ${deviceLabel}.
+Create a "Production-Grade" single-file React app: ${categoryLabel} Generator for ${deviceLabel}.
 ${description}
 
 # Specs
 - Lang: ${targetLang}
-- Stack: React 18, Tailwind CSS (CDN)
+- Stack: React 18, Tailwind CSS (CDN), Lucide React, Framer Motion (optional but recommended for polish).
 - Device Target: ${deviceLabel} (${wizardData.device === 'mobile' ? 'Mobile-first, touch-friendly' : wizardData.device === 'desktop' ? 'Desktop-optimized, mouse-friendly' : 'Responsive, tablet-friendly'})
 - Dark mode (#0f172a)
 - Single HTML file, NO markdown.
@@ -487,6 +487,7 @@ ${description}
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>${categoryLabel} App</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
@@ -527,12 +528,50 @@ ${description}
             foreground: "hsl(var(--card-foreground))",
           },
         },
+        borderRadius: {
+          lg: "var(--radius)",
+          md: "calc(var(--radius) - 2px)",
+          sm: "calc(var(--radius) - 4px)",
+        },
       }
     }
   }
 </script>
+<style>
+  :root {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --radius: 0.5rem;
+  }
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    overflow: hidden; /* Prevent scrolling on body, handle in app */
+  }
+  ::-webkit-scrollbar { display: none; }
+  #root { height: 100vh; width: 100vw; overflow: hidden; }
+</style>
 <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.5/babel.min.js"></script>
-<style>body{-webkit-user-select:none;user-select:none;background:#0f172a;color:white}::-webkit-scrollbar{display:none}</style>
 </head>
 <body>
 <div id="root"></div>
@@ -540,14 +579,52 @@ ${description}
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'https://esm.sh/react@18.2.0';
 import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0';
 import * as LucideReact from 'https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0';
-// You can import other libraries here, e.g., import confetti from 'https://esm.sh/canvas-confetti';
+import { motion, AnimatePresence } from 'https://esm.sh/framer-motion@10.16.4?deps=react@18.2.0';
+// Add other imports here if needed, e.g.:
+// import confetti from 'https://esm.sh/canvas-confetti@1.6.0';
 
 const { Camera, Home, Settings, User, Menu, X, ChevronLeft, ChevronRight, ...LucideIcons } = LucideReact;
 
-// YOUR CODE
-const App=()=>{return <div className="min-h-screen w-full">...</div>};
+// Error Boundary Component
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, errorInfo) { console.error("ErrorBoundary caught an error", error, errorInfo); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-red-900/20 text-red-200 p-4 text-center">
+          <h1 className="text-2xl font-bold mb-2">Something went wrong</h1>
+          <pre className="text-xs bg-black/50 p-4 rounded text-left overflow-auto max-w-full">{this.state.error?.toString()}</pre>
+          <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-red-600 rounded hover:bg-red-500">Reload App</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// YOUR CODE STARTS HERE
+const App = () => {
+  return (
+    <div className="h-full w-full flex flex-col items-center justify-center bg-background text-foreground">
+      <motion.h1 
+        initial={{ opacity: 0, y: 20 }} 
+        animate={{ opacity: 1, y: 0 }} 
+        className="text-4xl font-bold text-primary"
+      >
+        Hello World
+      </motion.h1>
+    </div>
+  );
+};
+
 const root = createRoot(document.getElementById('root'));
-root.render(<App/>);
+root.render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);
 </script></body></html>
     `;
   };
@@ -728,13 +805,18 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 6. **No Infinite Loops**: Ensure all \`useEffect\` hooks have proper dependency arrays.
 7. **No Console Blocking**: Remove excessive \`console.log\` that might slow down the browser.
 8. **Valid HTML Structure**: Ensure all tags are properly closed. Do not nest \`<a>\` inside \`<a>\` or \`<button>\` inside \`<button>\`.
+9. **Perfect Rendering**: Ensure the app takes up the full height of the viewport (h-screen, w-full) and handles overflow correctly. Prevent white screens by using Error Boundaries.
 
-### Tech Stack (Strict Enforcement):
+### Tech Stack (Advanced & Modern):
 - **React 18**: Use Functional Components, Hooks (useState, useEffect, useMemo, useCallback).
 - **Tailwind CSS**: Use for ALL styling. Use arbitrary values (e.g., \`bg-[#1a1a1a]\`) if specific colors are needed.
 - **Lucide Icons**: Access via \`window.lucideReact\`. Example: \`<lucideReact.Activity />\`.
-- **Libraries**: Use \`https://esm.sh/...\` for imports.
-  - *Recommended*: \`framer-motion\` (animations), \`canvas-confetti\` (celebrations), \`react-use\` (hooks).
+- **Framer Motion**: Use \`framer-motion\` for smooth animations (layout transitions, entry effects).
+- **External Libraries (ESM)**: You are ENCOURAGED to use modern libraries via \`https://esm.sh/...\` to add advanced functionality.
+  - *Visuals*: \`canvas-confetti\`, \`three\` (via \`@react-three/fiber\` - only if requested/necessary), \`lottie-react\`.
+  - *Data*: \`recharts\`, \`chart.js\`.
+  - *Utils*: \`date-fns\`, \`lodash\`, \`uuid\`.
+  - *UI*: \`radix-ui\` primitives (if compatible with single-file).
 
 ### Design System & UX (The "Wow" Factor):
 - **Visual Style**: Modern, Clean, Apple-esque or Linear-style design. Use subtle shadows, rounded corners (rounded-xl, rounded-2xl), and plenty of whitespace.
@@ -765,7 +847,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 ### Technical Constraints (MUST FOLLOW):
 1. **Single File**: Output ONLY a single valid HTML file. No Markdown.
 2. **Imports**: Use \`https://esm.sh/...\` for imports. DO NOT use bare imports like \`import React from 'react'\`.
-3. **Icons**: Use \`window.lucideReact\`. Example: \`<lucideReact.Activity />\`.
+3. **Icons**: Use ESM imports for icons. Example: \`import { Activity } from 'https://esm.sh/lucide-react@0.263.1?deps=react@18.2.0'\`.
 4. **Styling**: Use Tailwind CSS classes.
 5. **Fonts**: DO NOT use external fonts (Google Fonts) unless absolutely necessary and ensure the URL is valid. Prefer system fonts.
 6. **Emoji**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters or ES6 unicode escapes (e.g., \\u{1F440}).
@@ -1680,7 +1762,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
              <iframe
                ref={iframeRef}
                srcDoc={getPreviewContent(generatedCode)}
-               className="w-full h-full bg-white"
+               className="w-full h-full bg-slate-900"
                sandbox="allow-scripts allow-forms allow-modals allow-popups"
              />
           </div>
