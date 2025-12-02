@@ -9,6 +9,7 @@ import { copyToClipboard } from '@/lib/utils';
 import { getPreviewContent } from '@/lib/preview';
 import { X } from 'lucide-react';
 import { applyPatches } from '@/lib/patch';
+import { QRCodeSVG } from 'qrcode.react';
 
 // --- Constants ---
 const CATEGORIES = [
