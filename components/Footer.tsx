@@ -7,8 +7,8 @@ export default function Footer() {
   const { openFeedbackModal } = useModal();
   const pathname = usePathname();
 
-  // Hide Footer on standalone product pages and Homepage (Hero handles it)
-  if (pathname?.startsWith('/p/') || pathname === '/') return null;
+  // Hide Footer on standalone product pages, Homepage (Hero handles it), and Create page (App-like UI)
+  if (pathname?.startsWith('/p/') || pathname === '/' || pathname === '/create') return null;
 
   return (
     <footer className="w-full py-6 mt-0 text-center relative z-10 bg-transparent">

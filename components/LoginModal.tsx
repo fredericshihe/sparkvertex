@@ -142,7 +142,33 @@ export default function LoginModal() {
         closeLoginModal();
       }
     } catch (error: any) {
-      console.error('Auth error:', error.message);
+      console.error('Auth error full object:', error);
+      console.error('Auth error message:', error.message);
+
+      // Handle Rate Limit specifically
+      if (error.message?.includes('rate limit') || error.status === 429) {
+         // Try to extract wait time from error message
+         const waitSeconds = error.message.match(/(\d+)\s*seconds?/)?.[1];
+         const waitMinutes = error.message.match(/(\d+)\s*minutes?/)?.[1];
+         
+         // 如果是用户打开窗口后的第一次尝试就遇到限流，说明是 IP 问题或历史遗留问题
+         const isFirstAttempt = loginAttempts === 0;
+
+         if (waitSeconds) {
+             setMessage(`操作过于频繁，请等待 ${waitSeconds} 秒后再试`);
+         } else if (waitMinutes) {
+             setMessage(`操作过于频繁，请等待 ${waitMinutes} 分钟后再试`);
+         } else {
+             // Generic 429
+             if (isFirstAttempt) {
+                 setMessage('当前网络IP触发了安全限制（可能是共享网络导致）。建议：1.切换手机热点 2.等待15分钟');
+             } else {
+                 setMessage('操作过于频繁，系统已暂时限制请求，请稍后（建议等待 15 分钟）再试');
+             }
+         }
+         setLoading(false);
+         return;
+      }
       
       // Check for specific errors that shouldn't count towards lockout
       const isRegistrationError = type === 'register' && (error.message?.includes('already registered') || error.message?.includes('User already registered'));
@@ -164,7 +190,13 @@ export default function LoginModal() {
       if (isRegistrationError) {
           setMessage('该邮箱已被注册，请直接登录');
       } else if (type === 'login') {
-          setMessage('邮箱或密码错误');
+          if (error.message?.includes('Invalid login credentials')) {
+             setMessage('邮箱或密码错误');
+          } else if (error.message?.includes('Email not confirmed')) {
+             setMessage('邮箱未验证，请检查您的邮箱');
+          } else {
+             setMessage('登录失败，请稍后重试');
+          }
       } else {
           setMessage('操作失败，请稍后重试');
       }

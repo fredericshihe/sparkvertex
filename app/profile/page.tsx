@@ -304,7 +304,7 @@ export default function Profile() {
             <div>
               <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">当前积分</div>
               <div className="flex items-baseline gap-2">
-                <span className="text-xl font-bold text-white">{profile?.credits ?? 20}</span>
+                <span className="text-xl font-bold text-white">{profile?.credits ?? 30}</span>
                 <span className="text-xs text-slate-500">分</span>
               </div>
             </div>
@@ -316,8 +316,8 @@ export default function Profile() {
 
           <div className="flex items-center gap-4 flex-1 w-full">
              <div className="text-sm text-slate-400">
-                <p><i className="fa-solid fa-circle-info mr-1 text-blue-400"></i> 每日登录赠送 2 积分</p>
-                <p className="mt-1"><i className="fa-solid fa-bolt mr-1 text-yellow-400"></i> 创建消耗 2 积分，修改消耗 1 积分</p>
+                <p><i className="fa-solid fa-circle-info mr-1 text-blue-400"></i> 每日登录赠送 0.5 积分</p>
+                <p className="mt-1"><i className="fa-solid fa-bolt mr-1 text-yellow-400"></i> 创建消耗 3 积分，修改消耗 0.5 积分</p>
              </div>
           </div>
 

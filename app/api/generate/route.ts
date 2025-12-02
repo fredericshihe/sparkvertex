@@ -27,35 +27,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Server Configuration Error' }, { status: 500 });
     }
 
-    // 0. Deduct Credits
-    // Creation: 0.5 points, Modification: 0.5 point
-    const cost = 0.5;
+    // Note: Credit deduction is now handled entirely in the Edge Function to ensure atomicity and correct pricing based on model usage.
     
-    let creditResult, creditError;
-    // Retry logic for unstable network connections
-    for (let i = 0; i < 3; i++) {
-        const res = await supabase.rpc('deduct_credits', { amount: cost });
-        creditResult = res.data;
-        creditError = res.error;
-        
-        if (!creditError) break;
-        
-        console.warn(`Credit deduction attempt ${i + 1} failed:`, creditError);
-        if (i < 2) await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    if (creditError) {
-      console.error('Credit Deduction Error (Final):', creditError);
-      return NextResponse.json({ 
-          error: creditError.message || 'Failed to process credits',
-          details: creditError
-      }, { status: 500 });
-    }
-
-    if (!creditResult || !creditResult.success) {
-      return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 });
-    }
-
     // 1. Create Task in DB
     const { data: task, error: taskError } = await supabase
       .from('generation_tasks')

@@ -249,7 +249,7 @@ export default function Guide() {
                   <i className="fa-solid fa-icons text-purple-400"></i> AI 自动生成应用图标
                 </li>
                 <li className="flex items-center gap-3 text-sm text-slate-300">
-                  <i className="fa-solid fa-sack-dollar text-yellow-400"></i> 开启付费下载功能
+                  <i className="fa-solid fa-sack-dollar text-yellow-400"></i> 开启打赏与付费查看源码
                 </li>
               </ul>
               <Link href="/upload" className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition flex items-center justify-center gap-2">

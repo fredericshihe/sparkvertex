@@ -276,6 +276,9 @@ serve(async (req) => {
                 
                 try {
                     controller.close();
+                } catch (e) {
+                    // Ignore stream closed errors
+                }
             } catch (error: any) {
                 console.error('Async Generation Error:', error);
                 
@@ -304,10 +307,6 @@ serve(async (req) => {
                     controller.close();
                 } catch (e) {
                     console.log('Stream already closed');
-                }
-            }       controller.close();
-                } catch (e) {
-                    // Ignore stream closed errors
                 }
             }
         }

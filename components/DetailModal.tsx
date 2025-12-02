@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
@@ -37,6 +37,45 @@ export default function DetailModal() {
   // Logo Data URL for Share Card
   const [logoDataUrl, setLogoDataUrl] = useState<string>('');
   const [defaultIconDataUrl, setDefaultIconDataUrl] = useState<string>('');
+
+  // Preview Scaling
+  const [previewScale, setPreviewScale] = useState(1);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const container = previewContainerRef.current;
+    if (!container) return;
+
+    const updateScale = () => {
+      if (previewMode === 'desktop' || viewMode === 'app') {
+        setPreviewScale(1);
+        return;
+      }
+
+      const { width: containerW, height: containerH } = container.getBoundingClientRect();
+      
+      const targetW = previewMode === 'mobile' ? 375 : 768;
+      const targetH = previewMode === 'mobile' ? 812 : 1024;
+      
+      // Available space (subtract padding)
+      const availableW = containerW - 40;
+      const availableH = containerH - 40; 
+
+      const scaleW = availableW / targetW;
+      const scaleH = availableH / targetH;
+      
+      const newScale = Math.min(scaleW, scaleH, 1);
+      setPreviewScale(newScale);
+    };
+
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(container);
+    
+    // Initial calculation
+    updateScale();
+
+    return () => observer.disconnect();
+  }, [previewMode, viewMode, isDetailModalOpen]);
 
   useEffect(() => {
     const loadAssets = async () => {
@@ -349,31 +388,35 @@ export default function DetailModal() {
             ${viewMode === 'app' ? 'absolute inset-0 z-50 w-full h-full' : 'h-[40vh] md:h-auto md:flex-grow'}
           `}>
             
-            <div className={`flex-grow relative bg-slate-900 overflow-hidden ${viewMode === 'app' ? 'w-full h-full' : 'flex justify-center items-center p-4 md:p-8'}`}>
+            <div 
+              ref={previewContainerRef}
+              className={`flex-grow relative bg-slate-900 overflow-hidden ${viewMode === 'app' ? 'w-full h-full' : 'flex justify-center items-center p-4 md:p-8'} bg-[url('/grid.svg')] bg-center`}
+            >
               {loading ? (
                 <i className="fa-solid fa-circle-notch fa-spin text-4xl text-brand-500"></i>
               ) : (
                 <>
                   <div 
-                    style={{ 
-                      aspectRatio: viewMode === 'app' || previewMode === 'desktop' ? 'auto' : previewMode === 'tablet' ? '3/4' : '9/19.5' 
-                    }}
-                    className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 max-w-full ${
-                      viewMode === 'app' || previewMode === 'desktop' 
+                    className={`transition-all duration-700 ease-[cubic-bezier(0.25,0.8,0.25,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 origin-center
+                      ${viewMode === 'app' || previewMode === 'desktop' 
                         ? 'w-full h-full rounded-none border-0' 
-                        : previewMode === 'tablet'
-                          ? 'h-[85%] md:h-[90%] w-auto rounded-[1.5rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50'
-                          : 'h-[85%] md:h-[90%] w-auto rounded-[2.5rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50'
-                    }`}
+                        : previewMode === 'mobile' 
+                          ? 'w-[375px] h-[812px] rounded-[3rem] border-[8px] border-slate-800 ring-1 ring-slate-700/50' 
+                          : 'w-[768px] h-[1024px] rounded-[2rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50'
+                      }
+                    `}
+                    style={{
+                      transform: (viewMode !== 'app' && previewMode !== 'desktop') ? `scale(${previewScale})` : 'none'
+                    }}
                   >
                     {/* Mobile Notch */}
-                    <div className={`absolute top-0 left-1/2 -translate-x-1/2 bg-slate-800 z-20 transition-all duration-300 ${
-                        previewMode === 'mobile' && viewMode !== 'app' ? 'w-24 h-6 rounded-b-xl opacity-100' : 'w-0 h-0 opacity-0'
-                    }`}></div>
+                    {previewMode === 'mobile' && viewMode !== 'app' && (
+                       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-slate-800 rounded-b-2xl z-20 pointer-events-none"></div>
+                    )}
 
                     <iframe 
                       srcDoc={getPreviewContent(item?.content || '')} 
-                      className="w-full h-full border-0 bg-white" 
+                      className="w-full h-full border-0" 
                       sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups"
                       allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay"
                     />

@@ -48,7 +48,7 @@ export default function Why() {
             <p className="text-slate-400 leading-relaxed flex-grow">
               从灵感到收入，只需几分钟。
               <br /><br />
-              无需注册公司，无需接入支付网关。SparkVertex 内置了<span className="text-white font-medium">积分支付体系</span>。你可以为你的微应用设置价格，用户支付积分即可获取源码。无论是<span className="text-green-400">实用工具、创意游戏还是教育课件</span>，你的每一次智力产出都值得被付费。
+              无需注册公司，无需接入支付网关。SparkVertex 内置了<span className="text-white font-medium">打赏与付费查看体系</span>。你可以为你的微应用源码设置价格，或者开启打赏功能。无论是<span className="text-green-400">实用工具、创意游戏还是教育课件</span>，你的每一次智力产出都值得被认可与付费。
             </p>
           </div>
 

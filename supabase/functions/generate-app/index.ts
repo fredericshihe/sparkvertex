@@ -118,9 +118,21 @@ serve(async (req) => {
       // 可以选择忽略此错误继续，或者报错。为了用户体验，这里只记录日志。
     }
 
-    // 4. Credit Check (No deduction yet)
+    // 4. Credit Check & Cost Calculation
     const isModification = type === 'modification';
-    const COST = 0.5;
+    // Cost Calculation based on Gemini 3 Pro Pricing (Dec 2025)
+    // Input: $2/1M tokens, Output: $12/1M tokens
+    // Creation (~25k tokens total, mostly output): 
+    //   Input (~5k): $0.01
+    //   Output (~20k): $0.24
+    //   Total: ~$0.25 (¥1.80) -> Set to 3 Credits (¥3.00 value)
+    
+    // Modification (~6k tokens total):
+    //   Input (~4k): $0.008
+    //   Output (~2k): $0.024
+    //   Total: ~$0.032 (¥0.23) -> Set to 0.5 Credits (¥0.50 value)
+    
+    const COST = isModification ? 0.5 : 3.0;
     
     // Fetch current credits
     const { data: profile, error: profileError } = await supabaseAdmin

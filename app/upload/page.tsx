@@ -74,6 +74,7 @@ async function analyzeTitle(htmlContent: string) {
 1. 包含核心关键词。
 2. 具有吸引力，能提高点击率。
 3. 如果代码中有 <title>，请优化它。
+4. **严禁包含视觉风格描述词**（如：可爱、赛博朋克、极简、复古等），标题必须只关注核心功能和用途。
 
 只返回标题文本，不要引号，不要解释。代码:\n\n${htmlContent.substring(0, 20000)}`;
   
@@ -680,8 +681,21 @@ export default function UploadPage() {
         }
       };
 
-      const titlePromise = analyzeTitle(html);
-      const descPromise = analyzeDescription(html);
+      // Create promises with side effects to update UI immediately
+      const titlePromise = analyzeTitle(html).then(res => {
+        if (analysisSessionIdRef.current === currentSessionId) setTitle(res);
+        return res;
+      });
+      
+      const descPromise = analyzeDescription(html).then(res => {
+        if (analysisSessionIdRef.current === currentSessionId) setDescription(res);
+        return res;
+      });
+
+      const promptPromise = analyzePrompt(html).then(res => {
+        if (analysisSessionIdRef.current === currentSessionId) setPrompt(res);
+        return res;
+      });
       
       const [securityResult, category, titleRes, descRes, techTags, promptRes, appTypes, mobileResult, iconRes] = await Promise.all([
         runTask(0, checkMaliciousCode(html)),
@@ -689,7 +703,7 @@ export default function UploadPage() {
         runTask(2, titlePromise),
         runTask(3, descPromise),
         runTask(4, analyzeTechStack(html)),
-        runTask(5, analyzePrompt(html)),
+        runTask(5, promptPromise),
         analyzeAppType(html),
         runTask(6, optimizeMobileCode(html)),
         runTask(7, generateIconTask(titlePromise, descPromise))
@@ -704,10 +718,8 @@ export default function UploadPage() {
       const combinedTags = Array.from(new Set([category, ...appTypes, ...techTags, 'AI Verified'])).filter(t => t);
 
       // Update Form Data
-      setTitle(titleRes);
-      setDescription(descRes);
+      // Title, Description, and Prompt are already updated via individual promise callbacks
       setTags(combinedTags);
-      setPrompt(promptRes);
 
       // Apply Mobile Optimization if needed
       if (mobileResult.wasOptimized) {

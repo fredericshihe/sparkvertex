@@ -117,7 +117,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
             <i className="fa-solid fa-qrcode mr-1"></i> 扫码体验
           </div>
 
-          <div className="h-[220px] md:h-44 relative bg-white overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
+          <div className="h-[220px] md:h-44 relative bg-slate-800 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
             {/* Iframe Preview */}
             {isVisible && item.content && (
                <iframe

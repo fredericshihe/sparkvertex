@@ -14,7 +14,10 @@ import { applyPatches } from '@/lib/patch';
 const CATEGORIES = [
   { id: 'game', label: '游戏', icon: 'fa-gamepad', desc: '休闲、益智、动作' },
   { id: 'tool', label: '工具', icon: 'fa-screwdriver-wrench', desc: '计算、记录、转换' },
-  { id: 'info', label: '资讯', icon: 'fa-newspaper', desc: '展示、列表、博客' }
+  { id: 'info', label: '资讯', icon: 'fa-newspaper', desc: '展示、列表、博客' },
+  { id: 'social', label: '社交', icon: 'fa-comments', desc: '聊天、社区、动态' },
+  { id: 'education', label: '教育', icon: 'fa-graduation-cap', desc: '课程、题库、学习' },
+  { id: 'productivity', label: '生产力', icon: 'fa-list-check', desc: '笔记、看板、文档' }
 ];
 
 const DEVICES = [
@@ -27,24 +30,133 @@ const STYLES = [
   { id: 'cyberpunk', label: '赛博朋克', color: 'from-pink-500 to-cyan-500', desc: '霓虹、故障风、高对比度' },
   { id: 'minimalist', label: '极简主义', color: 'from-slate-200 to-slate-400', desc: '干净、留白、黑白灰' },
   { id: 'cute', label: '可爱风格', color: 'from-pink-300 to-purple-300', desc: '圆角、柔和、卡通' },
-  { id: 'business', label: '商务科技', color: 'from-blue-600 to-indigo-700', desc: '专业、稳重、深色调' }
+  { id: 'business', label: '商务科技', color: 'from-blue-600 to-indigo-700', desc: '专业、稳重、深色调' },
+  { id: 'retro', label: '复古像素', color: 'from-yellow-400 to-orange-500', desc: '8-bit、怀旧、像素风' },
+  { id: 'native', label: '原生复刻', color: 'from-blue-500 to-blue-600', desc: '复刻原生应用级别的体验，极致流畅' },
+  { id: 'glassmorphism', label: '玻璃拟态', color: 'from-white/20 to-white/10', desc: '透明、模糊、悬浮' },
+  { id: 'neobrutalism', label: '新粗野主义', color: 'from-yellow-300 to-red-500', desc: '高饱和、黑边框、大胆' },
+  { id: 'cartoon', label: '卡通手绘', color: 'from-orange-300 to-yellow-300', desc: '活泼、手绘线条、鲜艳' },
+  { id: 'lowpoly', label: '低多边形', color: 'from-indigo-400 to-purple-500', desc: '几何、3D感、棱角分明' },
+  { id: 'dark_fantasy', label: '暗黑幻想', color: 'from-slate-900 to-purple-900', desc: '神秘、沉浸、魔法光效' },
+  { id: 'neumorphism', label: '新拟态', color: 'from-gray-200 to-gray-300', desc: '软阴影、凸起、质感' },
+  { id: 'industrial', label: '工业硬朗', color: 'from-slate-700 to-slate-800', desc: '机械、蓝黑、数据感' },
+  { id: 'swiss', label: '瑞士平面', color: 'from-red-500 to-white', desc: '大字体、网格、强对比' },
+  { id: 'editorial', label: '杂志排版', color: 'from-stone-100 to-stone-200', desc: '衬线体、留白、优雅' },
+  { id: 'card', label: '卡片流', color: 'from-gray-100 to-gray-200', desc: '瀑布流、圆角、阴影' },
+  { id: 'bubble', label: '气泡多彩', color: 'from-blue-300 to-pink-300', desc: '圆形、渐变、亲和力' },
+  { id: 'material', label: 'Material', color: 'from-blue-500 to-indigo-500', desc: '纸张层级、波纹、安卓风' },
+  { id: 'paper', label: '纸质笔记', color: 'from-yellow-50 to-orange-50', desc: '纹理、手写体、便签' },
+  { id: 'gamified', label: '游戏化', color: 'from-purple-400 to-pink-400', desc: '徽章、进度条、动效' },
+  { id: 'dark_mode', label: '极客暗黑', color: 'from-gray-900 to-black', desc: '护眼、代码风、专注' },
+  { id: 'kanban', label: '看板贴纸', color: 'from-yellow-100 to-blue-100', desc: '便利贴、拖拽感、直观' }
 ];
+
+const CATEGORY_STYLES: Record<string, string[]> = {
+  game: ['retro', 'cyberpunk', 'cartoon', 'lowpoly', 'dark_fantasy', 'neobrutalism'],
+  tool: ['minimalist', 'neumorphism', 'native', 'industrial', 'swiss', 'dark_mode'],
+  info: ['editorial', 'minimalist', 'glassmorphism', 'card', 'swiss', 'native'],
+  social: ['bubble', 'native', 'material', 'glassmorphism', 'cute', 'neobrutalism'],
+  education: ['cute', 'business', 'paper', 'gamified', 'minimalist', 'card'],
+  productivity: ['minimalist', 'dark_mode', 'kanban', 'business', 'swiss', 'neumorphism']
+};
+
+const STYLE_PROMPTS: Record<string, string> = {
+  cyberpunk: "Design Style: Cyberpunk. Use a dark background (black or very dark blue). Use neon colors like hot pink (#ff00ff), cyan (#00ffff), and bright yellow. Use glitch effects, high contrast, and angular shapes. Font should be futuristic or monospace. Add glowing effects (box-shadow).",
+  minimalist: "Design Style: Minimalist. Use plenty of whitespace. Colors should be strictly black, white, and shades of gray. Typography should be clean and sans-serif. No heavy shadows or gradients. Focus on content and layout.",
+  cute: "Design Style: Cute/Kawaii. Use pastel colors (soft pink, baby blue, mint green). Use large rounded corners (rounded-3xl). Buttons should be pill-shaped. Add soft, fluffy shadows. Font should be rounded if possible. Use playful icons.",
+  business: "Design Style: Business/Corporate. Use a professional color palette (navy blue, dark gray, white). Design should be clean, structured, and trustworthy. Use standard border radii (rounded-md or rounded-lg). Typography should be standard sans-serif (Inter/Roboto).",
+  retro: "Design Style: Retro/Pixel Art. Use a limited color palette (CGA/EGA colors). Use a pixelated font (Press Start 2P or similar if available via Google Fonts, otherwise monospace). UI elements should look like 8-bit or 16-bit game interfaces. sharp corners, thick borders.",
+  native: "Design Style: Native iOS/Android Replica. Mimic the look and feel of a native mobile app. Use standard system colors (systemBlue, systemGray). Use standard navigation bars, tab bars, and list views. Animations should be smooth (60fps). Use 'San Francisco' style typography.",
+  glassmorphism: "Design Style: Glassmorphism. Use semi-transparent backgrounds with backdrop-blur (backdrop-blur-md or backdrop-blur-lg). Use white with low opacity (bg-white/10 or bg-white/20) for cards. Add subtle white borders (border-white/20). Background should be colorful or gradient to show through the glass.",
+  neobrutalism: "Design Style: Neo-Brutalism. Use high saturation colors (bright yellow, red, blue). Use thick black borders (border-2 border-black). Use hard shadows (shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]). No border radius or very slight. Typography should be bold and quirky.",
+  cartoon: "Design Style: Cartoon/Hand-drawn. Use vibrant, cheerful colors. Use thick, slightly irregular outlines to mimic hand-drawing. Fonts should be playful (like Comic Sans or similar rounded fonts). Buttons should look 'squishy' with bounce animations.",
+  lowpoly: "Design Style: Low Poly/Geometric. Use a palette of flat, faceted colors (like a diamond). Backgrounds should use geometric patterns or triangles. Use sharp angles and gradients. Typography should be modern and geometric.",
+  dark_fantasy: "Design Style: Dark Fantasy. Use deep purples, crimsons, and blacks. Use serif fonts with a magical feel. Add subtle particle effects or fog animations. UI elements should look like ancient runes or magical artifacts. Borders should be ornate.",
+  neumorphism: "Design Style: Neumorphism (Soft UI). Use a light gray or off-white background (#e0e5ec). Buttons and cards should have two shadows: a light one on the top-left and a dark one on the bottom-right, creating a soft, extruded plastic look. No hard borders. Rounded corners are essential.",
+  industrial: "Design Style: Industrial/Technical. Use a palette of slate, charcoal, and safety orange/yellow. Use monospaced fonts. UI elements should look like machine controls or blueprints. Use grid lines and technical markings. High contrast.",
+  swiss: "Design Style: Swiss Style (International Typographic Style). Use a strict grid system. Use large, bold, sans-serif typography (Helvetica-style). High contrast colors (often red, black, white). Asymmetric layouts. Focus on readability and objectivity.",
+  editorial: "Design Style: Editorial/Magazine. Use a sophisticated serif font for headings and a clean sans-serif for body text. Use plenty of whitespace and large margins. Images should be high quality. Layout should feel like a printed fashion or lifestyle magazine. Elegant lines and dividers.",
+  card: "Design Style: Card UI/Pinterest-style. Use a masonry or grid layout of cards. Each card should have a subtle shadow and rounded corners. Background should be neutral to let the content shine. Focus on images and visual hierarchy.",
+  bubble: "Design Style: Bubble/Chat. Use circular or highly rounded shapes for everything. Use gradients that look like bubbles (blue/pink/purple). Animations should be floaty and smooth. Very friendly and approachable interface.",
+  material: "Design Style: Material Design 3. Use the latest Google Material Design guidelines. Use dynamic color extraction (pastel tones). Use the 'surface' system for elevation. Ripple effects on click. FAB (Floating Action Button) is a must.",
+  paper: "Design Style: Paper/Sketchbook. Background should look like paper (texture). UI elements should look like sticky notes or sketches. Use a handwriting-style font if possible. Shadows should look like paper lifting off the desk.",
+  gamified: "Design Style: Gamified. Use progress bars, badges, and confetti everywhere. Colors should be bright and rewarding (gold, green, purple). Use bouncy animations for feedback. UI should feel like a game HUD.",
+  dark_mode: "Design Style: Developer/Dark Mode. Use a pure black or very dark gray background. Syntax highlighting colors for accents. Monospace fonts. Minimalist icons. Focus on data density and clarity. No eye strain.",
+  kanban: "Design Style: Kanban/Productivity. Use a board layout with columns. Cards should look like physical sticky notes (yellow, blue, pink). Drag-and-drop affordances (dots). Clean, functional typography."
+};
 
 const FEATURE_TEMPLATES: Record<string, { label: string, desc: string }[]> = {
   game: [
     { label: '计分板系统', desc: '包含红蓝双方计分，支持加减分动画，比赛时间倒计时，以及犯规次数统计。' },
     { label: '排行榜功能', desc: '游戏结束后显示前10名高分玩家，支持本地存储记录，并有简单的颁奖动画。' },
-    { label: '音效与设置', desc: '背景音乐开关，点击音效，震动反馈开关，以及游戏难度选择（简单/普通/困难）。' }
+    { label: '音效与设置', desc: '背景音乐开关，点击音效，震动反馈开关，以及游戏难度选择（简单/普通/困难）。' },
+    { label: '关卡选择器', desc: '网格状关卡选择界面，显示每关星级评价，未解锁关卡显示锁头图标，支持滑动翻页。' },
+    { label: '角色状态栏', desc: '顶部显示生命值（红心）、魔法值（蓝条）和金币数量，带有数值变化时的跳动动画。' },
+    { label: '背包系统', desc: '网格背包界面，点击物品显示详情弹窗，支持物品拖拽整理，以及分类筛选（装备/消耗品）。' },
+    { label: '每日签到', desc: '7天签到奖励弹窗，显示每日不同奖励，已签到打钩，第7天有宝箱开启特效。' },
+    { label: '成就系统', desc: '列表展示成就任务，显示进度条（如：击败100个敌人 45/100），完成后可点击领取奖励。' },
+    { label: '虚拟摇杆', desc: '屏幕左下角显示虚拟摇杆控制移动，右下角显示技能按钮（攻击/跳跃/大招），带有冷却遮罩。' },
+    { label: '剧情对话框', desc: '底部显示半透明对话框，左侧显示角色立绘，文字逐字打出，点击屏幕继续下一句。' }
   ],
   tool: [
     { label: '番茄专注钟', desc: '25分钟专注+5分钟休息循环，带有圆形进度条动画，白噪音播放（雨声/森林），以及每日专注时长统计。' },
     { label: '多功能计算器', desc: '支持基础运算和科学计算，带有历史记录侧边栏，支持键盘输入，界面仿iOS风格。' },
-    { label: '智能待办清单', desc: '支持任务分组（工作/生活），拖拽排序，设置截止日期提醒，完成任务时有烟花特效。' }
+    { label: '智能待办清单', desc: '支持任务分组（工作/生活），拖拽排序，设置截止日期提醒，完成任务时有烟花特效。' },
+    { label: '单位换算器', desc: '支持长度、重量、货币等多种单位换算，实时输入实时转换，支持自定义汇率。' },
+    { label: '二维码生成器', desc: '输入文本或链接生成二维码，支持自定义颜色、中心Logo，以及下载保存为图片。' },
+    { label: '倒数日', desc: '列表展示重要日子（生日/纪念日），显示剩余天数，支持置顶和分类，背景可自定义图片。' },
+    { label: '记账本', desc: '快速记一笔，支持支出/收入分类，饼图展示月度消费结构，支持预算设置和超支提醒。' },
+    { label: '随机决定器', desc: '转盘或抽签形式，输入选项（如：中午吃什么），点击开始随机抽取，带有紧张的音效。' },
+    { label: 'BMI计算器', desc: '输入身高体重计算BMI指数，显示健康范围刻度条，并给出健康建议。' },
+    { label: '密码生成器', desc: '自定义长度，选择包含数字/符号/大小写，一键生成高强度密码并复制。' }
   ],
   info: [
     { label: '数字名片', desc: '玻璃拟态风格，展示头像、职位、技能标签，点击社交图标有悬浮动效，支持生成二维码分享。' },
     { label: '产品落地页', desc: '首屏大图Hero区域，功能特性网格展示，客户评价轮播，底部带有显眼的"立即购买"悬浮按钮。' },
-    { label: '每日心情卡片', desc: '选择今日心情（开心/难过等），自动匹配背景色和励志语录，支持一键生成精美图片保存到相册。' }
+    { label: '每日心情卡片', desc: '选择今日心情（开心/难过等），自动匹配背景色和励志语录，支持一键生成精美图片保存到相册。' },
+    { label: '活动倒计时', desc: '全屏大字显示距离活动开始的时间（天/时/分/秒），背景为活动海报，支持预约提醒功能。' },
+    { label: '常见问题FAQ', desc: '折叠面板形式展示常见问题，点击标题展开答案，支持关键词搜索问题。' },
+    { label: '团队成员展示', desc: '卡片式展示团队成员，鼠标悬停显示详细介绍和社交链接，支持按部门筛选。' },
+    { label: '时间轴简历', desc: '垂直时间轴展示个人经历，左侧时间右侧事件，带有滚动入场动画。' },
+    { label: '价格表', desc: '三栏式价格对比（基础/专业/企业），推荐套餐高亮显示，列出功能差异打钩。' },
+    { label: '博客文章页', desc: '优雅的排版，包含标题、作者信息、正文、代码块高亮，以及底部的相关文章推荐。' },
+    { label: '相册画廊', desc: '瀑布流布局展示图片，点击图片放大预览（Lightbox），支持左右切换和缩放。' }
+  ],
+  social: [
+    { label: '即时聊天界面', desc: '仿微信/Telegram聊天窗口，支持发送文字、表情、图片，带有气泡动画和已读状态标记。' },
+    { label: '朋友圈动态', desc: '图文混排的信息流，支持点赞、评论互动，带有下拉刷新和上拉加载更多的交互效果。' },
+    { label: '个人主页', desc: '展示用户头像、背景墙、个人简介，以及发布的动态列表，支持关注/私信按钮。' },
+    { label: '附近的人', desc: '雷达扫描动画效果，列表展示附近用户，显示距离和在线状态，支持筛选性别。' },
+    { label: '话题广场', desc: '热门话题标签云，点击标签进入话题聚合页，显示该话题下的热门讨论。' },
+    { label: '匹配卡片', desc: '仿Tinder左滑不喜欢右滑喜欢，卡片堆叠效果，匹配成功时弹出全屏庆祝动画。' },
+    { label: '群组列表', desc: '展示加入的群组，显示群头像、名称、最新消息摘要和未读红点，支持置顶功能。' },
+    { label: '评论区组件', desc: '多级评论嵌套，支持点赞、回复，热评置顶，点击头像跳转个人主页。' },
+    { label: '直播间界面', desc: '视频背景，底部显示滚动弹幕、点赞爱心飘浮动画，以及礼物打赏特效。' },
+    { label: '通知中心', desc: '列表展示点赞/评论/关注通知，区分已读未读，支持一键清空。' }
+  ],
+  education: [
+    { label: '在线答题卡', desc: '单选/多选/判断题型，支持倒计时，答题进度条，提交后自动判分并显示解析。' },
+    { label: '课程播放器', desc: '视频播放界面，带有倍速播放、全屏切换，下方显示课程目录和笔记记录区域。' },
+    { label: '单词记忆卡', desc: '正面显示单词，点击翻转显示释义，支持"认识/不认识"分类，带有艾宾浩斯遗忘曲线复习提醒。' },
+    { label: '学习计划表', desc: '周视图日历，显示每天的学习任务，支持拖拽调整，完成任务打钩并计算周完成率。' },
+    { label: '知识图谱', desc: '力导向图展示知识点关联，点击节点展开子节点，支持缩放和平移查看。' },
+    { label: '错题本', desc: '列表展示做错的题目，支持按科目/题型筛选，点击可重新练习，掌握后可移除。' },
+    { label: '成绩分析图', desc: '雷达图展示各科能力分布，折线图展示成绩变化趋势，并给出学习建议。' },
+    { label: '专注自习室', desc: '模拟自习室场景，显示当前在线人数，计时器，以及白噪音背景音，支持发送加油弹幕。' },
+    { label: '电子书阅读器', desc: '支持字体大小/背景色调整，目录跳转，划线高亮，添加书签和笔记功能。' },
+    { label: '公式编辑器', desc: '提供数学符号键盘，实时预览LaTeX公式，支持一键复制图片或代码。' }
+  ],
+  productivity: [
+    { label: '看板任务管理', desc: '仿Trello看板，支持拖拽任务卡片在"待办/进行中/已完成"列之间移动，支持标签和成员分配。' },
+    { label: '思维导图', desc: '中心主题向外发散，支持节点展开/折叠，拖拽移动节点，以及导出为图片功能。' },
+    { label: 'Markdown笔记', desc: '左侧编辑右侧实时预览，支持常用Markdown语法高亮，以及本地自动保存功能。' },
+    { label: '甘特图', desc: '时间轴展示项目进度，支持任务依赖关系连线，拖拽调整任务起止时间。' },
+    { label: '文件管理器', desc: '网格/列表视图切换，支持文件夹层级导航，文件多选/移动/复制/删除操作。' },
+    { label: '日历日程', desc: '月/周/日视图切换，点击日期添加日程，支持重复事件设置和颜色标记。' },
+    { label: '在线表格', desc: '仿Excel界面，支持单元格编辑、公式计算、行列拖拽调整，以及基础的数据筛选排序。' },
+    { label: '流程图绘制', desc: '左侧拖拽形状到画布，连接线自动吸附，支持节点样式自定义和对齐辅助线。' },
+    { label: '仪表盘Dashboard', desc: '网格布局展示多个数据卡片（图表/统计数字），支持拖拽自定义布局。' },
+    { label: '番茄工作法统计', desc: '热力图展示每日专注时长，柱状图对比工作效率，支持导出周报。' }
   ]
 };
 
@@ -64,6 +176,9 @@ export default function CreatePage() {
     features: '',
     description: ''
   });
+
+  // State: Random Templates
+  const [randomTemplates, setRandomTemplates] = useState<{ label: string, desc: string }[]>([]);
 
   // State: Generation
   const [generatedCode, setGeneratedCode] = useState('');
@@ -87,23 +202,90 @@ export default function CreatePage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editRequest, setEditRequest] = useState('');
   
+  // State: Mobile Preview
+  const [showMobilePreview, setShowMobilePreview] = useState(false);
+  const [mobilePreviewUrl, setMobilePreviewUrl] = useState('');
+
   // State: User Credits
-  const [credits, setCredits] = useState(20);
+  const [credits, setCredits] = useState(30);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>('Spark Creator');
 
   // State: Credit Modal
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
   
+  // State: Preview Scaling
+  const [previewScale, setPreviewScale] = useState(1);
+  
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const codeScrollRef = useRef<HTMLDivElement>(null);
+
+  // Effect: Calculate Preview Scale
+  useEffect(() => {
+    if (step !== 'preview') return;
+
+    const updateScale = () => {
+      if (!previewContainerRef.current || previewMode === 'desktop') {
+        setPreviewScale(1);
+        return;
+      }
+
+      const container = previewContainerRef.current;
+      const { width: containerW, height: containerH } = container.getBoundingClientRect();
+      
+      // Target dimensions based on mode
+      // Mobile: iPhone 14 Pro (393x852) - Standardized to 375x812 for dev consistency
+      // Tablet: iPad Mini (768x1024)
+      const targetW = previewMode === 'mobile' ? 375 : 768;
+      const targetH = previewMode === 'mobile' ? 812 : 1024;
+      
+      // Available space (subtract padding)
+      // We reserve 80px at bottom for toolbar + 40px padding top/bottom
+      const availableW = containerW - 40;
+      const availableH = containerH - 120; 
+
+      const scaleW = availableW / targetW;
+      const scaleH = availableH / targetH;
+      
+      // Use the smaller scale to fit both dimensions, max 1 (don't upscale pixelated)
+      // Allow slight upscale (1.1) for very large screens if needed, but usually 1 is max
+      const newScale = Math.min(scaleW, scaleH, 1);
+      setPreviewScale(newScale);
+    };
+
+    window.addEventListener('resize', updateScale);
+    // Initial calculation
+    updateScale();
+    // Recalculate after a short delay to ensure layout is stable
+    setTimeout(updateScale, 100);
+
+    return () => window.removeEventListener('resize', updateScale);
+  }, [step, previewMode]);
 
   useEffect(() => {
     if (codeScrollRef.current) {
       codeScrollRef.current.scrollTop = codeScrollRef.current.scrollHeight;
     }
   }, [streamingCode]);
+
+  const shuffleTemplates = () => {
+    if (!wizardData.category) return;
+    // @ts-ignore
+    const templates = FEATURE_TEMPLATES[wizardData.category] || [];
+    // Shuffle array
+    const shuffled = [...templates].sort(() => 0.5 - Math.random());
+    // Pick first 4
+    setRandomTemplates(shuffled.slice(0, 4));
+  };
+
+  useEffect(() => {
+    if (step === 'features') {
+      shuffleTemplates();
+    }
+  }, [step, wizardData.category]);
 
   useEffect(() => {
     checkAuth();
@@ -246,7 +428,7 @@ export default function CreatePage() {
         try {
           const { data: bonusData, error: bonusError } = await supabase.rpc('check_daily_bonus');
           if (bonusData && bonusData.awarded) {
-            toastSuccess(`每日登录奖励：+2 积分！当前积分：${bonusData.credits}`);
+            toastSuccess(`每日登录奖励：+0.5 积分！当前积分：${bonusData.credits}`);
           }
         } catch (error) {
           console.error('Failed to check daily rewards:', error);
@@ -256,19 +438,30 @@ export default function CreatePage() {
         // Fetch user credits
         const { data } = await supabase
           .from('profiles')
-          .select('credits')
+          .select('credits, full_name, username')
           .eq('id', session.user.id)
           .maybeSingle();
           
         if (data) {
-          setCredits(data.credits ?? 20);
+          setCredits(data.credits ?? 30);
+          setUserName(data.full_name || data.username || 'Spark Creator');
         } else {
           // New profile handling (if not created by trigger)
-          setCredits(20);
+          setCredits(30);
         }
       }
     } catch (error) {
       console.error('Auth check failed:', error);
+    }
+  };
+
+  const handleExit = () => {
+    if (step === 'category' && !wizardData.features && !wizardData.description) {
+      router.push('/');
+      return;
+    }
+    if (confirm('确定要退出创作吗？当前进度将不会保存。')) {
+      router.push('/');
     }
   };
 
@@ -304,15 +497,33 @@ export default function CreatePage() {
     const categoryLabel = CATEGORIES.find(c => c.id === wizardData.category)?.label || 'App';
     const styleLabel = STYLES.find(s => s.id === wizardData.style)?.label || 'Modern';
     const deviceLabel = DEVICES.find(d => d.id === wizardData.device)?.label || 'Mobile';
+    const stylePrompt = STYLE_PROMPTS[wizardData.style] || '';
     
     // Compact description
-    let description = `Type:${categoryLabel}, Device:${deviceLabel}, Style:${styleLabel}. Features:${wizardData.features}. Notes:${wizardData.description}`;
+    let description = `Type:${categoryLabel}, Device:${deviceLabel}, Style:${styleLabel}. 
+    
+    ${stylePrompt}
+    
+    Features:${wizardData.features}. Notes:${wizardData.description}`;
 
     if (isModification) {
-      // User requested full HTML context to avoid issues
-      description = `Modify this HTML:
-      ${generatedCode}
-      Request: ${modificationRequest}`;
+      // Optimization: For modification, we return a focused prompt without the redundant template.
+      // This significantly reduces token usage and speeds up the request.
+      return `
+# Task
+Modify the following React app based on the user's request.
+
+# Request
+${modificationRequest}
+
+# Code
+${generatedCode}
+
+# Constraints
+- Maintain single-file structure.
+- Use React 18 and Tailwind CSS.
+- Output ONLY the diffs using the <<<<SEARCH ... ==== ... >>>> format.
+`;
     }
 
     return `
@@ -377,7 +588,7 @@ ${description}
     }
   }
 </script>
-<script src="https://cdn.bootcdn.net/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.5/babel.min.js"></script>
 <style>body{-webkit-user-select:none;user-select:none;background:#0f172a;color:white}::-webkit-scrollbar{display:none}</style>
 </head>
 <body>
@@ -415,7 +626,7 @@ root.render(<App/>);
       console.log('Modification Mode Active');
     }
 
-    const COST = isModification ? 0.5 : 2;
+    const COST = isModification ? 0.5 : 3.0;
     
     try {
       // Check Auth first
@@ -556,6 +767,7 @@ CRITICAL RULES:
 4. If you need to delete code, the REPLACE block can be empty.
 5. Output multiple blocks if needed.
 6. Do NOT include any markdown formatting (like \`\`\`html) inside the blocks.
+7. **Emoji Usage**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters (e.g., 👀) or ES6 unicode escapes (e.g., \\u{1F440}).
 ` : `You are a World-Class Senior Frontend Architect and UI/UX Designer.
 Your goal is to create a "Production-Grade", visually stunning, and highly interactive single-file web application.
 
@@ -565,6 +777,11 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 1. **Language**: STRICTLY Simplified Chinese (简体中文) for all UI text.
 2. **Single File Architecture**: Output a single valid HTML file containing CSS, JS (React), and Logic.
 3. **No Markdown**: Output ONLY the raw HTML code. Start immediately with <!DOCTYPE html>.
+4. **Emoji Usage**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters (e.g., 👀) or ES6 unicode escapes (e.g., \\u{1F440}).
+5. **No Unescaped Characters**: Ensure all strings in JavaScript/React are properly escaped. Avoid unescaped backticks (\`) inside template literals.
+6. **No Infinite Loops**: Ensure all \`useEffect\` hooks have proper dependency arrays.
+7. **No Console Blocking**: Remove excessive \`console.log\` that might slow down the browser.
+8. **Valid HTML Structure**: Ensure all tags are properly closed. Do not nest \`<a>\` inside \`<a>\` or \`<button>\` inside \`<button>\`.
 
 ### Tech Stack (Strict Enforcement):
 - **React 18**: Use Functional Components, Hooks (useState, useEffect, useMemo, useCallback).
@@ -605,6 +822,9 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 3. **Icons**: Use \`window.lucideReact\`. Example: \`<lucideReact.Activity />\`.
 4. **Styling**: Use Tailwind CSS classes.
 5. **Fonts**: DO NOT use external fonts (Google Fonts) unless absolutely necessary and ensure the URL is valid. Prefer system fonts.
+6. **Emoji**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters or ES6 unicode escapes (e.g., \\u{1F440}).
+7. **String Escaping**: Properly escape backticks and quotes in JavaScript strings.
+8. **React Hooks**: Ensure \`useEffect\` dependencies are correct to prevent infinite loops.
 `;
 
       const finalUserPrompt = isModification 
@@ -845,12 +1065,21 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
     }
   };
 
+
+
+
+
+
+
   const handleUpload = () => {
+    if (!confirm('确定要发布作品吗？\n\n发布后将跳转至上传页面，您将无法返回此处继续编辑代码。\n建议您先点击“下载”保存代码备份。')) {
+      return;
+    }
     try {
       // Save to localStorage to pass to upload page
       localStorage.setItem('spark_generated_code', generatedCode);
       localStorage.setItem('spark_generated_meta', JSON.stringify({
-        title: `${wizardData.category} - ${wizardData.style}`,
+        title: `${CATEGORIES.find(c => c.id === wizardData.category)?.label || 'App'}`,
         description: wizardData.description || wizardData.features,
         tags: [wizardData.category, wizardData.style]
       }));
@@ -940,6 +1169,30 @@ Please apply this change to the code. Ensure the modification is precise and aff
     startGeneration(true, prompt, editRequest);
   };
 
+  const handleMobilePreview = async () => {
+    if (!generatedCode) return;
+    
+    try {
+      // 1. Upload to temp_previews
+      const { data, error } = await supabase
+        .from('temp_previews')
+        .insert({ content: generatedCode })
+        .select()
+        .single();
+        
+      if (error) throw error;
+      
+      // 2. Generate URL
+      const url = `${window.location.origin}/preview/mobile/${data.id}`;
+      setMobilePreviewUrl(url);
+      setShowMobilePreview(true);
+      
+    } catch (error) {
+      console.error('Failed to create mobile preview:', error);
+      toastError('生成预览链接失败，请重试');
+    }
+  };
+
   const renderHistoryModal = () => {
     if (!showHistoryModal) return null;
     return (
@@ -982,9 +1235,17 @@ Please apply this change to the code. Ensure the modification is precise and aff
     );
   };
 
+
+
+  // --- Share Handlers ---
+
+  // --- Render Components ---
+
+
+
   // --- Render Helpers ---
   const renderWizard = () => (
-    <div className="max-w-4xl mx-auto pt-32 pb-12 px-4 min-h-screen flex flex-col">
+    <div className="max-w-4xl mx-auto pt-12 pb-12 px-4 min-h-screen flex flex-col">
       <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700/50 rounded-3xl p-8 shadow-2xl animate-fade-in relative overflow-hidden">
         {/* Decorative background elements */}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand-500/50 to-transparent"></div>
@@ -1074,7 +1335,12 @@ Please apply this change to the code. Ensure the modification is precise and aff
                 <p className="text-slate-400">为你的应用挑选一套独特的外观主题</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {STYLES.map(style => (
+                {STYLES.filter(s => {
+                  const allowed = CATEGORY_STYLES[wizardData.category] || [];
+                  // Fallback: if no category selected or no mapping, show first 8 (basic styles)
+                  if (allowed.length === 0) return STYLES.indexOf(s) < 8;
+                  return allowed.includes(s.id);
+                }).map(style => (
                   <button
                     key={style.id}
                     onClick={() => handleStyleSelect(style.id)}
@@ -1123,12 +1389,19 @@ Please apply this change to the code. Ensure the modification is precise and aff
 
               {/* Templates */}
               <div>
-                <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wider flex items-center gap-2">
-                  <i className="fa-solid fa-wand-magic-sparkles"></i> 推荐模板 (点击添加)
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <i className="fa-solid fa-wand-magic-sparkles"></i> 推荐模板 (点击添加)
+                  </h3>
+                  <button 
+                    onClick={shuffleTemplates}
+                    className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1 transition"
+                  >
+                    <i className="fa-solid fa-rotate"></i> 换一批
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 gap-3">
-                  {/* @ts-ignore */}
-                  {FEATURE_TEMPLATES[wizardData.category]?.map((tpl: any, index: number) => (
+                  {randomTemplates.map((tpl, index) => (
                     <button
                       key={index}
                       onClick={() => {
@@ -1139,7 +1412,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                           setWizardData(prev => ({ ...prev, features: newFeatures }));
                         }
                       }}
-                      className="text-left p-4 rounded-xl bg-slate-800 border border-slate-700 hover:border-brand-500 hover:bg-slate-800/80 transition group"
+                      className="text-left p-4 rounded-xl bg-slate-800 border border-slate-700 hover:border-brand-500 hover:bg-slate-800/80 transition group animate-fade-in"
                     >
                       <div className="font-bold text-white text-sm mb-1 group-hover:text-brand-400 transition-colors">{tpl.label}</div>
                       <div className="text-xs text-slate-400 leading-relaxed">{tpl.desc}</div>
@@ -1212,7 +1485,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
   );
 
   const renderGenerating = () => (
-    <div className="flex flex-col items-center justify-center min-h-[100dvh] pt-24 pb-8 px-4 w-full max-w-2xl mx-auto">
+    <div className="flex flex-col items-center justify-center min-h-[100dvh] pt-0 pb-8 px-4 w-full max-w-2xl mx-auto">
       {/* Chat Simulation Container */}
       <div className="w-full bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl mb-8 relative overflow-hidden">
         {/* Progress Line at top */}
@@ -1291,14 +1564,19 @@ Please apply this change to the code. Ensure the modification is precise and aff
   );
 
   const renderPreview = () => (
-    <div className="flex flex-col lg:flex-row h-[100dvh] pt-16 overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-full pt-0 overflow-hidden">
       {/* Left (Desktop) / Bottom (Mobile): Chat & Controls */}
       <div className="w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col 
           order-2 lg:order-1 
           h-[45vh] lg:h-full shrink-0 z-10 relative shadow-[0_-4px_20px_rgba(0,0,0,0.3)] lg:shadow-none">
         
         <div className="p-3 lg:p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
-          <h3 className="font-bold text-white text-sm lg:text-base">创作助手</h3>
+          <div className="flex items-center gap-3">
+            <button onClick={handleExit} className="hidden lg:flex w-8 h-8 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition" title="退出创作">
+              <i className="fa-solid fa-chevron-left"></i>
+            </button>
+            <h3 className="font-bold text-white text-sm lg:text-base">创作助手</h3>
+          </div>
           <span className="text-[10px] lg:text-xs text-slate-500">剩余积分: {credits} (修改消耗 0.5 积分)</span>
         </div>
         
@@ -1378,7 +1656,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
             onClick={handleUpload}
             className="w-full py-3 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-xl font-bold transition shadow-lg flex items-center justify-center gap-2"
           >
-            <i className="fa-solid fa-cloud-upload"></i> 发布作品
+            <i className="fa-solid fa-rocket"></i> 发布作品
           </button>
           <div className="flex gap-2">
             <button 
@@ -1412,57 +1690,90 @@ Please apply this change to the code. Ensure the modification is precise and aff
           order-1 lg:order-2 
           h-[55vh] lg:h-full shrink-0 overflow-hidden">
         <div className="h-8 lg:h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
-          <span className="text-sm font-bold text-slate-400">预览模式</span>
+          <div className="flex items-center gap-3">
+            <button onClick={handleExit} className="lg:hidden flex w-6 h-6 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition" title="退出创作">
+              <i className="fa-solid fa-chevron-left"></i>
+            </button>
+            <span className="text-sm font-bold text-slate-400">预览模式</span>
+          </div>
           {/* Mobile Actions (Simplified) */}
           <div className="flex lg:hidden gap-2">
-             <button onClick={handleUpload} className="text-xs bg-brand-600 px-3 py-1 rounded text-white">发布</button>
+             <button onClick={handleUpload} className="text-xs px-3 py-1 rounded text-white flex items-center gap-1 bg-brand-600">
+                发布
+             </button>
           </div>
         </div>
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-0 lg:p-4 bg-[url('/grid.svg')]">
+        
+        {/* Preview Container */}
+        <div 
+          ref={previewContainerRef}
+          className="flex-1 relative overflow-hidden flex items-center justify-center bg-[url('/grid.svg')] bg-center"
+        >
+          {/* Device Wrapper with Dynamic Scale */}
           <div 
-            className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 max-w-full aspect-auto
-              ${/* Base (Mobile) Styles */ ''}
+            className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 origin-center
               ${previewMode === 'mobile' 
+                ? 'w-[375px] h-[812px] rounded-[3rem] border-[8px] border-slate-800 ring-1 ring-slate-700/50' 
+                : ''}
+              ${previewMode === 'tablet' 
+                ? 'w-[768px] h-[1024px] rounded-[2rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50' 
+                : ''}
+              ${previewMode === 'desktop' 
                 ? 'w-full h-full rounded-none border-0' 
-                : 'w-[90%] h-[80%] rounded-xl border-4 border-slate-800'}
-              
-              ${/* Desktop Overrides (lg:) */ ''}
-              ${previewMode === 'desktop' ? 'lg:w-full lg:h-full lg:rounded-none lg:border-0 lg:aspect-auto' : ''}
-              ${previewMode === 'tablet' ? 'lg:w-[768px] lg:h-[95%] lg:rounded-[1.5rem] lg:border-[12px] lg:border-slate-800 lg:ring-1 lg:ring-slate-700/50' : ''}
-              ${previewMode === 'mobile' ? 'lg:w-[375px] lg:h-[812px] lg:rounded-[2.5rem] lg:border-[10px] lg:border-slate-800 lg:ring-1 lg:ring-slate-700/50' : ''}
+                : ''}
             `}
+            style={{
+              transform: previewMode !== 'desktop' ? `scale(${previewScale})` : 'none'
+            }}
           >
-             {/* Notch - Only show on Desktop/Large screens when in mobile mode */}
-             <div className={`absolute top-0 left-1/2 -translate-x-1/2 bg-slate-800 z-20 transition-all duration-300 w-0 h-0 opacity-0
-                ${previewMode === 'mobile' ? 'lg:w-24 lg:h-6 lg:rounded-b-xl lg:opacity-100' : ''}
-             `}></div>
+             {/* Notch - Only show on Mobile */}
+             {previewMode === 'mobile' && (
+               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-slate-800 rounded-b-2xl z-20 pointer-events-none"></div>
+             )}
              
              <iframe
                ref={iframeRef}
                srcDoc={getPreviewContent(generatedCode)}
-               className="w-full h-full"
+               className="w-full h-full bg-white"
                sandbox="allow-scripts allow-forms allow-modals allow-popups"
              />
           </div>
           
           {/* Floating Preview Controls */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-            <div className="bg-slate-900/80 backdrop-blur border border-slate-700 rounded-full p-1 flex shadow-xl">
-              <button onClick={() => setPreviewMode('desktop')} className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`} title="桌面端"><i className="fa-solid fa-desktop text-xs lg:text-base"></i></button>
-              <button onClick={() => setPreviewMode('tablet')} className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`} title="平板端"><i className="fa-solid fa-tablet-screen-button text-xs lg:text-base"></i></button>
-              <button onClick={() => setPreviewMode('mobile')} className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`} title="移动端"><i className="fa-solid fa-mobile-screen text-xs lg:text-base"></i></button>
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-10 w-max max-w-full px-4">
+            {/* Device Switcher */}
+            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-full p-1.5 flex shadow-2xl">
+              <button onClick={() => setPreviewMode('desktop')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title="桌面端"><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
+              <button onClick={() => setPreviewMode('tablet')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title="平板端"><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
+              <button onClick={() => setPreviewMode('mobile')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title="移动端"><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
             </div>
 
-            {/* Edit Mode Toggle */}
-            <div className="bg-slate-900/80 backdrop-blur border border-slate-700 rounded-full p-1 flex shadow-xl">
-               <button 
-                 onClick={toggleEditMode}
-                 className={`w-8 h-8 lg:w-10 lg:h-10 rounded-full flex items-center justify-center transition ${isEditMode ? 'bg-brand-600 text-white shadow-[0_0_10px_rgba(79,70,229,0.5)]' : 'text-slate-400 hover:text-white'}`} 
-                 title={isEditMode ? "退出点选编辑" : "开启点选编辑"}
-               >
-                 <i className="fa-solid fa-arrow-pointer text-xs lg:text-base"></i>
-               </button>
-            </div>
+            {/* Separator */}
+            <div className="w-px h-8 bg-slate-700/50 mx-1"></div>
+
+            {/* Mobile QR Code */}
+            <button 
+                onClick={handleMobilePreview}
+                className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group" 
+                title="手机扫码预览"
+            >
+                <i className="fa-solid fa-qrcode text-sm group-hover:scale-110 transition"></i>
+            </button>
+
+            {/* Edit Mode Toggle - Prominent */}
+            <button 
+                onClick={toggleEditMode}
+                className={`h-11 px-5 rounded-full flex items-center gap-2.5 font-bold transition-all shadow-xl border ${
+                    isEditMode 
+                    ? 'bg-gradient-to-r from-brand-600 to-purple-600 border-transparent text-white ring-2 ring-brand-500/30 scale-105' 
+                    : 'bg-slate-900/90 backdrop-blur-md border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-600 group'
+                }`}
+            >
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isEditMode ? 'bg-white/20' : 'bg-brand-500/20 group-hover:bg-brand-500/30'}`}>
+                    <i className={`fa-solid ${isEditMode ? 'fa-check text-white' : 'fa-arrow-pointer text-brand-400'} ${isEditMode ? '' : 'animate-pulse'}`}></i>
+                </div>
+                <span className="text-sm whitespace-nowrap">{isEditMode ? '完成修改' : '点选修改'}</span>
+            </button>
           </div>
 
           {/* Loading Overlay for Modification */}
@@ -1481,7 +1792,17 @@ Please apply this change to the code. Ensure the modification is precise and aff
   );
 
   return (
-    <div className="min-h-screen text-white relative">
+    <div className={`min-h-screen text-white relative ${step === 'preview' ? 'h-screen overflow-hidden' : ''}`}>
+      {step !== 'preview' && (
+        <button 
+          onClick={handleExit}
+          className="fixed top-6 left-6 z-50 w-10 h-10 bg-slate-800/50 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full flex items-center justify-center transition backdrop-blur-md border border-slate-700/50"
+          title="退出创作"
+        >
+          <i className="fa-solid fa-chevron-left"></i>
+        </button>
+      )}
+
       {step === 'generating' ? renderGenerating() : 
        step === 'preview' ? renderPreview() : 
        renderWizard()}
@@ -1579,6 +1900,38 @@ Please apply this change to the code. Ensure the modification is precise and aff
                 <i className="fa-solid fa-wand-magic-sparkles"></i>
                 生成修改
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Preview QR Modal */}
+      {showMobilePreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center relative">
+            <button 
+              onClick={() => setShowMobilePreview(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition"
+            >
+              <X size={24} />
+            </button>
+            
+            <h3 className="text-xl font-bold text-slate-900 mb-2">真机预览</h3>
+            <p className="text-sm text-slate-500 mb-6 text-center">
+              请使用手机相机或微信扫描下方二维码<br/>在真实设备上体验应用
+            </p>
+            
+            <div className="bg-white p-2 rounded-xl border-2 border-slate-100 shadow-inner mb-6">
+              <QRCodeSVG 
+                value={mobilePreviewUrl} 
+                size={200}
+                level="H"
+                includeMargin={true}
+              />
+            </div>
+            
+            <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full">
+              <i className="fa-solid fa-clock"></i> 链接有效期为 1 小时
             </div>
           </div>
         </div>

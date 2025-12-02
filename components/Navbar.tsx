@@ -23,6 +23,29 @@ export default function Navbar() {
       success('邮箱验证成功，已自动登录', 5000);
     }
 
+    const fetchUserAvatar = async (userId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', userId)
+          .maybeSingle();
+        
+        if (error) {
+          console.error('Error fetching avatar:', error);
+          return;
+        }
+  
+        if (data?.avatar_url) {
+          setAvatarUrl(data.avatar_url);
+        }
+      } catch (error) {
+        console.error('Unexpected error fetching avatar:', error);
+      } finally {
+        setIsLoadingAvatar(false);
+      }
+    };
+
     const handleSession = (session: any) => {
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -65,31 +88,8 @@ export default function Navbar() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Hide Navbar in App Mode
-  if (searchParams.get('mode') === 'app') return null;
-
-  const fetchUserAvatar = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('avatar_url')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      if (error) {
-        console.error('Error fetching avatar:', error);
-        return;
-      }
-
-      if (data?.avatar_url) {
-        setAvatarUrl(data.avatar_url);
-      }
-    } catch (error) {
-      console.error('Unexpected error fetching avatar:', error);
-    } finally {
-      setIsLoadingAvatar(false);
-    }
-  };
+  // Hide Navbar in App Mode OR Create Page
+  if (searchParams.get('mode') === 'app' || pathname === '/create') return null;
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 

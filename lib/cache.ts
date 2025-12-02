@@ -2,6 +2,7 @@ import { Item } from '@/types/supabase';
 
 export const exploreCache = {
   items: [] as Item[],
+  categories: [] as { id: string, label: string, icon: string, count?: number }[],
   category: 'all',
   page: 0,
   hasLoaded: false,
