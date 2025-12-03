@@ -197,14 +197,16 @@ export default function CreatePage() {
   const [loadingTipIndex, setLoadingTipIndex] = useState(0);
   
   // State: History
-  const [codeHistory, setCodeHistory] = useState<{code: string, prompt: string, timestamp: number}[]>([]);
+  const [codeHistory, setCodeHistory] = useState<{code: string, prompt: string, timestamp: number, type?: 'init' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback'}[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [lastOperationType, setLastOperationType] = useState<'init' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback'>('init');
 
   // State: Point-and-Click Edit
   const [isEditMode, setIsEditMode] = useState(false);
-  const [selectedElement, setSelectedElement] = useState<{tagName: string, className: string, innerText: string, path: string} | null>(null);
+  const [selectedElement, setSelectedElement] = useState<{tagName: string, className: string, innerText: string, path: string, parentTagName?: string, parentClassName?: string} | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editRequest, setEditRequest] = useState('');
+  const [editIntent, setEditIntent] = useState<'auto' | 'style' | 'content' | 'logic'>('auto');
   const [hasSeenEditGuide, setHasSeenEditGuide] = useState(false);
   
   // State: Mobile Preview
@@ -586,6 +588,9 @@ export default function CreatePage() {
     Requirements:${wizardData.description}`;
 
     if (isModification) {
+      // Sanitize generatedCode to remove null bytes which Postgres hates
+      const safeCode = generatedCode ? generatedCode.replace(/\u0000/g, '') : '';
+
       if (forceFull) {
         return `
 # Task
@@ -595,7 +600,7 @@ Modify the following React app based on the user's request and output the FULL u
 ${modificationRequest}
 
 # Code
-${generatedCode}
+${safeCode}
 
 # Constraints
 - Maintain single-file structure.
@@ -617,7 +622,7 @@ Modify the following React app based on the user's request.
 ${modificationRequest}
 
 # Code
-${generatedCode}
+${safeCode}
 
 # Constraints
 - Maintain single-file structure.
@@ -660,18 +665,55 @@ ${description}
 const { useState, useEffect, Component } = React;
 
 class ErrorBoundary extends Component {
-  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  constructor(props) { super(props); this.state = { hasError: false, error: null, errorInfo: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  componentDidCatch(error, errorInfo) { console.error("ErrorBoundary caught an error", error, errorInfo); }
+  componentDidCatch(error, errorInfo) { 
+    console.error("ErrorBoundary caught an error", error, errorInfo); 
+    this.setState({ errorInfo });
+    const errorDetails = {
+      message: error.toString(),
+      stack: error.stack,
+      componentStack: errorInfo.componentStack
+    };
+    window.parent.postMessage({ type: 'spark-app-error', error: errorDetails }, '*');
+  }
   render() {
     if (this.state.hasError) {
       return (
-        <div className="h-screen flex flex-col items-center justify-center p-4 text-center bg-red-50/10 text-red-400">
-          <i className="fa-solid fa-triangle-exclamation text-4xl mb-4"></i>
-          <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
-          <pre className="text-xs bg-black/30 p-4 rounded text-left overflow-auto max-w-full">
-            {this.state.error?.toString()}
-          </pre>
+        <div className="h-screen flex flex-col items-center justify-center p-4 text-center bg-red-900/90 text-white font-mono overflow-auto">
+          <div className="max-w-4xl w-full bg-black/50 p-6 rounded-xl border border-red-500/30 shadow-2xl backdrop-blur-sm">
+            <div className="flex items-center gap-3 mb-4 text-red-400 border-b border-red-500/30 pb-4">
+              <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
+              <h2 className="text-xl font-bold">Application Runtime Error</h2>
+            </div>
+            <div className="text-left space-y-4">
+              <div>
+                <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Error Message</p>
+                <div className="text-red-300 font-bold break-words">{this.state.error?.toString()}</div>
+              </div>
+              {this.state.error?.stack && (
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Stack Trace</p>
+                  <pre className="text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap break-all bg-black/30 p-3 rounded border border-white/10">
+                    {this.state.error.stack}
+                  </pre>
+                </div>
+              )}
+              {this.state.errorInfo?.componentStack && (
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Component Stack</p>
+                  <pre className="text-xs text-slate-400 overflow-x-auto whitespace-pre-wrap break-all bg-black/30 p-3 rounded border border-white/10">
+                    {this.state.errorInfo.componentStack}
+                  </pre>
+                </div>
+              )}
+            </div>
+            <div className="mt-6 pt-4 border-t border-white/10 text-center">
+              <p className="text-sm text-slate-400 mb-2">
+                {window.parent !== window ? "Use the 'AI Fix' button in the editor to resolve this issue." : "Check the console for more details."}
+              </p>
+            </div>
+          </div>
         </div>
       );
     }
@@ -692,17 +734,35 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     `;
   };
 
-  const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '', forceFull = false) => {
+  const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '', forceFull = false, explicitType?: 'init' | 'chat' | 'click' | 'regenerate' | 'fix') => {
     // Explicitly rely on the argument to determine if it's a modification or a new generation (regenerate)
     const isModification = isModificationArg;
     const useDiffMode = isModification && !forceFull;
     
+    // Determine operation type for the NEXT generation
+    let nextOperationType: 'init' | 'chat' | 'click' | 'regenerate' | 'fix' = 'init';
+    
+    if (explicitType) {
+        nextOperationType = explicitType;
+    } else if (!isModification) {
+        nextOperationType = generatedCode ? 'regenerate' : 'init';
+    } else {
+        if (displayPrompt && overridePrompt) {
+            nextOperationType = 'click';
+        } else if (overridePrompt && !displayPrompt) {
+            nextOperationType = 'fix';
+        } else {
+            nextOperationType = 'chat';
+        }
+    }
+
     console.log('startGeneration called:', { 
         isModificationArg, 
         isModification, 
         forceFull,
         step, 
         overridePrompt,
+        nextOperationType,
         stack: new Error().stack 
     });
 
@@ -792,13 +852,16 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         }
       }
       
-      if (isModification && generatedCode) {
+      if (generatedCode) {
         setCodeHistory(prev => [...prev, {
             code: generatedCode,
             prompt: currentGenerationPrompt || 'Initial Version',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            type: lastOperationType
         }]);
       }
+
+      setLastOperationType(nextOperationType);
 
       setCurrentGenerationPrompt(promptContent);
 
@@ -877,12 +940,14 @@ const App = () => {
 1. **Uniqueness is King**: The content inside <<<<SEARCH ... ==== must match the original code *uniquely*.
    - ❌ BAD: Matching just \`</div>\` or \`}\` or \`return true;\`.
    - ✅ GOOD: Matching the function signature + the body + the closing brace.
-2. **Exact Match**: The text must match the original code character-for-character (ignoring indentation/whitespace).
-3. **Sufficient Context**: Include at least 5-10 lines of unchanged code around the target area.
+2. **Exact Match Required**: The text must match the original code character-for-character (ignoring indentation/whitespace).
+   - ❌ BAD: Skipping lines or using comments like \`// ... existing code ...\` inside the SEARCH block.
+   - ✅ GOOD: Including the FULL content of the block you are targeting.
+3. **Sufficient Context**: Include at least 5-10 lines of unchanged code around the target area to ensure the patcher finds the correct location.
 
 ### Critical Instructions for REPLACE Block:
 1. **Completeness**: Output the FULL replacement code, including the context lines you matched.
-2. **Valid React Code**: Ensure the new code is valid React/JSX.
+2. **Valid React Code**: Ensure the new code is valid React/JSX. Check for balanced braces \`{}\` and tags \`<>\`.
 3. **NO Imports**: Do NOT use \`import\` statements. Use global variables (React, ReactDOM).
 4. **No Placeholders**: Do NOT use \`// ... existing code ...\`. Output full code for the block.
 
@@ -894,8 +959,9 @@ const App = () => {
 ### Thinking Process
 Before generating the patch, verify:
 1. "Is this SEARCH block unique in the file?" (If not, add more context)
-2. "Does the REPLACE block contain all necessary code?"
-3. "Am I breaking the existing layout or style?"
+2. "Does the SEARCH block contain code that I am NOT replacing?" (If so, I must include it in the REPLACE block too, or I will delete it!)
+3. "Does the REPLACE block contain all necessary code?"
+4. "Am I breaking the existing layout or style?"
 ` : `You are an expert React Developer.
 Build a production-grade, single-file HTML application.
 
@@ -963,6 +1029,7 @@ ${deviceConstraint}
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: response.statusText }));
+            console.error('API Error Details:', errorData);
             throw new Error(errorData.error || `Generation failed: ${response.status}`);
         }
       } catch (e: any) {
@@ -1109,7 +1176,8 @@ ${deviceConstraint}
                          // Trigger full regeneration
                          // We use the current prompt (which is the user's modification request)
                          // and forceFull=true to bypass diff mode
-                         startGeneration(true, currentGenerationPrompt, '', true);
+                         // Use lastOperationType to preserve the original intent (e.g. if it was a chat edit, keep it as chat edit)
+                         startGeneration(true, currentGenerationPrompt, '', true, lastOperationType === 'init' ? 'regenerate' : lastOperationType);
                     } else {
                          toastError(language === 'zh' ? '修改已取消' : 'Modification cancelled');
                     }
@@ -1274,13 +1342,15 @@ ${deviceConstraint}
       setCodeHistory(prev => [...prev, {
           code: generatedCode,
           prompt: currentGenerationPrompt || 'Before Rollback',
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          type: lastOperationType
       }]);
     }
     
     setGeneratedCode(item.code);
     setStreamingCode(item.code);
     setCurrentGenerationPrompt(item.prompt);
+    setLastOperationType('rollback');
     setShowHistoryModal(false);
     toastSuccess(t.create.success_rollback);
   };
@@ -1299,30 +1369,40 @@ ${deviceConstraint}
   const handleElementEditSubmit = () => {
     if (!selectedElement || !editRequest.trim()) return;
     
+    const intentLabel = 
+        editIntent === 'style' ? 'Visual/Style Update' :
+        editIntent === 'content' ? 'Text/Content Update' :
+        editIntent === 'logic' ? 'Logic/Behavior Update' : 'General Update';
+
     const prompt = `
-I want to modify a specific element in the UI.
+### Point-and-Click Edit Request
+**Intent:** ${intentLabel}
 
-Target Element Details:
-- Tag: <${selectedElement.tagName}>
-- Text Content: "${selectedElement.innerText}"
-- Current Classes: "${selectedElement.className}"
-- DOM Path: ${selectedElement.path}
+**Target Element Signature**
+- **Tag:** \`<${selectedElement.tagName}>\`
+- **Content:** "${selectedElement.innerText}"
+- **Classes:** \`${selectedElement.className}\`
+- **Parent Context:** Inside \`<${selectedElement.parentTagName || 'unknown'} class="${selectedElement.parentClassName || ''}">\`
+- **CSS Path:** \`${selectedElement.path}\`
 
-Modification Request:
+**User Instruction**
 "${editRequest}"
 
-Instructions:
-1. Locate the element in the React code. Use the 'Text Content' and 'Current Classes' as the primary search keys, as the DOM structure might differ slightly from the React source.
-2. Apply the requested change ONLY to this element or its direct logic.
-3. Do not break the parent container or surrounding layout.
-4. If the user asks to change the style, use Tailwind CSS classes.
+**Execution Strategy**
+1. **Locate**: Find the JSX element that matches the *Target Element Signature*. Use the 'Content' and 'Classes' as strong anchors.
+2. **Scope**: Apply changes *strictly* to this element or its immediate wrapper.
+3. **Preserve**: Do not modify unrelated siblings or parent containers unless necessary for the layout.
+${editIntent === 'style' ? '4. **Style**: Use Tailwind CSS classes. Do not add custom CSS.' : ''}
+${editIntent === 'content' ? '4. **Content**: Update the text or child components. Keep existing styles.' : ''}
+${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state logic associated with this element.' : ''}
     `.trim();
 
     setShowEditModal(false);
     setEditRequest('');
     setSelectedElement(null);
+    setEditIntent('auto');
     
-    startGeneration(true, prompt, editRequest);
+    startGeneration(true, prompt, editRequest, false, 'click');
   };
 
   const handleMobilePreview = async () => {
@@ -1365,12 +1445,37 @@ Instructions:
         }
     }
       
-    startGeneration(true, prompt);
+    startGeneration(true, prompt, '', false, 'fix');
     setRuntimeError(null);
   };
 
   const renderHistoryModal = () => {
     if (!showHistoryModal) return null;
+    
+    const getTypeLabel = (type?: string) => {
+        switch(type) {
+            case 'init': return language === 'zh' ? '初始生成' : 'Initial';
+            case 'chat': return language === 'zh' ? '对话修改' : 'Chat Edit';
+            case 'click': return language === 'zh' ? '点选修改' : 'Visual Edit';
+            case 'regenerate': return language === 'zh' ? '重新生成' : 'Regenerate';
+            case 'fix': return language === 'zh' ? '自动修复' : 'Auto Fix';
+            case 'rollback': return language === 'zh' ? '回滚恢复' : 'Rollback';
+            default: return language === 'zh' ? '未知' : 'Unknown';
+        }
+    };
+
+    const getTypeIcon = (type?: string) => {
+        switch(type) {
+            case 'init': return 'fa-wand-magic-sparkles';
+            case 'chat': return 'fa-message';
+            case 'click': return 'fa-arrow-pointer';
+            case 'regenerate': return 'fa-rotate';
+            case 'fix': return 'fa-screwdriver-wrench';
+            case 'rollback': return 'fa-clock-rotate-left';
+            default: return 'fa-code-branch';
+        }
+    };
+
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
         <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl">
@@ -1387,10 +1492,21 @@ Instructions:
               [...codeHistory].reverse().map((item, index) => (
                 <div key={item.timestamp} className="bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-brand-500 transition group">
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-xs text-slate-400 font-mono">
-                      {new Date(item.timestamp).toLocaleTimeString(language === 'zh' ? 'zh-CN' : 'en-US')} 
-                      <span className="ml-2 opacity-50">{new Date(item.timestamp).toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US')}</span>
-                    </span>
+                    <div className="flex items-center gap-2">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border flex items-center gap-1 ${
+                            item.type === 'click' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' :
+                            item.type === 'chat' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
+                            item.type === 'regenerate' ? 'bg-orange-500/20 text-orange-300 border-orange-500/30' :
+                            item.type === 'fix' ? 'bg-red-500/20 text-red-300 border-red-500/30' :
+                            'bg-slate-700 text-slate-300 border-slate-600'
+                        }`}>
+                            <i className={`fa-solid ${getTypeIcon(item.type)}`}></i>
+                            {getTypeLabel(item.type)}
+                        </span>
+                        <span className="text-xs text-slate-400 font-mono">
+                        {new Date(item.timestamp).toLocaleTimeString(language === 'zh' ? 'zh-CN' : 'en-US')} 
+                        </span>
+                    </div>
                     <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
                       v{codeHistory.length - index}
                     </span>
@@ -1590,7 +1706,7 @@ Instructions:
                   {t.create.btn_back}
                 </button>
                 <button
-                  onClick={() => startGeneration()}
+                  onClick={() => startGeneration(false, '', '', false, 'init')}
                   disabled={!wizardData.description}
                   className={`flex-1 bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
                 >
@@ -1726,7 +1842,7 @@ Instructions:
              {/* Regenerate Button */}
              <div className="relative group">
                <button 
-                  onClick={() => startGeneration(false, currentGenerationPrompt)}
+                  onClick={() => startGeneration(false, currentGenerationPrompt, '', false, 'regenerate')}
                   className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded flex items-center gap-1 transition border border-slate-700"
                >
                   <RefreshCw size={12} />
@@ -1823,12 +1939,6 @@ Instructions:
         {/* Mobile Actions Bar */}
         <div className="lg:hidden p-2 bg-slate-900 border-t border-slate-800 flex gap-2 overflow-x-auto shrink-0 no-scrollbar">
            <button 
-             onClick={handleUpload}
-             className="px-3 py-2 bg-brand-600 text-white rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1"
-           >
-             <i className="fa-solid fa-rocket"></i> {t.create.publish}
-           </button>
-           <button 
              onClick={() => setShowHistoryModal(true)}
              className="px-3 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center gap-1"
            >
@@ -1859,13 +1969,13 @@ Instructions:
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !isGenerating && chatInput.trim() && startGeneration(true)}
+              onKeyDown={(e) => e.key === 'Enter' && !isGenerating && chatInput.trim() && startGeneration(true, '', '', false, 'chat')}
               placeholder={t.create.chat_placeholder}
               disabled={isGenerating}
               className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-4 pr-12 py-2 lg:py-3 text-sm lg:text-base text-white focus:border-brand-500 outline-none disabled:opacity-50"
             />
             <button 
-              onClick={() => startGeneration(true)}
+              onClick={() => startGeneration(true, '', '', false, 'chat')}
               disabled={isGenerating || !chatInput.trim()}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-brand-600 hover:bg-brand-500 text-white rounded-lg flex items-center justify-center transition disabled:opacity-50 disabled:bg-slate-700"
             >
@@ -1876,12 +1986,6 @@ Instructions:
 
         {/* Actions - Hidden on mobile to save space, or simplified */}
         <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-3 hidden lg:block shrink-0">
-          <button 
-            onClick={handleUpload}
-            className="w-full py-3 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-xl font-bold transition shadow-lg flex items-center justify-center gap-2"
-          >
-            <i className="fa-solid fa-rocket"></i> {t.create.publish}
-          </button>
           <div className="flex gap-2">
             <button 
               onClick={() => setShowHistoryModal(true)}
@@ -1922,6 +2026,14 @@ Instructions:
             </button>
             <span className="text-sm font-bold text-slate-400">{t.create.preview_mode}</span>
           </div>
+          
+          <button 
+            onClick={handleUpload}
+            className="px-3 py-1.5 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-lg text-xs font-bold transition shadow-lg flex items-center gap-1.5"
+          >
+            <i className="fa-solid fa-rocket"></i> 
+            <span>{t.create.publish}</span>
+          </button>
         </div>
         
         {/* Preview Container */}
@@ -2113,59 +2225,123 @@ Instructions:
       )}
 
       {showEditModal && selectedElement && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-lg w-full shadow-2xl animate-fade-in-up">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <i className="fa-solid fa-pen-to-square text-brand-500"></i>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-brand-500/20 flex items-center justify-center text-brand-400">
+                    <i className="fa-solid fa-pen-to-square"></i>
+                </div>
                 {t.create.edit_element_title}
               </h3>
-              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-white transition">
-                <i className="fa-solid fa-xmark text-lg"></i>
+              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-white transition w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800">
+                <X size={18} />
               </button>
             </div>
             
-            <div className="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700/50">
-              <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-2">{t.create.edit_element_selected}</div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="bg-brand-500/20 text-brand-300 px-2 py-0.5 rounded text-xs font-mono border border-brand-500/30">
-                  &lt;{selectedElement.tagName.toLowerCase()}&gt;
-                </span>
-                {selectedElement.className && (
-                  <span className="text-slate-400 text-xs truncate max-w-[200px]" title={selectedElement.className}>
-                    .{selectedElement.className.split(' ')[0]}...
-                  </span>
-                )}
-              </div>
-              <div className="text-sm text-slate-300 italic border-l-2 border-slate-600 pl-2 py-1 mt-2 line-clamp-2">
-                "{selectedElement.innerText.substring(0, 100) || t.create.no_text_content}"
-              </div>
+            <div className="p-6 space-y-6">
+                {/* Context Card */}
+                <div className="bg-slate-950 rounded-xl p-4 border border-slate-800 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-2 opacity-50 group-hover:opacity-100 transition">
+                     <span className="text-[10px] font-mono text-slate-500 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        {selectedElement.tagName.toLowerCase()}
+                     </span>
+                  </div>
+                  
+                  <div className="space-y-3">
+                      <div>
+                        <div className="text-xs text-slate-500 uppercase tracking-wider font-bold mb-1.5 flex items-center gap-2">
+                            <i className="fa-solid fa-crosshairs"></i> {t.create.edit_element_selected}
+                        </div>
+                        <div className="font-mono text-sm text-brand-300 break-all">
+                            &lt;{selectedElement.tagName.toLowerCase()} className="..."&gt;
+                        </div>
+                      </div>
+                      
+                      {selectedElement.innerText && (
+                          <div className="pl-3 border-l-2 border-slate-800">
+                            <div className="text-xs text-slate-500 mb-1">Content Preview</div>
+                            <div className="text-sm text-slate-300 italic line-clamp-2">
+                                "{selectedElement.innerText.substring(0, 100)}"
+                            </div>
+                          </div>
+                      )}
+
+                      {selectedElement.parentTagName && (
+                          <div className="flex items-center gap-2 text-xs text-slate-500 pt-2 border-t border-slate-800/50">
+                             <i className="fa-solid fa-level-up-alt fa-rotate-90"></i>
+                             <span>Inside &lt;{selectedElement.parentTagName}&gt;</span>
+                          </div>
+                      )}
+                  </div>
+                </div>
+
+                {/* Intent Selector */}
+                <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+                        {language === 'zh' ? '修改类型' : 'Modification Type'}
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                        {[
+                            { id: 'auto', icon: 'fa-wand-magic-sparkles', label: language === 'zh' ? '自动' : 'Auto' },
+                            { id: 'style', icon: 'fa-palette', label: language === 'zh' ? '样式' : 'Style' },
+                            { id: 'content', icon: 'fa-font', label: language === 'zh' ? '内容' : 'Content' },
+                            { id: 'logic', icon: 'fa-code', label: language === 'zh' ? '逻辑' : 'Logic' }
+                        ].map(type => (
+                            <button
+                                key={type.id}
+                                onClick={() => setEditIntent(type.id as any)}
+                                className={`flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-lg border transition-all ${
+                                    editIntent === type.id 
+                                    ? 'bg-brand-600 border-brand-500 text-white shadow-lg shadow-brand-900/20' 
+                                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
+                                }`}
+                            >
+                                <i className={`fa-solid ${type.icon} text-sm`}></i>
+                                <span className="text-[10px] font-bold">{type.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                
+                {/* Input */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+                    {t.create.edit_element_label}
+                  </label>
+                  <div className="relative">
+                      <textarea
+                        value={editRequest}
+                        onChange={(e) => setEditRequest(e.target.value)}
+                        placeholder={
+                            editIntent === 'style' ? (language === 'zh' ? '例如：改为圆角按钮，背景色用蓝色...' : 'E.g. Make it rounded with blue background...') :
+                            editIntent === 'content' ? (language === 'zh' ? '例如：把文字改为“提交订单”...' : 'E.g. Change text to "Submit Order"...') :
+                            editIntent === 'logic' ? (language === 'zh' ? '例如：点击后弹出一个提示框...' : 'E.g. Show an alert on click...') :
+                            t.create.edit_element_placeholder
+                        }
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-600 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 min-h-[120px] resize-none text-sm leading-relaxed"
+                        autoFocus
+                      />
+                      <div className="absolute bottom-3 right-3 text-[10px] text-slate-600">
+                        {editRequest.length} chars
+                      </div>
+                  </div>
+                </div>
             </div>
             
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                {t.create.edit_element_label}
-              </label>
-              <textarea
-                value={editRequest}
-                onChange={(e) => setEditRequest(e.target.value)}
-                placeholder={t.create.edit_element_placeholder}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 min-h-[100px] resize-none"
-                autoFocus
-              />
-            </div>
-            
-            <div className="flex gap-3">
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-800 bg-slate-900/50 flex gap-3">
               <button
                 onClick={() => setShowEditModal(false)}
-                className="flex-1 px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium transition-colors"
+                className="flex-1 px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm transition-colors border border-slate-700"
               >
                 {t.common.cancel}
               </button>
               <button
                 onClick={handleElementEditSubmit}
                 disabled={!editRequest.trim()}
-                className="flex-1 px-4 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition-all shadow-lg shadow-brand-900/20 flex items-center justify-center gap-2"
+                className="flex-[2] px-4 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-all shadow-lg shadow-brand-900/20 flex items-center justify-center gap-2"
               >
                 <i className="fa-solid fa-wand-magic-sparkles"></i>
                 {t.create.btn_generate_edit}

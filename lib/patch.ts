@@ -123,6 +123,13 @@ function findBestTokenMatch(sourceTokens: Token[], searchTokens: Token[]): { sta
         return found;
     };
 
+    // Strategy 0: Exact Contiguous Token Match (The Gold Standard)
+    // This prevents "skipping" tokens in the source which leads to accidental deletion.
+    const exactMatch = findExactTokenMatch(sourceTokens, searchTokens);
+    if (exactMatch) {
+        return exactMatch;
+    }
+
     // Strategy 1: Smart Anchors (Top 5 longest/rarest tokens)
     // Instead of fixed positions, we scan the search block for the "best" anchors.
     const rankedTokens = searchTokens.map((t, i) => ({ index: i, text: t.text, length: t.text.length }))
@@ -196,11 +203,41 @@ function findBestTokenMatch(sourceTokens: Token[], searchTokens: Token[]): { sta
         }
     }
 
-    // Threshold: 0.4 (Allow some fuzziness, but gap penalty will kill bad matches)
-    if (bestScore > 0.4) {
+    // Threshold: 0.85 (Strict Mode)
+    // Previously 0.4, which allowed deleting ~50% of the code in the block.
+    // 0.85 ensures that we match at least ~85% of the tokens contiguously.
+    if (bestScore > 0.85) {
         return bestRange;
     }
 
+    return null;
+}
+
+function findExactTokenMatch(sourceTokens: Token[], searchTokens: Token[]): { start: number, end: number } | null {
+    if (searchTokens.length === 0) return null;
+    
+    const firstToken = searchTokens[0].text;
+    const M = searchTokens.length;
+    const N = sourceTokens.length;
+
+    // Optimization: Only scan where the first token matches
+    for (let i = 0; i <= N - M; i++) {
+        if (sourceTokens[i].text === firstToken) {
+            let match = true;
+            for (let j = 1; j < M; j++) {
+                if (sourceTokens[i + j].text !== searchTokens[j].text) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                return {
+                    start: i,
+                    end: i + M - 1
+                };
+            }
+        }
+    }
     return null;
 }
 

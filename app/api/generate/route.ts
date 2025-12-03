@@ -30,11 +30,17 @@ export async function POST(request: Request) {
     // Note: Credit deduction is now handled entirely in the Edge Function to ensure atomicity and correct pricing based on model usage.
     
     // 1. Create Task in DB
+    // Truncate prompt to avoid huge payload issues in DB (Postgres text limit is high, but network/timeout might be an issue)
+    const MAX_PROMPT_LENGTH = 50000; // 50KB limit for DB storage
+    const storedPrompt = body.user_prompt && body.user_prompt.length > MAX_PROMPT_LENGTH 
+        ? body.user_prompt.substring(0, MAX_PROMPT_LENGTH) + '... (truncated)' 
+        : body.user_prompt;
+
     const { data: task, error: taskError } = await supabase
       .from('generation_tasks')
       .insert({
         user_id: session.user.id,
-        prompt: body.user_prompt,
+        prompt: storedPrompt,
         status: 'pending'
       })
       .select()

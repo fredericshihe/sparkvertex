@@ -267,6 +267,13 @@ export const getPreviewContent = (content: string | null) => {
         };
         
         console.log('App Error:', errorDetails);
+        
+        // Show error overlay in the iframe
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(127,29,29,0.95);color:white;z-index:99999;padding:20px;overflow:auto;font-family:monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;backdrop-filter:blur(10px);';
+        overlay.innerHTML = '<div style="max-w-4xl w-full bg-black/50 p-6 rounded-xl border border-red-500/30 shadow-2xl"><div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;color:#f87171;border-bottom:1px solid rgba(239,68,68,0.3);padding-bottom:16px;"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg><h2 style="font-size:20px;font-weight:bold;margin:0;">Application Runtime Error</h2></div><div style="text-align:left;color:#fca5a5;margin-bottom:16px;font-weight:bold;word-break:break-word;">' + String(msg) + '</div>' + (error && error.stack ? '<pre style="text-align:left;background:rgba(0,0,0,0.3);padding:12px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);overflow:auto;font-size:12px;color:#cbd5e1;white-space:pre-wrap;word-break:break-all;">' + error.stack + '</pre>' : '') + '<div style="margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.1);color:#94a3b8;font-size:14px;">Use the "AI Fix" button in the editor to resolve this issue.</div></div>';
+        document.body.appendChild(overlay);
+
         // Notify parent about the error
         try {
             window.parent.postMessage({ type: 'spark-app-error', error: errorDetails }, '*');
@@ -401,11 +408,14 @@ export const getPreviewContent = (content: string | null) => {
           e.stopPropagation();
           
           const el = e.target;
+          const parent = el.parentElement;
           const info = {
             tagName: el.tagName.toLowerCase(),
             className: el.className.replace('__spark_highlight__', '').trim(),
             innerText: el.innerText ? el.innerText.substring(0, 50) : '',
-            path: getElementPath(el)
+            path: getElementPath(el),
+            parentTagName: parent ? parent.tagName.toLowerCase() : null,
+            parentClassName: parent ? parent.className.replace('__spark_highlight__', '').trim() : null
           };
           
           window.parent.postMessage({ type: 'spark-element-selected', payload: info }, '*');

@@ -100,3 +100,59 @@ Import trace for requested module:
  ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
  ✓ Compiled in 343ms (889 modules)
  ✓ Compiled in 311ms (889 modules)
+ ✓ Compiled /api/generate in 240ms (638 modules)
+ ✓ Compiled in 319ms (889 modules)
+ ✓ Compiled in 309ms (889 modules)
+ ✓ Compiled in 234ms (889 modules)
+ ✓ Compiled in 231ms (889 modules)
+ ✓ Compiled in 223ms (889 modules)
+ ✓ Compiled in 310ms (889 modules)
+ ✓ Compiled /api/generate in 249ms (638 modules)
+ ✓ Compiled in 328ms (889 modules)
+ ✓ Compiled in 449ms (889 modules)
+ ✓ Compiled in 348ms (889 modules)
+ ✓ Compiled in 225ms (889 modules)
+ ✓ Compiled /api/generate in 220ms (638 modules)
+ ✓ Compiled in 412ms (889 modules)
+ ✓ Compiled in 356ms (889 modules)
+ ✓ Compiled in 250ms (889 modules)
+ ✓ Compiled in 305ms (889 modules)
+ ✓ Compiled in 239ms (889 modules)
+ ✓ Compiled in 264ms (889 modules)
+ ✓ Compiled in 304ms (889 modules)
+ ✓ Compiled in 235ms (889 modules)
+ ✓ Compiled /api/generate in 222ms (638 modules)
+ ✓ Compiled in 340ms (1075 modules)
+ ✓ Compiled in 131ms (875 modules)
+ ✓ Compiled /api/generate in 42ms (638 modules)
+ ✓ Compiled in 162ms (1061 modules)
+ ✓ Compiled in 319ms (1075 modules)
+ ✓ Compiled in 237ms (1075 modules)
+ ✓ Compiled in 332ms (889 modules)
+ ✓ Compiled /api/generate in 172ms (638 modules)
+ ✓ Compiled in 97ms (1061 modules)
+ ✓ Compiled in 257ms (1075 modules)
+Task Creation Error: {
+  message: 'TypeError: fetch failed',
+  details: 'TypeError: fetch failed\n' +
+    '\n' +
+    'Caused by: Error: Client network socket disconnected before secure TLS connection was established (ECONNRESET)\n' +
+    'Error: Client network socket disconnected before secure TLS connection was established\n' +
+    '    at TLSSocket.onConnectEnd (node:_tls_wrap:1732:19)\n' +
+    '    at TLSSocket.emit (node:events:531:35)\n' +
+    '    at endReadableNT (node:internal/streams/readable:1698:12)\n' +
+    '    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)',
+  hint: '',
+  code: ''
+}
+ ✓ Compiled in 381ms (1075 modules)
+ ✓ Compiled in 338ms (1075 modules)
+ ✓ Compiled in 348ms (1075 modules)
+ ✓ Compiled in 232ms (889 modules)
+ ✓ Compiled in 244ms (889 modules)
+ ✓ Compiled in 288ms (889 modules)
+ ✓ Compiled /api/generate in 126ms (638 modules)
+ ✓ Compiled in 231ms (889 modules)
+ ✓ Compiled in 296ms (889 modules)
+ ✓ Compiled in 240ms (889 modules)
+ ✓ Compiled /api/generate in 96ms (638 modules)
