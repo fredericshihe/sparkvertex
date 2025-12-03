@@ -499,6 +499,15 @@ function UploadContent() {
       // Inject validation script
       const validationScript = `
         <script>
+          var capturedErrors = [];
+          window.onerror = function(msg, url, line, col, error) {
+            capturedErrors.push({ message: msg, line: line, column: col });
+          };
+          
+          window.addEventListener('unhandledrejection', function(event) {
+             capturedErrors.push({ message: 'Unhandled Promise Rejection: ' + event.reason });
+          });
+
           window.addEventListener('load', function() {
             setTimeout(function() {
               try {
@@ -510,7 +519,12 @@ function UploadContent() {
                   if (hasContent) {
                     window.parent.postMessage({ type: 'spark-validation-success' }, '*');
                   } else {
-                    window.parent.postMessage({ type: 'spark-validation-empty' }, '*');
+                    if (capturedErrors.length > 0) {
+                        // Report the first error that likely caused the blank screen
+                        window.parent.postMessage({ type: 'spark-app-error', error: capturedErrors[0] }, '*');
+                    } else {
+                        window.parent.postMessage({ type: 'spark-validation-empty' }, '*');
+                    }
                   }
               } catch(e) {
                   window.parent.postMessage({ type: 'spark-app-error', error: { message: e.toString() } }, '*');
@@ -1112,6 +1126,13 @@ function UploadContent() {
       clearInterval(interval);
       setUploadProgress(100);
       setPublishedId(isEditing && editId ? editId : data.id);
+
+      // Clear creation session cache on successful publish
+      localStorage.removeItem('spark_create_session_v1');
+      localStorage.removeItem('spark_generated_code');
+      localStorage.removeItem('spark_generated_meta');
+      localStorage.removeItem('spark_upload_import');
+
       setTimeout(() => {
         setLoading(false);
         setStep(4);

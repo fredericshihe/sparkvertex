@@ -430,6 +430,15 @@ function CreateContent() {
             setStreamingCode(importedCode);
             setStep('preview');
             setWizardData(prev => ({ ...prev, description: 'Imported from Upload' }));
+            
+            // Initialize history with the imported code
+            setCodeHistory([{
+                code: importedCode,
+                prompt: 'Imported from Upload',
+                timestamp: Date.now(),
+                type: 'init'
+            }]);
+
             localStorage.removeItem('spark_upload_import');
             // Explicitly clear the old session key to prevent any mix-up
             localStorage.removeItem(STORAGE_KEY);
@@ -645,6 +654,7 @@ ${safeCode}
 - Maintain single-file structure.
 - Use React 18 and Tailwind CSS.
 - Output ONLY the diffs using the <<<<SEARCH ... ==== ... >>>> format.
+- Ensure SEARCH blocks match the original code EXACTLY (including whitespace).
 `;
     }
 
@@ -1126,62 +1136,88 @@ ${deviceConstraint}
             supabase.removeChannel(channel);
 
             checkAuth();
-            let cleanCode = newTask.result_code || '';
+            let rawCode = newTask.result_code || '';
             
-            // SAFETY FIX: Remove Python-style Unicode escapes that crash JS
-            // Replaces \U0001F600 with \u{1F600}
-            cleanCode = cleanCode.replace(/\\U([0-9a-fA-F]{8})/g, (match: string, p1: string) => {
-                return '\\u{' + p1.replace(/^0+/, '') + '}';
-            });
+            // Helper function to clean code (remove unsafe/broken elements)
+            const cleanTheCode = (code: string) => {
+                let c = code;
+                // SAFETY FIX: Remove Python-style Unicode escapes that crash JS
+                c = c.replace(/\\U([0-9a-fA-F]{8})/g, (match: string, p1: string) => {
+                    return '\\u{' + p1.replace(/^0+/, '') + '}';
+                });
 
-            // SAFETY FIX: Remove Google Fonts & Preconnects (China Blocking Issue)
-            cleanCode = cleanCode.replace(/<link[^>]+fonts\.(googleapis|gstatic)\.com[^>]*>/gi, '');
-            
-            // OPTIMIZATION: Replace cdnjs with cdn.staticfile.org for FontAwesome
-            cleanCode = cleanCode.replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/g, 'https://cdn.staticfile.org/font-awesome');
+                // SAFETY FIX: Remove Google Fonts & Preconnects (China Blocking Issue)
+                c = c.replace(/<link[^>]+fonts\.(googleapis|gstatic)\.com[^>]*>/gi, '');
+                
+                // OPTIMIZATION: Replace cdnjs with cdn.staticfile.org for FontAwesome
+                c = c.replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/g, 'https://cdn.staticfile.org/font-awesome');
 
-            // SAFETY FIX: Remove Framer Motion (Broken CDN / 404)
-            cleanCode = cleanCode.replace(/<script.*src=".*framer-motion.*\.js".*><\/script>/g, '');
+                // SAFETY FIX: Remove Framer Motion (Broken CDN / 404)
+                c = c.replace(/<script.*src=".*framer-motion.*\.js".*><\/script>/g, '');
 
-            // SAFETY FIX: Replace broken QRCode CDN with staticfile
-            cleanCode = cleanCode.replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/qrcode@[\d\.]+\/build\/qrcode\.min\.js/g, 'https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js');
-            
-            // SAFETY FIX: Remove Mixkit MP3s (403 Forbidden)
-            cleanCode = cleanCode.replace(/src="[^"]*mixkit[^"]*\.mp3"/g, 'src=""');
-            cleanCode = cleanCode.replace(/new Audio\("[^"]*mixkit[^"]*\.mp3"\)/g, 'null');
+                // SAFETY FIX: Replace broken QRCode CDN with staticfile
+                c = c.replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/qrcode@[\d\.]+\/build\/qrcode\.min\.js/g, 'https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js');
+                
+                // SAFETY FIX: Remove Mixkit MP3s (403 Forbidden)
+                c = c.replace(/src="[^"]*mixkit[^"]*\.mp3"/g, 'src=""');
+                c = c.replace(/new Audio\("[^"]*mixkit[^"]*\.mp3"\)/g, 'null');
+                
+                return c;
+            };
 
-            setStreamingCode(cleanCode);
-            
             if (useDiffMode) {
+                // In Diff Mode, we must NOT clean the raw patch before applying it,
+                // because the SEARCH blocks must match the original code exactly.
+                // If we clean the patch, we might remove lines from SEARCH blocks that exist in the original code.
+                setStreamingCode(rawCode);
+                
                 try {
-                    console.log('Applying patches. Source length:', generatedCode.length, 'Patch length:', cleanCode.length);
+                    console.log('Applying patches. Source length:', generatedCode.length, 'Patch length:', rawCode.length);
                     
                     // Extract Summary
-                    // Regex note: using [\s\S] instead of . with /s flag for ES5 compatibility
-                    const summaryMatch = cleanCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
+                    const summaryMatch = rawCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
                     const summary = summaryMatch ? summaryMatch[1].trim() : null;
 
-                    // Extract Analysis (Optional, for logging or future use)
-                    const analysisMatch = cleanCode.match(/\/\/\/\s*ANALYSIS:\s*([\s\S]*?)\s*\/\/\//);
+                    // Extract Analysis
+                    const analysisMatch = rawCode.match(/\/\/\/\s*ANALYSIS:\s*([\s\S]*?)\s*\/\/\//);
                     if (analysisMatch) {
                         console.log('AI Analysis:', analysisMatch[1].trim());
                     }
 
-                    const patched = applyPatches(generatedCode, cleanCode);
+                    const patched = applyPatches(generatedCode, rawCode);
                     
                     if (patched === generatedCode) {
                         console.warn('Patch applied but code is unchanged.');
-                        if (!cleanCode.includes('<<<<SEARCH')) {
+                        if (!rawCode.includes('<<<<SEARCH')) {
+                             // Fallback: Check if AI returned a full file instead of patches
+                             if (rawCode.includes('<!DOCTYPE html>') || rawCode.includes('<html')) {
+                                 console.log('AI returned full file instead of patches. Switching to full replacement.');
+                                 const finalCode = cleanTheCode(rawCode);
+                                 setGeneratedCode(finalCode);
+                                 toastSuccess(t.create.success_edit);
+                                 
+                                 if (summary) {
+                                     setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
+                                 } else {
+                                     setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.' }]);
+                                 }
+                                 
+                                 setIsGenerating(false);
+                                 setProgress(100);
+                                 return;
+                             }
+
                              throw new Error(language === 'zh' ? 'AI 未返回有效的修改代码块' : 'AI did not return valid modification blocks');
                         } else {
                              throw new Error(language === 'zh' ? '找到修改块但无法应用（上下文不匹配）' : 'Found modification blocks but could not apply them (context mismatch)');
                         }
                     }
 
-                    setGeneratedCode(patched);
+                    // Clean the RESULT of the patch
+                    const finalCode = cleanTheCode(patched);
+                    setGeneratedCode(finalCode);
                     toastSuccess(t.create.success_edit);
                     
-                    // Add AI message to chat
                     if (summary) {
                         setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
                     } else {
@@ -1199,16 +1235,15 @@ ${deviceConstraint}
                     
                     if (confirm(confirmMsg)) {
                          toastSuccess(language === 'zh' ? '正在进行全量重写...' : 'Starting full rewrite...');
-                         // Trigger full regeneration
-                         // We use the current prompt (which is the user's modification request)
-                         // and forceFull=true to bypass diff mode
-                         // Use lastOperationType to preserve the original intent (e.g. if it was a chat edit, keep it as chat edit)
                          startGeneration(true, currentGenerationPrompt, '', true, lastOperationType === 'init' ? 'regenerate' : lastOperationType);
                     } else {
                          toastError(language === 'zh' ? '修改已取消' : 'Modification cancelled');
                     }
                 }
             } else {
+                // Full Generation Mode
+                let cleanCode = cleanTheCode(rawCode);
+                
                 // Extract Summary if present (for full rewrite modification)
                 const summaryMatch = cleanCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
                 let summary = summaryMatch ? summaryMatch[1].trim() : null;
@@ -1219,37 +1254,16 @@ ${deviceConstraint}
                 }
 
                 cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
-                
-                // SAFETY FIX: Remove Python-style Unicode escapes that crash JS
-                cleanCode = cleanCode.replace(/\\U([0-9a-fA-F]{8})/g, (match: string, p1: string) => {
-                    return '\\u{' + p1.replace(/^0+/, '') + '}';
-                });
-
-                // SAFETY FIX: Remove Google Fonts & Preconnects (China Blocking Issue)
-                cleanCode = cleanCode.replace(/<link[^>]+fonts\.(googleapis|gstatic)\.com[^>]*>/gi, '');
-
-                // OPTIMIZATION: Replace cdnjs with cdn.staticfile.org for FontAwesome
-                cleanCode = cleanCode.replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/g, 'https://cdn.staticfile.org/font-awesome');
-
-                // SAFETY FIX: Remove Framer Motion (Broken CDN / 404)
-                cleanCode = cleanCode.replace(/<script.*src=".*framer-motion.*\.js".*><\/script>/g, '');
-
-                // SAFETY FIX: Replace broken QRCode CDN with staticfile
-                cleanCode = cleanCode.replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/qrcode@[\d\.]+\/build\/qrcode\.min\.js/g, 'https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js');
-
-                // SAFETY FIX: Remove Mixkit MP3s (403 Forbidden)
-                cleanCode = cleanCode.replace(/src="[^"]*mixkit[^"]*\.mp3"/g, 'src=""');
-                cleanCode = cleanCode.replace(/new Audio\("[^"]*mixkit[^"]*\.mp3"\)/g, 'null');
 
                 if (!cleanCode.includes('<meta name="viewport"')) {
                     cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
                 }
 
+                setStreamingCode(cleanCode);
                 setGeneratedCode(cleanCode);
                 
                 if (isModification) {
                     toastSuccess(t.create.success_edit);
-                    // Use summary if available, otherwise fallback
                     if (summary) {
                         setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
                     } else {
@@ -1968,16 +1982,16 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
         </div>
 
         {/* Mobile Actions Bar */}
-        <div className="lg:hidden p-2 bg-slate-900 border-t border-slate-800 flex gap-2 overflow-x-auto shrink-0 no-scrollbar">
+        <div className="lg:hidden p-2 bg-slate-900 border-t border-slate-800 flex gap-2 shrink-0">
            <button 
              onClick={() => setShowHistoryModal(true)}
-             className="px-3 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center gap-1"
+             className="flex-1 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center justify-center gap-1"
            >
              <i className="fa-solid fa-clock-rotate-left"></i> {t.create.history}
            </button>
            <button 
              onClick={handleDownload}
-             className="px-3 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center gap-1"
+             className="flex-1 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center justify-center gap-1"
            >
              <i className="fa-solid fa-download"></i> {t.create.download}
            </button>
@@ -1987,7 +2001,7 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                 const url = URL.createObjectURL(blob);
                 window.open(url, '_blank');
               }}
-             className="px-3 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center gap-1"
+             className="flex-1 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center justify-center gap-1"
            >
              <i className="fa-solid fa-code"></i> {t.create.view_code}
            </button>
