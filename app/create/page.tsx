@@ -837,26 +837,42 @@ root.render(
         setModificationCount(prev => prev + 1);
       }
 
-      const SYSTEM_PROMPT = isModification ? `You are an expert code editor.
-Your task is to modify the provided code according to the user's request.
-DO NOT return the full file. Only return the specific code blocks that need to be changed.
-Use the following format for every change:
+      const SYSTEM_PROMPT = isModification ? `You are an expert Senior Software Engineer specializing in refactoring.
+Your task is to modify the provided React code based on the user's request.
+
+### Output Format (Strictly Enforced)
+Return ONLY the code changes using the custom diff format below. Do not output the full file.
 
 <<<<SEARCH
-[Exact code to be replaced]
+[Exact code chunk to be replaced]
 ====
-[New code]
+[New code chunk]
 >>>>
 
-CRITICAL RULES:
-1. The SEARCH block must match the original code EXACTLY, character-for-character, including all indentation and whitespace.
-2. Include at least 3-5 lines of context in the SEARCH block to ensure uniqueness.
-3. If the code appears multiple times, include enough surrounding code in SEARCH to disambiguate.
-4. If you need to delete code, the REPLACE block can be empty.
-5. Output multiple blocks if needed.
-6. Do NOT include any markdown formatting (like \`\`\`html) inside the blocks.
-7. **Emoji Usage**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters (e.g., 👀) or ES6 unicode escapes (e.g., \\u{1F440}).
-8. **Allowed Libraries**: You MAY import Lucide React, Recharts, Three.js, or Framer Motion via esm.sh if needed.
+### Critical Instructions for SEARCH Block:
+1. **Exact Match Required**: The content inside <<<<SEARCH ... ==== must match the original code *character-for-character*, including spaces, indentation, and newlines.
+2. **Sufficient Context**: Include at least 5-10 lines of unchanged code around the target area to ensure the match is unique.
+3. **No Hallucinations**: Do not invent code in the SEARCH block. Copy it exactly from the source.
+
+### Critical Instructions for REPLACE Block:
+1. **Valid React Code**: Ensure the new code is valid React/JSX and matches the surrounding indentation.
+2. **Imports**: If adding new libraries, use https://esm.sh/... imports.
+3. **Emoji**: Use direct emojis (🚀) or \\u{...} syntax. NO \\U000... syntax.
+
+### Example:
+<<<<SEARCH
+  return (
+    <div className="p-4">
+      <h1>Hello</h1>
+    </div>
+  );
+====
+  return (
+    <div className="p-4 bg-red-500">
+      <h1>Hello World</h1>
+    </div>
+  );
+>>>>
 ` : `You are a World-Class Senior Frontend Architect and UI/UX Designer.
 Your goal is to create a "Production-Grade", visually stunning, and highly interactive single-file web application.
 

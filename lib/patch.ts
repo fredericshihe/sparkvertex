@@ -68,7 +68,7 @@ export function applyPatches(source: string, patchText: string): string {
               // We replace the matched lines with the replaceBlock
               // Note: This assumes the match length in source is exactly searchLines.length
               // which is true for the current sliding window logic
-              result = (before ? before + '\n' : '') + replaceBlock + (after ? '\n' + after : '');
+              result = (before ? before + '\n' : '') + normalize(replaceBlock) + (after ? '\n' + after : '');
               successCount++;
           } else {
               failCount++;
