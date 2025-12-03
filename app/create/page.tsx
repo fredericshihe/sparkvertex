@@ -1046,8 +1046,11 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                 return '\\u{' + p1.replace(/^0+/, '') + '}';
             });
 
-            // SAFETY FIX: Remove Google Fonts (China Blocking Issue)
-            cleanCode = cleanCode.replace(/<link[^>]*href="https:\/\/fonts\.googleapis\.com[^>]*>/g, '');
+            // SAFETY FIX: Remove Google Fonts & Preconnects (China Blocking Issue)
+            cleanCode = cleanCode.replace(/<link[^>]+fonts\.(googleapis|gstatic)\.com[^>]*>/gi, '');
+            
+            // OPTIMIZATION: Replace cdnjs with cdn.staticfile.org for FontAwesome
+            cleanCode = cleanCode.replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/g, 'https://cdn.staticfile.org/font-awesome');
 
             setStreamingCode(cleanCode);
             
@@ -1079,8 +1082,11 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
                     return '\\u{' + p1.replace(/^0+/, '') + '}';
                 });
 
-                // SAFETY FIX: Remove Google Fonts (China Blocking Issue)
-                cleanCode = cleanCode.replace(/<link[^>]*href="https:\/\/fonts\.googleapis\.com[^>]*>/g, '');
+                // SAFETY FIX: Remove Google Fonts & Preconnects (China Blocking Issue)
+                cleanCode = cleanCode.replace(/<link[^>]+fonts\.(googleapis|gstatic)\.com[^>]*>/gi, '');
+
+                // OPTIMIZATION: Replace cdnjs with cdn.staticfile.org for FontAwesome
+                cleanCode = cleanCode.replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/g, 'https://cdn.staticfile.org/font-awesome');
 
                 if (!cleanCode.includes('<meta name="viewport"')) {
                     cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
