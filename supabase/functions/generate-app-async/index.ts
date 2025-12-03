@@ -101,10 +101,11 @@ serve(async (req) => {
     const apiKey = Deno.env.get('GOOGLE_API_KEY');
     
     // OPTIMIZATION 1: Model Routing (Mixed Model Strategy)
-    // Use Gemini 3 Pro Preview for speed by default (Creation), Gemini 2.5 Flash for modifications (Point-and-Click)
+    // Use Gemini 3 Pro Preview for speed by default (Creation).
+    // For modifications, we use Gemini 2.5 Pro which has better instruction following for diffs and context retention.
     let modelName = 'gemini-3-pro-preview';
     if (type === 'modification') {
-        modelName = 'gemini-2.5-flash';
+        modelName = 'gemini-2.5-pro';
     }
     
     const envModel = Deno.env.get('GOOGLE_MODEL_NAME');
