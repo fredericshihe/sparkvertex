@@ -680,6 +680,7 @@ ${description}
 </style>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
@@ -898,8 +899,10 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 - **React 18**: Use Functional Components, Hooks (useState, useEffect, useMemo, useCallback).
 - **Tailwind CSS**: Use for ALL styling. Use arbitrary values (e.g., \`bg-[#1a1a1a]\`) if specific colors are needed.
 - **Icons**: Use FontAwesome 6 (CDN). Example: \`<i className="fa-solid fa-home"></i>\`.
+- **Animations**: Use **Framer Motion** (available via \`window.Motion\`) for complex animations, or Tailwind classes for simple ones.
+  - Usage: \`const { motion, AnimatePresence } = window.Motion;\`
 - **NO External Libraries**: Do not use libraries not listed above.
-- ❌ NO \`import\` or \`require()\`. Use global variables (React, ReactDOM).
+- ❌ NO \`import\` or \`require()\`. Use global variables (React, ReactDOM, Motion).
 
 ### Design System & UX (The "Wow" Factor):
 - **Visual Style**: Modern, Clean, and Consistent. Use subtle shadows, rounded corners, and plenty of whitespace.
@@ -923,7 +926,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       const TECHNICAL_CONSTRAINTS = `
 ### Technical Constraints (MUST FOLLOW):
 1. **Single File**: Output ONLY a single valid HTML file. No Markdown.
-2. **Imports**: NO \`import\` statements. Use global variables (React, ReactDOM).
+2. **Imports**: NO \`import\` statements. Use global variables (React, ReactDOM, Motion).
 3. **Icons**: Use FontAwesome classes (e.g., \`<i className="fa-solid fa-home"></i>\`).
 4. **Styling**: Use Tailwind CSS classes.
 5. **Fonts**: DO NOT use external fonts (Google Fonts) unless absolutely necessary and ensure the URL is valid. Prefer system fonts.
