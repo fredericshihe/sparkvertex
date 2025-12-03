@@ -1110,7 +1110,7 @@ export const translations = {
       price: 'Price',
       free: 'Free',
       launch_app: 'Launch App',
-      download_source: 'Download Source',
+      download_source: 'Source',
       share_modal_title: 'Share',
       localhost_warning: 'Localhost detected. Mobile scan may not work.<br/>Please use LAN IP (e.g. 192.168.x.x:3000) before sharing.',
       developer: 'Developer: ',
