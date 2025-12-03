@@ -463,24 +463,24 @@ export default function DetailModal() {
               <>
                 <div className="p-6 flex-grow overflow-y-auto custom-scrollbar">
                   {/* Author Info */}
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-3">
-                      <img src={item?.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item?.author}`} className="w-12 h-12 rounded-full border-2 border-slate-700 object-cover" alt="Author" />
-                      <div>
-                        <div className="font-bold text-white text-base">{item?.author}</div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <img src={item?.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item?.author}`} className="w-12 h-12 rounded-full border-2 border-slate-700 object-cover flex-shrink-0" alt="Author" />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-white text-base truncate">{item?.author}</div>
                         <div className="text-xs text-slate-500" suppressHydrationWarning>{new Date(item?.created_at || '').toLocaleDateString()}</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
                       <button 
                         onClick={handleReward}
-                        className="text-xs bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1.5 rounded-full font-bold transition shadow-lg shadow-orange-500/20 flex items-center gap-1 hover:from-yellow-600 hover:to-orange-600"
+                        className="flex-1 sm:flex-none justify-center text-xs bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1.5 rounded-full font-bold transition shadow-lg shadow-orange-500/20 flex items-center gap-1 hover:from-yellow-600 hover:to-orange-600 whitespace-nowrap"
                       >
                         <i className="fa-solid fa-gift"></i> {t.detail.reward}
                       </button>
                       <button 
                         onClick={handleShare}
-                        className="text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-full font-bold transition border border-slate-700 flex items-center gap-1"
+                        className="flex-1 sm:flex-none justify-center text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-full font-bold transition border border-slate-700 flex items-center gap-1 whitespace-nowrap"
                       >
                         {showCopiedTip ? (
                           <>
@@ -569,23 +569,23 @@ export default function DetailModal() {
                     <span className="font-bold text-lg text-white">{item?.price && item.price > 0 ? `¥${item.price}` : t.detail.free}</span>
                   </div>
 
-                  <div className="flex gap-3 mt-2">
+                  <div className="flex flex-wrap sm:flex-nowrap gap-3 mt-2">
                     <button 
                       onClick={handleLike}
-                      className={`w-12 h-12 rounded-xl border flex items-center justify-center transition group ${isLiked ? 'bg-rose-500/10 text-rose-500 border-rose-500/50' : 'bg-slate-800 text-slate-400 hover:text-rose-500 border-slate-700 hover:bg-slate-700'}`}
+                      className={`w-12 h-12 rounded-xl border flex items-center justify-center transition group flex-shrink-0 ${isLiked ? 'bg-rose-500/10 text-rose-500 border-rose-500/50' : 'bg-slate-800 text-slate-400 hover:text-rose-500 border-slate-700 hover:bg-slate-700'}`}
                     >
                       <i className={`fa-solid fa-heart text-lg group-hover:scale-110 transition-transform`}></i>
                     </button>
                     <button 
                       onClick={enterAppMode}
-                      className="flex-grow bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white h-12 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition flex items-center justify-center gap-2 group"
+                      className="flex-1 min-w-[140px] bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white h-12 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition flex items-center justify-center gap-2 group whitespace-nowrap"
                     >
                       <i className="fa-solid fa-play group-hover:scale-110 transition-transform"></i>
                       <span>{t.detail.launch_app}</span>
                     </button>
                     <button 
                       onClick={handleDownload}
-                      className="flex-grow bg-slate-800 hover:bg-slate-700 text-white h-12 rounded-xl font-bold transition flex items-center justify-center gap-2 group border border-slate-700"
+                      className="flex-1 min-w-[140px] bg-slate-800 hover:bg-slate-700 text-white h-12 rounded-xl font-bold transition flex items-center justify-center gap-2 group border border-slate-700 whitespace-nowrap"
                     >
                       <span>{t.detail.download_source}</span>
                       <i className="fa-solid fa-download group-hover:translate-y-1 transition-transform text-slate-400 group-hover:text-white"></i>
@@ -736,7 +736,7 @@ export default function DetailModal() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3 w-full">
+                <div className="flex flex-wrap gap-3 w-full">
                     <button 
                         onClick={() => {
                             const link = document.createElement('a');
@@ -745,7 +745,7 @@ export default function DetailModal() {
                             link.click();
                         }}
                         disabled={!shareImageUrl}
-                        className="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+                        className="flex-1 min-w-[120px] bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap"
                     >
                         <i className="fa-solid fa-download"></i> {t.detail.save_image}
                     </button>
@@ -756,7 +756,7 @@ export default function DetailModal() {
                                 copyToClipboard(url).then(() => alert(t.detail.link_copied));
                             }
                         }}
-                        className="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm"
+                        className="flex-1 min-w-[120px] bg-brand-600 hover:bg-brand-500 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm whitespace-nowrap"
                     >
                         <i className="fa-regular fa-copy"></i> {t.detail.copy_link}
                     </button>
