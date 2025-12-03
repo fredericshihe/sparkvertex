@@ -217,6 +217,8 @@ export default function CreatePage() {
   // State: Preview Scaling
   const [previewScale, setPreviewScale] = useState(1);
   
+  const STORAGE_KEY = 'spark_create_session_v1';
+
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
@@ -405,11 +407,62 @@ export default function CreatePage() {
         }
         
         localStorage.removeItem('remix_template');
+        localStorage.removeItem(STORAGE_KEY);
       } catch (e) {
         console.error('Failed to parse remix template', e);
       }
+    } else {
+      try {
+        const savedSession = localStorage.getItem(STORAGE_KEY);
+        if (savedSession) {
+          const parsed = JSON.parse(savedSession);
+          if (Date.now() - parsed.timestamp < 7 * 24 * 60 * 60 * 1000) {
+            if (parsed.step) setStep(parsed.step);
+            if (parsed.wizardData) setWizardData(parsed.wizardData);
+            if (parsed.generatedCode) setGeneratedCode(parsed.generatedCode);
+            if (parsed.chatHistory) setChatHistory(parsed.chatHistory);
+            if (parsed.codeHistory) setCodeHistory(parsed.codeHistory);
+            if (parsed.currentGenerationPrompt) setCurrentGenerationPrompt(parsed.currentGenerationPrompt);
+            if (parsed.previewMode) setPreviewMode(parsed.previewMode);
+            
+            if ((parsed.step === 'preview' || parsed.step === 'generating') && parsed.generatedCode) {
+               setStreamingCode(parsed.generatedCode);
+               if (parsed.step === 'generating') {
+                   setStep('preview');
+                   setIsGenerating(false);
+                   setProgress(100);
+               }
+            }
+            
+            setTimeout(() => toastSuccess(language === 'zh' ? '已恢复上次的创作进度' : 'Restored previous session'), 500);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to restore session', e);
+      }
     }
   }, []);
+
+  useEffect(() => {
+    if (step === 'category' && !wizardData.description && !generatedCode) return;
+
+    const stateToSave = {
+      step,
+      wizardData,
+      generatedCode,
+      chatHistory,
+      codeHistory,
+      currentGenerationPrompt,
+      previewMode,
+      timestamp: Date.now()
+    };
+    
+    const timeoutId = setTimeout(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [step, wizardData, generatedCode, chatHistory, codeHistory, currentGenerationPrompt, previewMode]);
 
   const checkAuth = async () => {
     try {
@@ -446,10 +499,12 @@ export default function CreatePage() {
 
   const handleExit = () => {
     if (step === 'category' && !wizardData.description) {
+      localStorage.removeItem(STORAGE_KEY);
       router.push('/');
       return;
     }
     if (confirm(t.create.confirm_exit)) {
+      localStorage.removeItem(STORAGE_KEY);
       router.push('/');
     }
   };
