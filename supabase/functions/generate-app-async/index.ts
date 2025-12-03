@@ -255,7 +255,8 @@ serve(async (req) => {
                         };
 
                         try {
-                            await taskChannel.send(msg);
+                            // @ts-ignore
+                            await taskChannel.httpSend(msg);
                         } catch (rtError) {
                             console.warn('Realtime send failed:', rtError);
                         }
@@ -300,7 +301,8 @@ serve(async (req) => {
                         payload: { taskId, fullContent }
                     };
                     
-                    await taskChannel.send(completionMsg);
+                    // @ts-ignore
+                    await taskChannel.httpSend(completionMsg);
                 } catch (rtErr) {
                     console.log('Realtime completion broadcast failed:', rtErr);
                 }

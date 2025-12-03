@@ -7,7 +7,9 @@ export function applyPatches(source: string, patchText: string): string {
   // ... content ...
   // >>>>
   // Enhanced regex to be more permissive with whitespace around markers
-  const matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*\n([\s\S]*?)\n====\s*\n([\s\S]*?)\n>>>>/g));
+  // Matches <<<<SEARCH followed by anything, then ====, then anything, then >>>>
+  // \s* handles newlines and spaces flexibly
+  const matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*([\s\S]*?)\s*>>>>/g));
   
   let result = source;
   let successCount = 0;
@@ -55,10 +57,19 @@ export function applyPatches(source: string, patchText: string): string {
           
           if (foundIdx !== -1) {
               console.log('Fuzzy match found at line', foundIdx);
-              // We found where it starts, but replacing is tricky because we need exact indices.
-              // For now, let's just count it as fail to avoid corrupting code.
-              // Implementing robust fuzzy patch is complex.
-              failCount++;
+              
+              // Construct the new source
+              // We need to be careful about preserving the original source's structure outside the match
+              // Since we are working with normalizedSource (LF only), we should stick to that for consistency
+              
+              const before = sourceLines.slice(0, foundIdx).join('\n');
+              const after = sourceLines.slice(foundIdx + searchLines.length).join('\n');
+              
+              // We replace the matched lines with the replaceBlock
+              // Note: This assumes the match length in source is exactly searchLines.length
+              // which is true for the current sliding window logic
+              result = (before ? before + '\n' : '') + replaceBlock + (after ? '\n' + after : '');
+              successCount++;
           } else {
               failCount++;
           }

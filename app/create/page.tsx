@@ -526,7 +526,8 @@ ${description}
 
 # Specs
 - Lang: ${targetLang}
-- Stack: React 18, Tailwind CSS (CDN). NO External Libraries (Lucide, Framer Motion). Use CSS for animations and Emojis for icons.
+- Stack: React 18, Tailwind CSS (CDN).
+- Allowed Libraries: Lucide React, Recharts, Three.js, Framer Motion (via esm.sh).
 - Device Target: ${deviceLabel} (${wizardData.device === 'mobile' ? 'Mobile-first, touch-friendly' : wizardData.device === 'desktop' ? 'Desktop-optimized, mouse-friendly' : 'Responsive, tablet-friendly'})
 - Dark mode (#0f172a)
 - Single HTML file, NO markdown.
@@ -628,6 +629,7 @@ ${description}
 <script type="text/babel" data-type="module">
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'https://esm.sh/react@18.2.0';
 import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0';
+import { Lucide, Layout, Monitor, Smartphone } from 'https://esm.sh/lucide-react?deps=react@18.2.0';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -799,7 +801,7 @@ CRITICAL RULES:
 5. Output multiple blocks if needed.
 6. Do NOT include any markdown formatting (like \`\`\`html) inside the blocks.
 7. **Emoji Usage**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters (e.g., 👀) or ES6 unicode escapes (e.g., \\u{1F440}).
-8. **No External Libraries**: DO NOT import Lucide, Framer Motion, or any other external libraries. Use CSS for animations and Emojis/SVGs for icons.
+8. **Allowed Libraries**: You MAY import Lucide React, Recharts, Three.js, or Framer Motion via esm.sh if needed.
 ` : `You are a World-Class Senior Frontend Architect and UI/UX Designer.
 Your goal is to create a "Production-Grade", visually stunning, and highly interactive single-file web application.
 
@@ -817,13 +819,16 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 7. **Valid HTML Structure**: Ensure all tags are properly closed. Do not nest \`<a>\` inside \`<a>\` or \`<button>\` inside \`<button>\`.
 8. **Perfect Rendering**: Ensure the app takes up the full height of the viewport (h-screen, w-full) and handles overflow correctly. Prevent white screens by using Error Boundaries.
 
-### Tech Stack (Minimalist & Robust):
+### Tech Stack & Imports:
 - **React 18**: Use Functional Components, Hooks (useState, useEffect, useMemo, useCallback).
 - **Tailwind CSS**: Use for ALL styling. Use arbitrary values (e.g., \`bg-[#1a1a1a]\`) if specific colors are needed.
-- **NO External Libraries**: 
-  - ❌ NO \`lucide-react\`. Use **Emojis** (e.g., 🏠, ⚙️) or **Inline SVGs** for icons.
-  - ❌ NO \`framer-motion\`. Use **Tailwind CSS** classes (e.g., \`animate-bounce\`, \`transition-all\`, \`hover:scale-105\`) for animations.
-  - ❌ NO \`require()\`. Use ES Modules syntax only.
+- **Allowed Libraries** (Import via https://esm.sh/...):
+  - ✅ \`lucide-react\`: \`import { Home, Settings } from "https://esm.sh/lucide-react?deps=react@18.2.0"\`
+  - ✅ \`recharts\`: \`import { LineChart, XAxis, ... } from "https://esm.sh/recharts?deps=react@18.2.0"\`
+  - ✅ \`three\`: \`import * as THREE from "https://esm.sh/three"\`
+  - ✅ \`framer-motion\`: \`import { motion } from "https://esm.sh/framer-motion?deps=react@18.2.0"\`
+- **NO Other External Libraries**: Do not use libraries not listed above.
+- ❌ NO \`require()\`. Use ES Modules syntax only.
 
 ### Design System & UX (The "Wow" Factor):
 - **Visual Style**: Modern, Clean, and Consistent. Use subtle shadows, rounded corners, and plenty of whitespace.
@@ -848,7 +853,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 ### Technical Constraints (MUST FOLLOW):
 1. **Single File**: Output ONLY a single valid HTML file. No Markdown.
 2. **Imports**: Use \`https://esm.sh/...\` for imports. DO NOT use bare imports like \`import React from 'react'\`.
-3. **Icons**: Use Emojis or Inline SVGs. DO NOT import icon libraries.
+3. **Icons**: Use Lucide React (via esm.sh) or Emojis.
 4. **Styling**: Use Tailwind CSS classes.
 5. **Fonts**: DO NOT use external fonts (Google Fonts) unless absolutely necessary and ensure the URL is valid. Prefer system fonts.
 6. **Emoji**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters or ES6 unicode escapes (e.g., \\u{1F440}).
@@ -969,7 +974,18 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
             
             if (isModification) {
                 try {
+                    console.log('Applying patches. Source length:', generatedCode.length, 'Patch length:', cleanCode.length);
                     const patched = applyPatches(generatedCode, cleanCode);
+                    
+                    if (patched === generatedCode) {
+                        console.warn('Patch applied but code is unchanged.');
+                        if (!cleanCode.includes('<<<<SEARCH')) {
+                             throw new Error(language === 'zh' ? 'AI 未返回有效的修改代码块' : 'AI did not return valid modification blocks');
+                        } else {
+                             throw new Error(language === 'zh' ? '找到修改块但无法应用（上下文不匹配）' : 'Found modification blocks but could not apply them (context mismatch)');
+                        }
+                    }
+
                     setGeneratedCode(patched);
                     toastSuccess(t.create.success_edit);
                 } catch (e: any) {
