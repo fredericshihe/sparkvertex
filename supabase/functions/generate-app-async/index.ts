@@ -202,7 +202,7 @@ serve(async (req) => {
                 let streamClosed = false; 
                 
                 const taskChannel = supabaseAdmin.channel(`task-${taskId}`);
-                taskChannel.subscribe((status) => {
+                await taskChannel.subscribe((status) => {
                     if (status !== 'SUBSCRIBED') { 
                         console.log(`Channel status: ${status}`);
                     }
@@ -256,8 +256,7 @@ serve(async (req) => {
                         };
 
                         try {
-                            // @ts-ignore
-                            await taskChannel.httpSend(msg);
+                            taskChannel.send(msg);
                         } catch (rtError) {
                             console.warn('Realtime send failed:', rtError);
                         }
@@ -302,8 +301,7 @@ serve(async (req) => {
                         payload: { taskId, fullContent }
                     };
                     
-                    // @ts-ignore
-                    await taskChannel.httpSend(completionMsg);
+                    taskChannel.send(completionMsg);
                 } catch (rtErr) {
                     console.log('Realtime completion broadcast failed:', rtErr);
                 }
