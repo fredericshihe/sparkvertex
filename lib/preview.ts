@@ -40,6 +40,22 @@ export const getPreviewContent = (content: string | null) => {
     ''
   );
 
+  // 3.2 Fix QRCode (Broken jsdelivr link -> Use staticfile)
+  patchedContent = patchedContent.replace(
+    /https:\/\/cdn\.jsdelivr\.net\/npm\/qrcode@[\d\.]+\/build\/qrcode\.min\.js/g,
+    'https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js'
+  );
+
+  // 3.3 Fix Mixkit Audio (403 Forbidden -> Remove)
+  patchedContent = patchedContent.replace(
+    /src="[^"]*mixkit[^"]*\.mp3"/g, 
+    'src=""'
+  );
+  patchedContent = patchedContent.replace(
+    /new Audio\("[^"]*mixkit[^"]*\.mp3"\)/g, 
+    'null'
+  );
+
   // 4. Fix Broken Unsplash URLs (AI sometimes outputs just the ID)
   // Example: src="photo-123..." -> src="https://images.unsplash.com/photo-123..."
   patchedContent = patchedContent.replace(

@@ -380,6 +380,14 @@ export default function UploadPage() {
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPublic, setIsPublic] = useState(true);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  
+  // Validation State
+  const [validationState, setValidationState] = useState<{
+    status: 'idle' | 'validating' | 'success' | 'error';
+    error?: string;
+    details?: any;
+  }>({ status: 'idle' });
   
   // Metadata
   const [title, setTitle] = useState('');
@@ -420,9 +428,8 @@ export default function UploadPage() {
           setFileContent(generatedCode);
           setStep(2); // Skip upload step
           
-          // Trigger AI Analysis immediately to match "upload" behavior
-          // This ensures the generated code goes through the full analysis flow (Security, Title, Tags, Icon, etc.)
-          performAIAnalysis(generatedCode);
+          // Trigger Validation first, then Analysis
+          validateCode(generatedCode);
           
           // Clear storage to prevent reuse
           localStorage.removeItem('spark_generated_code');
@@ -431,6 +438,97 @@ export default function UploadPage() {
       }
     }
   }, [editId]);
+
+  const validateCode = (code: string) => {
+    setValidationState({ status: 'validating' });
+    
+    // We use a hidden iframe to validate the code
+    // The validation logic is handled by the 'message' event listener below
+    // We inject a script to check for content
+    
+    // Set a timeout for validation failure (e.g. infinite loop or crash)
+    const timeoutId = setTimeout(() => {
+        setValidationState(prev => {
+            if (prev.status === 'validating') {
+                return { 
+                    status: 'error', 
+                    error: t.upload.validation_timeout || 'Validation timed out. The app might be crashing or too slow.' 
+                };
+            }
+            return prev;
+        });
+    }, 8000); // 8 seconds timeout
+
+    // Store timeout ID to clear it if validation succeeds
+    (window as any).__validationTimeout = timeoutId;
+  };
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+        if (validationState.status !== 'validating') return;
+
+        if (event.data && event.data.type === 'spark-app-error') {
+            clearTimeout((window as any).__validationTimeout);
+            setValidationState({ 
+                status: 'error', 
+                error: event.data.error.message || 'Runtime Error',
+                details: event.data.error
+            });
+        }
+        
+        if (event.data && event.data.type === 'spark-validation-success') {
+            clearTimeout((window as any).__validationTimeout);
+            setValidationState({ status: 'success' });
+            performAIAnalysis(fileContent);
+        }
+
+        if (event.data && event.data.type === 'spark-validation-empty') {
+            clearTimeout((window as any).__validationTimeout);
+            setValidationState({ 
+                status: 'error', 
+                error: t.upload.validation_empty || 'The application rendered a blank screen.' 
+            });
+        }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [validationState.status, fileContent]);
+
+  const getValidationContent = (content: string) => {
+      // Inject validation script
+      const validationScript = `
+        <script>
+          window.addEventListener('load', function() {
+            setTimeout(function() {
+              try {
+                  var hasContent = document.body.innerText.trim().length > 0 || document.body.children.length > 0;
+                  // Check for common "empty" react roots
+                  var root = document.getElementById('root');
+                  if (root && root.innerHTML.trim().length === 0) hasContent = false;
+
+                  if (hasContent) {
+                    window.parent.postMessage({ type: 'spark-validation-success' }, '*');
+                  } else {
+                    window.parent.postMessage({ type: 'spark-validation-empty' }, '*');
+                  }
+              } catch(e) {
+                  window.parent.postMessage({ type: 'spark-app-error', error: { message: e.toString() } }, '*');
+              }
+            }, 2000); // Wait 2 seconds for render
+          });
+        </script>
+      `;
+      
+      // Use existing preview logic but append validation script
+      let previewHtml = getPreviewContent(content);
+      if (previewHtml.includes('</body>')) {
+          previewHtml = previewHtml.replace('</body>', validationScript + '</body>');
+      } else {
+          previewHtml += validationScript;
+      }
+      return previewHtml;
+  };
 
   const loadItemData = async (id: string) => {
     setLoading(true);
@@ -504,8 +602,8 @@ export default function UploadPage() {
           const content = e.target?.result as string;
           setFileContent(content);
           setStep(2);
-          // Trigger AI Analysis
-          performAIAnalysis(content);
+          // Trigger Validation first, then Analysis
+          validateCode(content);
         };
         reader.readAsText(selectedFile);
       } else {
@@ -532,8 +630,8 @@ export default function UploadPage() {
           const content = e.target?.result as string;
           setFileContent(content);
           setStep(2);
-          // Trigger AI Analysis
-          performAIAnalysis(content);
+          // Trigger Validation first, then Analysis
+          validateCode(content);
         };
         reader.readAsText(selectedFile);
       } else {
@@ -569,7 +667,7 @@ export default function UploadPage() {
   const [iconPreview, setIconPreview] = useState<string>('');
   const [isGeneratingIcon, setIsGeneratingIcon] = useState(false);
   const [generationCount, setGenerationCount] = useState(0);
-  
+
   // Add a ref to track the current analysis session ID
   // const analysisSessionIdRef = useRef(0); // Already declared above
 
@@ -851,6 +949,14 @@ export default function UploadPage() {
     }
   };
 
+  const handleEditInCreator = () => {
+    if (!fileContent) return;
+    localStorage.setItem('spark_upload_import', fileContent);
+    // Clear any existing creation session to ensure we start fresh with the uploaded code
+    localStorage.removeItem('spark_create_session_v1');
+    router.push('/create?from=upload');
+  };
+
   const handlePublish = async () => {
     if (!title || !description) {
       toastError(t.upload.fill_title_desc);
@@ -860,17 +966,38 @@ export default function UploadPage() {
     setLoading(true);
     setUploadProgress(0);
 
-    // Simulate progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 90) return 90;
-        return prev + Math.random() * 10;
-      });
-    }, 500);
-
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error(t.upload.login_required);
+
+      // Check daily limit (5 posts per day)
+      if (!isEditing) {
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+        const todayStr = today.toISOString();
+
+        const { count, error: countError } = await supabase
+          .from('items')
+          .select('*', { count: 'exact', head: true })
+          .eq('author_id', session.user.id)
+          .gte('created_at', todayStr);
+
+        if (countError) {
+          console.error('Error checking daily limit:', countError);
+        } else if (count !== null && count >= 5) {
+          setShowLimitModal(true);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Simulate progress
+      const interval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) return 90;
+          return prev + Math.random() * 10;
+        });
+      }, 500);
 
       // Inject Watermark
       const watermarkedContent = injectWatermark(fileContent);
@@ -1101,6 +1228,67 @@ export default function UploadPage() {
       {/* Step 2: Preview */}
       {step === 2 && (
         <div className="space-y-6">
+          
+          {/* Validation Overlay */}
+          {validationState.status === 'validating' && (
+             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm">
+                <div className="text-center space-y-4 animate-pulse">
+                    <div className="w-16 h-16 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                    <h3 className="text-xl font-bold text-white">{t.upload.validating_code || 'Verifying Application...'}</h3>
+                    <p className="text-slate-400">{t.upload.validating_desc || 'Checking for runtime errors and rendering issues.'}</p>
+                </div>
+                {/* Hidden Validation Iframe (Must be rendered for innerText to work, so use opacity-0 instead of hidden) */}
+                <iframe 
+                    srcDoc={getValidationContent(fileContent)}
+                    className="fixed top-0 left-0 w-[100px] h-[100px] opacity-0 pointer-events-none -z-50"
+                    sandbox="allow-scripts allow-forms allow-modals"
+                />
+             </div>
+          )}
+
+          {/* Validation Error Modal */}
+          {validationState.status === 'error' && (
+             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4">
+                <div className="bg-slate-800 border border-red-500/50 rounded-2xl p-8 max-w-lg w-full shadow-2xl text-center">
+                    <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <i className="fa-solid fa-bug text-4xl text-red-500"></i>
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-2">{t.upload.validation_failed || 'Validation Failed'}</h3>
+                    <p className="text-slate-400 mb-6">
+                        {t.upload.validation_failed_desc || 'The application cannot be uploaded because it has serious errors or renders a blank screen.'}
+                    </p>
+                    
+                    <div className="bg-black/30 rounded-lg p-4 text-left mb-8 border border-red-500/20 overflow-auto max-h-40">
+                        <div className="text-xs text-red-400 font-bold uppercase mb-1">Error Details</div>
+                        <code className="text-sm text-red-200 font-mono break-words">
+                            {validationState.error}
+                        </code>
+                        {validationState.details && validationState.details.stack && (
+                            <pre className="text-xs text-slate-500 mt-2 whitespace-pre-wrap break-all">
+                                {validationState.details.stack}
+                            </pre>
+                        )}
+                    </div>
+
+                    <div className="flex gap-4">
+                        <button 
+                            onClick={handleEditInCreator}
+                            className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2"
+                        >
+                            <i className="fa-solid fa-pen-to-square"></i>
+                            {t.upload.back_to_edit || 'Back to Editor'}
+                        </button>
+                        <button 
+                            onClick={handleReset}
+                            className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition"
+                        >
+                            {t.upload.cancel_upload || 'Cancel'}
+                        </button>
+                    </div>
+                </div>
+             </div>
+          )}
+
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold text-white">{t.upload.preview_effect}</h2>
           </div>
@@ -1448,25 +1636,36 @@ export default function UploadPage() {
             </div>
           </div>
 
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center gap-4">
             <button onClick={handleReset} className="px-6 py-2 rounded-lg border border-slate-600 text-slate-300 hover:text-white hover:border-slate-500 hover:bg-slate-800 transition">{t.upload.reupload}</button>
-            <button 
-              onClick={() => setStep(3)} 
-              disabled={isAnalyzing || !isSecuritySafe}
-              className={`px-6 py-2 rounded-lg font-bold transition flex items-center gap-2 ${
-                isAnalyzing || !isSecuritySafe 
-                  ? 'bg-slate-700 text-slate-500 cursor-not-allowed' 
-                  : 'bg-brand-600 hover:bg-brand-500 text-white'
-              }`}
-            >
-              {isAnalyzing ? (
-                <><i className="fa-solid fa-spinner fa-spin"></i> {t.upload.analyzing_btn}</>
-              ) : !isSecuritySafe ? (
-                <><i className="fa-solid fa-ban"></i> {t.upload.risk_btn}</>
-              ) : (
-                <>{t.upload.next_step} <i className="fa-solid fa-arrow-right"></i></>
-              )}
-            </button>
+            
+            <div className="flex gap-4">
+                <button 
+                    onClick={handleEditInCreator}
+                    className="px-6 py-2 rounded-lg border border-brand-500/50 text-brand-400 hover:text-white hover:bg-brand-600/20 transition flex items-center gap-2"
+                >
+                    <i className="fa-solid fa-pen-to-square"></i>
+                    {t.upload.edit_code || (language === 'zh' ? '编辑代码' : 'Edit Code')}
+                </button>
+
+                <button 
+                onClick={() => setStep(3)} 
+                disabled={isAnalyzing || !isSecuritySafe}
+                className={`px-6 py-2 rounded-lg font-bold transition flex items-center gap-2 ${
+                    isAnalyzing || !isSecuritySafe 
+                    ? 'bg-slate-700 text-slate-500 cursor-not-allowed' 
+                    : 'bg-brand-600 hover:bg-brand-500 text-white'
+                }`}
+                >
+                {isAnalyzing ? (
+                    <><i className="fa-solid fa-spinner fa-spin"></i> {t.upload.analyzing_btn}</>
+                ) : !isSecuritySafe ? (
+                    <><i className="fa-solid fa-ban"></i> {t.upload.risk_btn}</>
+                ) : (
+                    <>{t.upload.next_step} <i className="fa-solid fa-arrow-right"></i></>
+                )}
+                </button>
+            </div>
           </div>
         </div>
       )}
@@ -1588,6 +1787,31 @@ export default function UploadPage() {
             </button>
             <button onClick={goToDetail} className="px-8 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold transition shadow-lg shadow-brand-500/30">
               {t.upload.view_work}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Daily Limit Modal */}
+      {showLimitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-2xl text-center relative">
+            <div className="w-20 h-20 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <i className="fa-solid fa-hand text-4xl text-yellow-500"></i>
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">
+              {language === 'zh' ? '今日发布已达上限' : 'Daily Limit Reached'}
+            </h3>
+            <p className="text-slate-400 mb-8">
+              {language === 'zh' 
+                ? '为了保证社区质量，每位创作者每天最多发布 5 个作品。请明天再来分享您的创意！' 
+                : 'To ensure community quality, each creator can publish up to 5 works per day. Please come back tomorrow!'}
+            </p>
+            <button 
+              onClick={() => setShowLimitModal(false)}
+              className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition"
+            >
+              {language === 'zh' ? '知道了' : 'Got it'}
             </button>
           </div>
         </div>

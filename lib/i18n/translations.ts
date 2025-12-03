@@ -185,6 +185,15 @@ export const translations = {
       title_exists: '发布失败：该作品标题已存在，请修改标题后重试。',
       db_warning: '警告：数据库缺少 is_public 字段，隐私设置未保存',
       
+      validation_timeout: '验证超时，请重试',
+      validation_empty: '代码不能为空',
+      validation_failed: '验证失败',
+      validation_failed_desc: '代码无法运行，请检查代码逻辑',
+      back_to_edit: '返回编辑',
+      cancel_upload: '取消上传',
+      validating_code: '正在验证代码可运行性...',
+      validating_desc: '我们将尝试运行您的代码以确保其可以正常启动',
+
       task_security: '安全检测',
       task_category: '智能分类',
       task_title: '标题提取',
@@ -982,6 +991,15 @@ export const translations = {
       title_exists: 'Publish failed: Title exists, please rename.',
       db_warning: 'Warning: Missing is_public column, privacy not saved',
       
+      validation_timeout: 'Validation timed out, please retry',
+      validation_empty: 'Code cannot be empty',
+      validation_failed: 'Validation Failed',
+      validation_failed_desc: 'Code failed to run, please check logic',
+      back_to_edit: 'Back to Edit',
+      cancel_upload: 'Cancel Upload',
+      validating_code: 'Validating code runnability...',
+      validating_desc: 'We are trying to run your code to ensure it starts correctly',
+
       task_security: 'Security Check',
       task_category: 'Smart Category',
       task_title: 'Title Extraction',

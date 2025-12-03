@@ -157,3 +157,305 @@ Task Creation Error: {
  ✓ Compiled in 240ms (889 modules)
  ✓ Compiled /api/generate in 96ms (638 modules)
  ✓ Compiled in 361ms (889 modules)
+ ✓ Compiled in 467ms (889 modules)
+ ✓ Compiled in 166ms (437 modules)
+ ✓ Compiled in 127ms (437 modules)
+ ✓ Compiled in 135ms (437 modules)
+ ✓ Compiled in 169ms (437 modules)
+ ✓ Compiled in 227ms (437 modules)
+ ⨯ Error: Cannot find module './638.js'
+Require stack:
+- /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js
+- /Users/shihe/Documents/spark-vertex-next/.next/server/app/page.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js
+    at Function.<anonymous> (node:internal/modules/cjs/loader:1383:15)
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+    at Function._load (node:internal/modules/cjs/loader:1192:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
+    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:147:16)
+    at __webpack_require__.f.require (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:198:28)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:111:40
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:110:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:162:22)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/app/page.js:14:16835
+    at Object.<anonymous> (/Users/shihe/Documents/spark-vertex-next/.next/server/app/page.js:14:16887)
+    at Module._compile (node:internal/modules/cjs/loader:1706:14)
+    at Object..js (node:internal/modules/cjs/loader:1839:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
+    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:147:16)
+    at requirePage (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js:109:84)
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:59:84
+    at async loadComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:59:26)
+    at async DevServer.findPageComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:671:36) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js',
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/app/page.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js'
+  ],
+  page: '/'
+}
+ ✓ Compiled /_error in 352ms (1035 modules)
+[Error: ENOENT: no such file or directory, stat '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'
+}
+[Error: ENOENT: no such file or directory, stat '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'
+}
+ ⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'
+}
+ ⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'
+}
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, stat '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/shihe/Documents/spark-vertex-next/.next/server'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/pages/_error' in /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server for build dependencies doesn't lead to expected result '/Users/shihe/Documents/spark-vertex-next/.next/server/pages/_error.js', but to 'Error: Can't resolve '../../../../.next/server/pages/_error' in '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/pages/_error (expected /Users/shihe/Documents/spark-vertex-next/.next/server/pages/_error.js)
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/export/worker.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/export/worker.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at resolve commonjs /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/not-found_client-reference-manifest' in /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server for build dependencies doesn't lead to expected result '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js', but to 'Error: Can't resolve '../../../../.next/server/app/not-found_client-reference-manifest' in '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/not-found_client-reference-manifest (expected /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js)
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/export/worker.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/export/worker.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at resolve commonjs /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled /not-found in 112ms (1040 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/not-found_client-reference-manifest' in /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server for build dependencies doesn't lead to expected result '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js', but to 'Error: Can't resolve '../../../../.next/server/app/not-found_client-reference-manifest' in '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/not-found_client-reference-manifest (expected /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js)
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at resolve commonjs /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+ ✓ Compiled in 161ms (1035 modules)
+ ✓ Compiled in 137ms (1035 modules)
+ ✓ Compiled in 172ms (558 modules)
+ ✓ Compiled in 139ms (558 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/not-found_client-reference-manifest' in /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server for build dependencies doesn't lead to expected result '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js', but to 'Error: Can't resolve '../../../../.next/server/app/not-found_client-reference-manifest' in '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/not-found_client-reference-manifest (expected /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js)
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at resolve commonjs /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+ ✓ Compiled /upload in 472ms (1061 modules)
+ ✓ Compiled /not-found in 194ms (1066 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/not-found_client-reference-manifest' in /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server for build dependencies doesn't lead to expected result '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js', but to 'Error: Can't resolve '../../../../.next/server/app/not-found_client-reference-manifest' in '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/not-found_client-reference-manifest (expected /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js)
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at resolve commonjs /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+ ⨯ Error: Cannot find module './638.js'
+Require stack:
+- /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js
+- /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js
+    at Function.<anonymous> (node:internal/modules/cjs/loader:1383:15)
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+    at Function._load (node:internal/modules/cjs/loader:1192:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
+    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:147:16)
+    at __webpack_require__.f.require (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:198:28)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:111:40
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:110:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:162:22)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/app/page.js:14:16835
+    at Object.<anonymous> (/Users/shihe/Documents/spark-vertex-next/.next/server/app/page.js:14:16887)
+    at Module._compile (node:internal/modules/cjs/loader:1706:14)
+    at Object..js (node:internal/modules/cjs/loader:1839:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
+    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:147:16)
+    at requirePage (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js:109:84)
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:59:84
+    at async loadComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:59:26)
+    at async DevServer.findPageComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:671:36) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js',
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js'
+  ],
+  page: '/'
+}
+ ⨯ Error: Cannot find module './329.js'
+Require stack:
+- /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js
+- /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js
+    at Function.<anonymous> (node:internal/modules/cjs/loader:1383:15)
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+    at Function._load (node:internal/modules/cjs/loader:1192:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
+    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:147:16)
+    at __webpack_require__.f.require (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:198:28)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:111:40
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:110:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:162:22)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/pages/_document.js:1:287
+    at Object.<anonymous> (/Users/shihe/Documents/spark-vertex-next/.next/server/pages/_document.js:1:328)
+    at Module._compile (node:internal/modules/cjs/loader:1706:14)
+    at Object..js (node:internal/modules/cjs/loader:1839:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
+    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:147:16)
+    at requirePage (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js:109:84)
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:55:65
+    at async Promise.all (index 0)
+    at async loadComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:54:33)
+    at async DevServer.findPageComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:671:36) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js',
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js'
+  ]
+}
+ ○ (pwa) PWA support is disabled.
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/not-found_client-reference-manifest' in /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server for build dependencies doesn't lead to expected result '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js', but to 'Error: Can't resolve '../../../../.next/server/app/not-found_client-reference-manifest' in '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server'' instead. Resolving dependencies are ignored for this path.
+<w>  at resolve commonjs file ../../../../.next/server/app/not-found_client-reference-manifest (expected /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js)
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/webpack/bundle5.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/webpack/bundle5.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/webpack/webpack.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/webpack/webpack.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/webpack/webpack-lib.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/webpack/webpack-lib.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/workbox-webpack-plugin/build/inject-manifest.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/workbox-webpack-plugin/build/inject-manifest.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/workbox-webpack-plugin/build/index.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/workbox-webpack-plugin/build/index.js
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/@ducanh2912/next-pwa/dist/index.cjs
+<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/@ducanh2912/next-pwa/dist/index.cjs
+<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/next.config.js
+<w>  at file /Users/shihe/Documents/spark-vertex-next/next.config.js
+<w>  at resolve commonjs /Users/shihe/Documents/spark-vertex-next/next.config.js

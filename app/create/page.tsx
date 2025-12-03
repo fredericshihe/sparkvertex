@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
@@ -153,6 +153,7 @@ const LOADING_MESSAGES_DATA = {
 
 export default function CreatePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { t, language } = useLanguage();
   const { openLoginModal } = useModal();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -421,6 +422,22 @@ export default function CreatePage() {
   }, [chatHistory]);
 
   useEffect(() => {
+    const fromUpload = searchParams.get('from') === 'upload';
+    if (fromUpload) {
+        const importedCode = localStorage.getItem('spark_upload_import');
+        if (importedCode) {
+            setGeneratedCode(importedCode);
+            setStreamingCode(importedCode);
+            setStep('preview');
+            setWizardData(prev => ({ ...prev, description: 'Imported from Upload' }));
+            localStorage.removeItem('spark_upload_import');
+            // Explicitly clear the old session key to prevent any mix-up
+            localStorage.removeItem(STORAGE_KEY);
+            setTimeout(() => toastSuccess(language === 'zh' ? '已加载上传的代码' : 'Loaded uploaded code'), 500);
+            return;
+        }
+    }
+
     const remixData = localStorage.getItem('remix_template');
     if (remixData) {
       try {
@@ -984,6 +1001,7 @@ Use these stable, China-accessible CDNs when these features are needed:
 - **Math/Physics**: \`https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js\` (Global: \`Matter\`)
 - **Excel (XLSX)**: \`https://cdn.staticfile.org/xlsx/0.18.5/xlsx.full.min.js\` (Global: \`XLSX\`)
 - **PDF Generation**: \`https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js\` (Global: \`jspdf\`)
+- **QRCode**: \`https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js\` (Global: \`QRCode\`. Usage: \`new QRCode(document.getElementById("id"), "text")\`)
 
 ### Strict Constraints
 1. Output ONLY raw HTML. No Markdown blocks.
@@ -991,6 +1009,7 @@ Use these stable, China-accessible CDNs when these features are needed:
 3. NO Google Fonts. Use system fonts.
 4. Images must use absolute URLs (https://).
 5. Use \`window.innerWidth\` for responsive logic if needed, but prefer Tailwind classes.
+6. **Sounds**: Do NOT use external MP3 links (e.g. mixkit) as they often 403. Use Base64 data URIs for short sounds or avoid them.
 ${deviceConstraint}
 `;
 
@@ -1124,6 +1143,13 @@ ${deviceConstraint}
             // SAFETY FIX: Remove Framer Motion (Broken CDN / 404)
             cleanCode = cleanCode.replace(/<script.*src=".*framer-motion.*\.js".*><\/script>/g, '');
 
+            // SAFETY FIX: Replace broken QRCode CDN with staticfile
+            cleanCode = cleanCode.replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/qrcode@[\d\.]+\/build\/qrcode\.min\.js/g, 'https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js');
+            
+            // SAFETY FIX: Remove Mixkit MP3s (403 Forbidden)
+            cleanCode = cleanCode.replace(/src="[^"]*mixkit[^"]*\.mp3"/g, 'src=""');
+            cleanCode = cleanCode.replace(/new Audio\("[^"]*mixkit[^"]*\.mp3"\)/g, 'null');
+
             setStreamingCode(cleanCode);
             
             if (useDiffMode) {
@@ -1207,6 +1233,13 @@ ${deviceConstraint}
 
                 // SAFETY FIX: Remove Framer Motion (Broken CDN / 404)
                 cleanCode = cleanCode.replace(/<script.*src=".*framer-motion.*\.js".*><\/script>/g, '');
+
+                // SAFETY FIX: Replace broken QRCode CDN with staticfile
+                cleanCode = cleanCode.replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/qrcode@[\d\.]+\/build\/qrcode\.min\.js/g, 'https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js');
+
+                // SAFETY FIX: Remove Mixkit MP3s (403 Forbidden)
+                cleanCode = cleanCode.replace(/src="[^"]*mixkit[^"]*\.mp3"/g, 'src=""');
+                cleanCode = cleanCode.replace(/new Audio\("[^"]*mixkit[^"]*\.mp3"\)/g, 'null');
 
                 if (!cleanCode.includes('<meta name="viewport"')) {
                     cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
@@ -1303,9 +1336,7 @@ ${deviceConstraint}
   };
 
   const handleUpload = () => {
-    if (!confirm(t.create.confirm_publish)) {
-      return;
-    }
+    // Removed confirmation dialog as per user request
     try {
       localStorage.setItem('spark_generated_code', generatedCode);
       localStorage.setItem('spark_generated_meta', JSON.stringify({
