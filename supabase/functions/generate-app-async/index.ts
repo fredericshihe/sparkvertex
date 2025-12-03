@@ -166,24 +166,59 @@ serve(async (req) => {
                     return;
                 }
 
-                const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                  },
-                  body: JSON.stringify({
-                    model: modelName,
-                    max_tokens: 65536,
-                    messages: messages,
-                    stream: true
-                  })
-                });
+                let response;
+                let retryCount = 0;
+                const maxRetries = 5;
 
-                if (!response.ok) {
-                  const errorText = await response.text();
-                  console.error('Upstream API Error:', response.status, errorText);
-                  throw new Error(`Upstream API Error: ${response.status} ${errorText}`);
+                while (true) {
+                    try {
+                        response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                          },
+                          body: JSON.stringify({
+                            model: modelName,
+                            max_tokens: 65536,
+                            messages: messages,
+                            stream: true
+                          })
+                        });
+
+                        if (response.ok) break;
+
+                        const errorText = await response.text();
+                        
+                        // Retry on 503 (Overloaded) or 429 (Rate Limit)
+                        if (response.status === 503 || response.status === 429) {
+                            retryCount++;
+                            if (retryCount > maxRetries) {
+                                console.error('Upstream API Error (Max Retries Exceeded):', response.status, errorText);
+                                throw new Error(`Upstream API Error: ${response.status} ${errorText}`);
+                            }
+                            
+                            const delay = retryCount * 1000; // Linear backoff: 1s, 2s, 3s, 4s, 5s
+                            console.warn(`Upstream API Error (${response.status}). Retrying in ${delay}ms...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            continue;
+                        }
+
+                        console.error('Upstream API Error:', response.status, errorText);
+                        throw new Error(`Upstream API Error: ${response.status} ${errorText}`);
+
+                    } catch (e: any) {
+                        // If it's the error we just threw, rethrow it
+                        if (e.message.startsWith('Upstream API Error')) throw e;
+                        
+                        // Network errors
+                        retryCount++;
+                        if (retryCount > maxRetries) throw e;
+                        
+                        const delay = retryCount * 1000;
+                        console.warn(`Network Error: ${e.message}. Retrying in ${delay}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
                 }
 
                 // 7. Process Stream & Update DB

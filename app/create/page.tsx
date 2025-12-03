@@ -234,6 +234,10 @@ function CreateContent() {
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const codeScrollRef = useRef<HTMLDivElement>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const channelRef = useRef<any>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Update loading text when language changes
   useEffect(() => {
@@ -566,6 +570,44 @@ function CreateContent() {
     }
   };
 
+  const handleCancelGeneration = async () => {
+    // 1. Clear Intervals
+    if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+    }
+    if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+    }
+
+    // 2. Unsubscribe Channel
+    if (channelRef.current) {
+        await supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+    }
+    
+    // 3. Abort Fetch if pending
+    if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+    }
+
+    // 4. Reset State
+    setIsGenerating(false);
+    setProgress(0);
+    setLoadingText('');
+    
+    // 5. UI Navigation
+    if (step === 'generating') {
+        setStep('concept');
+        toastSuccess(language === 'zh' ? '已取消生成' : 'Generation cancelled');
+    } else {
+        // In preview mode (modification)
+        toastSuccess(language === 'zh' ? '已取消修改' : 'Modification cancelled');
+    }
+  };
+
   // --- Wizard Handlers ---
   const handleCategorySelect = (id: string) => {
     setWizardData(prev => ({ ...prev, category: id }));
@@ -829,7 +871,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     
     let hasStartedStreaming = false;
 
-    const progressInterval = setInterval(() => {
+    // Clear any existing intervals
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
+
+    progressIntervalRef.current = setInterval(() => {
       setProgress(prev => {
         let increment = 0;
         
@@ -1044,6 +1091,7 @@ ${deviceConstraint}
 
       let response: Response;
       try {
+        abortControllerRef.current = new AbortController();
         response = await fetch('/api/generate', {
             method: 'POST',
             headers: { 
@@ -1053,7 +1101,8 @@ ${deviceConstraint}
             type: isModification ? 'modification' : 'generation',
             system_prompt: SYSTEM_PROMPT,
             user_prompt: dbPrompt
-            })
+            }),
+            signal: abortControllerRef.current.signal
         });
 
         if (!response.ok) {
@@ -1062,6 +1111,10 @@ ${deviceConstraint}
             throw new Error(errorData.error || `Generation failed: ${response.status}`);
         }
       } catch (e: any) {
+          if (e.name === 'AbortError') {
+              console.log('Fetch aborted');
+              return;
+          }
           console.error('Failed to call /api/generate:', e);
           if (e.message === 'Load failed' || e.message === 'Failed to fetch') {
               throw new Error(t.common.unknown_error);
@@ -1115,7 +1168,6 @@ ${deviceConstraint}
       });
 
       let isFinished = false;
-      let pollInterval: NodeJS.Timeout;
       let lastUpdateTimestamp = Date.now();
 
       const handleTaskUpdate = (newTask: any) => {
@@ -1131,9 +1183,9 @@ ${deviceConstraint}
         
         if (newTask.status === 'completed') {
             isFinished = true;
-            clearInterval(progressInterval);
-            if (pollInterval) clearInterval(pollInterval);
-            supabase.removeChannel(channel);
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (channelRef.current) supabase.removeChannel(channelRef.current);
 
             checkAuth();
             let rawCode = newTask.result_code || '';
@@ -1279,9 +1331,9 @@ ${deviceConstraint}
             setProgress(100);
         } else if (newTask.status === 'failed') {
             isFinished = true;
-            clearInterval(progressInterval);
-            if (pollInterval) clearInterval(pollInterval);
-            supabase.removeChannel(channel);
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (channelRef.current) supabase.removeChannel(channelRef.current);
             
             toastError(newTask.error_message || t.common.error);
             setLoadingText(`${t.common.error}: ${newTask.error_message || t.common.unknown_error}`);
@@ -1290,7 +1342,7 @@ ${deviceConstraint}
         }
       };
 
-      const channel = supabase
+      channelRef.current = supabase
         .channel(`task-${taskId}`)
         .on(
           'broadcast',
@@ -1319,7 +1371,7 @@ ${deviceConstraint}
         .subscribe();
 
       let isPolling = false;
-      pollInterval = setInterval(async () => {
+      pollIntervalRef.current = setInterval(async () => {
         if (isFinished || isPolling) return;
         
         if (Date.now() - lastUpdateTimestamp < 5000) return;
@@ -1338,6 +1390,10 @@ ${deviceConstraint}
       }, 3000);
 
     } catch (error: any) {
+      if (error.name === 'AbortError') {
+          console.log('Generation aborted by user');
+          return;
+      }
       console.error('Generation error:', error);
       toastError(error.message || t.create.generation_failed);
       
@@ -1345,7 +1401,7 @@ ${deviceConstraint}
         setStep('concept');
       }
       setIsGenerating(false);
-      clearInterval(progressInterval);
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     }
   };
 
@@ -1796,13 +1852,22 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
               <div className="absolute -left-2 top-0 w-4 h-4 bg-slate-800 transform rotate-45 border-l border-t border-slate-700"></div>
               
               {/* Rotating Tips */}
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-xs font-bold text-brand-400 uppercase tracking-wider">{t.create.ai_thinking}</span>
-                <div className="flex space-x-1">
-                  <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                  <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                  <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce"></div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-brand-400 uppercase tracking-wider">{t.create.ai_thinking}</span>
+                    <div className="flex space-x-1">
+                    <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                    <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                    <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce"></div>
+                    </div>
                 </div>
+                <button 
+                    onClick={handleCancelGeneration}
+                    className="text-xs text-slate-500 hover:text-red-400 transition flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-700/50"
+                >
+                    <X size={12} />
+                    {language === 'zh' ? '取消' : 'Cancel'}
+                </button>
               </div>
               
               <div className="min-h-[3em] mb-4">
@@ -1961,9 +2026,18 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                 <i className="fa-solid fa-robot fa-bounce"></i>
               </div>
               <div className="bg-slate-800 p-3 rounded-2xl rounded-tl-none text-sm text-slate-300 w-full border border-brand-500/30">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="font-bold text-brand-400">{t.create.ai_thinking}</span>
-                  <span className="text-xs text-slate-500">{Math.floor(progress)}%</span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-brand-400">{t.create.ai_thinking}</span>
+                    <span className="text-xs text-slate-500">{Math.floor(progress)}%</span>
+                  </div>
+                  <button 
+                    onClick={handleCancelGeneration}
+                    className="text-xs text-slate-500 hover:text-red-400 transition flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-700/50"
+                  >
+                    <X size={12} />
+                    {language === 'zh' ? '取消' : 'Cancel'}
+                  </button>
                 </div>
                 <p className="text-xs text-slate-400 mb-2">{loadingText}</p>
                 {streamingCode && (
