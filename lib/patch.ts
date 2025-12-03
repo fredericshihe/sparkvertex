@@ -1,89 +1,247 @@
-export function applyPatches(source: string, patchText: string): string {
-  // Extract all SEARCH/REPLACE blocks
-  // The regex handles the format:
-  // <<<<SEARCH
-  // ... content ...
-  // ====
-  // ... content ...
-  // >>>>
-  // Enhanced regex to be more permissive with whitespace around markers
-  // Matches <<<<SEARCH followed by anything, then ====, then anything, then >>>>
-  // \s* handles newlines and spaces flexibly
-  const matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*([\s\S]*?)\s*>>>>/g));
-  
-  let result = source;
-  let successCount = 0;
-  let failCount = 0;
+/**
+ * Applies a set of patches to a source string.
+ * Uses a robust Token-based "Anchor + LCS" algorithm to locate code blocks.
+ * This approximates AST matching by ignoring whitespace and formatting,
+ * and uses Longest Common Subsequence (LCS) logic to handle fuzzy matches.
+ */
 
-  for (const match of matches) {
-    const [full, searchBlock, replaceBlock] = match;
-    
-    // Normalize line endings to avoid issues with CRLF vs LF
-    // Also trim trailing whitespace from lines to be more forgiving
-    const normalize = (str: string) => str.replace(/\r\n/g, '\n');
-    
-    const normalizedSource = normalize(result);
-    const normalizedSearch = normalize(searchBlock);
-    
-    if (normalizedSource.includes(normalizedSearch)) {
-      result = normalizedSource.replace(normalizedSearch, replaceBlock);
-      successCount++;
-    } else {
-      // Fallback: Try to match with trimmed lines (ignoring indentation differences)
-      // This is risky but helpful for AI that messes up indentation
-      console.warn('Exact match failed, trying fuzzy match for:', searchBlock.substring(0, 50) + '...');
-      
-      // Try to find the block by ignoring leading/trailing whitespace on each line
-      // This is computationally more expensive but worth it for recovery
-      try {
-          const searchLines = normalizedSearch.split('\n').map(l => l.trim()).filter(l => l);
-          const sourceLines = normalizedSource.split('\n');
-          
-          let foundIdx = -1;
-          // Simple sliding window (naive)
-          for (let i = 0; i < sourceLines.length; i++) {
-              let match = true;
-              for (let j = 0; j < searchLines.length; j++) {
-                  if (i + j >= sourceLines.length || !sourceLines[i + j].trim().includes(searchLines[j])) {
-                      match = false;
-                      break;
-                  }
-              }
-              if (match) {
-                  foundIdx = i;
-                  break;
-              }
-          }
-          
-          if (foundIdx !== -1) {
-              console.log('Fuzzy match found at line', foundIdx);
-              
-              // Construct the new source
-              // We need to be careful about preserving the original source's structure outside the match
-              // Since we are working with normalizedSource (LF only), we should stick to that for consistency
-              
-              const before = sourceLines.slice(0, foundIdx).join('\n');
-              const after = sourceLines.slice(foundIdx + searchLines.length).join('\n');
-              
-              // We replace the matched lines with the replaceBlock
-              // Note: This assumes the match length in source is exactly searchLines.length
-              // which is true for the current sliding window logic
-              result = (before ? before + '\n' : '') + normalize(replaceBlock) + (after ? '\n' + after : '');
-              successCount++;
-          } else {
-              failCount++;
-          }
-      } catch (e) {
-          failCount++;
-      }
-    }
-  }
-
-  console.log(`Patch applied: ${successCount} success, ${failCount} failed.`);
-  
-  if (failCount > 0 && successCount === 0) {
-      throw new Error(`无法应用修改：找不到匹配的代码块 (${failCount} 处失败)`);
-  }
-  
-  return result;
+interface Token {
+    text: string;
+    start: number;
+    end: number;
 }
+
+function tokenize(text: string): Token[] {
+    const tokens: Token[] = [];
+    // Match words (identifiers, keywords) or non-whitespace symbols
+    // This regex splits the code into meaningful atomic units
+    const regex = /([a-zA-Z0-9_$]+)|([^\s\w])/g;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        tokens.push({
+            text: match[0],
+            start: match.index,
+            end: regex.lastIndex
+        });
+    }
+    return tokens;
+}
+
+export function applyPatches(source: string, patchText: string): string {
+    // 1. Parse Patches
+    const matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*([\s\S]*?)\s*>>>>/g));
+    
+    if (matches.length === 0) {
+        // Fallback for loose matches
+        const looseMatches = Array.from(patchText.matchAll(/<<<<SEARCH([\s\S]*?)====([\s\S]*?)>>>>/g));
+        if (looseMatches.length > 0) {
+             return applyPatchesInternal(source, looseMatches);
+        }
+        return source;
+    }
+
+    return applyPatchesInternal(source, matches);
+}
+
+function applyPatchesInternal(source: string, matches: RegExpMatchArray[]): string {
+    let currentSource = source;
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const match of matches) {
+        const [_, searchBlock, replaceBlock] = match;
+        
+        // Filter noise from search block (like "/// SUMMARY:")
+        const cleanSearchBlock = searchBlock.split('\n')
+            .filter(l => !l.trim().startsWith('///') && !l.trim().match(/^summary:/i) && !l.trim().match(/^changes:/i))
+            .join('\n');
+
+        const sourceTokens = tokenize(currentSource);
+        const searchTokens = tokenize(cleanSearchBlock);
+        
+        if (searchTokens.length === 0) {
+             console.warn("Empty search block tokens, skipping.");
+             continue;
+        }
+
+        const matchRange = findBestTokenMatch(sourceTokens, searchTokens);
+
+        if (matchRange) {
+            const startChar = sourceTokens[matchRange.start].start;
+            const endChar = sourceTokens[matchRange.end].end;
+            
+            const before = currentSource.substring(0, startChar);
+            const after = currentSource.substring(endChar);
+            
+            currentSource = before + replaceBlock + after;
+            successCount++;
+            console.log(`Patch applied successfully using Token+LCS matching.`);
+        } else {
+            console.warn(`Patch failed for block: ${cleanSearchBlock.substring(0, 50)}...`);
+            failCount++;
+        }
+    }
+    
+    if (failCount > 0 && successCount === 0) {
+        throw new Error(`无法应用修改：找不到匹配的代码块 (${failCount} 处失败)`);
+    }
+
+    return currentSource;
+}
+
+function findBestTokenMatch(sourceTokens: Token[], searchTokens: Token[]): { start: number, end: number } | null {
+    const M = searchTokens.length;
+    const N = sourceTokens.length;
+    if (M === 0 || N < M) return null;
+
+    let bestScore = 0;
+    let bestRange = null;
+
+    // Optimization: Anchor-based search
+    // We identify candidate regions in the source where the search block might exist.
+    const candidates = new Set<number>();
+    
+    // Helper to add candidates for a specific token index in search block
+    const addCandidates = (tokenIdxInSearch: number, strict = true) => {
+        const tokenText = searchTokens[tokenIdxInSearch].text;
+        
+        // Strict mode: Skip common tokens and symbols
+        if (strict) {
+            const isCommonSymbol = /^[{}(),;=.\[\]<>+\-*\/]$/.test(tokenText);
+            const isCommonKeyword = /^(if|else|return|const|let|var|import|export|from)$/.test(tokenText);
+            if (tokenText.length < 3 || isCommonSymbol || isCommonKeyword) return false;
+        }
+
+        let found = false;
+        for (let i = 0; i < N; i++) {
+            if (sourceTokens[i].text === tokenText) {
+                const estimatedStart = i - tokenIdxInSearch;
+                candidates.add(Math.max(0, estimatedStart));
+                found = true;
+            }
+        }
+        return found;
+    };
+
+    // Strategy 1: Smart Anchors (Top 5 longest/rarest tokens)
+    // Instead of fixed positions, we scan the search block for the "best" anchors.
+    const rankedTokens = searchTokens.map((t, i) => ({ index: i, text: t.text, length: t.text.length }))
+        .sort((a, b) => b.length - a.length); // Sort by length descending
+
+    // Try top 5 anchors
+    let anchorsFound = 0;
+    for (const tokenInfo of rankedTokens) {
+        if (anchorsFound >= 5) break;
+        if (addCandidates(tokenInfo.index, true)) {
+            anchorsFound++;
+        }
+    }
+
+    // Strategy 2: Fallback to fixed positions if no smart anchors worked (e.g. block of short vars)
+    if (candidates.size === 0) {
+        // Try relaxed matching on fixed positions
+        addCandidates(0, false);
+        addCandidates(Math.floor(M / 2), false);
+        addCandidates(M - 1, false);
+    }
+    
+    // Strategy 3: Desperate Scan (if still no candidates, scan every 10th token)
+    if (candidates.size === 0) {
+        for (let i = 0; i < N - M; i += 10) {
+            candidates.add(i);
+        }
+    }
+
+    const sortedCandidates = Array.from(candidates).sort((a, b) => a - b);
+    const checkedRegions = new Set<number>();
+
+    for (const startIdx of sortedCandidates) {
+        // Quantize to avoid redundant checks (check every 5 tokens)
+        const regionKey = Math.floor(startIdx / 5);
+        if (checkedRegions.has(regionKey)) continue;
+        checkedRegions.add(regionKey);
+
+        // Define window: Allow length flexibility (0.5x to 1.5x to be very generous with insertions/deletions)
+        const windowStart = Math.max(0, startIdx - 5); 
+        const windowEnd = Math.min(N, startIdx + M + Math.max(10, M * 0.5)); 
+        
+        const sourceWindow = sourceTokens.slice(windowStart, windowEnd);
+        
+        // Compute LCS with Bounds and Length
+        const matchResult = findLCSMatch(sourceWindow, searchTokens);
+        
+        if (matchResult) {
+            const { start, end, length } = matchResult;
+            const spanLength = end - start + 1;
+            
+            // Score = Harmonic mean of Precision and Recall (F1-like), but penalized by span gap
+            // Precision = length / spanLength (How dense is the match in the source?)
+            // Recall = length / M (How much of the search block did we find?)
+            // We want to maximize both.
+            
+            // Simple Gap Penalty Score:
+            // 2 * length / (M + spanLength)
+            // If perfect match: 2 * M / (M + M) = 1.0
+            // If sparse match (gap): 2 * M / (M + Huge) ~= 0
+            
+            const score = (2 * length) / (M + spanLength);
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestRange = {
+                    start: windowStart + start,
+                    end: windowStart + end
+                };
+            }
+        }
+    }
+
+    // Threshold: 0.4 (Allow some fuzziness, but gap penalty will kill bad matches)
+    if (bestScore > 0.4) {
+        return bestRange;
+    }
+
+    return null;
+}
+
+function findLCSMatch(seq1: Token[], seq2: Token[]): { start: number, end: number, length: number } | null {
+    const m = seq1.length;
+    const n = seq2.length;
+    const dp = Array(m + 1).fill(0).map(() => Array(n + 1).fill(0));
+
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            if (seq1[i - 1].text === seq2[j - 1].text) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+    }
+
+    const length = dp[m][n];
+    if (length === 0) return null;
+
+    // Backtrack to find the range of the match in seq1
+    let i = m, j = n;
+    let firstMatchIdx = -1;
+    let lastMatchIdx = -1;
+
+    while (i > 0 && j > 0) {
+        if (seq1[i - 1].text === seq2[j - 1].text) {
+            if (lastMatchIdx === -1) lastMatchIdx = i - 1;
+            firstMatchIdx = i - 1;
+            i--;
+            j--;
+        } else if (dp[i - 1][j] > dp[i][j - 1]) {
+            i--;
+        } else {
+            j--;
+        }
+    }
+
+    return { start: firstMatchIdx, end: lastMatchIdx, length };
+}
+
+// Removed calculateLCS and findLCSBounds as they are replaced by findLCSMatch
+

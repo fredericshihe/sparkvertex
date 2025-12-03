@@ -595,7 +595,7 @@ export const translations = {
       chat_mode: '对话模式',
       
       mobile_preview: '真机预览',
-      scan_qr: '请使用手机相机或微信扫描下方二维码\n在真实设备上体验应用',
+      scan_qr: '请使用手机相机扫描下方二维码\n在真实设备上体验应用',
       link_validity: '链接有效期为 1 小时',
       
       confirm_exit: '确定要退出创作吗？当前进度将不会保存。',
@@ -621,7 +621,7 @@ export const translations = {
       
       no_text_content: '无文本内容',
       mobile_preview_title: '真机预览',
-      mobile_preview_desc: '请使用手机相机或微信扫描下方二维码，在真实设备上体验应用。',
+      mobile_preview_desc: '请使用手机相机扫描下方二维码，在真实设备上体验应用。',
       
       history_title: '历史版本',
       restore_version: '恢复此版本',

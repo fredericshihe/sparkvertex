@@ -56,6 +56,19 @@ export const getPreviewContent = (content: string | null) => {
     'url("https://images.unsplash.com/$1?auto=format&fit=crop&w=800&q=80")'
   );
 
+  // 6. Fix Common Three.js/React Cleanup Crash
+  // Pattern: mountRef.current.removeChild(renderer.domElement);
+  patchedContent = patchedContent.replace(
+    /mountRef\.current\.removeChild\(([^)]+)\);?/g,
+    'if (mountRef.current && $1) { try { mountRef.current.removeChild($1); } catch(e){} }'
+  );
+  
+  // Pattern: containerRef.current.removeChild(renderer.domElement);
+  patchedContent = patchedContent.replace(
+    /containerRef\.current\.removeChild\(([^)]+)\);?/g,
+    'if (containerRef.current && $1) { try { containerRef.current.removeChild($1); } catch(e){} }'
+  );
+
   // 5. Re-inject stable scripts at the beginning of head
   // We inject them before any other scripts to ensure they are available.
   // Using cdn.staticfile.org (Seven Niu Cloud) for maximum stability in China, and jsdelivr for others.
@@ -223,8 +236,19 @@ export const getPreviewContent = (content: string | null) => {
           }
       } catch(e) {}
 
+      // Suppress specific Three.js warnings
+      var originalWarn = console.warn;
+      console.warn = function() {
+        var args = Array.prototype.slice.call(arguments);
+        var msg = args.join(' ');
+        if (msg.includes("THREE.MeshLambertMaterial: 'flatShading' is not a property")) {
+            return;
+        }
+        originalWarn.apply(console, args);
+      };
+
       // Error handling
-      window.onerror = function(msg, url, line) {
+      window.onerror = function(msg, url, line, col, error) {
         // Suppress "Script error." which is common in cross-origin iframes and provides no value
         if (msg === 'Script error.' || msg === 'Script error') {
             return true;
@@ -234,10 +258,18 @@ export const getPreviewContent = (content: string | null) => {
             console.warn('Suppressed SecurityError:', msg);
             return true;
         }
-        console.log('App Error:', msg);
+        
+        var errorDetails = {
+            message: String(msg),
+            line: line,
+            column: col,
+            stack: error ? error.stack : null
+        };
+        
+        console.log('App Error:', errorDetails);
         // Notify parent about the error
         try {
-            window.parent.postMessage({ type: 'spark-app-error', error: String(msg) }, '*');
+            window.parent.postMessage({ type: 'spark-app-error', error: errorDetails }, '*');
         } catch(e) {}
         return false;
       };

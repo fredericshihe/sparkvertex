@@ -93,6 +93,12 @@ const STYLE_PROMPTS: Record<string, string> = {
   kanban: "Design Style: Kanban/Productivity. Use a board layout with columns. Cards should look like physical sticky notes (yellow, blue, pink). Drag-and-drop affordances (dots). Clean, functional typography."
 };
 
+const DEVICE_PROMPTS: Record<string, string> = {
+  mobile: "Target Device: Mobile (Phone). Layout: Single column, vertical scrolling. Navigation: Bottom Tab Bar (fixed) or Hamburger Menu. UI Density: Comfortable, touch-friendly (min 44px tap targets). Typography: Base 16px, readable. Avoid complex multi-column layouts. Use 'pb-safe' for bottom spacing on iPhone.",
+  tablet: "Target Device: Tablet. Layout: Adaptive, 2-column split view (Sidebar + Content) or Grid. Navigation: Sidebar or Top Bar. UI Density: Balanced between mobile and desktop. Typography: Scaled for reading comfort. Use available screen width effectively.",
+  desktop: "Target Device: Desktop. Layout: Wide, multi-column, dashboard-style. Navigation: Top Horizontal Bar or Fixed Left Sidebar. UI Density: High information density. Interactions: Hover effects, tooltips, smaller buttons allowed. Typography: Clean, professional."
+};
+
 const LOADING_TIPS_DATA = {
   zh: [
     "你知道吗？赛博朋克风格通常使用高对比度的霓虹色。",
@@ -183,7 +189,7 @@ export default function CreatePage() {
   const [progress, setProgress] = useState(0);
   const [modificationCount, setModificationCount] = useState(0);
   const [chatInput, setChatInput] = useState('');
-  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string}[]>([]);
+  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string, type?: 'text' | 'error', errorDetails?: any}[]>([]);
   const [loadingText, setLoadingText] = useState(t.create.analyzing);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('mobile');
   const [streamingCode, setStreamingCode] = useState('');
@@ -205,6 +211,7 @@ export default function CreatePage() {
   const [showMobilePreview, setShowMobilePreview] = useState(false);
   const [mobilePreviewUrl, setMobilePreviewUrl] = useState('');
   const [activeMobileTab, setActiveMobileTab] = useState<'preview' | 'chat'>('preview');
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
 
   // State: User Credits
   const [credits, setCredits] = useState(30);
@@ -377,6 +384,28 @@ export default function CreatePage() {
             iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: false }, '*');
         }
       }
+      if (event.data && event.data.type === 'spark-app-error') {
+        const errorData = event.data.error;
+        const errorMessage = typeof errorData === 'string' ? errorData : errorData.message;
+        console.warn('Runtime Error Caught:', errorMessage);
+        
+        setRuntimeError(errorMessage);
+
+        // Add to chat history if it's a new error (debounce)
+        setChatHistory(prev => {
+            const lastMsg = prev[prev.length - 1];
+            // Avoid duplicate error messages in a row
+            if (lastMsg && lastMsg.type === 'error' && lastMsg.content === errorMessage) {
+                return prev;
+            }
+            return [...prev, { 
+                role: 'ai', 
+                content: errorMessage, 
+                type: 'error',
+                errorDetails: errorData
+            }];
+        });
+      }
     };
 
     window.addEventListener('message', handleMessage);
@@ -541,20 +570,45 @@ export default function CreatePage() {
   };
 
   // --- Generation Logic ---
-    const constructPrompt = (isModification = false, modificationRequest = '') => {
+    const constructPrompt = (isModification = false, modificationRequest = '', forceFull = false) => {
     const categoryLabel = t.categories[wizardData.category as keyof typeof t.categories] || 'App';
     const styleLabel = t.styles[wizardData.style as keyof typeof t.styles] || 'Modern';
     const deviceLabel = t.devices[wizardData.device as keyof typeof t.devices] || 'Mobile';
     const stylePrompt = STYLE_PROMPTS[wizardData.style] || '';
+    const devicePrompt = DEVICE_PROMPTS[wizardData.device] || DEVICE_PROMPTS['mobile'];
     
     // Compact description
     let description = `Type:${categoryLabel}, Device:${deviceLabel}, Style:${styleLabel}. 
     
     ${stylePrompt}
+    ${devicePrompt}
     
     Requirements:${wizardData.description}`;
 
     if (isModification) {
+      if (forceFull) {
+        return `
+# Task
+Modify the following React app based on the user's request and output the FULL updated code.
+
+# Request
+${modificationRequest}
+
+# Code
+${generatedCode}
+
+# Constraints
+- Maintain single-file structure.
+- Use React 18 and Tailwind CSS.
+- Output the COMPLETE updated HTML file. Do not use diffs.
+- Ensure the code is fully functional and includes all previous features unless asked to remove them.
+
+# Output Format
+1. Start with a brief summary of changes wrapped in /// SUMMARY: ... ///. The summary MUST be in ${language === 'zh' ? 'Chinese' : 'English'}.
+2. Then output the full HTML code.
+`;
+      }
+
       return `
 # Task
 Modify the following React app based on the user's request.
@@ -603,29 +657,58 @@ ${description}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, Component } = React;
+
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(error, errorInfo) { console.error("ErrorBoundary caught an error", error, errorInfo); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-screen flex flex-col items-center justify-center p-4 text-center bg-red-50/10 text-red-400">
+          <i className="fa-solid fa-triangle-exclamation text-4xl mb-4"></i>
+          <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
+          <pre className="text-xs bg-black/30 p-4 rounded text-left overflow-auto max-w-full">
+            {this.state.error?.toString()}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const App = () => <div className="h-screen flex items-center justify-center">Hello</div>;
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);
 </script>
 </body>
 </html>
     `;
   };
 
-  const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '') => {
+  const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '', forceFull = false) => {
     // Explicitly rely on the argument to determine if it's a modification or a new generation (regenerate)
     const isModification = isModificationArg;
+    const useDiffMode = isModification && !forceFull;
     
     console.log('startGeneration called:', { 
         isModificationArg, 
         isModification, 
+        forceFull,
         step, 
         overridePrompt,
         stack: new Error().stack 
     });
 
     // Cost: Modification = 0.5, New Generation / Regenerate = 3.0
-    const COST = isModification ? 0.5 : 3.0;
+    // Full modification fallback costs more (3.0) but less than full gen
+    const COST = isModification ? (forceFull ? 3.0 : 0.5) : 3.0;
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -650,6 +733,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     }
     setProgress(0);
     setStreamingCode('');
+    setRuntimeError(null); // Clear previous errors
     
     const loadingMessages = t.create.loading_steps || LOADING_MESSAGES_DATA[language === 'zh' ? 'zh' : 'en'];
     
@@ -689,7 +773,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 
 
     try {
-      const prompt = constructPrompt(isModification, overridePrompt || chatInput);
+      const prompt = constructPrompt(isModification, overridePrompt || chatInput, forceFull);
       
       let promptContent = '';
       if (isModification) {
@@ -724,48 +808,94 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />);
         setModificationCount(prev => prev + 1);
       }
 
-      const SYSTEM_PROMPT = isModification ? `You are an expert Senior Software Engineer specializing in refactoring.
+      const deviceConstraint = wizardData.device === 'desktop' 
+        ? '6. Optimize for Desktop: Use full width, multi-column layouts, and hover effects. Ensure content fills the screen appropriately.'
+        : wizardData.device === 'tablet'
+        ? '6. Optimize for Tablet: Use responsive grid layouts and touch-friendly sizing. Adapt to both portrait and landscape.'
+        : '6. Optimize for Mobile: Use single-column layout, large touch targets (min 44px), and bottom navigation. Ensure "pb-safe" is used for bottom spacing.';
+
+      const summaryLang = language === 'zh' ? 'Chinese' : 'English';
+      const SYSTEM_PROMPT = useDiffMode ? `You are an expert Senior Software Engineer specializing in refactoring.
 Your task is to modify the provided React code based on the user's request.
 
+### Strategy: "Cursor-style" Smart Replacement
+1. **Locate**: Find the exact code block that needs changing.
+2. **Context**: Expand the selection to include unique markers (e.g., function names, unique strings) to ensure the match is unambiguous.
+3. **Replace**: Output the *entire* new block.
+
 ### Output Format (Strictly Enforced)
-1. First, provide a brief summary of changes wrapped in /// SUMMARY: ... ///
-2. Then, return the code changes using the custom diff format below. Do not output the full file.
+1. **Analysis**: Start with a comment block \`/// ANALYSIS: ...\` where you explicitly state the "Unique Signature" of the code you are targeting (e.g., "Targeting function 'App' lines 50-80").
+2. **Summary**: Provide a brief summary of changes wrapped in \`/// SUMMARY: ... ///\`. The summary MUST be in ${summaryLang}.
+3. **Patch**: Return the code changes using the custom diff format below.
 
-Example:
-/// SUMMARY: I changed the background color to red and added a star icon. ///
+### Examples (Few-Shot Learning)
 
+#### Example 1: Changing a Button Color
+/// ANALYSIS: Targeting the 'SubmitButton' component return statement.
+/// SUMMARY: Changed button color from blue to green. ///
 <<<<SEARCH
-[Exact code chunk to be replaced]
+    <button className="bg-blue-500 text-white px-4 py-2 rounded">
+      Submit
+    </button>
 ====
-[New code chunk]
+    <button className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition">
+      Submit
+    </button>
+>>>>
+
+#### Example 2: Adding a State Variable
+/// ANALYSIS: Targeting the 'App' component start to add a new state hook.
+/// SUMMARY: Added 'count' state variable. ///
+<<<<SEARCH
+const App = () => {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+====
+const App = () => {
+  const [user, setUser] = useState(null);
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+>>>>
+
+#### Example 3: Modifying a Function Logic
+/// ANALYSIS: Targeting 'calculateTotal' function.
+/// SUMMARY: Added tax calculation to total. ///
+<<<<SEARCH
+  const calculateTotal = (items) => {
+    return items.reduce((acc, item) => acc + item.price, 0);
+  };
+====
+  const calculateTotal = (items) => {
+    const subtotal = items.reduce((acc, item) => acc + item.price, 0);
+    return subtotal * 1.1; // Add 10% tax
+  };
 >>>>
 
 ### Critical Instructions for SEARCH Block:
-1. **Exact Match Required**: The content inside <<<<SEARCH ... ==== must match the original code *character-for-character*, including spaces, indentation, and newlines.
-2. **Sufficient Context**: Include at least 5-10 lines of unchanged code around the target area to ensure the match is unique.
-3. **No Hallucinations**: Do not invent code in the SEARCH block. Copy it exactly from the source.
+1. **Uniqueness is King**: The content inside <<<<SEARCH ... ==== must match the original code *uniquely*.
+   - ❌ BAD: Matching just \`</div>\` or \`}\` or \`return true;\`.
+   - ✅ GOOD: Matching the function signature + the body + the closing brace.
+2. **Exact Match**: The text must match the original code character-for-character (ignoring indentation/whitespace).
+3. **Sufficient Context**: Include at least 5-10 lines of unchanged code around the target area.
 
 ### Critical Instructions for REPLACE Block:
-1. **Valid React Code**: Ensure the new code is valid React/JSX and matches the surrounding indentation.
-2. **NO Imports**: Do NOT use \`import\` statements. Use global variables (React, ReactDOM).
-3. **Icons**: Use FontAwesome classes (e.g., \`<i className="fa-solid fa-home"></i>\`).
-4. **Emoji**: Use direct emojis (🚀) or \\u{...} syntax. NO \\U000... syntax.
+1. **Completeness**: Output the FULL replacement code, including the context lines you matched.
+2. **Valid React Code**: Ensure the new code is valid React/JSX.
+3. **NO Imports**: Do NOT use \`import\` statements. Use global variables (React, ReactDOM).
+4. **No Placeholders**: Do NOT use \`// ... existing code ...\`. Output full code for the block.
 
-### Example:
-<<<<SEARCH
-  return (
-    <div className="p-4">
-      <h1>Hello</h1>
-    </div>
-  );
-====
-  return (
-    <div className="p-4 bg-red-500">
-      <h1>Hello World</h1>
-      <i className="fa-solid fa-star"></i>
-    </div>
-  );
->>>>
+### Style Consistency (CRITICAL)
+- **Maintain the existing design language**: Do not change colors, fonts, or spacing unless explicitly requested.
+- **Respect the current theme**: If the app is "Cyberpunk", do not make it "Minimalist" by accident.
+- **Keep existing classes**: When adding new elements, use the same Tailwind utility patterns as the rest of the file.
+
+### Thinking Process
+Before generating the patch, verify:
+1. "Is this SEARCH block unique in the file?" (If not, add more context)
+2. "Does the REPLACE block contain all necessary code?"
+3. "Am I breaking the existing layout or style?"
 ` : `You are an expert React Developer.
 Build a production-grade, single-file HTML application.
 
@@ -774,13 +904,28 @@ Build a production-grade, single-file HTML application.
 - Tailwind CSS (CDN)
 - FontAwesome 6 (CDN)
 
+### Preferred Libraries (CDN)
+Use these stable, China-accessible CDNs when these features are needed:
+- **React**: \`https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js\`
+- **ReactDOM**: \`https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js\`
+- **Babel**: \`https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js\`
+- **Tailwind**: \`https://cdn.tailwindcss.com\`
+- **FontAwesome**: \`https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css\`
+- **Lucide Icons**: \`https://unpkg.com/lucide@latest/dist/umd/lucide.js\` (Global: \`lucide\`)
+- **Charts (ECharts)**: \`https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js\` (Global: \`echarts\`)
+- **Markdown**: \`https://cdn.jsdelivr.net/npm/marked/marked.min.js\` (Global: \`marked\`)
+- **Confetti**: \`https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js\` (Global: \`confetti\`)
+- **Math/Physics**: \`https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js\` (Global: \`Matter\`)
+- **Excel (XLSX)**: \`https://cdn.staticfile.org/xlsx/0.18.5/xlsx.full.min.js\` (Global: \`XLSX\`)
+- **PDF Generation**: \`https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js\` (Global: \`jspdf\`)
+
 ### Strict Constraints
 1. Output ONLY raw HTML. No Markdown blocks.
 2. NO \`import\` or \`require\`. Destructure \`React\` globals (e.g., \`const { useState } = React;\`).
 3. NO Google Fonts. Use system fonts.
 4. Images must use absolute URLs (https://).
 5. Use \`window.innerWidth\` for responsive logic if needed, but prefer Tailwind classes.
-6. Ensure the app is mobile-responsive and fills the screen (\`h-screen w-full\`).
+${deviceConstraint}
 `;
 
       const TECHNICAL_CONSTRAINTS = `
@@ -796,9 +941,7 @@ Build a production-grade, single-file HTML application.
 8. **React Hooks**: Ensure \`useEffect\` dependencies are correct to prevent infinite loops.
 `;
 
-      const finalUserPrompt = isModification 
-        ? `Here is the current code:\n\n${generatedCode}\n\nUser Modification Request:\n${prompt}\n\nPlease modify the code according to the request. Output ONLY the diffs using the <<<<SEARCH ... ==== ... >>>> format.`
-        : prompt;
+      const finalUserPrompt = prompt;
 
       const dbPrompt = isModification ? prompt : finalUserPrompt;
 
@@ -916,7 +1059,7 @@ Build a production-grade, single-file HTML application.
 
             setStreamingCode(cleanCode);
             
-            if (isModification) {
+            if (useDiffMode) {
                 try {
                     console.log('Applying patches. Source length:', generatedCode.length, 'Patch length:', cleanCode.length);
                     
@@ -924,6 +1067,12 @@ Build a production-grade, single-file HTML application.
                     // Regex note: using [\s\S] instead of . with /s flag for ES5 compatibility
                     const summaryMatch = cleanCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
                     const summary = summaryMatch ? summaryMatch[1].trim() : null;
+
+                    // Extract Analysis (Optional, for logging or future use)
+                    const analysisMatch = cleanCode.match(/\/\/\/\s*ANALYSIS:\s*([\s\S]*?)\s*\/\/\//);
+                    if (analysisMatch) {
+                        console.log('AI Analysis:', analysisMatch[1].trim());
+                    }
 
                     const patched = applyPatches(generatedCode, cleanCode);
                     
@@ -947,9 +1096,34 @@ Build a production-grade, single-file HTML application.
                     }
                 } catch (e: any) {
                     console.error('Patch failed:', e);
-                    toastError(e.message || t.common.error);
+                    
+                    // Fallback to full generation
+                    console.warn('Patch failed, falling back to full generation...');
+                    
+                    const confirmMsg = language === 'zh' 
+                        ? '智能修改遇到困难。是否花费 3 积分进行全量重写？全量重写能保证代码正确性。' 
+                        : 'Smart edit failed. Do you want to spend 3 credits for a full rewrite? This guarantees code correctness.';
+                    
+                    if (confirm(confirmMsg)) {
+                         toastSuccess(language === 'zh' ? '正在进行全量重写...' : 'Starting full rewrite...');
+                         // Trigger full regeneration
+                         // We use the current prompt (which is the user's modification request)
+                         // and forceFull=true to bypass diff mode
+                         startGeneration(true, currentGenerationPrompt, '', true);
+                    } else {
+                         toastError(language === 'zh' ? '修改已取消' : 'Modification cancelled');
+                    }
                 }
             } else {
+                // Extract Summary if present (for full rewrite modification)
+                const summaryMatch = cleanCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
+                let summary = summaryMatch ? summaryMatch[1].trim() : null;
+                
+                // Remove summary from code
+                if (summaryMatch) {
+                    cleanCode = cleanCode.replace(summaryMatch[0], '').trim();
+                }
+
                 cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
                 
                 // SAFETY FIX: Remove Python-style Unicode escapes that crash JS
@@ -971,8 +1145,19 @@ Build a production-grade, single-file HTML application.
                 }
 
                 setGeneratedCode(cleanCode);
-                setStep('preview');
-                setPreviewMode(wizardData.device as any);
+                
+                if (isModification) {
+                    toastSuccess(t.create.success_edit);
+                    // Use summary if available, otherwise fallback
+                    if (summary) {
+                        setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
+                    } else {
+                        setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已重新生成完整代码。' : 'Regenerated full code.' }]);
+                    }
+                } else {
+                    setStep('preview');
+                    setPreviewMode(wizardData.device as any);
+                }
             }
             
             setIsGenerating(false);
@@ -1126,7 +1311,11 @@ Target Element Details:
 Modification Request:
 "${editRequest}"
 
-Please apply this change to the code. Ensure the modification is precise and affects only the intended element or logic.
+Instructions:
+1. Locate the element in the React code. Use the 'Text Content' and 'Current Classes' as the primary search keys, as the DOM structure might differ slightly from the React source.
+2. Apply the requested change ONLY to this element or its direct logic.
+3. Do not break the parent container or surrounding layout.
+4. If the user asks to change the style, use Tailwind CSS classes.
     `.trim();
 
     setShowEditModal(false);
@@ -1156,6 +1345,28 @@ Please apply this change to the code. Ensure the modification is precise and aff
       console.error('Failed to create mobile preview:', error);
       toastError(t.common.error);
     }
+  };
+
+  const handleFixError = (specificError?: string, details?: any) => {
+    const errorToFix = specificError || runtimeError;
+    if (!errorToFix) return;
+    
+    let prompt = language === 'zh' 
+      ? `我遇到了一个运行时错误：${errorToFix}。请分析代码并修复它。`
+      : `I encountered a runtime error: ${errorToFix}. Please analyze the code and fix it.`;
+
+    if (details) {
+        const stack = details.stack || details.componentStack || '';
+        if (stack) {
+            prompt += `\n\nStack Trace:\n${stack}`;
+        }
+        if (details.line) {
+            prompt += `\n\nError Location: Line ${details.line}, Column ${details.col}`;
+        }
+    }
+      
+    startGeneration(true, prompt);
+    setRuntimeError(null);
   };
 
   const renderHistoryModal = () => {
@@ -1549,11 +1760,36 @@ Please apply this change to the code. Ensure the modification is precise and aff
           </div>
           {chatHistory.map((msg, i) => (
             <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-slate-700 text-white' : 'bg-brand-500/20 text-brand-400'}`}>
-                <i className={`fa-solid ${msg.role === 'user' ? 'fa-user' : 'fa-robot'}`}></i>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-slate-700 text-white' : (msg.type === 'error' ? 'bg-red-500/20 text-red-500' : 'bg-brand-500/20 text-brand-400')}`}>
+                <i className={`fa-solid ${msg.role === 'user' ? 'fa-user' : (msg.type === 'error' ? 'fa-triangle-exclamation' : 'fa-robot')}`}></i>
               </div>
-              <div className={`p-3 rounded-2xl text-sm max-w-[80%] ${msg.role === 'user' ? 'bg-brand-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-300 rounded-tl-none'}`}>
-                {msg.content}
+              <div className={`p-3 rounded-2xl text-sm max-w-[80%] select-text ${
+                  msg.role === 'user' 
+                    ? 'bg-brand-600 text-white rounded-tr-none' 
+                    : (msg.type === 'error' 
+                        ? 'bg-red-900/30 border border-red-500/50 text-red-200 rounded-tl-none' 
+                        : 'bg-slate-800 text-slate-300 rounded-tl-none')
+              }`}>
+                {msg.type === 'error' ? (
+                    <div className="flex flex-col gap-2">
+                        <div className="font-bold text-xs uppercase tracking-wider opacity-70 flex items-center gap-2">
+                            {language === 'zh' ? '运行时错误' : 'Runtime Error'}
+                            {msg.errorDetails?.line && <span className="bg-red-500/20 px-1.5 rounded text-[10px]">Line {msg.errorDetails.line}</span>}
+                        </div>
+                        <div className="font-mono text-xs break-words bg-black/20 p-2 rounded border border-red-500/20">
+                            {msg.content}
+                        </div>
+                        <button 
+                            onClick={() => handleFixError(msg.content, msg.errorDetails)}
+                            className="mt-1 bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg"
+                        >
+                            <i className="fa-solid fa-wand-magic-sparkles"></i>
+                            {language === 'zh' ? 'AI 自动修复' : 'Fix with AI'}
+                        </button>
+                    </div>
+                ) : (
+                    msg.content
+                )}
               </div>
             </div>
           ))}
@@ -1723,6 +1959,32 @@ Please apply this change to the code. Ensure the modification is precise and aff
           
           {/* Floating Preview Controls */}
           <div className="absolute bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-10 w-max max-w-full px-4">
+            {runtimeError && (
+               <div className="absolute bottom-16 left-1/2 -translate-x-1/2 w-max max-w-[90vw] animate-bounce-in">
+                 <div className="bg-red-500/90 backdrop-blur-md text-white px-4 py-3 rounded-xl shadow-2xl border border-red-400 flex items-center gap-3">
+                   <i className="fa-solid fa-triangle-exclamation text-xl animate-pulse"></i>
+                   <div className="flex flex-col">
+                     <span className="text-xs font-bold uppercase opacity-80">{language === 'zh' ? '检测到错误' : 'Error Detected'}</span>
+                     <span className="text-sm font-mono max-w-[200px] truncate" title={runtimeError}>{runtimeError}</span>
+                   </div>
+                   <div className="h-8 w-px bg-white/20 mx-1"></div>
+                   <button 
+                     onClick={handleFixError}
+                     className="bg-white text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 transition flex items-center gap-1 whitespace-nowrap shadow-sm"
+                   >
+                     <i className="fa-solid fa-wand-magic-sparkles"></i>
+                     {language === 'zh' ? 'AI 修复' : 'Fix with AI'}
+                   </button>
+                   <button 
+                     onClick={() => setRuntimeError(null)}
+                     className="text-white/70 hover:text-white transition"
+                   >
+                     <X size={16} />
+                   </button>
+                 </div>
+               </div>
+            )}
+
             <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-full p-1.5 flex shadow-2xl">
               <button onClick={() => setPreviewMode('desktop')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.desktop}><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
               <button onClick={() => setPreviewMode('tablet')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.tablet}><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>

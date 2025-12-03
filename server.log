@@ -1,0 +1,101 @@
+
+> spark-vertex-next@0.1.0 dev
+> next dev -H 0.0.0.0
+
+   ▲ Next.js 14.0.4
+   - Local:        http://localhost:3000
+   - Network:      http://0.0.0.0:3000
+   - Environments: .env.local
+
+ ○ (pwa) PWA support is disabled.
+ ✓ Ready in 1527ms
+ ✓ Compiled /middleware in 127ms (217 modules)
+request to https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2 failed, reason: Client network socket disconnected before secure TLS connection was established
+
+Retrying 1/3...
+ ○ Compiling / ...
+ ✓ Compiled / in 2.1s (863 modules)
+ ✓ Compiled in 208ms (425 modules)
+ ✓ Compiled /create in 251ms (875 modules)
+ ✓ Compiled /api/generate in 386ms (638 modules)
+ ✓ Compiled in 136ms (1061 modules)
+ ✓ Compiled in 147ms (1061 modules)
+ ✓ Compiled in 343ms (889 modules)
+ ✓ Compiled in 362ms (889 modules)
+ ✓ Compiled in 368ms (889 modules)
+ ✓ Compiled in 259ms (889 modules)
+ ✓ Compiled in 332ms (889 modules)
+ ✓ Compiled in 306ms (889 modules)
+ ✓ Compiled /api/generate in 228ms (638 modules)
+ ✓ Compiled /preview/mobile/[id] in 99ms (638 modules)
+ ✓ Compiled /api/generate in 65ms (638 modules)
+ ✓ Compiled /preview/mobile/[id] in 214ms (1066 modules)
+ ✓ Compiled /api/generate in 43ms (643 modules)
+ ✓ Compiled in 160ms (875 modules)
+ ✓ Compiled in 461ms (889 modules)
+ ✓ Compiled in 240ms (889 modules)
+ ✓ Compiled in 242ms (889 modules)
+ ✓ Compiled in 315ms (889 modules)
+ ✓ Compiled /api/generate in 197ms (638 modules)
+ ✓ Compiled in 385ms (889 modules)
+ ✓ Compiled /api/generate in 70ms (638 modules)
+ ✓ Compiled in 303ms (1075 modules)
+ ✓ Compiled in 311ms (1075 modules)
+ ✓ Compiled in 262ms (1075 modules)
+ ✓ Compiled in 248ms (889 modules)
+ ✓ Compiled in 144ms (875 modules)
+ ✓ Compiled in 275ms (889 modules)
+ ✓ Compiled in 371ms (889 modules)
+ ✓ Compiled in 244ms (889 modules)
+ ✓ Compiled /api/generate in 246ms (638 modules)
+ ✓ Compiled in 325ms (1075 modules)
+ ✓ Compiled in 297ms (1075 modules)
+ ✓ Compiled in 259ms (1075 modules)
+ ✓ Compiled in 347ms (1075 modules)
+ ✓ Compiled in 336ms (1075 modules)
+ ✓ Compiled in 129ms (875 modules)
+ ✓ Compiled in 60ms (875 modules)
+ ✓ Compiled in 62ms (875 modules)
+ ✓ Compiled /api/generate in 48ms (638 modules)
+ ✓ Compiled in 122ms (875 modules)
+ ✓ Compiled in 77ms (875 modules)
+ ✓ Compiled /api/generate in 72ms (638 modules)
+ ⨯ ./lib/patch.ts
+Error: Failed to read source code from /Users/shihe/Documents/spark-vertex-next/lib/patch.ts
+
+Caused by:
+    No such file or directory (os error 2)
+
+Import trace for requested module:
+./lib/patch.ts
+./app/create/page.tsx
+ ⨯ ./lib/patch.ts
+Error: Failed to read source code from /Users/shihe/Documents/spark-vertex-next/lib/patch.ts
+
+Caused by:
+    No such file or directory (os error 2)
+
+Import trace for requested module:
+./lib/patch.ts
+./app/create/page.tsx
+ ✓ Compiled in 85ms (875 modules)
+ ✓ Compiled /api/generate in 91ms (638 modules)
+ ✓ Compiled in 428ms (1075 modules)
+ ✓ Compiled in 148ms (875 modules)
+ ✓ Compiled in 277ms (889 modules)
+ ✓ Compiled /api/generate in 69ms (638 modules)
+ ✓ Compiled /preview/mobile/[id] in 101ms (638 modules)
+ ✓ Compiled /api/generate in 44ms (640 modules)
+ ✓ Compiled /not-found in 177ms (1066 modules)
+ ✓ Compiled /api/generate in 43ms (643 modules)
+ ✓ Compiled in 150ms (875 modules)
+ ✓ Compiled /api/generate in 75ms (638 modules)
+ ✓ Compiled /preview/mobile/[id] in 72ms (638 modules)
+ ✓ Compiled in 123ms (1061 modules)
+ ✓ Compiled /api/generate in 35ms (640 modules)
+ ✓ Compiled /not-found in 180ms (1066 modules)
+ ✓ Compiled in 198ms (875 modules)
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ ✓ Compiled in 74ms (875 modules)
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ ✓ Compiled in 343ms (889 modules)

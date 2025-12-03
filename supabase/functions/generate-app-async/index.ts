@@ -102,11 +102,11 @@ serve(async (req) => {
     
     // OPTIMIZATION 1: Model Routing (Mixed Model Strategy)
     // Use Gemini 3 Pro Preview for speed by default (Creation).
-    // For modifications, we use Gemini 2.5 Pro which has better instruction following for diffs and context retention.
+    // For modifications, we also use Gemini 3 Pro Preview as requested.
     let modelName = 'gemini-3-pro-preview';
-    if (type === 'modification') {
-        modelName = 'gemini-2.5-pro';
-    }
+    // if (type === 'modification') {
+    //     modelName = 'gemini-2.5-pro';
+    // }
     
     const envModel = Deno.env.get('GOOGLE_MODEL_NAME');
     if (envModel) {
@@ -146,12 +146,11 @@ serve(async (req) => {
         messages.push({ role: 'user', content: String(user_prompt) });
     }
 
-    // OPTIMIZATION 6: Prefill (Pre-computation)
-    // Force the model to start immediately with the diff format
-    // Note: We must manually initialize fullContent with this prefix later
-    if (type === 'modification') {
-        messages.push({ role: 'assistant', content: '<<<<SEARCH' });
-    }
+    // OPTIMIZATION 6: Prefill (Pre-computation) - REMOVED
+    // We now require Analysis and Summary before the code block, so we cannot prefill with <<<<SEARCH
+    // if (type === 'modification') {
+    //     messages.push({ role: 'assistant', content: '<<<<SEARCH' });
+    // }
 
     // Create a stream to return to the client immediately
     const stream = new ReadableStream({
@@ -191,9 +190,8 @@ serve(async (req) => {
                 const reader = response.body?.getReader();
                 const decoder = new TextDecoder();
                 
-                // Initialize fullContent with prefill if applicable
-                // This ensures the frontend receives the full valid syntax even if the model skips the prefilled part
-                let fullContent = (type === 'modification') ? '<<<<SEARCH' : '';
+                // Initialize fullContent
+                let fullContent = '';
                 
                 let dbBuffer = ''; 
                 let streamBuffer = ''; 
