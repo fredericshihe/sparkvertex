@@ -10,14 +10,12 @@ export default function LoginModal() {
   const { t, language } = useLanguage();
   const { isLoginModalOpen, closeLoginModal } = useModal();
   
-  // Views: 'login' (Email), 'phone' (Phone Login), 'register', 'forgot_password'
-  const [view, setView] = useState<'login' | 'phone' | 'register' | 'forgot_password'>('login');
+  // Views: 'login' (Email), 'register', 'forgot_password'
+  const [view, setView] = useState<'login' | 'register' | 'forgot_password'>('login');
   
   // Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
   
   // UI State
   const [loading, setLoading] = useState(false);
@@ -26,9 +24,6 @@ export default function LoginModal() {
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
   const [showEmailSent, setShowEmailSent] = useState(false);
   
-  // SMS State
-  const [countdown, setCountdown] = useState(0);
-
   // Reset state when modal opens
   useEffect(() => {
     if (isLoginModalOpen) {
@@ -37,99 +32,16 @@ export default function LoginModal() {
       setMessage('');
       setView('login');
       setShowEmailSent(false);
-      setPhone('');
-      setCode('');
-      setCountdown(0);
     }
   }, [isLoginModalOpen]);
-
-  // Countdown Timer
-  useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [countdown]);
 
   if (!isLoginModalOpen) return null;
 
   // --- Validation ---
   const validateEmail = (email: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
   const validatePassword = (password: string) => /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@32941%*#?&]{8,}$/.test(password);
-  const validatePhone = (phone: string) => /^1[3-9]\d{9}$/.test(phone);
 
   // --- Handlers ---
-
-  const handleSendCode = async () => {
-    if (!validatePhone(phone)) {
-      setMessage('请输入有效的手机号码');
-      return;
-    }
-    
-    setLoading(true);
-    setMessage('');
-    
-    try {
-      const res = await fetch('/api/auth/sms/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone })
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || '发送失败');
-      }
-      
-      setCountdown(60);
-      setMessage('验证码已发送');
-    } catch (error: any) {
-      console.error('Send SMS Error:', error);
-      setMessage(error.message || t.auth_modal.error_generic);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePhoneLogin = async () => {
-    if (!validatePhone(phone)) {
-      setMessage('请输入有效的手机号码');
-      return;
-    }
-    if (!code || code.length !== 6) {
-      setMessage('请输入6位验证码');
-      return;
-    }
-
-    setLoading(true);
-    setMessage('');
-
-    try {
-      const res = await fetch('/api/auth/sms/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || '登录失败');
-      }
-
-      // Set Session
-      const { error } = await supabase.auth.setSession(data.session);
-      if (error) throw error;
-
-      closeLoginModal();
-    } catch (error: any) {
-      console.error('Phone Login Error:', error);
-      setMessage(error.message || t.auth_modal.error_login_failed);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleResetPassword = async () => {
     if (!validateEmail(email)) {
@@ -267,63 +179,21 @@ export default function LoginModal() {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Tabs */}
-            {view !== 'register' && (
-              <div className="flex border-b border-slate-700 mb-4">
-                <button 
-                  onClick={() => { setView('login'); setMessage(''); }}
-                  className={`flex-1 pb-2 text-sm font-bold transition ${view === 'login' ? 'text-brand-400 border-b-2 border-brand-400' : 'text-slate-400 hover:text-white'}`}
-                >
-                  {t.auth_modal.email_label}
-                </button>
-                <button 
-                  onClick={() => { setView('phone'); setMessage(''); }}
-                  className={`flex-1 pb-2 text-sm font-bold transition ${view === 'phone' ? 'text-brand-400 border-b-2 border-brand-400' : 'text-slate-400 hover:text-white'}`}
-                >
-                  手机登录
-                </button>
+            <>
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">{t.auth_modal.email_label}</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 outline-none" placeholder={t.auth_modal.email_placeholder} />
               </div>
-            )}
-
-            {view === 'phone' ? (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">手机号码</label>
-                  <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 outline-none" placeholder="请输入手机号" />
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-sm font-medium text-slate-400">{t.auth_modal.password_label}</label>
+                  {view === 'login' && <button onClick={() => { setView('forgot_password'); setMessage(''); }} className="text-xs text-brand-500 hover:text-brand-400 transition">{t.auth_modal.forgot_password}</button>}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">验证码</label>
-                  <div className="flex gap-2">
-                    <input type="text" value={code} onChange={(e) => setCode(e.target.value)} className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 outline-none" placeholder="6位验证码" maxLength={6} />
-                    <button 
-                      onClick={handleSendCode}
-                      disabled={loading || countdown > 0 || !validatePhone(phone)}
-                      className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed min-w-[100px]"
-                    >
-                      {countdown > 0 ? `${countdown}s` : '获取验证码'}
-                    </button>
-                  </div>
-                </div>
-                {message && <p className="text-red-400 text-sm text-center bg-red-500/10 py-2 rounded border border-red-500/20">{message}</p>}
-                <button onClick={handlePhoneLogin} disabled={loading} className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-brand-500/30 disabled:opacity-50">{loading ? '登录中...' : '登录 / 注册'}</button>
-              </>
-            ) : (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">{t.auth_modal.email_label}</label>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 outline-none" placeholder={t.auth_modal.email_placeholder} />
-                </div>
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-sm font-medium text-slate-400">{t.auth_modal.password_label}</label>
-                    {view === 'login' && <button onClick={() => { setView('forgot_password'); setMessage(''); }} className="text-xs text-brand-500 hover:text-brand-400 transition">{t.auth_modal.forgot_password}</button>}
-                  </div>
-                  <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 outline-none" placeholder={view === 'register' ? t.auth_modal.password_hint : t.auth_modal.password_placeholder} />
-                </div>
-                {message && <p className="text-red-400 text-sm text-center bg-red-500/10 py-2 rounded border border-red-500/20">{message}</p>}
-                <button onClick={() => handleEmailAuth(view === 'register' ? 'register' : 'login')} disabled={loading} className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-brand-500/30 disabled:opacity-50">{loading ? (view === 'register' ? t.auth_modal.registering : t.auth_modal.logging_in) : (view === 'register' ? t.auth_modal.register_btn : t.auth_modal.login_btn)}</button>
-              </>
-            )}
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 outline-none" placeholder={view === 'register' ? t.auth_modal.password_hint : t.auth_modal.password_placeholder} />
+              </div>
+              {message && <p className="text-red-400 text-sm text-center bg-red-500/10 py-2 rounded border border-red-500/20">{message}</p>}
+              <button onClick={() => handleEmailAuth(view === 'register' ? 'register' : 'login')} disabled={loading} className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-brand-500/30 disabled:opacity-50">{loading ? (view === 'register' ? t.auth_modal.registering : t.auth_modal.logging_in) : (view === 'register' ? t.auth_modal.register_btn : t.auth_modal.login_btn)}</button>
+            </>
             
             <div className="text-center mt-4">
               <span className="text-slate-500 text-sm">{view === 'register' ? t.auth_modal.has_account : t.auth_modal.no_account}</span>
