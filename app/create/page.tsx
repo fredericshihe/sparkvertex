@@ -680,7 +680,6 @@ ${description}
 </style>
 <script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js" crossorigin></script>
 <script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://unpkg.zhimg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
 <script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
 </head>
 <body>
@@ -900,10 +899,12 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 - **Tailwind CSS**: Use for ALL styling. Use arbitrary values (e.g., \`bg-[#1a1a1a]\`) if specific colors are needed.
 - **Icons**: Use FontAwesome 6 (CDN). Example: \`<i className="fa-solid fa-home"></i>\`.
 - **Images**: MUST use FULL URLs starting with \`https://\`. For placeholders, use \`https://images.unsplash.com/photo-...\` or \`https://placehold.co/600x400\`. NEVER use relative paths.
-- **Animations**: Use **Framer Motion** (available via \`window.Motion\`) for complex animations, or Tailwind classes for simple ones.
-  - Usage: \`const { motion, AnimatePresence } = window.Motion;\`
+- **Animations**: 
+  - **Preferred**: Use **Tailwind CSS** (transition-all, hover:scale-105, animate-bounce) for most interactions.
+  - **Complex**: Use **Anime.js** (https://cdn.staticfile.org/animejs/3.2.1/anime.min.js) or **GSAP** (https://cdn.staticfile.org/gsap/3.12.2/gsap.min.js) for complex sequences. Add the <script> tag to <head> if used.
+  - ❌ **Framer Motion**: DO NOT USE.
 - **NO External Libraries**: Do not use libraries not listed above.
-- ❌ NO \`import\` or \`require()\`. Use global variables (React, ReactDOM, Motion).
+- ❌ NO \`import\` or \`require()\`. Use global variables (React, ReactDOM).
 
 ### Design System & UX (The "Wow" Factor):
 - **Visual Style**: Modern, Clean, and Consistent. Use subtle shadows, rounded corners, and plenty of whitespace.
@@ -927,7 +928,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       const TECHNICAL_CONSTRAINTS = `
 ### Technical Constraints (MUST FOLLOW):
 1. **Single File**: Output ONLY a single valid HTML file. No Markdown.
-2. **Imports**: NO \`import\` statements. Use global variables (React, ReactDOM, Motion).
+2. **Imports**: NO \`import\` statements. Use global variables (React, ReactDOM).
 3. **Icons**: Use FontAwesome classes (e.g., \`<i className="fa-solid fa-home"></i>\`).
 4. **Images**: Use ABSOLUTE URLs (https://...).
 5. **Styling**: Use Tailwind CSS classes.
