@@ -7,6 +7,7 @@ import { useModal } from '@/context/ModalContext';
 import { getPreviewContent } from '@/lib/preview';
 import { QRCodeSVG } from 'qrcode.react';
 import { useLanguage } from '@/context/LanguageContext';
+import { getCategoryFromTags } from '@/lib/categories';
 
 const CARD_COLORS = [
   "from-purple-500 to-pink-500",
@@ -55,19 +56,43 @@ await ai.chat("Help me build a website");`
       const { data, error } = await supabase
         .from('items')
         .select(`
-          id, title, description, tags, category, prompt, content, views, page_views, likes, price,
+          id, title, description, tags, category, prompt, content, views, page_views, likes, price, daily_rank, quality_score,
           profiles:author_id (
             username,
             avatar_url
           )
         `)
         .eq('is_public', true)
-        .limit(5)
-        .order('created_at', { ascending: false });
+        .order('daily_rank', { ascending: true, nullsFirst: false })
+        .order('quality_score', { ascending: false })
+        .limit(100);
 
       if (data && data.length > 0) {
-        const mappedCards = data.map((item: any, index) => {
-          
+        const categoryWinners: Record<string, any> = {};
+        
+        data.forEach(item => {
+          const catKey = getCategoryFromTags(item.tags || []);
+          // Since we ordered by rank/score, the first one we see for a category is the winner
+          if (!categoryWinners[catKey]) {
+            categoryWinners[catKey] = item;
+          }
+        });
+
+        const winners = Object.values(categoryWinners);
+        
+        // Fallback: If fewer than 3 categories, fill with top items
+        if (winners.length < 3) {
+             const usedIds = new Set(winners.map(w => w.id));
+             for (const item of data) {
+                 if (!usedIds.has(item.id)) {
+                     winners.push(item);
+                     usedIds.add(item.id);
+                     if (winners.length >= 5) break;
+                 }
+             }
+        }
+
+        const mappedCards = winners.map((item: any, index) => {
           return {
             id: item.id,
             title: item.title,
