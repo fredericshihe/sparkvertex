@@ -734,13 +734,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     `;
   };
 
-  const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '', forceFull = false, explicitType?: 'init' | 'chat' | 'click' | 'regenerate' | 'fix') => {
+  const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '', forceFull = false, explicitType?: 'init' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback') => {
     // Explicitly rely on the argument to determine if it's a modification or a new generation (regenerate)
     const isModification = isModificationArg;
     const useDiffMode = isModification && !forceFull;
     
     // Determine operation type for the NEXT generation
-    let nextOperationType: 'init' | 'chat' | 'click' | 'regenerate' | 'fix' = 'init';
+    let nextOperationType: 'init' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback' = 'init';
     
     if (explicitType) {
         nextOperationType = explicitType;
