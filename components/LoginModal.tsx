@@ -61,7 +61,14 @@ export default function LoginModal() {
       if (error) throw error;
       setMessage(t.auth_modal.success_reset_sent);
     } catch (error: any) {
-      setMessage(error.message?.includes('seconds') ? t.auth_modal.error_too_many_attempts : t.auth_modal.error_generic);
+      console.error('Reset password error:', error);
+      if (error.message?.includes('fetch failed') || error.message?.includes('Failed to fetch')) {
+        setMessage(t.auth_modal.error_network);
+      } else if (error.message?.includes('seconds') || error.status === 429) {
+        setMessage(t.auth_modal.error_too_many_attempts);
+      } else {
+        setMessage(t.auth_modal.error_generic);
+      }
     } finally {
       setLoading(false);
     }
@@ -110,29 +117,62 @@ export default function LoginModal() {
         closeLoginModal();
       }
     } catch (error: any) {
+      console.error('Auth error:', error);
+
+      // 1. Rate Limit Errors
       if (error.message?.includes('rate limit') || error.status === 429) {
          setMessage(t.auth_modal.error_rate_limit);
          return;
       }
+
+      // 2. Network Errors
+      if (error.message?.includes('fetch failed') || error.message?.includes('Failed to fetch') || error.message?.includes('Network request failed')) {
+        setMessage(t.auth_modal.error_network);
+        return;
+      }
       
-      const isRegistrationError = type === 'register' && (error.message?.includes('already registered'));
-      if (!isRegistrationError) {
+      // 3. Registration Specific Errors
+      if (type === 'register') {
+        if (error.message?.includes('already registered') || error.message?.includes('User already registered')) {
+          setMessage(t.auth_modal.error_email_exists);
+          return;
+        }
+        if (error.message?.includes('Password should be at least') || error.message?.includes('weak_password')) {
+          setMessage(t.auth_modal.error_invalid_password);
+          return;
+        }
+        if (error.message?.includes('Unable to validate email address: invalid format')) {
+          setMessage(t.auth_modal.error_invalid_email);
+          return;
+        }
+      }
+
+      // 4. Login Specific Errors
+      if (type === 'login') {
+        if (error.message?.includes('Invalid login credentials')) {
+          setMessage(t.auth_modal.error_wrong_credentials);
+        } else if (error.message?.includes('Email not confirmed')) {
+          setMessage(t.auth_modal.error_email_not_confirmed);
+        } else {
+          setMessage(t.auth_modal.error_login_failed);
+        }
+      } else {
+        // 5. Fallback for other errors (including unknown registration errors)
+        // If we have a specific error message from Supabase that is readable, we might want to show it, 
+        // but for now let's stick to safe generic messages or the raw message if it seems safe.
+        // Actually, for better UX, let's try to map common ones or show generic.
+        setMessage(error.message || t.auth_modal.error_generic);
+      }
+
+      // 6. Login Attempt Counting (only for non-registration errors that are not rate limits)
+      if (type === 'login') {
         const newAttempts = loginAttempts + 1;
         setLoginAttempts(newAttempts);
         if (newAttempts >= 10) {
           setLockoutUntil(Date.now() + 60000);
           setMessage(t.auth_modal.error_too_many_attempts_min.replace('{n}', '1'));
-          setLoading(false);
-          return;
         }
       }
-
-      if (isRegistrationError) setMessage(t.auth_modal.error_email_exists);
-      else if (type === 'login') {
-          if (error.message?.includes('Invalid login credentials')) setMessage(t.auth_modal.error_wrong_credentials);
-          else if (error.message?.includes('Email not confirmed')) setMessage(t.auth_modal.error_email_not_confirmed);
-          else setMessage(t.auth_modal.error_login_failed);
-      } else setMessage(t.auth_modal.error_generic);
     } finally {
       setLoading(false);
     }
