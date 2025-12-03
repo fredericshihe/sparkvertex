@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -365,7 +365,7 @@ function injectWatermark(content: string) {
   return newContent;
 }
 
-export default function UploadPage() {
+function UploadContent() {
   const { t, language } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -966,6 +966,8 @@ export default function UploadPage() {
     setLoading(true);
     setUploadProgress(0);
 
+    let interval: NodeJS.Timeout | undefined;
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error(t.upload.login_required);
@@ -992,7 +994,7 @@ export default function UploadPage() {
       }
 
       // Simulate progress
-      const interval = setInterval(() => {
+      interval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 90) return 90;
           return prev + Math.random() * 10;
@@ -1817,5 +1819,13 @@ export default function UploadPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function UploadPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen pt-24 px-4 flex justify-center"><i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500"></i></div>}>
+      <UploadContent />
+    </Suspense>
   );
 }

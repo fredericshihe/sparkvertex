@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/context/ToastContext';
 import { useLanguage } from '@/context/LanguageContext';
 
-export default function UpdatePassword() {
+function UpdatePasswordContent() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -210,5 +210,13 @@ export default function UpdatePassword() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function UpdatePassword() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500"></i></div>}>
+      <UpdatePasswordContent />
+    </Suspense>
   );
 }

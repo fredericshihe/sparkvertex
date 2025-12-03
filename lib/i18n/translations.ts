@@ -97,6 +97,7 @@ export const translations = {
     upload: {
       title: '发布应用',
       edit_title: '编辑应用',
+      edit_code: '编辑代码',
       name_label: '应用名称',
       desc_label: '应用描述',
       icon_label: '应用图标',
@@ -903,6 +904,7 @@ export const translations = {
     upload: {
       title: 'Publish App',
       edit_title: 'Edit App',
+      edit_code: 'Edit Code',
       name_label: 'App Name',
       desc_label: 'Description',
       icon_label: 'Icon',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
@@ -151,7 +151,7 @@ const LOADING_MESSAGES_DATA = {
   ]
 };
 
-export default function CreatePage() {
+function CreateContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t, language } = useLanguage();
@@ -2415,5 +2415,13 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
 
       {renderHistoryModal()}
     </div>
+  );
+}
+
+export default function CreatePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen pt-24 px-4 flex justify-center"><i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500"></i></div>}>
+      <CreateContent />
+    </Suspense>
   );
 }
