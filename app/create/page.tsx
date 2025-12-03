@@ -582,7 +582,7 @@ ${description}
 # Specs
 - Lang: ${targetLang}
 - Stack: React 18, Tailwind CSS (CDN).
-- Allowed Libraries: Lucide React, Recharts, Three.js, Framer Motion (via esm.sh).
+- Icons: FontAwesome 6 (CDN).
 - Device Target: ${deviceLabel} (${wizardData.device === 'mobile' ? 'Mobile-first, touch-friendly' : wizardData.device === 'desktop' ? 'Desktop-optimized, mouse-friendly' : 'Responsive, tablet-friendly'})
 - Dark mode (#0f172a)
 - Single HTML file, NO markdown.
@@ -595,6 +595,7 @@ ${description}
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>${categoryLabel} App</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script>
   tailwind.config = {
     theme: {
@@ -677,14 +678,14 @@ ${description}
   ::-webkit-scrollbar { display: none; }
   #root { height: 100vh; width: 100vw; overflow: hidden; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.5/babel.min.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel" data-type="module">
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'https://esm.sh/react@18.2.0';
-import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0';
-import { Lucide, Layout, Monitor, Smartphone } from 'https://esm.sh/lucide-react?deps=react@18.2.0';
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -711,11 +712,12 @@ const App = () => {
       <h1 className="text-4xl font-bold text-primary animate-bounce">
         Hello World
       </h1>
+      <i className="fa-solid fa-star text-yellow-400 text-2xl mt-4"></i>
     </div>
   );
 };
 
-const root = createRoot(document.getElementById('root'));
+const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <ErrorBoundary>
     <App />
@@ -856,8 +858,9 @@ Return ONLY the code changes using the custom diff format below. Do not output t
 
 ### Critical Instructions for REPLACE Block:
 1. **Valid React Code**: Ensure the new code is valid React/JSX and matches the surrounding indentation.
-2. **Imports**: If adding new libraries, use https://esm.sh/... imports.
-3. **Emoji**: Use direct emojis (🚀) or \\u{...} syntax. NO \\U000... syntax.
+2. **NO Imports**: Do NOT use \`import\` statements. Use global variables (React, ReactDOM).
+3. **Icons**: Use FontAwesome classes (e.g., \`<i className="fa-solid fa-home"></i>\`).
+4. **Emoji**: Use direct emojis (🚀) or \\u{...} syntax. NO \\U000... syntax.
 
 ### Example:
 <<<<SEARCH
@@ -870,6 +873,7 @@ Return ONLY the code changes using the custom diff format below. Do not output t
   return (
     <div className="p-4 bg-red-500">
       <h1>Hello World</h1>
+      <i className="fa-solid fa-star"></i>
     </div>
   );
 >>>>
@@ -893,13 +897,9 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 ### Tech Stack & Imports:
 - **React 18**: Use Functional Components, Hooks (useState, useEffect, useMemo, useCallback).
 - **Tailwind CSS**: Use for ALL styling. Use arbitrary values (e.g., \`bg-[#1a1a1a]\`) if specific colors are needed.
-- **Allowed Libraries** (Import via https://esm.sh/...):
-  - ✅ \`lucide-react\`: \`import { Home, Settings } from "https://esm.sh/lucide-react?deps=react@18.2.0"\`
-  - ✅ \`recharts\`: \`import { LineChart, XAxis, ... } from "https://esm.sh/recharts?deps=react@18.2.0"\`
-  - ✅ \`three\`: \`import * as THREE from "https://esm.sh/three"\`
-  - ✅ \`framer-motion\`: \`import { motion } from "https://esm.sh/framer-motion?deps=react@18.2.0"\`
-- **NO Other External Libraries**: Do not use libraries not listed above.
-- ❌ NO \`require()\`. Use ES Modules syntax only.
+- **Icons**: Use FontAwesome 6 (CDN). Example: \`<i className="fa-solid fa-home"></i>\`.
+- **NO External Libraries**: Do not use libraries not listed above.
+- ❌ NO \`import\` or \`require()\`. Use global variables (React, ReactDOM).
 
 ### Design System & UX (The "Wow" Factor):
 - **Visual Style**: Modern, Clean, and Consistent. Use subtle shadows, rounded corners, and plenty of whitespace.
@@ -923,8 +923,8 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
       const TECHNICAL_CONSTRAINTS = `
 ### Technical Constraints (MUST FOLLOW):
 1. **Single File**: Output ONLY a single valid HTML file. No Markdown.
-2. **Imports**: Use \`https://esm.sh/...\` for imports. DO NOT use bare imports like \`import React from 'react'\`.
-3. **Icons**: Use Lucide React (via esm.sh) or Emojis.
+2. **Imports**: NO \`import\` statements. Use global variables (React, ReactDOM).
+3. **Icons**: Use FontAwesome classes (e.g., \`<i className="fa-solid fa-home"></i>\`).
 4. **Styling**: Use Tailwind CSS classes.
 5. **Fonts**: DO NOT use external fonts (Google Fonts) unless absolutely necessary and ensure the URL is valid. Prefer system fonts.
 6. **Emoji**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters or ES6 unicode escapes (e.g., \\u{1F440}).
