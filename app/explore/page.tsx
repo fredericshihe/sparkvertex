@@ -196,6 +196,32 @@ export default function Explore() {
 
   const fetchFeaturedItem = async () => {
     try {
+      // 1. Try to fetch the Daily Rank #1 item
+      const { data: rankedData } = await supabase
+        .from('items')
+        .select(`
+          *,
+          profiles:author_id (
+            username,
+            avatar_url
+          )
+        `)
+        .eq('is_public', true)
+        .eq('daily_rank', 1)
+        .limit(1)
+        .maybeSingle();
+
+      if (rankedData) {
+        const formattedItem = {
+          ...rankedData,
+          author: rankedData.profiles?.username || 'Unknown',
+          authorAvatar: rankedData.profiles?.avatar_url
+        };
+        setFeaturedItem(formattedItem);
+        return;
+      }
+
+      // 2. Fallback: Random item based on date seed
       const { count } = await supabase
         .from('items')
         .select('*', { count: 'exact', head: true })
@@ -255,6 +281,8 @@ export default function Explore() {
         )
       `)
       .eq('is_public', true)
+      // Sort by Daily Rank (High Quality) first, then Newest
+      .order('daily_rank', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false })
       .range(pageIndex * ITEMS_PER_PAGE, (pageIndex + 1) * ITEMS_PER_PAGE - 1);
 

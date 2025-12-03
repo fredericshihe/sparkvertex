@@ -21,6 +21,12 @@ export interface Item {
   downloads?: number;
   icon_url?: string;
   is_public?: boolean;
+  quality_score?: number;
+  richness_score?: number;
+  utility_score?: number;
+  total_score?: number;
+  daily_rank?: number;
+  analysis_reason?: string;
 }
 
 export interface Order {
