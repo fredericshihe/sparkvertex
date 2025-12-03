@@ -907,6 +907,9 @@ Build a production-grade, single-file HTML application.
             // OPTIMIZATION: Replace cdnjs with cdn.staticfile.org for FontAwesome
             cleanCode = cleanCode.replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/g, 'https://cdn.staticfile.org/font-awesome');
 
+            // SAFETY FIX: Remove Framer Motion (Broken CDN / 404)
+            cleanCode = cleanCode.replace(/<script.*src=".*framer-motion.*\.js".*><\/script>/g, '');
+
             setStreamingCode(cleanCode);
             
             if (isModification) {
@@ -942,6 +945,9 @@ Build a production-grade, single-file HTML application.
 
                 // OPTIMIZATION: Replace cdnjs with cdn.staticfile.org for FontAwesome
                 cleanCode = cleanCode.replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/g, 'https://cdn.staticfile.org/font-awesome');
+
+                // SAFETY FIX: Remove Framer Motion (Broken CDN / 404)
+                cleanCode = cleanCode.replace(/<script.*src=".*framer-motion.*\.js".*><\/script>/g, '');
 
                 if (!cleanCode.includes('<meta name="viewport"')) {
                     cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
@@ -1478,7 +1484,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
       <div className={`w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col 
           order-2 lg:order-1 
           h-full shrink-0 z-10 relative shadow-[0_-4px_20px_rgba(0,0,0,0.3)] lg:shadow-none
-          ${activeMobileTab === 'chat' ? 'flex' : 'hidden lg:flex'}
+          ${activeMobileTab === 'chat' ? 'flex pb-[80px] lg:pb-0' : 'hidden lg:flex'}
       `}>
         
         <div className="p-3 lg:p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
@@ -1561,8 +1567,40 @@ Please apply this change to the code. Ensure the modification is precise and aff
           <div ref={chatEndRef}></div>
         </div>
 
+        {/* Mobile Actions Bar */}
+        <div className="lg:hidden p-2 bg-slate-900 border-t border-slate-800 flex gap-2 overflow-x-auto shrink-0 no-scrollbar">
+           <button 
+             onClick={handleUpload}
+             className="px-3 py-2 bg-brand-600 text-white rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-1"
+           >
+             <i className="fa-solid fa-rocket"></i> {t.create.publish}
+           </button>
+           <button 
+             onClick={() => setShowHistoryModal(true)}
+             className="px-3 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center gap-1"
+           >
+             <i className="fa-solid fa-clock-rotate-left"></i> {t.create.history}
+           </button>
+           <button 
+             onClick={handleDownload}
+             className="px-3 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center gap-1"
+           >
+             <i className="fa-solid fa-download"></i> {t.create.download}
+           </button>
+           <button 
+             onClick={() => {
+                const blob = new Blob([generatedCode], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+              }}
+             className="px-3 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center gap-1"
+           >
+             <i className="fa-solid fa-code"></i> {t.create.view_code}
+           </button>
+        </div>
+
         {/* Input Area */}
-        <div className="p-3 lg:p-4 border-t border-slate-800 bg-slate-900 pb-safe shrink-0 mb-16 lg:mb-0">
+        <div className="p-3 lg:p-4 border-t border-slate-800 bg-slate-900 shrink-0 lg:mb-0">
           <div className="relative">
             <input
               type="text"
@@ -1752,7 +1790,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
   );
 
   return (
-    <div className={`min-h-screen text-white relative ${step === 'preview' ? 'h-screen overflow-hidden' : ''}`}>
+    <div className={`min-h-screen text-white relative ${step === 'preview' ? 'h-[100dvh] overflow-hidden' : ''}`}>
       {step !== 'preview' && (
         <button 
           onClick={handleExit}

@@ -30,6 +30,16 @@ export const getPreviewContent = (content: string | null) => {
     ''
   );
 
+  // 3.1 Fix Framer Motion (Broken CDN link -> Remove or Replace)
+  // The user reported a 404 for cdnjs/framer-motion. We should remove it to prevent errors.
+  // If the code relies on it, it might break, but a 404 breaks it anyway.
+  // We can try to replace it with a working ESM link if we really wanted, but for now, stripping it is safer
+  // as we are moving to Tailwind/CSS animations.
+  patchedContent = patchedContent.replace(
+    /<script.*src=".*framer-motion.*\.js".*><\/script>/g,
+    ''
+  );
+
   // 4. Fix Broken Unsplash URLs (AI sometimes outputs just the ID)
   // Example: src="photo-123..." -> src="https://images.unsplash.com/photo-123..."
   patchedContent = patchedContent.replace(
