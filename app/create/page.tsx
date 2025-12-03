@@ -931,7 +931,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 3. **Icons**: Use FontAwesome classes (e.g., \`<i className="fa-solid fa-home"></i>\`).
 4. **Images**: Use ABSOLUTE URLs (https://...).
 5. **Styling**: Use Tailwind CSS classes.
-5. **Fonts**: DO NOT use external fonts (Google Fonts) unless absolutely necessary and ensure the URL is valid. Prefer system fonts.
+5. **Fonts**: ❌ STRICTLY FORBIDDEN: \`fonts.googleapis.com\` or any external font services. USE SYSTEM FONTS ONLY (e.g., font-sans, font-mono).
 6. **Emoji**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters or ES6 unicode escapes (e.g., \\u{1F440}).
 7. **String Escaping**: Properly escape backticks and quotes in JavaScript strings.
 8. **React Hooks**: Ensure \`useEffect\` dependencies are correct to prevent infinite loops.
