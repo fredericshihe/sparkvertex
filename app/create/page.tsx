@@ -728,7 +728,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 Your task is to modify the provided React code based on the user's request.
 
 ### Output Format (Strictly Enforced)
-Return ONLY the code changes using the custom diff format below. Do not output the full file.
+1. First, provide a brief summary of changes wrapped in /// SUMMARY: ... ///
+2. Then, return the code changes using the custom diff format below. Do not output the full file.
+
+Example:
+/// SUMMARY: I changed the background color to red and added a star icon. ///
 
 <<<<SEARCH
 [Exact code chunk to be replaced]
@@ -915,6 +919,11 @@ Build a production-grade, single-file HTML application.
             if (isModification) {
                 try {
                     console.log('Applying patches. Source length:', generatedCode.length, 'Patch length:', cleanCode.length);
+                    
+                    // Extract Summary
+                    const summaryMatch = cleanCode.match(/\/\/\/\s*SUMMARY:\s*(.*?)\s*\/\/\//s);
+                    const summary = summaryMatch ? summaryMatch[1].trim() : null;
+
                     const patched = applyPatches(generatedCode, cleanCode);
                     
                     if (patched === generatedCode) {
@@ -928,6 +937,13 @@ Build a production-grade, single-file HTML application.
 
                     setGeneratedCode(patched);
                     toastSuccess(t.create.success_edit);
+                    
+                    // Add AI message to chat
+                    if (summary) {
+                        setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
+                    } else {
+                        setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.' }]);
+                    }
                 } catch (e: any) {
                     console.error('Patch failed:', e);
                     toastError(e.message || t.common.error);
@@ -1668,11 +1684,6 @@ Please apply this change to the code. Ensure the modification is precise and aff
               <i className="fa-solid fa-chevron-left"></i>
             </button>
             <span className="text-sm font-bold text-slate-400">{t.create.preview_mode}</span>
-          </div>
-          <div className="flex lg:hidden gap-2">
-             <button onClick={handleUpload} className="text-xs px-3 py-1 rounded text-white flex items-center gap-1 bg-brand-600">
-                {t.common.submit}
-             </button>
           </div>
         </div>
         
