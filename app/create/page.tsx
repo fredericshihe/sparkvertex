@@ -921,7 +921,8 @@ Build a production-grade, single-file HTML application.
                     console.log('Applying patches. Source length:', generatedCode.length, 'Patch length:', cleanCode.length);
                     
                     // Extract Summary
-                    const summaryMatch = cleanCode.match(/\/\/\/\s*SUMMARY:\s*(.*?)\s*\/\/\//s);
+                    // Regex note: using [\s\S] instead of . with /s flag for ES5 compatibility
+                    const summaryMatch = cleanCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
                     const summary = summaryMatch ? summaryMatch[1].trim() : null;
 
                     const patched = applyPatches(generatedCode, cleanCode);
