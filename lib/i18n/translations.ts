@@ -280,8 +280,8 @@ export const translations = {
         step1: {
           title: '获取 Spark 协议 Prompt',
           desc: '为了确保生成的代码能完美适配 Spark 平台（移动端优化、单文件结构），请务必使用以下标准 Prompt 模板。',
-          btn_vanilla: '原生 JS (推荐)',
-          btn_react: 'React 单文件',
+          btn_vanilla: '原生 JS',
+          btn_react: 'React 单文件 (推荐)',
           copy: '一键复制',
           copy_success: 'Prompt 协议已复制！',
           copy_fail: '复制失败，请手动复制',
@@ -771,7 +771,29 @@ export const translations = {
         { label: 'BMI计算器', desc: '输入身高体重计算BMI指数，显示健康范围刻度条，并给出健康建议。' },
         { label: '每日心情卡片', desc: '选择今日心情（开心/难过等），自动匹配背景色和励志语录，支持一键生成精美图片保存到相册。' },
         { label: '倒数日', desc: '列表展示重要日子（生日/纪念日），显示剩余天数，支持置顶和分类，背景可自定义图片。' }
-      ]
+      ],
+    placeholders: {
+      game: "例如：我想做一个贪吃蛇游戏，背景是黑色的，蛇是绿色的，吃到食物会变长，撞墙会结束游戏...",
+      design: "例如：我想做一个配色生成器，可以随机生成5种颜色，支持锁定颜色，并能复制HEX代码...",
+      productivity: "例如：我想做一个番茄钟，支持25分钟专注和5分钟休息，背景要极简风格，结束时有提示音...",
+      tool: "例如：我想做一个单位换算器，支持长度、重量、温度的换算，界面要像计算器一样...",
+      devtool: "例如：我想做一个JSON格式化工具，支持语法高亮，可以折叠节点，并且有复制按钮...",
+      entertainment: "例如：我想做一个简易的音乐播放器，支持播放/暂停，上一首/下一首，显示进度条...",
+      education: "例如：我想做一个英语单词卡片应用，正面是单词，点击翻转显示中文释义，支持左右滑动切换...",
+      visualization: "例如：我想做一个实时数据仪表盘，显示CPU和内存使用率的折线图，数据随机生成...",
+      lifestyle: "例如：我想做一个记账应用，可以记录收入和支出，支持分类，并且能显示每月的统计图表..."
+    },
+    madlibs: {
+      game: "我想做一个 [游戏类型] 游戏，玩家需要控制 [角色] 进行 [动作]，目标是 [目标]，失败条件是 [失败条件]。",
+      design: "我想做一个 [设计工具] 应用，主要功能是 [功能1] 和 [功能2]，风格偏向 [风格]，希望能激发 [用户情感]。",
+      productivity: "我想做一个 [效率工具] 应用，帮助用户解决 [痛点]，核心功能包括 [功能1]、[功能2]，界面要 [界面特点]。",
+      tool: "我想做一个 [工具名称] 工具，输入 [输入内容]，输出 [输出内容]，操作要 [操作特点]。",
+      devtool: "我想做一个 [开发工具] 应用，主要用于 [用途]，支持 [功能1] 和 [功能2]，界面风格是 [风格]。",
+      entertainment: "我想做一个 [娱乐应用] 应用，内容主要是 [内容]，用户可以 [交互方式]，希望能有 [视觉效果]。",
+      education: "我想做一个 [教育应用] 应用，面向 [目标人群]，帮助他们学习 [学科/技能]，采用 [教学方式]。",
+      visualization: "我想做一个 [可视化] 应用，展示 [数据类型] 数据，使用 [图表类型] 图表，支持 [交互功能]。",
+      lifestyle: "我想做一个 [生活应用] 应用，帮助用户记录 [记录内容]，提供 [建议/提醒]，风格要 [风格]。",
+    }
     }
   },
   en: {
@@ -1053,8 +1075,8 @@ export const translations = {
         step1: {
           title: 'Get Spark Protocol Prompt',
           desc: 'To ensure the generated code perfectly adapts to the Spark platform (mobile optimization, single file structure), please be sure to use the following standard Prompt template.',
-          btn_vanilla: 'Vanilla JS (Recommended)',
-          btn_react: 'React Single File',
+          btn_vanilla: 'Vanilla JS',
+          btn_react: 'React Single File (Recommended)',
           copy: 'One-click Copy',
           copy_success: 'Prompt protocol copied!',
           copy_fail: 'Copy failed, please copy manually',
@@ -1544,7 +1566,29 @@ export const translations = {
         { label: 'BMI Calculator', desc: 'Input height/weight, calculate BMI, show health range scale, give health advice.' },
         { label: 'Daily Mood Card', desc: 'Select mood (Happy/Sad), auto-match background color & quote, generate image to save.' },
         { label: 'Countdown Days', desc: 'List of important days (Birthday/Anniversary), days remaining, pin & categorize, custom background.' }
-      ]
+      ],
+    placeholders: {
+      game: "E.g., I want to make a Snake game with a black background, green snake, grows when eating food, ends when hitting wall...",
+      design: "E.g., I want to make a color palette generator that creates 5 random colors, supports locking, and copying HEX codes...",
+      productivity: "E.g., I want to make a Pomodoro timer with 25m focus/5m break, minimalist style, and sound alert...",
+      tool: "E.g., I want to make a unit converter for length, weight, and temperature, looking like a calculator...",
+      devtool: "E.g., I want to make a JSON formatter with syntax highlighting, collapsible nodes, and copy button...",
+      entertainment: "E.g., I want to make a simple music player with play/pause, prev/next, and progress bar...",
+      education: "E.g., I want to make a flashcard app for English words, front is word, click to flip for meaning, swipe to switch...",
+      visualization: "E.g., I want to make a real-time dashboard showing CPU/Memory usage line charts with random data...",
+      lifestyle: "E.g., I want to make an expense tracker to record income/expense with categories and monthly charts..."
+    },
+    madlibs: {
+      game: "I want to build a [Game Type] game where the player controls [Character] to [Action]. The goal is [Goal] and game over when [Condition].",
+      design: "I want to build a [Design Tool] app. Core features are [Feature 1] and [Feature 2]. Style should be [Style].",
+      productivity: "I want to build a [Productivity Tool] to help users [Problem]. Key features include [Feature 1] and [Feature 2]. Interface should be [Style].",
+      tool: "I want to build a [Tool Name] utility. Input [Input], output [Output]. Interaction should be [Interaction].",
+      devtool: "I want to build a [Dev Tool] for [Purpose]. Supports [Feature 1] and [Feature 2]. Style is [Style].",
+      entertainment: "I want to build an [Entertainment] app about [Content]. Users can [Interaction]. It should have [Visual Effect].",
+      education: "I want to build an [Education] app for [Target Audience] to learn [Subject]. It uses [Method].",
+      visualization: "I want to build a [Visualization] app showing [Data Type] using [Chart Type]. Supports [Interaction].",
+      lifestyle: "I want to build a [Lifestyle] app to track [Content]. Provides [Advice/Reminder]. Style is [Style].",
+    }
     }
   }
 };

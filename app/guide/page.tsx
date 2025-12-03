@@ -7,7 +7,7 @@ import { useLanguage } from '@/context/LanguageContext';
 
 export default function Guide() {
   const { t } = useLanguage();
-  const [currentPromptMode, setCurrentPromptMode] = useState<'vanilla' | 'react'>('vanilla');
+  const [currentPromptMode, setCurrentPromptMode] = useState<'vanilla' | 'react'>('react');
 
   const copyCurrentPrompt = async () => {
     const id = currentPromptMode === 'vanilla' ? 'guide-prompt-code-vanilla' : 'guide-prompt-code-react';
@@ -104,16 +104,16 @@ export default function Guide() {
               {/* Mode Switcher */}
               <div className="flex gap-2 mb-4">
                 <button 
-                  onClick={() => setCurrentPromptMode('vanilla')} 
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition border ${currentPromptMode === 'vanilla' ? 'bg-purple-600 text-white border-transparent' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:border-purple-400'}`}
-                >
-                  <i className="fa-brands fa-js"></i> {t.guide.manual.step1.btn_vanilla}
-                </button>
-                <button 
                   onClick={() => setCurrentPromptMode('react')} 
                   className={`px-4 py-1.5 rounded-full text-xs font-bold transition border ${currentPromptMode === 'react' ? 'bg-purple-600 text-white border-transparent' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:border-purple-400'}`}
                 >
                   <i className="fa-brands fa-react"></i> {t.guide.manual.step1.btn_react}
+                </button>
+                <button 
+                  onClick={() => setCurrentPromptMode('vanilla')} 
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition border ${currentPromptMode === 'vanilla' ? 'bg-purple-600 text-white border-transparent' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:border-purple-400'}`}
+                >
+                  <i className="fa-brands fa-js"></i> {t.guide.manual.step1.btn_vanilla}
                 </button>
               </div>
 
@@ -122,56 +122,56 @@ export default function Guide() {
                   <i className="fa-regular fa-copy"></i> {t.guide.manual.step1.copy}
                 </button>
                 
-                {/* Vanilla Prompt */}
-                <div id="guide-prompt-code-vanilla" className={`h-48 overflow-y-auto custom-scrollbar pr-2 ${currentPromptMode === 'vanilla' ? '' : 'hidden'}`}>
-                  <p><span className="text-purple-400"># Role</span><br />Full Stack Developer Expert.</p>
+                {/* React Prompt (Default & Recommended) */}
+                <div id="guide-prompt-code-react" className={`h-64 overflow-y-auto custom-scrollbar pr-2 ${currentPromptMode === 'react' ? '' : 'hidden'}`}>
+                  <p><span className="text-purple-400"># Role</span><br />Expert React Developer (Single File Component Specialist).</p>
                   <br />
-                  <p><span className="text-purple-400"># Task</span><br />Create a <span className="text-yellow-400">[Tool Name: 你的工具名称]</span>.</p>
+                  <p><span className="text-purple-400"># Task</span><br />Create a high-quality, production-ready <span className="text-yellow-400">[Tool Name: 你的工具名称]</span> using React.</p>
                   <br />
                   <p><span className="text-purple-400"># Description</span><br /><span className="text-slate-500">[在此处详细描述你的功能需求、交互逻辑和视觉风格。例如："一个倒计时器，背景是动态的星空，倒计时结束时播放音效..."]</span></p>
                   <br />
-                  <p><span className="text-purple-400"># Mobile Adaptation (Native-Like Experience)</span></p>
+                  <p><span className="text-purple-400"># Technical Specifications (Spark Standard)</span></p>
+                  <p>1. <span className="text-red-400">Single File</span>: All code (HTML, CSS, JS) must be in a SINGLE `.html` file.</p>
+                  <p>2. <span className="text-red-400">React Stack</span>: Use React 18, ReactDOM 18, and Babel Standalone via CDN.</p>
+                  <p>3. <span className="text-red-400">Styling</span>: Use Tailwind CSS (CDN) for all styling.</p>
+                  <p>4. <span className="text-red-400">Icons</span>: Use FontAwesome (CDN) for icons.</p>
+                  <br />
+                  <p><span className="text-purple-400"># Mobile-First & Native-Like Experience (CRITICAL)</span></p>
                   <p>1. <span className="text-blue-400">Viewport</span>: &lt;meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"&gt;</p>
-                  <p>2. <span className="text-blue-400">No Select</span>: body {`{ -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }`}</p>
-                  <p>3. <span className="text-blue-400">No Scrollbar</span>: Hide scrollbars but allow scrolling.</p>
-                  <p>4. <span className="text-blue-400">Layout</span>: Use Flexbox/Grid, avoid fixed width.</p>
+                  <p>2. <span className="text-blue-400">No Select</span>: Disable text selection for app-like feel: body &#123; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; &#125;</p>
+                  <p>3. <span className="text-blue-400">Touch Feedback</span>: Add active states for all interactive elements (e.g., `active:scale-95`).</p>
+                  <p>4. <span className="text-blue-400">Full Height</span>: Ensure `h-screen` and `overflow-hidden` on body to prevent browser bounce, use internal scrolling areas.</p>
+                  <p>5. <span className="text-blue-400">Safe Area</span>: Handle `env(safe-area-inset-bottom)` for modern mobile devices.</p>
                   <br />
-                  <p><span className="text-purple-400"># Constraints (Spark Standard)</span></p>
-                  <p>1. <span className="text-red-400">Single HTML File</span>: All CSS/JS inside.</p>
-                  <p>2. <span className="text-red-400">No External Deps</span>: Use Tailwind CDN.</p>
-                  <p>3. <span className="text-red-400">Dark Mode</span>: Default bg-slate-900.</p>
-                  <p>4. <span className="text-red-400">Responsive</span>: Mobile friendly.</p>
+                  <p><span className="text-purple-400"># Design System (Neo-Brutalism / Modern)</span></p>
+                  <p>- <span className="text-green-400">Background</span>: Dark mode default (`bg-slate-900` or similar).</p>
+                  <p>- <span className="text-green-400">Typography</span>: Sans-serif, legible, high contrast.</p>
+                  <p>- <span className="text-green-400">Components</span>: Rounded corners, subtle shadows, polished transitions.</p>
                   <br />
-                  <p><span className="text-purple-400"># Output</span><br />Return ONLY the full HTML code.</p>
+                  <p><span className="text-purple-400"># Output Format</span><br />Return ONLY the raw HTML code. Do not wrap in markdown code blocks.</p>
                 </div>
 
-                {/* React Prompt */}
-                <div id="guide-prompt-code-react" className={`h-48 overflow-y-auto custom-scrollbar pr-2 ${currentPromptMode === 'react' ? '' : 'hidden'}`}>
-                  <p><span className="text-purple-400"># Role</span><br />React Expert (Single File).</p>
+                {/* Vanilla Prompt */}
+                <div id="guide-prompt-code-vanilla" className={`h-64 overflow-y-auto custom-scrollbar pr-2 ${currentPromptMode === 'vanilla' ? '' : 'hidden'}`}>
+                  <p><span className="text-purple-400"># Role</span><br />Expert Frontend Developer (Vanilla JS Specialist).</p>
                   <br />
-                  <p><span className="text-purple-400"># Task</span><br />Create a <span className="text-yellow-400">[Tool Name: 你的工具名称]</span> using React.</p>
+                  <p><span className="text-purple-400"># Task</span><br />Create a lightweight, high-performance <span className="text-yellow-400">[Tool Name: 你的工具名称]</span> using Vanilla JS.</p>
                   <br />
                   <p><span className="text-purple-400"># Description</span><br /><span className="text-slate-500">[在此处详细描述你的功能需求...]</span></p>
                   <br />
-                  <p><span className="text-purple-400"># Tech Stack</span></p>
-                  <p>- React 18 (CDN)</p>
-                  <p>- ReactDOM 18 (CDN)</p>
-                  <p>- Babel Standalone (CDN)</p>
-                  <p>- Tailwind CSS (CDN)</p>
+                  <p><span className="text-purple-400"># Technical Specifications (Spark Standard)</span></p>
+                  <p>1. <span className="text-red-400">Single File</span>: All code (HTML, CSS, JS) must be in a SINGLE `.html` file.</p>
+                  <p>2. <span className="text-red-400">No Frameworks</span>: Pure JavaScript (ES6+).</p>
+                  <p>3. <span className="text-red-400">Styling</span>: Use Tailwind CSS (CDN).</p>
+                  <p>4. <span className="text-red-400">Icons</span>: Use FontAwesome (CDN).</p>
                   <br />
-                  <p><span className="text-purple-400"># Mobile Adaptation (Native-Like Experience)</span></p>
+                  <p><span className="text-purple-400"># Mobile-First & Native-Like Experience (CRITICAL)</span></p>
                   <p>1. <span className="text-blue-400">Viewport</span>: &lt;meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"&gt;</p>
-                  <p>2. <span className="text-blue-400">No Select</span>: body {`{ -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }`}</p>
-                  <p>3. <span className="text-blue-400">No Scrollbar</span>: Hide scrollbars but allow scrolling.</p>
-                  <p>4. <span className="text-blue-400">Layout</span>: Use Flexbox/Grid, avoid fixed width.</p>
+                  <p>2. <span className="text-blue-400">No Select</span>: body &#123; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; &#125;</p>
+                  <p>3. <span className="text-blue-400">Touch Feedback</span>: Implement visual feedback on touch/click.</p>
+                  <p>4. <span className="text-blue-400">Performance</span>: Use `requestAnimationFrame` for animations.</p>
                   <br />
-                  <p><span className="text-purple-400"># Constraints</span></p>
-                  <p>1. <span className="text-red-400">Single HTML File</span>: All code in one file.</p>
-                  <p>2. <span className="text-red-400">React Component</span>: Use functional components and hooks.</p>
-                  <p>3. <span className="text-red-400">Babel</span>: Use &lt;script type="text/babel"&gt;.</p>
-                  <p>4. <span className="text-red-400">Dark Mode</span>: Default bg-slate-900.</p>
-                  <br />
-                  <p><span className="text-purple-400"># Output</span><br />Return ONLY the full HTML code.</p>
+                  <p><span className="text-purple-400"># Output Format</span><br />Return ONLY the raw HTML code.</p>
                 </div>
               </div>
             </div>

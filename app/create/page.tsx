@@ -120,28 +120,7 @@ const LOADING_TIPS_DATA = {
   ]
 };
 
-const QUICK_TAGS_DATA = {
-  zh: [
-    { label: "登录页", text: "包含社交登录按钮的现代登录界面。" },
-    { label: "仪表盘", text: "带有图表和统计卡片的数据仪表盘。" },
-    { label: "个人主页", text: "带有头像和设置的用户个人资料页面。" },
-    { label: "设置", text: "带有开关和滑块的设置面板。" },
-    { label: "暗黑模式", text: "确保完全支持暗黑模式。" },
-    { label: "画廊", text: "带有瀑布流布局的图片画廊。" },
-    { label: "聊天", text: "带有消息气泡的实时聊天界面。" },
-    { label: "地图", text: "带有标记的交互式地图视图。" }
-  ],
-  en: [
-    { label: "Login", text: "Include a modern login screen with social auth buttons." },
-    { label: "Dashboard", text: "Create a data dashboard with charts and stats cards." },
-    { label: "Profile", text: "User profile page with avatar and settings." },
-    { label: "Settings", text: "Settings panel with toggles and sliders." },
-    { label: "Dark Mode", text: "Ensure full dark mode support." },
-    { label: "Gallery", text: "Image gallery with masonry layout." },
-    { label: "Chat", text: "Real-time chat interface with message bubbles." },
-    { label: "Map", text: "Interactive map view with markers." }
-  ]
-};
+
 
 const LOADING_MESSAGES_DATA = {
   zh: [
@@ -173,7 +152,6 @@ export default function CreatePage() {
   const { success: toastSuccess, error: toastError } = useToast();
   
   const LOADING_TIPS = LOADING_TIPS_DATA[language === 'zh' ? 'zh' : 'en'];
-  const QUICK_TAGS = QUICK_TAGS_DATA[language === 'zh' ? 'zh' : 'en'];
   
   const stepNames = {
     category: language === 'zh' ? '分类' : 'Category',
@@ -191,6 +169,13 @@ export default function CreatePage() {
     style: '',
     description: ''
   });
+
+  const currentCategory = wizardData.category || 'tool';
+  // @ts-ignore
+  const QUICK_TAGS = (t.templates?.[currentCategory] || []).map((item: any) => ({
+    label: item.label,
+    text: item.desc
+  }));
 
   // State: Generation
   const [generatedCode, setGeneratedCode] = useState('');
@@ -493,9 +478,10 @@ export default function CreatePage() {
   };
 
   const useMadLibsTemplate = () => {
-    const template = language === 'zh' 
+    // @ts-ignore
+    const template = t.madlibs?.[currentCategory] || (language === 'zh' 
       ? "我想做一个 [分类] 应用，主要给 [目标用户] 使用，核心功能是 [功能1] 和 [功能2]。"
-      : "I want to build a [Category] app for [Target User]. Core features include [Feature 1] and [Feature 2].";
+      : "I want to build a [Category] app for [Target User]. Core features include [Feature 1] and [Feature 2].");
     appendToDescription(template);
   };
 
@@ -1362,7 +1348,8 @@ Please apply this change to the code. Ensure the modification is precise and aff
                   value={wizardData.description}
                   onChange={(e) => setWizardData(prev => ({ ...prev, description: e.target.value }))}
                   maxLength={5000}
-                  placeholder={language === 'zh' ? '例如：我想做一个待办事项应用，风格要极简，支持暗黑模式...' : 'E.g. I want to build a Todo app, minimalist style, dark mode support...'}
+                  // @ts-ignore
+                  placeholder={t.placeholders?.[currentCategory] || (language === 'zh' ? '例如：我想做一个待办事项应用，风格要极简，支持暗黑模式...' : 'E.g. I want to build a Todo app, minimalist style, dark mode support...')}
                   className="w-full h-48 bg-transparent border-none outline-none appearance-none p-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-base leading-relaxed"
                 ></textarea>
                 
@@ -1390,7 +1377,7 @@ Please apply this change to the code. Ensure the modification is precise and aff
                   </h3>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {QUICK_TAGS.map((tag, index) => (
+                  {QUICK_TAGS.map((tag: any, index: number) => (
                     <button
                       key={index}
                       onClick={() => appendToDescription(tag.text)}
