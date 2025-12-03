@@ -1,7 +1,12 @@
 // const fetch = require('node-fetch'); // Use built-in fetch
 
 const FUNCTION_URL = "https://waesizzoqodntrlvrwhw.supabase.co/functions/v1/send-auth-email";
-const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhZXNpenpvcW9kbnRybHZyd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4MjIyOTYsImV4cCI6MjA3MzM5ODI5Nn0.kE5gSV68q1nLo4z2IqgwqfTBVqNOJw5qs08f6r0SQH0";
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!ANON_KEY) {
+  console.error("Error: NEXT_PUBLIC_SUPABASE_ANON_KEY is not set. Please set it in your environment variables.");
+  process.exit(1);
+}
 
 const payload = {
   "user": {

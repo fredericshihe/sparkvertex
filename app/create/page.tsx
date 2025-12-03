@@ -226,6 +226,7 @@ function CreateContent() {
   
   // State: Preview Scaling
   const [previewScale, setPreviewScale] = useState(1);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   
   const STORAGE_KEY = 'spark_create_session_v1';
 
@@ -485,14 +486,24 @@ function CreateContent() {
             if (parsed.codeHistory) setCodeHistory(parsed.codeHistory);
             if (parsed.currentGenerationPrompt) setCurrentGenerationPrompt(parsed.currentGenerationPrompt);
             if (parsed.previewMode) setPreviewMode(parsed.previewMode);
+            if (parsed.currentTaskId) setCurrentTaskId(parsed.currentTaskId);
             
             if ((parsed.step === 'preview' || parsed.step === 'generating') && parsed.generatedCode) {
                setStreamingCode(parsed.generatedCode);
                if (parsed.step === 'generating') {
-                   setStep('preview');
-                   setIsGenerating(false);
-                   setProgress(100);
+                   // If we have a task ID and it was generating, we should resume monitoring instead of just finishing
+                   if (parsed.currentTaskId) {
+                       setIsGenerating(true);
+                       // monitorTask will be called by the effect below
+                   } else {
+                       setStep('preview');
+                       setIsGenerating(false);
+                       setProgress(100);
+                   }
                }
+            } else if (parsed.step === 'generating' && parsed.currentTaskId) {
+                // Resume generation state if no code but task exists
+                setIsGenerating(true);
             }
             
             setTimeout(() => toastSuccess(language === 'zh' ? '已恢复上次的创作进度' : 'Restored previous session'), 500);
@@ -503,6 +514,14 @@ function CreateContent() {
       }
     }
   }, []);
+
+  // Effect to resume monitoring if we have a task ID and are in generating state
+  useEffect(() => {
+    if (isGenerating && currentTaskId && !channelRef.current) {
+        console.log('Resuming task monitoring for:', currentTaskId);
+        monitorTask(currentTaskId);
+    }
+  }, [isGenerating, currentTaskId]);
 
   useEffect(() => {
     if (step === 'category' && !wizardData.description && !generatedCode) return;
@@ -515,6 +534,7 @@ function CreateContent() {
       codeHistory,
       currentGenerationPrompt,
       previewMode,
+      currentTaskId,
       timestamp: Date.now()
     };
     
@@ -593,12 +613,26 @@ function CreateContent() {
         abortControllerRef.current = null;
     }
 
-    // 4. Reset State
+    // 4. Notify Backend to Cancel (Update DB)
+    if (currentTaskId) {
+        try {
+            console.log('Cancelling task on server:', currentTaskId);
+            await supabase
+                .from('generation_tasks')
+                .update({ status: 'cancelled', error_message: 'Cancelled by user' })
+                .eq('id', currentTaskId);
+        } catch (e) {
+            console.error('Failed to cancel task on server:', e);
+        }
+    }
+
+    // 5. Reset State
     setIsGenerating(false);
     setProgress(0);
     setLoadingText('');
+    setCurrentTaskId(null);
     
-    // 5. UI Navigation
+    // 6. UI Navigation
     if (step === 'generating') {
         setStep('concept');
         toastSuccess(language === 'zh' ? '已取消生成' : 'Generation cancelled');
@@ -803,6 +837,255 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     `;
   };
 
+  const monitorTask = async (taskId: string, isModification = false, useDiffMode = false) => {
+      let isFinished = false;
+      let lastUpdateTimestamp = Date.now();
+      let hasStartedStreaming = false;
+
+      // Clear any existing intervals first
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+
+      // Restart progress bar if needed (fake progress for visual feedback)
+      progressIntervalRef.current = setInterval(() => {
+        setProgress(prev => {
+            let increment = 0;
+            if (hasStartedStreaming) {
+                if (prev < 95) increment = Math.random() * 2 + 1;
+                else increment = 0.1;
+            } else {
+                // Slower progress if we are just waiting/resuming
+                if (prev < 85) increment = 0.5; 
+                else increment = 0.05;
+            }
+            return Math.min(prev + increment, 99);
+        });
+      }, 200);
+
+      const handleTaskUpdate = (newTask: any) => {
+        if (isFinished) return;
+        lastUpdateTimestamp = Date.now();
+
+        console.log('Task Update:', newTask.status, newTask.result_code?.length || 0, newTask.error_message);
+
+        if (newTask.result_code && newTask.status === 'processing') {
+            setStreamingCode(newTask.result_code);
+            hasStartedStreaming = true;
+        }
+        
+        if (newTask.status === 'completed') {
+            isFinished = true;
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (channelRef.current) supabase.removeChannel(channelRef.current);
+
+            checkAuth();
+            let rawCode = newTask.result_code || '';
+            
+            // Helper function to clean code (remove unsafe/broken elements)
+            const cleanTheCode = (code: string) => {
+                let c = code;
+                // SAFETY FIX: Remove Python-style Unicode escapes that crash JS
+                c = c.replace(/\\U([0-9a-fA-F]{8})/g, (match: string, p1: string) => {
+                    return '\\u{' + p1.replace(/^0+/, '') + '}';
+                });
+
+                // SAFETY FIX: Remove Google Fonts & Preconnects (China Blocking Issue)
+                c = c.replace(/<link[^>]+fonts\.(googleapis|gstatic)\.com[^>]*>/gi, '');
+                
+                // OPTIMIZATION: Replace cdnjs with cdn.staticfile.org for FontAwesome
+                c = c.replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/g, 'https://cdn.staticfile.org/font-awesome');
+
+                // SAFETY FIX: Remove Framer Motion (Broken CDN / 404)
+                c = c.replace(/<script.*src=".*framer-motion.*\.js".*><\/script>/g, '');
+
+                // SAFETY FIX: Replace broken QRCode CDN with staticfile
+                c = c.replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/qrcode@[\d\.]+\/build\/qrcode\.min\.js/g, 'https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js');
+                
+                // SAFETY FIX: Remove Mixkit MP3s (403 Forbidden)
+                c = c.replace(/src="[^"]*mixkit[^"]*\.mp3"/g, 'src=""');
+                c = c.replace(/new Audio\("[^"]*mixkit[^"]*\.mp3"\)/g, 'null');
+                
+                return c;
+            };
+
+            if (useDiffMode) {
+                // In Diff Mode, we must NOT clean the raw patch before applying it,
+                // because the SEARCH blocks must match the original code exactly.
+                // If we clean the patch, we might remove lines from SEARCH blocks that exist in the original code.
+                setStreamingCode(rawCode);
+                
+                try {
+                    console.log('Applying patches. Source length:', generatedCode.length, 'Patch length:', rawCode.length);
+                    
+                    // Extract Summary
+                    const summaryMatch = rawCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
+                    const summary = summaryMatch ? summaryMatch[1].trim() : null;
+
+                    // Extract Analysis
+                    const analysisMatch = rawCode.match(/\/\/\/\s*ANALYSIS:\s*([\s\S]*?)\s*\/\/\//);
+                    if (analysisMatch) {
+                        console.log('AI Analysis:', analysisMatch[1].trim());
+                    }
+
+                    const patched = applyPatches(generatedCode, rawCode);
+                    
+                    if (patched === generatedCode) {
+                        console.warn('Patch applied but code is unchanged.');
+                        if (!rawCode.includes('<<<<SEARCH')) {
+                             // Fallback: Check if AI returned a full file instead of patches
+                             if (rawCode.includes('<!DOCTYPE html>') || rawCode.includes('<html')) {
+                                 console.log('AI returned full file instead of patches. Switching to full replacement.');
+                                 const finalCode = cleanTheCode(rawCode);
+                                 setGeneratedCode(finalCode);
+                                 toastSuccess(t.create.success_edit);
+                                 
+                                 if (summary) {
+                                     setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
+                                 } else {
+                                     setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.' }]);
+                                 }
+                                 
+                                 setIsGenerating(false);
+                                 setProgress(100);
+                                 setCurrentTaskId(null); // Clear task ID
+                                 return;
+                             }
+
+                             throw new Error(language === 'zh' ? 'AI 未返回有效的修改代码块' : 'AI did not return valid modification blocks');
+                        } else {
+                             throw new Error(language === 'zh' ? '找到修改块但无法应用（上下文不匹配）' : 'Found modification blocks but could not apply them (context mismatch)');
+                        }
+                    }
+
+                    // Clean the RESULT of the patch
+                    const finalCode = cleanTheCode(patched);
+                    setGeneratedCode(finalCode);
+                    toastSuccess(t.create.success_edit);
+                    
+                    if (summary) {
+                        setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
+                    } else {
+                        setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.' }]);
+                    }
+                } catch (e: any) {
+                    console.error('Patch failed:', e);
+                    
+                    // Fallback to full generation
+                    console.warn('Patch failed, falling back to full generation...');
+                    
+                    const confirmMsg = language === 'zh' 
+                        ? '智能修改遇到困难。是否花费 3 积分进行全量重写？全量重写能保证代码正确性。' 
+                        : 'Smart edit failed. Do you want to spend 3 credits for a full rewrite? This guarantees code correctness.';
+                    
+                    if (confirm(confirmMsg)) {
+                         toastSuccess(language === 'zh' ? '正在进行全量重写...' : 'Starting full rewrite...');
+                         startGeneration(true, currentGenerationPrompt, '', true, lastOperationType === 'init' ? 'regenerate' : lastOperationType);
+                    } else {
+                         toastError(language === 'zh' ? '修改已取消' : 'Modification cancelled');
+                    }
+                }
+            } else {
+                // Full Generation Mode
+                let cleanCode = cleanTheCode(rawCode);
+                
+                // Extract Summary if present (for full rewrite modification)
+                const summaryMatch = cleanCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
+                let summary = summaryMatch ? summaryMatch[1].trim() : null;
+                
+                // Remove summary from code
+                if (summaryMatch) {
+                    cleanCode = cleanCode.replace(summaryMatch[0], '').trim();
+                }
+
+                cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
+
+                if (!cleanCode.includes('<meta name="viewport"')) {
+                    cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
+                }
+
+                setStreamingCode(cleanCode);
+                setGeneratedCode(cleanCode);
+                
+                if (isModification) {
+                    toastSuccess(t.create.success_edit);
+                    if (summary) {
+                        setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
+                    } else {
+                        setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已重新生成完整代码。' : 'Regenerated full code.' }]);
+                    }
+                } else {
+                    setStep('preview');
+                    setPreviewMode(wizardData.device as any);
+                }
+            }
+            
+            setIsGenerating(false);
+            setProgress(100);
+            setCurrentTaskId(null); // Clear task ID
+        } else if (newTask.status === 'failed') {
+            isFinished = true;
+            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (channelRef.current) supabase.removeChannel(channelRef.current);
+            
+            toastError(newTask.error_message || t.common.error);
+            setLoadingText(`${t.common.error}: ${newTask.error_message || t.common.unknown_error}`);
+            setIsGenerating(false);
+            setProgress(100);
+            setCurrentTaskId(null); // Clear task ID
+        }
+      };
+
+      channelRef.current = supabase
+        .channel(`task-${taskId}`)
+        .on(
+          'broadcast',
+          { event: 'chunk' },
+          (payload) => {
+             const { fullContent } = payload.payload;
+             if (fullContent) {
+                 setStreamingCode(fullContent);
+                 hasStartedStreaming = true;
+                 lastUpdateTimestamp = Date.now();
+             }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'generation_tasks',
+            filter: `id=eq.${taskId}`
+          },
+          (payload) => {
+            handleTaskUpdate(payload.new);
+          }
+        )
+        .subscribe();
+
+      let isPolling = false;
+      pollIntervalRef.current = setInterval(async () => {
+        if (isFinished || isPolling) return;
+        
+        if (Date.now() - lastUpdateTimestamp < 3000) return; // Poll faster if no updates
+
+        isPolling = true;
+        try {
+            const { data, error } = await supabase.from('generation_tasks').select('*').eq('id', taskId).single();
+            if (data && !error) {
+                handleTaskUpdate(data);
+            }
+        } catch (e) {
+            console.warn('Polling failed:', e);
+        } finally {
+            isPolling = false;
+        }
+      }, 3000);
+  };
+
   const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '', forceFull = false, explicitType?: 'init' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback') => {
     // Explicitly rely on the argument to determine if it's a modification or a new generation (regenerate)
     const isModification = isModificationArg;
@@ -952,90 +1235,45 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         : '6. Optimize for Mobile: Use single-column layout, large touch targets (min 44px), and bottom navigation. Ensure "pb-safe" is used for bottom spacing.';
 
       const summaryLang = language === 'zh' ? 'Chinese' : 'English';
-      const SYSTEM_PROMPT = useDiffMode ? `You are an expert Senior Software Engineer specializing in refactoring.
+      const SYSTEM_PROMPT = useDiffMode ? `You are an expert React Refactoring Engineer.
 Your task is to modify the provided React code based on the user's request.
 
-### Strategy: "Cursor-style" Smart Replacement
-1. **Locate**: Find the exact code block that needs changing.
-2. **Context**: Expand the selection to include unique markers (e.g., function names, unique strings) to ensure the match is unambiguous.
-3. **Replace**: Output the *entire* new block.
-
-### Output Format (Strictly Enforced)
-1. **Analysis**: Start with a comment block \`/// ANALYSIS: ...\` where you explicitly state the "Unique Signature" of the code you are targeting (e.g., "Targeting function 'App' lines 50-80").
-2. **Summary**: Provide a brief summary of changes wrapped in \`/// SUMMARY: ... ///\`. The summary MUST be in ${summaryLang}.
-3. **Patch**: Return the code changes using the custom diff format below.
-
-### Examples (Few-Shot Learning)
-
-#### Example 1: Changing a Button Color
-/// ANALYSIS: Targeting the 'SubmitButton' component return statement.
-/// SUMMARY: Changed button color from blue to green. ///
+### Output Format
+1. **Analysis**: Start with \`/// ANALYSIS: ... ///\` describing the target code signature.
+2. **Summary**: Brief summary in \`/// SUMMARY: ... ///\` (${summaryLang}).
+3. **Patch**: Use this strict format:
 <<<<SEARCH
-    <button className="bg-blue-500 text-white px-4 py-2 rounded">
-      Submit
-    </button>
+[Exact original code with 3-5 lines of context]
 ====
-    <button className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition">
-      Submit
-    </button>
+[New code]
 >>>>
 
-#### Example 2: Adding a State Variable
-/// ANALYSIS: Targeting the 'App' component start to add a new state hook.
-/// SUMMARY: Added 'count' state variable. ///
-<<<<SEARCH
-const App = () => {
-  const [user, setUser] = useState(null);
+### Rules (Strict)
+1. **SEARCH Block**: Must match original code EXACTLY (whitespace/indentation). Include enough context for uniqueness.
+2. **REPLACE Block**: Output the FULL replacement code. No placeholders like \`// ... existing code\`.
+3. **No Imports**: Use global \`React\`, \`ReactDOM\`.
+4. **Style**: Maintain existing Tailwind theme.
 
-  useEffect(() => {
-====
-const App = () => {
-  const [user, setUser] = useState(null);
+### Example
+<<<<SEARCH
   const [count, setCount] = useState(0);
-
-  useEffect(() => {
->>>>
-
-#### Example 3: Modifying a Function Logic
-/// ANALYSIS: Targeting 'calculateTotal' function.
-/// SUMMARY: Added tax calculation to total. ///
-<<<<SEARCH
-  const calculateTotal = (items) => {
-    return items.reduce((acc, item) => acc + item.price, 0);
-  };
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl">Counter: {count}</h1>
+      <button onClick={() => setCount(c => c + 1)}>Increment</button>
+    </div>
+  );
 ====
-  const calculateTotal = (items) => {
-    const subtotal = items.reduce((acc, item) => acc + item.price, 0);
-    return subtotal * 1.1; // Add 10% tax
-  };
+  const [count, setCount] = useState(0);
+  return (
+    <div className="p-4 bg-gray-100 rounded">
+      <h1 className="text-2xl text-blue-600">Counter: {count}</h1>
+      <button onClick={() => setCount(c => c + 1)} className="bg-blue-500 text-white px-4 py-2 rounded">
+        Increment
+      </button>
+    </div>
+  );
 >>>>
-
-### Critical Instructions for SEARCH Block:
-1. **Uniqueness is King**: The content inside <<<<SEARCH ... ==== must match the original code *uniquely*.
-   - ❌ BAD: Matching just \`</div>\` or \`}\` or \`return true;\`.
-   - ✅ GOOD: Matching the function signature + the body + the closing brace.
-2. **Exact Match Required**: The text must match the original code character-for-character (ignoring indentation/whitespace).
-   - ❌ BAD: Skipping lines or using comments like \`// ... existing code ...\` inside the SEARCH block.
-   - ✅ GOOD: Including the FULL content of the block you are targeting.
-3. **Sufficient Context**: Include at least 5-10 lines of unchanged code around the target area to ensure the patcher finds the correct location.
-
-### Critical Instructions for REPLACE Block:
-1. **Completeness**: Output the FULL replacement code, including the context lines you matched.
-2. **Valid React Code**: Ensure the new code is valid React/JSX. Check for balanced braces \`{}\` and tags \`<>\`.
-3. **NO Imports**: Do NOT use \`import\` statements. Use global variables (React, ReactDOM).
-4. **No Placeholders**: Do NOT use \`// ... existing code ...\`. Output full code for the block.
-
-### Style Consistency (CRITICAL)
-- **Maintain the existing design language**: Do not change colors, fonts, or spacing unless explicitly requested.
-- **Respect the current theme**: If the app is "Cyberpunk", do not make it "Minimalist" by accident.
-- **Keep existing classes**: When adding new elements, use the same Tailwind utility patterns as the rest of the file.
-
-### Thinking Process
-Before generating the patch, verify:
-1. "Is this SEARCH block unique in the file?" (If not, add more context)
-2. "Does the SEARCH block contain code that I am NOT replacing?" (If so, I must include it in the REPLACE block too, or I will delete it!)
-3. "Does the REPLACE block contain all necessary code?"
-4. "Am I breaking the existing layout or style?"
 ` : `You are an expert React Developer.
 Build a production-grade, single-file HTML application.
 
@@ -1123,12 +1361,16 @@ ${deviceConstraint}
       }
 
       const { taskId } = await response.json();
+      setCurrentTaskId(taskId);
       
       setCredits(prev => Math.max(0, prev - COST));
       // checkAuth(); // Removed to prevent overwriting optimistic update with stale DB data
 
       const { data: { session } } = await supabase.auth.getSession();
       
+      // Start monitoring immediately
+      monitorTask(taskId, isModification, useDiffMode);
+
       fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-app-async`, {
         method: 'POST',
         headers: {
@@ -1147,6 +1389,7 @@ ${deviceConstraint}
               console.error('Edge Function Error:', res.status, errText);
               toastError(`${t.common.error}: ${res.status}`);
               setIsGenerating(false);
+              setCurrentTaskId(null);
               return;
           }
           
@@ -1165,230 +1408,12 @@ ${deviceConstraint}
           console.error('Trigger error:', err);
           toastError(t.common.unknown_error);
           setIsGenerating(false);
+          setCurrentTaskId(null);
       });
-
-      let isFinished = false;
-      let lastUpdateTimestamp = Date.now();
-
-      const handleTaskUpdate = (newTask: any) => {
-        if (isFinished) return;
-        lastUpdateTimestamp = Date.now();
-
-        console.log('Task Update:', newTask.status, newTask.result_code?.length || 0, newTask.error_message);
-
-        if (newTask.result_code && newTask.status === 'processing') {
-            setStreamingCode(newTask.result_code);
-            hasStartedStreaming = true;
-        }
-        
-        if (newTask.status === 'completed') {
-            isFinished = true;
-            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-            if (channelRef.current) supabase.removeChannel(channelRef.current);
-
-            checkAuth();
-            let rawCode = newTask.result_code || '';
-            
-            // Helper function to clean code (remove unsafe/broken elements)
-            const cleanTheCode = (code: string) => {
-                let c = code;
-                // SAFETY FIX: Remove Python-style Unicode escapes that crash JS
-                c = c.replace(/\\U([0-9a-fA-F]{8})/g, (match: string, p1: string) => {
-                    return '\\u{' + p1.replace(/^0+/, '') + '}';
-                });
-
-                // SAFETY FIX: Remove Google Fonts & Preconnects (China Blocking Issue)
-                c = c.replace(/<link[^>]+fonts\.(googleapis|gstatic)\.com[^>]*>/gi, '');
-                
-                // OPTIMIZATION: Replace cdnjs with cdn.staticfile.org for FontAwesome
-                c = c.replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/g, 'https://cdn.staticfile.org/font-awesome');
-
-                // SAFETY FIX: Remove Framer Motion (Broken CDN / 404)
-                c = c.replace(/<script.*src=".*framer-motion.*\.js".*><\/script>/g, '');
-
-                // SAFETY FIX: Replace broken QRCode CDN with staticfile
-                c = c.replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/qrcode@[\d\.]+\/build\/qrcode\.min\.js/g, 'https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js');
-                
-                // SAFETY FIX: Remove Mixkit MP3s (403 Forbidden)
-                c = c.replace(/src="[^"]*mixkit[^"]*\.mp3"/g, 'src=""');
-                c = c.replace(/new Audio\("[^"]*mixkit[^"]*\.mp3"\)/g, 'null');
-                
-                return c;
-            };
-
-            if (useDiffMode) {
-                // In Diff Mode, we must NOT clean the raw patch before applying it,
-                // because the SEARCH blocks must match the original code exactly.
-                // If we clean the patch, we might remove lines from SEARCH blocks that exist in the original code.
-                setStreamingCode(rawCode);
-                
-                try {
-                    console.log('Applying patches. Source length:', generatedCode.length, 'Patch length:', rawCode.length);
-                    
-                    // Extract Summary
-                    const summaryMatch = rawCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
-                    const summary = summaryMatch ? summaryMatch[1].trim() : null;
-
-                    // Extract Analysis
-                    const analysisMatch = rawCode.match(/\/\/\/\s*ANALYSIS:\s*([\s\S]*?)\s*\/\/\//);
-                    if (analysisMatch) {
-                        console.log('AI Analysis:', analysisMatch[1].trim());
-                    }
-
-                    const patched = applyPatches(generatedCode, rawCode);
-                    
-                    if (patched === generatedCode) {
-                        console.warn('Patch applied but code is unchanged.');
-                        if (!rawCode.includes('<<<<SEARCH')) {
-                             // Fallback: Check if AI returned a full file instead of patches
-                             if (rawCode.includes('<!DOCTYPE html>') || rawCode.includes('<html')) {
-                                 console.log('AI returned full file instead of patches. Switching to full replacement.');
-                                 const finalCode = cleanTheCode(rawCode);
-                                 setGeneratedCode(finalCode);
-                                 toastSuccess(t.create.success_edit);
-                                 
-                                 if (summary) {
-                                     setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
-                                 } else {
-                                     setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.' }]);
-                                 }
-                                 
-                                 setIsGenerating(false);
-                                 setProgress(100);
-                                 return;
-                             }
-
-                             throw new Error(language === 'zh' ? 'AI 未返回有效的修改代码块' : 'AI did not return valid modification blocks');
-                        } else {
-                             throw new Error(language === 'zh' ? '找到修改块但无法应用（上下文不匹配）' : 'Found modification blocks but could not apply them (context mismatch)');
-                        }
-                    }
-
-                    // Clean the RESULT of the patch
-                    const finalCode = cleanTheCode(patched);
-                    setGeneratedCode(finalCode);
-                    toastSuccess(t.create.success_edit);
-                    
-                    if (summary) {
-                        setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
-                    } else {
-                        setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.' }]);
-                    }
-                } catch (e: any) {
-                    console.error('Patch failed:', e);
-                    
-                    // Fallback to full generation
-                    console.warn('Patch failed, falling back to full generation...');
-                    
-                    const confirmMsg = language === 'zh' 
-                        ? '智能修改遇到困难。是否花费 3 积分进行全量重写？全量重写能保证代码正确性。' 
-                        : 'Smart edit failed. Do you want to spend 3 credits for a full rewrite? This guarantees code correctness.';
-                    
-                    if (confirm(confirmMsg)) {
-                         toastSuccess(language === 'zh' ? '正在进行全量重写...' : 'Starting full rewrite...');
-                         startGeneration(true, currentGenerationPrompt, '', true, lastOperationType === 'init' ? 'regenerate' : lastOperationType);
-                    } else {
-                         toastError(language === 'zh' ? '修改已取消' : 'Modification cancelled');
-                    }
-                }
-            } else {
-                // Full Generation Mode
-                let cleanCode = cleanTheCode(rawCode);
-                
-                // Extract Summary if present (for full rewrite modification)
-                const summaryMatch = cleanCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
-                let summary = summaryMatch ? summaryMatch[1].trim() : null;
-                
-                // Remove summary from code
-                if (summaryMatch) {
-                    cleanCode = cleanCode.replace(summaryMatch[0], '').trim();
-                }
-
-                cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
-
-                if (!cleanCode.includes('<meta name="viewport"')) {
-                    cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
-                }
-
-                setStreamingCode(cleanCode);
-                setGeneratedCode(cleanCode);
-                
-                if (isModification) {
-                    toastSuccess(t.create.success_edit);
-                    if (summary) {
-                        setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
-                    } else {
-                        setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已重新生成完整代码。' : 'Regenerated full code.' }]);
-                    }
-                } else {
-                    setStep('preview');
-                    setPreviewMode(wizardData.device as any);
-                }
-            }
-            
-            setIsGenerating(false);
-            setProgress(100);
-        } else if (newTask.status === 'failed') {
-            isFinished = true;
-            if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-            if (channelRef.current) supabase.removeChannel(channelRef.current);
-            
-            toastError(newTask.error_message || t.common.error);
-            setLoadingText(`${t.common.error}: ${newTask.error_message || t.common.unknown_error}`);
-            setIsGenerating(false);
-            setProgress(100);
-        }
-      };
-
-      channelRef.current = supabase
-        .channel(`task-${taskId}`)
-        .on(
-          'broadcast',
-          { event: 'chunk' },
-          (payload) => {
-             const { fullContent } = payload.payload;
-             if (fullContent) {
-                 setStreamingCode(fullContent);
-                 hasStartedStreaming = true;
-                 lastUpdateTimestamp = Date.now();
-             }
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'generation_tasks',
-            filter: `id=eq.${taskId}`
-          },
-          (payload) => {
-            handleTaskUpdate(payload.new);
-          }
-        )
-        .subscribe();
-
-      let isPolling = false;
-      pollIntervalRef.current = setInterval(async () => {
-        if (isFinished || isPolling) return;
-        
-        if (Date.now() - lastUpdateTimestamp < 5000) return;
-
-        isPolling = true;
-        try {
-            const { data, error } = await supabase.from('generation_tasks').select('*').eq('id', taskId).single();
-            if (data && !error) {
-                handleTaskUpdate(data);
-            }
-        } catch (e) {
-            console.warn('Polling failed:', e);
-        } finally {
-            isPolling = false;
-        }
-      }, 3000);
-
+      
+      // The monitoring logic is now handled by monitorTask, so we don't need the duplicate code here.
+      // We can remove the rest of the function that was handling polling/realtime.
+      
     } catch (error: any) {
       if (error.name === 'AbortError') {
           console.log('Generation aborted by user');
@@ -1401,6 +1426,7 @@ ${deviceConstraint}
         setStep('concept');
       }
       setIsGenerating(false);
+      setCurrentTaskId(null);
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     }
   };
