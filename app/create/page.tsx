@@ -1969,7 +1969,7 @@ Instructions:
                    </div>
                    <div className="h-8 w-px bg-white/20 mx-1"></div>
                    <button 
-                     onClick={handleFixError}
+                     onClick={() => handleFixError()}
                      className="bg-white text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 transition flex items-center gap-1 whitespace-nowrap shadow-sm"
                    >
                      <i className="fa-solid fa-wand-magic-sparkles"></i>
