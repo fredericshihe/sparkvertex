@@ -595,7 +595,7 @@ ${description}
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>${categoryLabel} App</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css">
 <script>
   tailwind.config = {
     theme: {
@@ -678,10 +678,10 @@ ${description}
   ::-webkit-scrollbar { display: none; }
   #root { height: 100vh; width: 100vw; overflow: hidden; }
 </style>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.zhimg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+<script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -899,6 +899,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 - **React 18**: Use Functional Components, Hooks (useState, useEffect, useMemo, useCallback).
 - **Tailwind CSS**: Use for ALL styling. Use arbitrary values (e.g., \`bg-[#1a1a1a]\`) if specific colors are needed.
 - **Icons**: Use FontAwesome 6 (CDN). Example: \`<i className="fa-solid fa-home"></i>\`.
+- **Images**: MUST use FULL URLs starting with \`https://\`. For placeholders, use \`https://images.unsplash.com/photo-...\` or \`https://placehold.co/600x400\`. NEVER use relative paths.
 - **Animations**: Use **Framer Motion** (available via \`window.Motion\`) for complex animations, or Tailwind classes for simple ones.
   - Usage: \`const { motion, AnimatePresence } = window.Motion;\`
 - **NO External Libraries**: Do not use libraries not listed above.
@@ -928,7 +929,8 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
 1. **Single File**: Output ONLY a single valid HTML file. No Markdown.
 2. **Imports**: NO \`import\` statements. Use global variables (React, ReactDOM, Motion).
 3. **Icons**: Use FontAwesome classes (e.g., \`<i className="fa-solid fa-home"></i>\`).
-4. **Styling**: Use Tailwind CSS classes.
+4. **Images**: Use ABSOLUTE URLs (https://...).
+5. **Styling**: Use Tailwind CSS classes.
 5. **Fonts**: DO NOT use external fonts (Google Fonts) unless absolutely necessary and ensure the URL is valid. Prefer system fonts.
 6. **Emoji**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters or ES6 unicode escapes (e.g., \\u{1F440}).
 7. **String Escaping**: Properly escape backticks and quotes in JavaScript strings.
