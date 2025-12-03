@@ -576,16 +576,15 @@ ${generatedCode}
 
     return `
 # Task
-Create a "Production-Grade" single-file React app: ${categoryLabel} Generator for ${deviceLabel}.
+Create a single-file React 18 app (HTML).
 ${description}
 
 # Specs
 - Lang: ${targetLang}
-- Stack: React 18, Tailwind CSS (CDN).
-- Icons: FontAwesome 6 (CDN).
-- Device Target: ${deviceLabel} (${wizardData.device === 'mobile' ? 'Mobile-first, touch-friendly' : wizardData.device === 'desktop' ? 'Desktop-optimized, mouse-friendly' : 'Responsive, tablet-friendly'})
-- Dark mode (#0f172a)
-- Single HTML file, NO markdown.
+- Stack: React 18 (UMD), Tailwind CSS (CDN), FontAwesome 6 (CDN).
+- Target: ${deviceLabel} (${wizardData.device === 'mobile' ? 'Mobile-first' : 'Desktop'}).
+- Style: ${styleLabel}.
+- Output: Single HTML file. No Markdown.
 
 # Template
 <!DOCTYPE html>
@@ -593,137 +592,23 @@ ${description}
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>${categoryLabel} App</title>
+<title>${categoryLabel}</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css">
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          border: "hsl(var(--border))",
-          input: "hsl(var(--input))",
-          ring: "hsl(var(--ring))",
-          background: "hsl(var(--background))",
-          foreground: "hsl(var(--foreground))",
-          primary: {
-            DEFAULT: "hsl(var(--primary))",
-            foreground: "hsl(var(--primary-foreground))",
-          },
-          secondary: {
-            DEFAULT: "hsl(var(--secondary))",
-            foreground: "hsl(var(--secondary-foreground))",
-          },
-          destructive: {
-            DEFAULT: "hsl(var(--destructive))",
-            foreground: "hsl(var(--destructive-foreground))",
-          },
-          muted: {
-            DEFAULT: "hsl(var(--muted))",
-            foreground: "hsl(var(--muted-foreground))",
-          },
-          accent: {
-            DEFAULT: "hsl(var(--accent))",
-            foreground: "hsl(var(--accent-foreground))",
-          },
-          popover: {
-            DEFAULT: "hsl(var(--popover))",
-            foreground: "hsl(var(--popover-foreground))",
-          },
-          card: {
-            DEFAULT: "hsl(var(--card))",
-            foreground: "hsl(var(--card-foreground))",
-          },
-        },
-        borderRadius: {
-          lg: "var(--radius)",
-          md: "calc(var(--radius) - 2px)",
-          sm: "calc(var(--radius) - 4px)",
-        },
-      }
-    }
-  }
-</script>
-<style>
-  :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --radius: 0.5rem;
-  }
-  body {
-    -webkit-user-select: none;
-    user-select: none;
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    overflow: hidden;
-  }
-  ::-webkit-scrollbar { display: none; }
-  #root { height: 100vh; width: 100vw; overflow: hidden; }
-</style>
-<script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js" crossorigin></script>
-<script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
+<style>body{background:#1a1a1a;color:#fff;overflow:hidden}</style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef, useMemo, useCallback } = React;
-
-class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
-  static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  componentDidCatch(error, errorInfo) { console.error("ErrorBoundary caught an error", error, errorInfo); }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="flex flex-col items-center justify-center h-screen bg-red-900/20 text-red-200 p-4 text-center">
-          <h1 className="text-2xl font-bold mb-2">Something went wrong</h1>
-          <pre className="text-xs bg-black/50 p-4 rounded text-left overflow-auto max-w-full">{this.state.error?.toString()}</pre>
-          <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-red-600 rounded hover:bg-red-500">Reload App</button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-// YOUR CODE STARTS HERE
-const App = () => {
-  return (
-    <div className="h-full w-full flex flex-col items-center justify-center bg-background text-foreground">
-      <h1 className="text-4xl font-bold text-primary animate-bounce">
-        Hello World
-      </h1>
-      <i className="fa-solid fa-star text-yellow-400 text-2xl mt-4"></i>
-    </div>
-  );
-};
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>
-);
-</script></body></html>
+const { useState, useEffect } = React;
+const App = () => <div className="h-screen flex items-center justify-center">Hello</div>;
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
     `;
   };
 
@@ -877,53 +762,22 @@ Return ONLY the code changes using the custom diff format below. Do not output t
     </div>
   );
 >>>>
-` : `You are a World-Class Senior Frontend Architect and UI/UX Designer.
-Your goal is to create a "Production-Grade", visually stunning, and highly interactive single-file web application.
+` : `You are an expert React Developer.
+Build a production-grade, single-file HTML application.
 
-Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse Interaction)' : 'Mobile (Touch First, Responsive)'}
+### Tech Stack
+- React 18 (UMD) + Babel Standalone
+- Tailwind CSS (CDN)
+- FontAwesome 6 (CDN)
 
-### Core Requirements:
-1. **Language**: STRICTLY ${language === 'zh' ? 'Simplified Chinese (简体中文)' : 'English'} for all UI text.
-2. **Single File Architecture**: Output a single valid HTML file containing CSS, JS (React), and Logic.
-3. **No Markdown**: Output ONLY the raw HTML code. Start immediately with <!DOCTYPE html>.
-4. **Emoji Usage**: 
-   - ❌ STRICTLY FORBIDDEN: Python-style unicode escapes (e.g., \\U0001F440). This causes SyntaxError in JS.
-   - ✅ ALLOWED: Direct Emoji characters (e.g., 👀) or ES6 unicode escapes (e.g., \\u{1F440}).
-5. **No Unescaped Characters**: Ensure all strings in JavaScript/React are properly escaped. Avoid unescaped backticks (\`) inside template literals.
-6. **No Infinite Loops**: Ensure all \`useEffect\` hooks have proper dependency arrays.
-7. **Valid HTML Structure**: Ensure all tags are properly closed. Do not nest \`<a>\` inside \`<a>\` or \`<button>\` inside \`<button>\`.
-8. **Perfect Rendering**: Ensure the app takes up the full height of the viewport (h-screen, w-full) and handles overflow correctly. Prevent white screens by using Error Boundaries.
-
-### Tech Stack & Imports:
-- **React 18**: Use Functional Components, Hooks (useState, useEffect, useMemo, useCallback).
-- **Tailwind CSS**: Use for ALL styling. Use arbitrary values (e.g., \`bg-[#1a1a1a]\`) if specific colors are needed.
-- **Icons**: Use FontAwesome 6 (CDN). Example: \`<i className="fa-solid fa-home"></i>\`.
-- **Images**: MUST use FULL URLs starting with \`https://\`. For placeholders, use \`https://images.unsplash.com/photo-...\` or \`https://placehold.co/600x400\`. NEVER use relative paths.
-- **Animations**: 
-  - **Preferred**: Use **Tailwind CSS** (transition-all, hover:scale-105, animate-bounce) for most interactions.
-  - **Complex**: Use **Anime.js** (https://cdn.staticfile.org/animejs/3.2.1/anime.min.js) or **GSAP** (https://cdn.staticfile.org/gsap/3.12.2/gsap.min.js) for complex sequences. Add the <script> tag to <head> if used.
-  - ❌ **Framer Motion**: DO NOT USE.
-- **NO External Libraries**: Do not use libraries not listed above.
-- ❌ NO \`import\` or \`require()\`. Use global variables (React, ReactDOM).
-
-### Design System & UX (The "Wow" Factor):
-- **Visual Style**: Modern, Clean, and Consistent. Use subtle shadows, rounded corners, and plenty of whitespace.
-- **Color Palette**: Use a professional, harmonious color palette. Avoid default HTML colors.
-- **Interactions**: Add hover effects and transitions to interactive elements.
-- **Mobile Specifics** (if mobile):
-  - Bottom Navigation Bar for main tabs.
-  - Large touch targets (min-h-[44px]).
-  - \`pb-safe\` for iPhone Home Indicator area.
-
-### Code Quality Standards:
-- **Error Handling**: Wrap main logic in try-catch blocks. UI should not crash on error.
-- **State Management**: Use simple but effective state. Avoid prop drilling where possible.
-- **Performance**: Cleanup event listeners in \`useEffect\`.
-
-### Execution Steps:
-1. **Analyze**: Understand the user's request deeply. What is the core value?
-2. **Design**: Plan the component structure (Header, Main, Sidebar/Nav, Modals).
-3. **Implement**: Write the code with the constraints above.`;
+### Strict Constraints
+1. Output ONLY raw HTML. No Markdown blocks.
+2. NO \`import\` or \`require\`. Destructure \`React\` globals (e.g., \`const { useState } = React;\`).
+3. NO Google Fonts. Use system fonts.
+4. Images must use absolute URLs (https://).
+5. Use \`window.innerWidth\` for responsive logic if needed, but prefer Tailwind classes.
+6. Ensure the app is mobile-responsive and fills the screen (\`h-screen w-full\`).
+`;
 
       const TECHNICAL_CONSTRAINTS = `
 ### Technical Constraints (MUST FOLLOW):
