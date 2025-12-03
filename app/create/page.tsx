@@ -1190,7 +1190,7 @@ Target Device: ${wizardData.device === 'desktop' ? 'Desktop (High Density, Mouse
   };
 
   const handleDownload = () => {
-    const blob = new Blob([generatedCode], { type: 'text/html' });
+    const blob = new Blob([generatedCode], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
