@@ -1159,22 +1159,21 @@ function UploadContent() {
         let result = await supabase.from('items').update(updateData).eq('id', editId).select().single();
         
         // Fallback: If embedding column is missing (Error 42703 or 400), try updating without it
-        if (result.error && (result.error.code === '42703' || result.error.message?.includes('embedding') || result.error.code === 'PGRST204')) {
-          console.warn('Database schema outdated: embedding column missing. Falling back.');
-          const { embedding, ...fallbackData } = updateData;
+        if (result.error) {
+          console.warn('Update failed, retrying without embedding/is_public...', result.error);
+          
+          // Create a clean payload without potentially missing columns
+          const { embedding, is_public, ...fallbackData } = updateData;
+          
+          // Try updating without embedding and is_public first (safest)
           result = await supabase.from('items').update(fallbackData).eq('id', editId).select().single();
+          
           if (!result.error) {
             toastError(t.upload.db_warning || 'Database schema update required for full features');
-          }
-        }
-
-        // Fallback: If is_public column is missing (Error 42703), try updating without it
-        if (result.error && (result.error.code === '42703' || result.error.message?.includes('is_public'))) {
-          console.warn('Database schema outdated: is_public column missing. Falling back.');
-          const { is_public, ...fallbackData } = updateData;
-          result = await supabase.from('items').update(fallbackData).eq('id', editId).select().single();
-          if (!result.error) {
-            toastError(t.upload.db_warning);
+          } else {
+             // If it still fails, try with is_public but without embedding
+             const { embedding, ...fallbackDataWithPublic } = updateData;
+             result = await supabase.from('items').update(fallbackDataWithPublic).eq('id', editId).select().single();
           }
         }
 
@@ -1207,22 +1206,21 @@ function UploadContent() {
         let result = await supabase.from('items').insert(insertPayload).select().single();
 
         // Fallback: If embedding column is missing, try inserting without it
-        if (result.error && (result.error.code === '42703' || result.error.message?.includes('embedding') || result.error.code === 'PGRST204')) {
-          console.warn('Database schema outdated: embedding column missing. Falling back.');
-          const { embedding, ...fallbackPayload } = insertPayload;
+        if (result.error) {
+          console.warn('Insert failed, retrying without embedding/is_public...', result.error);
+          
+          // Create a clean payload without potentially missing columns
+          const { embedding, is_public, ...fallbackPayload } = insertPayload;
+          
+          // Try inserting without embedding and is_public first (safest)
           result = await supabase.from('items').insert(fallbackPayload).select().single();
+          
           if (!result.error) {
              toastError(t.upload.db_warning || 'Database schema update required for full features');
-          }
-        }
-
-        // Fallback: If is_public column is missing (Error 42703), try inserting without it
-        if (result.error && (result.error.code === '42703' || result.error.message?.includes('is_public'))) {
-          console.warn('Database schema outdated: is_public column missing. Falling back.');
-          const { is_public, ...fallbackPayload } = insertPayload;
-          result = await supabase.from('items').insert(fallbackPayload).select().single();
-          if (!result.error) {
-            toastError(t.upload.db_warning);
+          } else {
+             // If it still fails, try with is_public but without embedding
+             const { embedding, ...fallbackPayloadWithPublic } = insertPayload;
+             result = await supabase.from('items').insert(fallbackPayloadWithPublic).select().single();
           }
         }
 
