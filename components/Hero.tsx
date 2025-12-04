@@ -167,6 +167,7 @@ await ai.chat("Help me build a website");`
         className="absolute inset-0 w-full h-full border-0 pointer-events-none bg-slate-900" 
         loading="lazy" 
         sandbox="allow-scripts"
+        allow="autoplay 'none'; camera 'none'; microphone 'none'"
       />
     );
   };

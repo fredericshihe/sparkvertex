@@ -426,13 +426,23 @@ export default function Explore() {
                 {/* AI Features Badge */}
                 <div className="flex flex-wrap items-center gap-3 px-3 py-1 rounded-lg bg-brand-500/10 border border-brand-500/20 self-start sm:self-auto">
                     <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
-                       <i className="fa-solid fa-shield-halved text-green-400"></i>
-                       {t.explore.ai_verified_desc}
+                       <i className="fa-solid fa-microchip text-purple-400"></i>
+                       广场由AI 自主驱动
                     </span>
                     <span className="w-px h-3 bg-brand-500/30 hidden sm:block"></span>
                     <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
-                       <i className="fa-solid fa-arrow-trend-up text-blue-400"></i>
-                       {t.explore.ai_scoring_desc}
+                       <i className="fa-solid fa-shield-halved text-green-400"></i>
+                       AI代码级安全认证
+                    </span>
+                    <span className="w-px h-3 bg-brand-500/30 hidden sm:block"></span>
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
+                       <i className="fa-solid fa-bolt text-yellow-400"></i>
+                       AI 实时算法推荐
+                    </span>
+                    <span className="w-px h-3 bg-brand-500/30 hidden sm:block"></span>
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
+                       <i className="fa-solid fa-copyright text-blue-400"></i>
+                       AI双重算法版权保护
                     </span>
                 </div>
               </div>
