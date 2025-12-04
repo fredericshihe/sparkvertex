@@ -7,7 +7,6 @@ import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { getPreviewContent } from '@/lib/preview';
 import { useLanguage } from '@/context/LanguageContext';
-import { getCategoryFromTags } from '@/lib/categories';
 
 const QRCodeSVG = dynamic(() => import('qrcode.react').then(mod => mod.QRCodeSVG), { ssr: false });
 
@@ -58,43 +57,23 @@ await ai.chat("Help me build a website");`
       const { data, error } = await supabase
         .from('items')
         .select(`
-          id, title, description, tags, category, prompt, content, views, page_views, likes, price, daily_rank, quality_score,
+          id, title, description, tags, prompt, content, downloads, page_views, likes, price, icon_url,
           profiles:author_id (
             username,
             avatar_url
           )
         `)
         .eq('is_public', true)
-        .order('daily_rank', { ascending: true, nullsFirst: false })
-        .order('quality_score', { ascending: false })
-        .limit(100);
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (error) {
+        console.error('Error fetching hero items:', error);
+        return;
+      }
 
       if (data && data.length > 0) {
-        const categoryWinners: Record<string, any> = {};
-        
-        data.forEach(item => {
-          const catKey = getCategoryFromTags(item.tags || []);
-          // Since we ordered by rank/score, the first one we see for a category is the winner
-          if (!categoryWinners[catKey]) {
-            categoryWinners[catKey] = item;
-          }
-        });
-
-        const winners = Object.values(categoryWinners);
-        
-        // Fallback: If fewer than 3 categories, fill with top items
-        if (winners.length < 3) {
-             const usedIds = new Set(winners.map(w => w.id));
-             for (const item of data) {
-                 if (!usedIds.has(item.id)) {
-                     winners.push(item);
-                     usedIds.add(item.id);
-                     if (winners.length >= 5) break;
-                 }
-             }
-        }
-
-        const mappedCards = winners.map((item: any, index) => {
+        const mappedCards = data.map((item: any, index) => {
           return {
             id: item.id,
             title: item.title,
@@ -107,7 +86,7 @@ await ai.chat("Help me build a website");`
             author: Array.isArray(item.profiles) ? item.profiles[0]?.username : item.profiles?.username || 'Unknown',
             authorAvatar: Array.isArray(item.profiles) ? item.profiles[0]?.avatar_url : item.profiles?.avatar_url,
             likes: item.likes || 0,
-            views: item.views || 0, // Downloads
+            downloads: item.downloads || 0,
             page_views: item.page_views || 0,
             price: item.price || 0
           };

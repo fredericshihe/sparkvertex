@@ -1095,7 +1095,8 @@ function UploadContent() {
           is_public: isPublic,
           color: 'from-blue-500 to-cyan-500',
           likes: 0,
-          views: 0,
+          page_views: 0,
+          downloads: 0,
           icon_url: iconUrl
         };
 
