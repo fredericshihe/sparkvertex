@@ -12,6 +12,17 @@ import { copyToClipboard } from '@/lib/utils';
 
 // --- Helper Functions (Ported from SparkWorkbench.html) ---
 
+async function calculateContentHash(content: string) {
+  // Normalize: remove all whitespace, newlines, and convert to lowercase
+  const normalized = content.replace(/\s+/g, '').toLowerCase();
+  
+  // Use Web Crypto API to calculate SHA-256
+  const msgBuffer = new TextEncoder().encode(normalized);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, temperature = 0.7) {
   try {
     const response = await fetch('/api/analyze', {
@@ -995,6 +1006,74 @@ function UploadContent() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error(t.upload.login_required);
 
+      // Calculate Hash
+      const contentHash = await calculateContentHash(fileContent);
+
+      // Check for duplicates (Hash Check)
+      if (!isEditing) {
+        const { data: existing } = await supabase
+          .from('items')
+          .select('id')
+          .eq('content_hash', contentHash)
+          .single();
+
+        if (existing) {
+          toastError(language === 'zh' ? '系统中已存在完全相同的代码，请勿重复上传！' : 'Identical code already exists in the system!');
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Check for Semantic Duplicates (Vector Similarity)
+      let embedding = null;
+      // We generate embedding for both new and edited items to keep it fresh, 
+      // but we only block duplicates on new uploads (or maybe significant edits? let's stick to new for now to avoid blocking valid updates)
+      // Actually, if I edit my own item, it will be similar to itself. So I should exclude my own item ID if editing.
+      // But match_items doesn't support excluding ID easily without modifying RPC.
+      // For now, let's only run the BLOCKING check if !isEditing.
+      
+      const textToEmbed = `${title}\n${description}\n${prompt || ''}`;
+      try {
+        const embedRes = await fetch('/api/embed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: textToEmbed })
+        });
+        
+        if (embedRes.ok) {
+          const embedData = await embedRes.json();
+          embedding = embedData.embedding;
+          
+          if (embedding && !isEditing) {
+            const { data: similarItems, error: matchError } = await supabase.rpc('match_items', {
+              query_embedding: embedding,
+              match_threshold: 0.90, // Check for > 0.90
+              match_count: 1
+            });
+            
+            if (!matchError && similarItems && similarItems.length > 0) {
+              const bestMatch = similarItems[0];
+              // 0.98 Threshold: Block
+              if (bestMatch.similarity > 0.98) {
+                 toastError(language === 'zh' 
+                   ? '检测到高度相似的作品（相似度 > 98%），系统判定为重复上传。' 
+                   : 'Highly similar work detected (> 98%). Upload rejected as duplicate.');
+                 setLoading(false);
+                 return;
+              }
+              // 0.90 Threshold: Warn
+              if (bestMatch.similarity > 0.90) {
+                 toastError(language === 'zh' 
+                   ? '提示：您的作品与现有作品相似度较高。' 
+                   : 'Note: Your work is quite similar to an existing one.');
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Vector embedding failed, skipping semantic check:', e);
+      }
+
       // Check daily limit (5 posts per day)
       if (!isEditing) {
         const today = new Date();
@@ -1072,6 +1151,10 @@ function UploadContent() {
           is_public: isPublic
         };
         if (iconUrl) updateData.icon_url = iconUrl;
+        if (embedding) updateData.embedding = embedding;
+        
+        // Update hash as well
+        updateData.content_hash = contentHash;
 
         let result = await supabase.from('items').update(updateData).eq('id', editId).select().single();
         
@@ -1106,7 +1189,9 @@ function UploadContent() {
           likes: 0,
           page_views: 0,
           downloads: 0,
-          icon_url: iconUrl
+          icon_url: iconUrl,
+          content_hash: contentHash,
+          embedding: embedding
         };
 
         let result = await supabase.from('items').insert(insertPayload).select().single();
