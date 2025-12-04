@@ -564,7 +564,7 @@ function UploadContent() {
     try {
       const { data, error } = await supabase
         .from('items')
-        .select('*')
+        .select('id, created_at, title, description, content, price, author_id, tags, likes, color, page_views, file_url, downloads, prompt, icon_url, is_public, quality_score, richness_score, utility_score, total_score, last_analyzed_at, daily_rank, analysis_reason, analysis_reason_en, content_hash')
         .eq('id', id)
         .single();
 
@@ -586,6 +586,7 @@ function UploadContent() {
         setTags(data.tags || []);
         setPrompt(data.prompt || '');
         setFileContent(data.content);
+        setIsPublic(data.is_public !== false); // Default to true if null
         setStep(2); // Skip upload step
         
         // Mark as safe to allow proceeding without re-analysis unless file changes
@@ -1178,22 +1179,18 @@ function UploadContent() {
 
         let result = await supabase.from('items').update(updateData).eq('id', editId).select().single();
         
-        // Fallback: If embedding column is missing (Error 42703 or 400), try updating without it
+        // Fallback: If any error occurs (likely missing columns), try without new schema fields
         if (result.error) {
-          console.warn('Update failed, retrying without embedding/is_public...', result.error);
+          console.warn('Update failed, retrying with safe payload...', result.error);
           
-          // Create a clean payload without potentially missing columns
-          const { embedding, is_public, ...fallbackData } = updateData;
+          // Create a minimal safe payload without potentially missing columns
+          const { embedding, is_public, ...safeData } = updateData;
           
-          // Try updating without embedding and is_public first (safest)
-          result = await supabase.from('items').update(fallbackData).eq('id', editId).select().single();
+          // Try updating without embedding and is_public
+          result = await supabase.from('items').update(safeData).eq('id', editId).select().single();
           
           if (!result.error) {
             toastError(t.upload.db_warning || 'Database schema update required for full features');
-          } else {
-             // If it still fails, try with is_public but without embedding
-             const { embedding, ...fallbackDataWithPublic } = updateData;
-             result = await supabase.from('items').update(fallbackDataWithPublic).eq('id', editId).select().single();
           }
         }
 
