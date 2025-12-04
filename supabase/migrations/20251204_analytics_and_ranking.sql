@@ -63,7 +63,6 @@ RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
-AS $$
 DECLARE
     current_user_id UUID;
     should_count BOOLEAN;
