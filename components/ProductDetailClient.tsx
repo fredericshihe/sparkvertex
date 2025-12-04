@@ -435,6 +435,9 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                 allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; fullscreen; picture-in-picture; display-capture; screen-wake-lock"
                 style={{ touchAction: 'manipulation' }}
               />
+
+              {/* Mobile Overlay to prevent about:srcdoc in preview mode */}
+              <div className={`absolute inset-0 z-10 w-full h-full bg-transparent md:hidden ${viewMode === 'app' ? 'hidden' : ''}`} />
             </div>
           </div>
           

@@ -215,11 +215,6 @@ await ai.chat("Help me build a website");`
                     <i className="fa-solid fa-shield-halved text-[10px]"></i> {activeCard.total_score}
                   </span>
                 )}
-                {(activeCard?.tags || []).includes('AI Verified') && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(234,179,8,0.3)]">
-                    <i className="fa-solid fa-certificate"></i> {t.home.ai_verified}
-                  </span>
-                )}
               </div>
             </div>
 

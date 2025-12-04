@@ -133,6 +133,9 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                />
             )}
 
+            {/* Overlay to prevent interaction with iframe on mobile causing about:srcdoc */}
+            <div className="absolute inset-0 z-10 w-full h-full bg-transparent" />
+
             {generatePreviewHtml(item)}
             
             {/* Owner Actions */}

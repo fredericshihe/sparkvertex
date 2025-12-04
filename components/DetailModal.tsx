@@ -433,6 +433,9 @@ export default function DetailModal() {
                       sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups"
                       allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay"
                     />
+
+                    {/* Mobile Overlay to prevent about:srcdoc */}
+                    <div className="absolute inset-0 z-10 w-full h-full bg-transparent md:hidden" />
                   </div>
                   
                   {/* Preview Watermark */}
