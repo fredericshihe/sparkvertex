@@ -18,7 +18,7 @@ create or replace function match_items (
   match_count int
 )
 returns table (
-  id uuid,
+  id bigint,
   title text,
   similarity float
 )

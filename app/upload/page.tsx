@@ -1158,6 +1158,16 @@ function UploadContent() {
 
         let result = await supabase.from('items').update(updateData).eq('id', editId).select().single();
         
+        // Fallback: If embedding column is missing (Error 42703 or 400), try updating without it
+        if (result.error && (result.error.code === '42703' || result.error.message?.includes('embedding') || result.error.code === 'PGRST204')) {
+          console.warn('Database schema outdated: embedding column missing. Falling back.');
+          const { embedding, ...fallbackData } = updateData;
+          result = await supabase.from('items').update(fallbackData).eq('id', editId).select().single();
+          if (!result.error) {
+            toastError(t.upload.db_warning || 'Database schema update required for full features');
+          }
+        }
+
         // Fallback: If is_public column is missing (Error 42703), try updating without it
         if (result.error && (result.error.code === '42703' || result.error.message?.includes('is_public'))) {
           console.warn('Database schema outdated: is_public column missing. Falling back.');
@@ -1195,6 +1205,16 @@ function UploadContent() {
         };
 
         let result = await supabase.from('items').insert(insertPayload).select().single();
+
+        // Fallback: If embedding column is missing, try inserting without it
+        if (result.error && (result.error.code === '42703' || result.error.message?.includes('embedding') || result.error.code === 'PGRST204')) {
+          console.warn('Database schema outdated: embedding column missing. Falling back.');
+          const { embedding, ...fallbackPayload } = insertPayload;
+          result = await supabase.from('items').insert(fallbackPayload).select().single();
+          if (!result.error) {
+             toastError(t.upload.db_warning || 'Database schema update required for full features');
+          }
+        }
 
         // Fallback: If is_public column is missing (Error 42703), try inserting without it
         if (result.error && (result.error.code === '42703' || result.error.message?.includes('is_public'))) {
