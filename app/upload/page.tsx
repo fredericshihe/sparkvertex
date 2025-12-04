@@ -392,6 +392,13 @@ function UploadContent() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPublic, setIsPublic] = useState(true);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [duplicateModal, setDuplicateModal] = useState<{
+    show: boolean;
+    type: 'hash' | 'vector';
+    isSelf: boolean;
+    similarity?: number;
+    matchedItemId?: string;
+  }>({ show: false, type: 'hash', isSelf: false });
   
   // Validation State
   const [validationState, setValidationState] = useState<{
@@ -1019,11 +1026,12 @@ function UploadContent() {
           .maybeSingle();
 
         if (existing) {
-          if (existing.author_id === session.user.id) {
-            toastError(language === 'zh' ? '您已发布过该作品，请前往个人中心编辑原作品，勿重复发布。' : 'You have already published this work. Please edit the existing one.');
-          } else {
-            toastError(language === 'zh' ? '系统中已存在完全相同的代码，请勿重复上传！' : 'Identical code already exists in the system!');
-          }
+          setDuplicateModal({
+            show: true,
+            type: 'hash',
+            isSelf: existing.author_id === session.user.id,
+            matchedItemId: existing.id
+          });
           setLoading(false);
           return;
         }
@@ -1070,15 +1078,13 @@ function UploadContent() {
 
               // 0.98 Threshold: Block
               if (bestMatch.similarity > 0.98) {
-                 if (isSelf) {
-                    toastError(language === 'zh' 
-                     ? '您已发布过高度相似的作品，请前往个人中心编辑原作品。' 
-                     : 'You have a highly similar work. Please edit the existing one.');
-                 } else {
-                    toastError(language === 'zh' 
-                     ? '检测到高度相似的作品（相似度 > 98%），系统判定为重复上传。' 
-                     : 'Highly similar work detected (> 98%). Upload rejected as duplicate.');
-                 }
+                 setDuplicateModal({
+                   show: true,
+                   type: 'vector',
+                   isSelf: isSelf,
+                   similarity: bestMatch.similarity,
+                   matchedItemId: bestMatch.id
+                 });
                  setLoading(false);
                  return;
               }
@@ -1951,6 +1957,142 @@ function UploadContent() {
             <button onClick={goToDetail} className="px-8 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold transition shadow-lg shadow-brand-500/30">
               {t.upload.view_work}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Detection Modal */}
+      {duplicateModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-slate-800 border border-orange-500/50 rounded-2xl p-8 max-w-lg w-full shadow-2xl relative">
+            {/* Header Icon */}
+            <div className="w-20 h-20 bg-orange-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <i className="fa-solid fa-shield-halved text-4xl text-orange-500"></i>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-2xl font-bold text-white mb-3 text-center">
+              {language === 'zh' ? '🔍 重复内容检测' : '🔍 Duplicate Content Detected'}
+            </h3>
+
+            {/* Detection Type Badge */}
+            <div className="flex justify-center mb-6">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/20 border border-orange-500/30 rounded-full">
+                <i className={`fa-solid ${duplicateModal.type === 'hash' ? 'fa-fingerprint' : 'fa-brain'}`}></i>
+                <span className="text-sm font-medium text-orange-300">
+                  {language === 'zh' 
+                    ? (duplicateModal.type === 'hash' ? '哈希指纹匹配' : 'AI 语义识别') 
+                    : (duplicateModal.type === 'hash' ? 'Hash Fingerprint Match' : 'AI Semantic Match')}
+                </span>
+                {duplicateModal.similarity && (
+                  <span className="text-xs text-orange-400">
+                    {Math.round(duplicateModal.similarity * 100)}%
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Message */}
+            <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-6 mb-6">
+              {duplicateModal.isSelf ? (
+                <>
+                  <div className="flex items-start gap-3 mb-4">
+                    <i className="fa-solid fa-user-check text-2xl text-blue-400 flex-shrink-0 mt-1"></i>
+                    <div>
+                      <h4 className="text-white font-bold mb-2">
+                        {language === 'zh' ? '检测到您自己的作品' : 'Your Own Work Detected'}
+                      </h4>
+                      <p className="text-slate-300 text-sm leading-relaxed">
+                        {language === 'zh' 
+                          ? duplicateModal.type === 'hash'
+                            ? '系统检测到该代码与您之前发布的作品完全一致。为避免重复，请编辑原作品而非重新发布。'
+                            : `系统通过 AI 分析发现，该作品与您之前发布的作品高度相似（相似度 ${Math.round((duplicateModal.similarity || 0) * 100)}%）。建议编辑原作品。`
+                          : duplicateModal.type === 'hash'
+                            ? 'This code is identical to your previously published work. Please edit the original instead of republishing.'
+                            : `AI analysis shows this work is highly similar (${Math.round((duplicateModal.similarity || 0) * 100)}%) to your previous work. Please edit the original.`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 flex items-start gap-2">
+                    <i className="fa-solid fa-lightbulb text-blue-400 flex-shrink-0 mt-0.5"></i>
+                    <p className="text-xs text-blue-200">
+                      {language === 'zh' 
+                        ? '提示：在个人中心找到原作品，点击"编辑"即可更新内容，保留点赞和浏览数据。' 
+                        : 'Tip: Find your original work in Profile, click "Edit" to update it while keeping likes and views.'}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-start gap-3 mb-4">
+                    <i className="fa-solid fa-triangle-exclamation text-2xl text-red-400 flex-shrink-0 mt-1"></i>
+                    <div>
+                      <h4 className="text-white font-bold mb-2">
+                        {language === 'zh' ? '检测到重复内容' : 'Duplicate Content Found'}
+                      </h4>
+                      <p className="text-slate-300 text-sm leading-relaxed">
+                        {language === 'zh' 
+                          ? duplicateModal.type === 'hash'
+                            ? '系统检测到该代码与平台已有作品完全一致，涉嫌抄袭或重复搬运。'
+                            : `系统通过 AI 语义分析发现，该作品与平台已有作品高度相似（相似度 ${Math.round((duplicateModal.similarity || 0) * 100)}%），可能是"换皮"或"洗稿"。`
+                          : duplicateModal.type === 'hash'
+                            ? 'This code is identical to existing work on the platform, suspected plagiarism.'
+                            : `AI semantic analysis shows high similarity (${Math.round((duplicateModal.similarity || 0) * 100)}%) to existing work, possible "reskin" or derivative.`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-2">
+                    <i className="fa-solid fa-shield-halved text-red-400 flex-shrink-0 mt-0.5"></i>
+                    <p className="text-xs text-red-200">
+                      {language === 'zh' 
+                        ? '为保护原创，该作品无法发布。建议创作全新内容或显著改进原作。' 
+                        : 'To protect originality, this work cannot be published. Please create original content.'}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Detection Method Explanation */}
+            <div className="bg-slate-900/30 border border-slate-700/50 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <i className="fa-solid fa-info-circle text-slate-400 flex-shrink-0 mt-0.5"></i>
+                <div className="text-xs text-slate-400 leading-relaxed">
+                  {language === 'zh' 
+                    ? duplicateModal.type === 'hash'
+                      ? '检测方式：通过 SHA-256 哈希指纹比对代码结构，忽略空格与格式差异，精确识别完全一致的代码。'
+                      : '检测方式：使用 Google Gemini 向量模型分析核心逻辑与功能描述，即使修改变量名或样式也能识别本质相似。'
+                    : duplicateModal.type === 'hash'
+                      ? 'Detection: SHA-256 hash fingerprint ignores whitespace/formatting to identify identical code.'
+                      : 'Detection: Google Gemini vector analysis identifies core logic similarity despite variable/style changes.'}
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              {duplicateModal.isSelf && (
+                <button 
+                  onClick={() => {
+                    setDuplicateModal({ show: false, type: 'hash', isSelf: false });
+                    router.push('/profile');
+                  }}
+                  className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2"
+                >
+                  <i className="fa-solid fa-pen-to-square"></i>
+                  {language === 'zh' ? '前往编辑' : 'Edit Original'}
+                </button>
+              )}
+              <button 
+                onClick={() => {
+                  setDuplicateModal({ show: false, type: 'hash', isSelf: false });
+                  setLoading(false);
+                }}
+                className={`${duplicateModal.isSelf ? 'flex-1' : 'w-full'} py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition`}
+              >
+                {language === 'zh' ? '知道了' : 'Got it'}
+              </button>
+            </div>
           </div>
         </div>
       )}
