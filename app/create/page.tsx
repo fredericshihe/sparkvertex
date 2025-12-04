@@ -2189,7 +2189,7 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                     </div>
                 </div>
                 <button 
-                    onClick={handleCancelGeneration}
+                    onClick={() => handleCancelGeneration()}
                     className="text-xs text-slate-500 hover:text-red-400 transition flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-700/50"
                 >
                     <X size={12} />
@@ -2372,7 +2372,7 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                     <span className="text-xs text-slate-500">{Math.floor(progress)}%</span>
                   </div>
                   <button 
-                    onClick={handleCancelGeneration}
+                    onClick={() => handleCancelGeneration()}
                     className="text-xs text-slate-500 hover:text-red-400 transition flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-700/50"
                   >
                     <X size={12} />
