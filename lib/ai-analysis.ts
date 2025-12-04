@@ -2,44 +2,74 @@
 import { supabase } from '@/lib/supabase';
 
 export async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, temperature = 0.7) {
-  try {
-    const response = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_prompt: systemPrompt,
-        user_prompt: userPrompt,
-        temperature: temperature
-      })
-    });
+  let retryCount = 0;
+  const maxRetries = 2;
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      const errorMessage = data.error || `API Error: ${response.status}`;
-      
-      if (response.status === 429) throw new Error(errorMessage);
-      if (response.status === 401) throw new Error(errorMessage);
-      if (response.status === 400) throw new Error(errorMessage);
-      
-      throw new Error(errorMessage);
-    }
+  while (retryCount <= maxRetries) {
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_prompt: systemPrompt,
+          user_prompt: userPrompt,
+          temperature: temperature
+        })
+      });
 
-    const data = await response.json();
-    return data.content;
-  } catch (err: any) {
-    console.error('AI API Error:', err);
-    if (err.message && (
-      err.message.includes('Rate limit') || 
-      err.message.includes('Unauthorized') || 
-      err.message.includes('too long') ||
-      err.message.includes('429') ||
-      err.message.includes('401') ||
-      err.message.includes('400')
-    )) {
+      if (response.status === 503 || response.status === 504 || response.status === 429) {
+        if (retryCount === maxRetries) {
+           const data = await response.json().catch(() => ({}));
+           throw new Error(data.error || `服务器繁忙，请稍后重试 (Server Busy ${response.status})`);
+        }
+        // Exponential backoff: 1s, 2s, 4s
+        const waitTime = Math.pow(2, retryCount) * 1000;
+        console.warn(`API ${response.status}. Retrying in ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        retryCount++;
+        continue;
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const errorMessage = data.error || `API 请求失败 (API Error: ${response.status})`;
+        
+        if (response.status === 401) throw new Error(`认证失败 (Unauthorized: ${errorMessage})`);
+        if (response.status === 400) throw new Error(`请求无效 (Bad Request: ${errorMessage})`);
+        
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      return data.content;
+    } catch (err: any) {
+      console.error('AI API Error:', err);
+      
+      // If it's a network error (fetch failed), retry
+      if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
+         if (retryCount === maxRetries) throw new Error('网络连接失败，请检查您的网络 (Network Connection Error)');
+         const waitTime = Math.pow(2, retryCount) * 1000;
+         await new Promise(resolve => setTimeout(resolve, waitTime));
+         retryCount++;
+         continue;
+      }
+
+      if (err.message && (
+        err.message.includes('Rate limit') || 
+        err.message.includes('Unauthorized') || 
+        err.message.includes('too long') ||
+        err.message.includes('401') ||
+        err.message.includes('400')
+      )) {
+        throw err;
+      }
+      
+      // For other errors, if we haven't retried enough, maybe retry?
+      // But usually other errors are permanent.
       throw err;
     }
-    return null;
   }
+  return null;
 }
 
 export async function analyzeCategory(htmlContent: string) {

@@ -260,6 +260,29 @@ serve(async (req) => {
                     while (true) {
                       if (streamClosed) {
                           console.log('客户端已断开连接，停止生成');
+                          // 客户端主动断开，视为取消，退还积分
+                          console.log(`检测到客户端断开，正在退还 ${COST} 积分...`);
+                          const { data: currentProfile } = await supabaseAdmin
+                              .from('profiles')
+                              .select('credits')
+                              .eq('id', user.id)
+                              .single();
+                              
+                          if (currentProfile) {
+                              const refunded = (Number(currentProfile.credits) || 0) + COST;
+                              await supabaseAdmin
+                                  .from('profiles')
+                                  .update({ credits: refunded })
+                                  .eq('id', user.id);
+                              console.log(`积分已退还。当前余额: ${refunded}`);
+                          }
+                          
+                          // 更新任务状态为已取消
+                          await supabaseAdmin
+                              .from('generation_tasks')
+                              .update({ status: 'cancelled', error_message: 'User cancelled (Client disconnected)' })
+                              .eq('id', taskId);
+                              
                           break;
                       }
 
@@ -400,15 +423,34 @@ serve(async (req) => {
                 
                 const errorMessage = error.message || '生成过程中发生未知错误';
 
-                // 尝试更新任务状态为失败
+                // 尝试更新任务状态为失败并退款
                 try {
                     if (taskId) {
                         await supabaseAdmin
                             .from('generation_tasks')
                             .update({ status: 'failed', error_message: errorMessage })
                             .eq('id', taskId);
+                            
+                        // 退款逻辑
+                        console.log(`生成失败 (${errorMessage})，正在退还 ${COST} 积分...`);
+                        const { data: currentProfile } = await supabaseAdmin
+                            .from('profiles')
+                            .select('credits')
+                            .eq('id', user.id)
+                            .single();
+                            
+                        if (currentProfile) {
+                            const refunded = (Number(currentProfile.credits) || 0) + COST;
+                            await supabaseAdmin
+                                .from('profiles')
+                                .update({ credits: refunded })
+                                .eq('id', user.id);
+                            console.log(`积分已退还。当前余额: ${refunded}`);
+                        }
                     }
-                } catch (e) {}
+                } catch (e) {
+                    console.error('退款/状态更新失败:', e);
+                }
                 
                 // 如果流仍打开，尝试发送错误消息
                 try {

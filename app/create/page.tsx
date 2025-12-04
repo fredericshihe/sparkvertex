@@ -232,6 +232,10 @@ function CreateContent() {
   
   const STORAGE_KEY = 'spark_create_session_v1';
 
+  // State: Timeout Modal
+  const [showTimeoutModal, setShowTimeoutModal] = useState(false);
+  const [timeoutCost, setTimeoutCost] = useState(0);
+
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
@@ -239,6 +243,7 @@ function CreateContent() {
   const codeScrollRef = useRef<HTMLDivElement>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const channelRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -592,7 +597,7 @@ function CreateContent() {
     }
   };
 
-  const handleCancelGeneration = async () => {
+  const handleCancelGeneration = async (refundCost = 0) => {
     // 1. Clear Intervals
     if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
@@ -601,6 +606,10 @@ function CreateContent() {
     if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
+    }
+    if (timeoutTimerRef.current) {
+        clearTimeout(timeoutTimerRef.current);
+        timeoutTimerRef.current = null;
     }
 
     // 2. Unsubscribe Channel
@@ -628,20 +637,37 @@ function CreateContent() {
         }
     }
 
-    // 5. Reset State
+    // 5. Refund Credits (Optimistic)
+    if (refundCost > 0) {
+        setCredits(prev => prev + refundCost);
+        toastSuccess(language === 'zh' ? `已取消并退还 ${refundCost} 积分` : `Cancelled and refunded ${refundCost} credits`);
+    } else {
+        toastSuccess(language === 'zh' ? '已取消生成' : 'Generation cancelled');
+    }
+
+    // 6. Reset State
     setIsGenerating(false);
     setProgress(0);
     setLoadingText('');
     setCurrentTaskId(null);
+    setShowTimeoutModal(false);
     
-    // 6. UI Navigation
+    // 7. UI Navigation
     if (step === 'generating') {
         setStep('concept');
-        toastSuccess(language === 'zh' ? '已取消生成' : 'Generation cancelled');
-    } else {
-        // In preview mode (modification)
-        toastSuccess(language === 'zh' ? '已取消修改' : 'Modification cancelled');
     }
+  };
+
+  const handleTimeoutWait = () => {
+      setShowTimeoutModal(false);
+      // Reset timeout timer for another 30 seconds
+      if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
+      timeoutTimerRef.current = setTimeout(() => {
+          // Only show again if we are still generating and still haven't received code
+          if (isGenerating && !streamingCode) {
+              setShowTimeoutModal(true);
+          }
+      }, 30000);
   };
 
   // --- Wizard Handlers ---
@@ -765,7 +791,16 @@ ${description}
       // Clear any existing intervals first
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
       if (channelRef.current) supabase.removeChannel(channelRef.current);
+
+      // Set Timeout Timer (45 seconds)
+      timeoutTimerRef.current = setTimeout(() => {
+          // Only show timeout if we haven't received ANY code yet
+          if (!hasStartedStreaming) {
+              setShowTimeoutModal(true);
+          }
+      }, 45000);
 
       // Restart progress bar if needed (fake progress for visual feedback)
       progressIntervalRef.current = setInterval(() => {
@@ -798,6 +833,7 @@ ${description}
             isFinished = true;
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
             if (channelRef.current) supabase.removeChannel(channelRef.current);
 
             checkAuth();
@@ -948,10 +984,30 @@ ${description}
             isFinished = true;
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
             if (channelRef.current) supabase.removeChannel(channelRef.current);
             
-            toastError(newTask.error_message || t.common.error);
-            setLoadingText(`${t.common.error}: ${newTask.error_message || t.common.unknown_error}`);
+            // Refund credits on failure
+            // Note: Edge Function might have already refunded, but we do optimistic update here just in case
+            // Actually, if Edge Function refunded, checkAuth() will pick it up.
+            // But checkAuth() is async.
+            // Let's just rely on checkAuth() or do optimistic refund if we are sure.
+            // Since we deducted optimistically, we should refund optimistically if we see 'failed'.
+            // But wait, if Edge Function refunded, and we refund, we might double refund in UI (not DB).
+            // Let's trigger checkAuth() and show error.
+            checkAuth();
+            
+            let friendlyError = newTask.error_message || t.common.error;
+            if (friendlyError.includes('503')) {
+                friendlyError = language === 'zh' ? '服务暂时繁忙 (503)，请稍后重试。' : 'Service Unavailable (503), please try again later.';
+            } else if (friendlyError.includes('504')) {
+                friendlyError = language === 'zh' ? '生成超时 (504)，请尝试简化描述或稍后重试。' : 'Gateway Timeout (504), please simplify your request or try again later.';
+            } else if (friendlyError.includes('429')) {
+                friendlyError = language === 'zh' ? '请求过于频繁 (429)，请稍作休息。' : 'Too Many Requests (429), please take a break.';
+            }
+
+            toastError(friendlyError);
+            setLoadingText(`${t.common.error}: ${friendlyError}`);
             setIsGenerating(false);
             setProgress(100);
             setCurrentTaskId(null); // Clear task ID
@@ -1041,6 +1097,7 @@ ${description}
     // Cost: Modification = 0.5, New Generation / Regenerate = 3.0
     // Full modification fallback costs more (3.0) but less than full gen
     const COST = isModification ? (forceFull ? 3.0 : 0.5) : 3.0;
+    setTimeoutCost(COST);
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -1573,45 +1630,87 @@ Remember: You're building for production. Code must be clean, performant, and er
       // Start monitoring immediately
       monitorTask(taskId, isModification, useDiffMode);
 
-      fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-app-async`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({ 
-            taskId, 
-            system_prompt: SYSTEM_PROMPT, 
-            user_prompt: finalUserPrompt, 
-            type: isModification ? 'modification' : 'generation'
-        })
-      }).then(async (res) => {
-          if (!res.ok) {
-              const errText = await res.text();
-              console.error('Edge Function Error:', res.status, errText);
-              toastError(`${t.common.error}: ${res.status}`);
-              setIsGenerating(false);
-              setCurrentTaskId(null);
-              return;
-          }
-          
-          try {
-              const reader = res.body?.getReader();
-              if (reader) {
-                  while (true) {
-                      const { done } = await reader.read();
-                      if (done) break;
-                  }
-              }
-          } catch (streamErr) {
-              console.log('Stream reading ended:', streamErr);
-          }
-      }).catch(err => {
-          console.error('Trigger error:', err);
-          toastError(t.common.unknown_error);
-          setIsGenerating(false);
-          setCurrentTaskId(null);
-      });
+      // Trigger Edge Function with Retry Logic
+      const triggerGeneration = async () => {
+        let triggerRetry = 0;
+        const maxTriggerRetries = 3;
+
+        while (triggerRetry <= maxTriggerRetries) {
+            try {
+                // Check if aborted before starting request
+                if (abortControllerRef.current?.signal.aborted) {
+                    console.log('Generation trigger aborted by user');
+                    return;
+                }
+
+                const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-app-async`, {
+                    method: 'POST',
+                    headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`
+                    },
+                    body: JSON.stringify({ 
+                        taskId, 
+                        system_prompt: SYSTEM_PROMPT, 
+                        user_prompt: finalUserPrompt, 
+                        type: isModification ? 'modification' : 'generation'
+                    }),
+                    signal: abortControllerRef.current?.signal
+                });
+
+                if (res.status === 503 || res.status === 504 || res.status === 429) {
+                    if (triggerRetry === maxTriggerRetries) {
+                        const statusText = res.status === 503 ? '服务暂时不可用 (Service Unavailable)' : 
+                                         res.status === 504 ? '网关超时 (Gateway Timeout)' : 
+                                         '请求过多 (Too Many Requests)';
+                        throw new Error(`服务器繁忙，请稍后重试。原因: ${statusText}`);
+                    }
+                    const waitTime = Math.pow(2, triggerRetry) * 1000 + Math.random() * 1000;
+                    console.warn(`Generation Trigger ${res.status}. Retrying in ${Math.round(waitTime)}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                    triggerRetry++;
+                    continue;
+                }
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(`服务调用失败 (Service Error: ${res.status})`);
+                }
+                
+                // Success - consume stream to keep connection alive
+                try {
+                    const reader = res.body?.getReader();
+                    if (reader) {
+                        while (true) {
+                            const { done } = await reader.read();
+                            if (done) break;
+                        }
+                    }
+                } catch (streamErr) {
+                    console.log('Stream reading ended:', streamErr);
+                }
+                return; // Success
+
+            } catch (err: any) {
+                if (err.name === 'AbortError') {
+                    console.log('Generation trigger aborted');
+                    return;
+                }
+                console.error('Trigger attempt failed:', err);
+                if (triggerRetry === maxTriggerRetries) {
+                    toastError(err.message || t.common.unknown_error);
+                    setIsGenerating(false);
+                    setCurrentTaskId(null);
+                    return;
+                }
+                const waitTime = Math.pow(2, triggerRetry) * 1000;
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                triggerRetry++;
+            }
+        }
+      };
+
+      triggerGeneration();
       
       // The monitoring logic is now handled by monitorTask, so we don't need the duplicate code here.
       // We can remove the rest of the function that was handling polling/realtime.
@@ -2550,6 +2649,38 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
       {step === 'generating' ? renderGenerating() : 
        step === 'preview' ? renderPreview() : 
        renderWizard()}
+
+      {/* Timeout Modal */}
+      {showTimeoutModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4 text-amber-400">
+              <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
+              <h3 className="text-xl font-bold">{language === 'zh' ? '生成时间较长' : 'Generation Taking Long'}</h3>
+            </div>
+            <p className="text-slate-300 mb-6 leading-relaxed">
+              {language === 'zh' 
+                ? 'AI 生成响应时间超过预期。这可能是由于服务器繁忙或任务较复杂。您可以选择继续等待，或者取消任务（积分将全额退还）。' 
+                : 'AI generation is taking longer than expected. This might be due to server load or task complexity. You can keep waiting or cancel (credits will be fully refunded).'}
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => handleCancelGeneration(timeoutCost)}
+                className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition border border-slate-700 flex flex-col items-center justify-center gap-0.5"
+              >
+                <span className="font-bold text-sm">{language === 'zh' ? '取消任务' : 'Cancel Task'}</span>
+                <span className="text-[10px] text-slate-400 font-normal">{language === 'zh' ? '积分将全额退还' : 'Credits fully refunded'}</span>
+              </button>
+              <button 
+                onClick={handleTimeoutWait}
+                className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20"
+              >
+                {language === 'zh' ? '继续等待' : 'Keep Waiting'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isCreditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">

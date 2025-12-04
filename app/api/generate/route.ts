@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: '未授权 (Unauthorized)' }, { status: 401 });
     }
 
     const body = await request.json();
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const token = session.access_token;
 
     if (!supabaseUrl) {
-        return NextResponse.json({ error: 'Server Configuration Error' }, { status: 500 });
+        return NextResponse.json({ error: '服务器配置错误 (Server Configuration Error)' }, { status: 500 });
     }
 
     // Note: Credit deduction is now handled entirely in the Edge Function to ensure atomicity and correct pricing based on model usage.
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     if (taskError || !task) {
         console.error('Task Creation Error:', taskError);
         return NextResponse.json({ 
-            error: 'Failed to create generation task', 
+            error: '创建任务失败 (Failed to create generation task)', 
             details: taskError 
         }, { status: 500 });
     }
@@ -74,6 +74,6 @@ export async function POST(request: Request) {
 
   } catch (error) {
     console.error('Proxy Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: '服务器内部错误 (Internal Server Error)' }, { status: 500 });
   }
 }

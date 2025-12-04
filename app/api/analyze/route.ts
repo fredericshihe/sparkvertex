@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized: Please login first' }, { status: 401 });
+      return NextResponse.json({ error: '未授权，请先登录 (Unauthorized: Please login first)' }, { status: 401 });
     }
 
     // 2. Rate Limiting
@@ -24,26 +24,24 @@ export async function POST(request: Request) {
     );
 
     if (!allowed) {
-      return NextResponse.json({ error: rateLimitError }, { status: 429 });
+      return NextResponse.json({ error: `请求过于频繁，请稍后再试 (Rate Limit Exceeded: ${rateLimitError})` }, { status: 429 });
     }
 
     const { system_prompt, user_prompt, temperature = 0.7 } = await request.json();
     
     if (!user_prompt) {
-      return NextResponse.json({ error: 'No user_prompt provided' }, { status: 400 });
+      return NextResponse.json({ error: '缺少用户提示词 (No user_prompt provided)' }, { status: 400 });
     }
 
     // 3. Input Validation
     if (user_prompt.length > 100000) {
-      return NextResponse.json({ error: 'Input too long' }, { status: 400 });
+      return NextResponse.json({ error: '输入内容过长 (Input too long)' }, { status: 400 });
     }
 
     // 4. Try Supabase Edge Function (Priority)
     // This allows using the remote DeepSeek proxy which handles the API key securely
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     // SECURITY: Use Service Role Key to authenticate as a privileged caller.
-    // This allows you to configure the Edge Function to REJECT requests with the Anon Key,
-    // preventing users from bypassing the rate limits in this API route.
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
     if (!supabaseKey) {
@@ -51,50 +49,75 @@ export async function POST(request: Request) {
     }
 
     if (supabaseUrl && supabaseKey) {
-      try {
-        const edgeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-html`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseKey}`
-          },
-          body: JSON.stringify({ system_prompt, user_prompt, temperature })
-        });
+      let edgeRetryCount = 0;
+      const maxEdgeRetries = 2;
+      
+      while (edgeRetryCount <= maxEdgeRetries) {
+        try {
+          const edgeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-html`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseKey}`
+            },
+            body: JSON.stringify({ system_prompt, user_prompt, temperature })
+          });
 
-        if (edgeResponse.ok) {
-          // Parse SSE stream from Edge Function
-          const reader = edgeResponse.body?.getReader();
-          if (reader) {
-            const decoder = new TextDecoder();
-            let fullContent = '';
-            let buffer = '';
-            
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
+          if (edgeResponse.status === 503 || edgeResponse.status === 504 || edgeResponse.status === 429) {
+             if (edgeRetryCount === maxEdgeRetries) {
+               console.warn(`Edge Function failed after retries: ${edgeResponse.status}`);
+               break; // Fallback to local DeepSeek
+             }
+             await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, edgeRetryCount)));
+             edgeRetryCount++;
+             continue;
+          }
+
+          if (edgeResponse.ok) {
+            // Parse SSE stream from Edge Function
+            const reader = edgeResponse.body?.getReader();
+            if (reader) {
+              const decoder = new TextDecoder();
+              let fullContent = '';
+              let buffer = '';
               
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split('\n');
-              buffer = lines.pop() || '';
-              
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  const dataStr = line.slice(6).trim();
-                  if (dataStr === '[DONE]') continue;
-                  try {
-                    const data = JSON.parse(dataStr);
-                    fullContent += data.choices?.[0]?.delta?.content || '';
-                  } catch (e) {}
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                
+                for (const line of lines) {
+                  if (line.startsWith('data: ')) {
+                    const dataStr = line.slice(6).trim();
+                    if (dataStr === '[DONE]') continue;
+                    try {
+                      const data = JSON.parse(dataStr);
+                      fullContent += data.choices?.[0]?.delta?.content || '';
+                    } catch (e) {}
+                  }
                 }
               }
+              if (fullContent) {
+                return NextResponse.json({ content: fullContent });
+              }
             }
-            if (fullContent) {
-              return NextResponse.json({ content: fullContent });
-            }
+            break; // If response ok but no content (shouldn't happen with stream), break to fallback? Or return empty?
+                   // Assuming if ok and stream parsed, we returned. If we are here, maybe stream failed?
+                   // Actually if edgeResponse.ok but reader fails, we might want to fallback.
+          } else {
+             // Other errors (400, 500 etc) - maybe fallback?
+             console.warn(`Edge Function returned ${edgeResponse.status}, falling back.`);
+             break;
           }
+        } catch (e) {
+          console.warn('Edge Function attempt failed, retrying/falling back.', e);
+          if (edgeRetryCount === maxEdgeRetries) break;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          edgeRetryCount++;
         }
-      } catch (e) {
-        console.warn('Edge Function attempt failed, falling back to local/mock.');
       }
     }
 
@@ -102,6 +125,7 @@ export async function POST(request: Request) {
     
     // Mock response if no key (or for specific demo prompts if needed)
     if (!apiKey) {
+      // ... (mock logic remains same)
       await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000)); // Simulate network delay
       
       // Simple mock responses based on prompt content to simulate "intelligence"
@@ -147,35 +171,69 @@ export async function POST(request: Request) {
       return NextResponse.json({ content: 'Mock AI Response' });
     }
 
-    // Real DeepSeek API Call
-    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: "deepseek-chat",
-        messages: [
-          { role: "system", content: system_prompt || "You are a helpful assistant." },
-          { role: "user", content: user_prompt }
-        ],
-        temperature: temperature
-      })
-    });
+    // Real DeepSeek API Call with Retry
+    let retryCount = 0;
+    const maxRetries = 3;
+    let lastError: any;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`DeepSeek API Error: ${response.status} ${errorText}`);
+    while (retryCount <= maxRetries) {
+      try {
+        const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: "deepseek-chat",
+            messages: [
+              { role: "system", content: system_prompt || "You are a helpful assistant." },
+              { role: "user", content: user_prompt }
+            ],
+            temperature: temperature
+          })
+        });
+
+        if (response.status === 429 || response.status === 503 || response.status === 500 || response.status === 502 || response.status === 504) {
+           if (retryCount === maxRetries) {
+             const errorText = await response.text();
+             throw new Error(`DeepSeek API Error after retries: ${response.status} ${errorText}`);
+           }
+           const waitTime = Math.pow(2, retryCount) * 1000 + Math.random() * 500;
+           console.warn(`DeepSeek API ${response.status}. Retrying in ${Math.round(waitTime)}ms...`);
+           await new Promise(resolve => setTimeout(resolve, waitTime));
+           retryCount++;
+           continue;
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`DeepSeek API Error: ${response.status} ${errorText}`);
+        }
+
+        const data = await response.json();
+        const content = data.choices[0].message.content;
+
+        return NextResponse.json({ content });
+      } catch (e) {
+        lastError = e;
+        if (retryCount === maxRetries) break;
+        const waitTime = Math.pow(2, retryCount) * 1000;
+        console.warn(`DeepSeek API Network Error. Retrying...`, e);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        retryCount++;
+      }
     }
 
-    const data = await response.json();
-    const content = data.choices[0].message.content;
-
-    return NextResponse.json({ content });
+    throw lastError || new Error('DeepSeek API failed after retries');
 
   } catch (error: any) {
-    console.error('Analysis error occurred.');
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Analysis error occurred:', error);
+    // Return specific status codes if possible
+    if (error.message.includes('429')) return NextResponse.json({ error: '请求过多 (Too Many Requests)' }, { status: 429 });
+    if (error.message.includes('503')) return NextResponse.json({ error: '服务暂时不可用 (Service Unavailable)' }, { status: 503 });
+    if (error.message.includes('504')) return NextResponse.json({ error: '网关超时 (Gateway Timeout)' }, { status: 504 });
+    
+    return NextResponse.json({ error: `服务器内部错误 (Internal Server Error: ${error.message})` }, { status: 500 });
   }
 }

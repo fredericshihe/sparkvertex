@@ -127,6 +127,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                  className="w-[200%] h-[200%] border-0 origin-top-left scale-50 pointer-events-none select-none"
                  onLoad={() => setIframeLoaded(true)}
                  sandbox="allow-scripts allow-same-origin"
+                 allow="autoplay 'none'; camera 'none'; microphone 'none'"
                  scrolling="no"
                  title={`Preview of ${item.title}`}
                />
@@ -162,13 +163,8 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                 </span>
               )}
               {(item.total_score !== undefined && item.total_score > 0) && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-brand-500/20 text-brand-400 border border-brand-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.3)]">
-                  <i className="fa-solid fa-wand-magic-sparkles text-[10px]"></i> {item.total_score}
-                </span>
-              )}
-              {(item.tags || []).includes('AI Verified') && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(234,179,8,0.3)]">
-                  <i className="fa-solid fa-shield-halved text-[10px]"></i> {t.project_card.ai_verified}
+                  <i className="fa-solid fa-shield-halved text-[10px]"></i> {item.total_score}
                 </span>
               )}
             </div>

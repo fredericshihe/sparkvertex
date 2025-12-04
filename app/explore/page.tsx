@@ -517,6 +517,8 @@ export default function Explore() {
                               className="w-[200%] h-[200%] border-0 transform scale-50 origin-center pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity" 
                               tabIndex={-1}
                               scrolling="no"
+                              sandbox="allow-scripts"
+                              allow="autoplay 'none'; camera 'none'; microphone 'none'"
                               title="Featured App Preview"
                            />
                            {/* Overlay for click */}

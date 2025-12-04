@@ -125,30 +125,57 @@ Return ONLY a valid JSON object:
 
         const userPrompt = `Title: ${item.title}\nDescription: ${item.description}\n\nFull Source Code:\n${fullCode}`;
 
-        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${googleApiKey}`
-          },
-          body: JSON.stringify({
-            model: 'gemini-2.0-flash-exp',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt }
-            ],
-            temperature: 0.2, // 低温度以获得一致、客观的评分
-            response_format: { type: 'json_object' }
-          })
-        });
+        let aiData;
+        let retryCount = 0;
+        const maxRetries = 3;
 
-        if (!response.ok) {
-          const errText = await response.text();
-          console.error(`项目 ${item.id} Gemini API 错误: ${response.status} ${errText}`);
-          continue;
+        while (retryCount <= maxRetries) {
+          try {
+            const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${googleApiKey}`
+              },
+              body: JSON.stringify({
+                model: 'gemini-2.0-flash-exp',
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: userPrompt }
+                ],
+                temperature: 0.2,
+                response_format: { type: 'json_object' }
+              })
+            });
+
+            if (response.status === 429 || response.status === 503 || response.status === 500 || response.status === 502 || response.status === 504) {
+               if (retryCount === maxRetries) {
+                 const errText = await response.text();
+                 throw new Error(`Gemini API Error after ${maxRetries} retries: ${response.status} ${errText}`);
+               }
+               const waitTime = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
+               console.warn(`Gemini API ${response.status}. Retrying in ${Math.round(waitTime)}ms...`);
+               await new Promise(resolve => setTimeout(resolve, waitTime));
+               retryCount++;
+               continue;
+            }
+
+            if (!response.ok) {
+              const errText = await response.text();
+              throw new Error(`Gemini API Error: ${response.status} ${errText}`);
+            }
+
+            aiData = await response.json();
+            break; // Success
+          } catch (e) {
+             if (retryCount === maxRetries) throw e;
+             const waitTime = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
+             console.warn(`Gemini API Network Error (${e.message}). Retrying...`);
+             await new Promise(resolve => setTimeout(resolve, waitTime));
+             retryCount++;
+          }
         }
 
-        const aiData = await response.json();
         const content = aiData.choices[0].message.content;
         let scores;
         
