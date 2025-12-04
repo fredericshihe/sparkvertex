@@ -1016,7 +1016,7 @@ function UploadContent() {
           .from('items')
           .select('id, author_id')
           .eq('content_hash', contentHash)
-          .single();
+          .maybeSingle();
 
         if (existing) {
           if (existing.author_id === session.user.id) {
