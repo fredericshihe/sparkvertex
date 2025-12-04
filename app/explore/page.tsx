@@ -112,13 +112,13 @@ const IGNORED_TAGS = new Set([
 
 export default function Explore() {
   const [items, setItems] = useState<Item[]>(exploreCache.items);
+  const [topItems, setTopItems] = useState<Item[]>([]);
   const [categories, setCategories] = useState(exploreCache.categories?.length > 0 ? exploreCache.categories : [{ id: 'all', label: '发现', translationKey: 'discover', icon: 'fa-compass' }]);
   const [loading, setLoading] = useState(!exploreCache.hasLoaded);
   const [myLikes, setMyLikes] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(exploreCache.page);
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState(exploreCache.category || 'all');
-  const [featuredItem, setFeaturedItem] = useState<Item | null>(null);
   const { openLoginModal, openDetailModal } = useModal();
   const { language } = useLanguage();
   const t = translations[language];
@@ -126,7 +126,6 @@ export default function Explore() {
 
   useEffect(() => {
     fetchCategories();
-    fetchFeaturedItem();
   }, []);
 
   useEffect(() => {
@@ -194,71 +193,6 @@ export default function Explore() {
     exploreCache.categories = finalCategories;
   };
 
-  const fetchFeaturedItem = async () => {
-    try {
-      // 1. Try to fetch the Daily Rank #1 item
-      const { data: rankedData } = await supabase
-        .from('items')
-        .select(`
-          *,
-          profiles:author_id (
-            username,
-            avatar_url
-          )
-        `)
-        .eq('is_public', true)
-        .eq('daily_rank', 1)
-        .limit(1)
-        .maybeSingle();
-
-      if (rankedData) {
-        const formattedItem = {
-          ...rankedData,
-          author: rankedData.profiles?.username || 'Unknown',
-          authorAvatar: rankedData.profiles?.avatar_url
-        };
-        setFeaturedItem(formattedItem);
-        return;
-      }
-
-      // 2. Fallback: Random item based on date seed
-      const { count } = await supabase
-        .from('items')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_public', true);
-
-      if (!count) return;
-
-      const today = new Date();
-      const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
-      const offset = seed % count;
-
-      const { data } = await supabase
-        .from('items')
-        .select(`
-          *,
-          profiles:author_id (
-            username,
-            avatar_url
-          )
-        `)
-        .eq('is_public', true)
-        .range(offset, offset)
-        .single();
-
-      if (data) {
-        const formattedItem = {
-          ...data,
-          author: data.profiles?.username || 'Unknown',
-          authorAvatar: data.profiles?.avatar_url
-        };
-        setFeaturedItem(formattedItem);
-      }
-    } catch (error) {
-      console.error('Error fetching featured item:', error);
-    }
-  };
-
   const handleSearch = () => {
     setPage(0);
     fetchItems(0, false);
@@ -271,6 +205,12 @@ export default function Explore() {
 
   const fetchItems = async (pageIndex = 0, isLoadMore = false) => {
     setLoading(true);
+    
+    // If it's the first page, we fetch more items to account for the top 1 (Hero)
+    const fetchLimit = pageIndex === 0 ? ITEMS_PER_PAGE + 1 : ITEMS_PER_PAGE;
+    const rangeStart = pageIndex === 0 ? 0 : (pageIndex * ITEMS_PER_PAGE) + 1; // Offset by 1 for subsequent pages
+    const rangeEnd = rangeStart + fetchLimit - 1;
+
     let query = supabase
       .from('items')
       .select(`
@@ -281,10 +221,10 @@ export default function Explore() {
         )
       `)
       .eq('is_public', true)
-      // Sort by Daily Rank (High Quality) first, then Newest
-      .order('daily_rank', { ascending: true, nullsFirst: false })
+      // Sort by Total Score (High Quality) first, then Newest
+      .order('total_score', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
-      .range(pageIndex * ITEMS_PER_PAGE, (pageIndex + 1) * ITEMS_PER_PAGE - 1);
+      .range(rangeStart, rangeEnd);
 
     if (category !== 'all') {
       // Expand category key to all tags that map to it
@@ -321,8 +261,19 @@ export default function Explore() {
         exploreCache.items = newItems;
         exploreCache.page = pageIndex;
       } else {
-        setItems(formattedItems);
-        exploreCache.items = formattedItems;
+        // First page load: Split Top 1 (Hero)
+        if (pageIndex === 0 && !searchQuery) {
+          const top = formattedItems.slice(0, 1);
+          const rest = formattedItems.slice(1);
+          setTopItems(top);
+          setItems(rest);
+          exploreCache.items = rest; 
+        } else {
+          // Search results or subsequent pages
+          setTopItems([]);
+          setItems(formattedItems);
+          exploreCache.items = formattedItems;
+        }
         exploreCache.page = 0;
       }
       
@@ -493,44 +444,90 @@ export default function Explore() {
             </div>
           </div>
 
-          {/* Featured Banner (Only on 'all' category) */}
-          {category === 'all' && !searchQuery && featuredItem && (
-            <div className="mb-12 relative rounded-3xl overflow-hidden bg-gradient-to-r from-brand-900 to-purple-900 border border-white/10 shadow-2xl group">
-              <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-30"></div>
-              <div className="absolute top-0 right-0 w-96 h-96 bg-brand-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
-              
-              <div className="relative z-10 p-8 md:p-12 flex flex-col md:flex-row items-center gap-8">
-                <div className="flex-1 text-center md:text-left">
-                  <span className="inline-block px-3 py-1 rounded-full bg-brand-500/20 text-brand-300 text-xs font-bold mb-4 border border-brand-500/30">
-                    🚀 {t.explore.featured_today}
+          {/* Top 1 Featured Hero (App Store Style) */}
+          {!searchQuery && topItems.length > 0 && topItems[0] && (
+            <div className="mb-16 mt-8">
+               {/* Label */}
+               <div className="flex items-center gap-2 mb-6 px-1">
+                  <i className="fa-solid fa-star text-brand-500"></i>
+                  <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+                    {t.explore.top_rated || (language === 'zh' ? '本周最佳' : 'Editor\'s Choice')}
                   </span>
-                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 leading-tight line-clamp-2">
-                    {featuredItem.title}
-                  </h2>
-                  <p className="text-slate-300 text-lg mb-8 max-w-xl line-clamp-3">
-                    {featuredItem.description}
-                  </p>
-                  <div className="flex flex-wrap gap-4 justify-center md:justify-start">
-                    <button onClick={() => openDetailModal(featuredItem.id, featuredItem)} className="px-6 py-3 bg-white text-slate-900 rounded-xl font-bold hover:bg-slate-100 transition shadow-lg shadow-white/10 flex items-center gap-2">
-                      <i className="fa-solid fa-play"></i> {t.explore.try_now}
-                    </button>
-                    <a href="/create" className="px-6 py-3 bg-brand-600 text-white rounded-xl font-bold hover:bg-brand-500 transition shadow-lg shadow-brand-500/20">
-                      {t.explore.create_too}
-                    </a>
+               </div>
+
+               {/* Hero Card */}
+               <div className="relative group rounded-3xl bg-slate-900 border border-slate-800 overflow-hidden shadow-2xl transition-all hover:shadow-brand-900/20 hover:border-slate-700">
+                  {/* Background Gradient Mesh */}
+                  <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-brand-900/20 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+                  
+                  <div className="flex flex-col md:flex-row h-auto md:h-[450px]">
+                    {/* Left: Content */}
+                    <div className="flex-1 p-8 md:p-12 flex flex-col justify-center relative z-10">
+                       <div className="flex items-center gap-3 mb-4">
+                          <img 
+                            src={topItems[0].authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${topItems[0].author}`} 
+                            className="w-8 h-8 rounded-full border border-slate-700" 
+                            alt={topItems[0].author} 
+                            onError={(e) => {
+                              e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${topItems[0].author}`;
+                            }}
+                          />
+                          <span className="text-slate-400 text-sm font-medium">{topItems[0].author}</span>
+                          {topItems[0].total_score > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 text-xs font-bold border border-brand-500/20">
+                              {topItems[0].total_score} 分
+                            </span>
+                          )}
+                       </div>
+                       
+                       <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 leading-tight">
+                         {topItems[0].title}
+                       </h2>
+                       
+                       <p className="text-slate-400 text-lg mb-8 line-clamp-3 leading-relaxed max-w-xl">
+                         {topItems[0].description}
+                       </p>
+                       
+                       <div className="flex items-center gap-4 mt-auto">
+                          <button 
+                            onClick={() => openDetailModal(topItems[0].id, topItems[0])}
+                            className="px-8 py-4 bg-white text-slate-950 rounded-xl font-bold hover:bg-slate-200 transition shadow-lg shadow-white/5 flex items-center gap-2"
+                          >
+                            {t.explore.try_now || '立即体验'} <i className="fa-solid fa-arrow-right"></i>
+                          </button>
+                          <button 
+                             onClick={() => handleLike(topItems[0].id)}
+                             className={`w-14 h-14 rounded-xl flex items-center justify-center border transition ${
+                               myLikes.has(topItems[0].id) 
+                                 ? 'bg-rose-500/10 border-rose-500/50 text-rose-500' 
+                                 : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'
+                             }`}
+                          >
+                             <i className={`fa-solid fa-heart ${myLikes.has(topItems[0].id) ? 'fa-beat' : ''}`}></i>
+                          </button>
+                       </div>
+                    </div>
+
+                    {/* Right: Preview Visual */}
+                    <div className="w-full md:w-[55%] relative bg-slate-800/50 border-l border-slate-800/50 overflow-hidden group-hover:bg-slate-800/80 transition-colors">
+                       {/* We can reuse the iframe preview logic or just show a placeholder if no content */}
+                       <div className="absolute inset-0 flex items-center justify-center">
+                          <iframe 
+                              srcDoc={getPreviewContent(topItems[0].content || '')} 
+                              className="w-[200%] h-[200%] border-0 transform scale-50 origin-center pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity" 
+                              tabIndex={-1}
+                              scrolling="no"
+                              title="Featured App Preview"
+                           />
+                           {/* Overlay for click */}
+                           <div 
+                             className="absolute inset-0 z-20 cursor-pointer"
+                             onClick={() => openDetailModal(topItems[0].id, topItems[0])}
+                           ></div>
+                       </div>
+                    </div>
                   </div>
-                </div>
-                <div className="w-full md:w-1/3 aspect-video md:aspect-square bg-slate-800/50 rounded-2xl border border-white/10 backdrop-blur-sm relative overflow-hidden group-hover:scale-105 transition duration-700 shadow-2xl">
-                   <iframe 
-                      srcDoc={getPreviewContent(featuredItem.content || '')} 
-                      className="absolute top-0 left-0 w-[200%] h-[200%] border-0 transform scale-50 origin-top-left pointer-events-none" 
-                      tabIndex={-1}
-                      scrolling="no"
-                      title="Featured App Preview"
-                   />
-                   {/* Overlay to prevent interaction and handle click */}
-                   <div className="absolute inset-0 z-10 cursor-pointer" onClick={() => openDetailModal(featuredItem.id, featuredItem)}></div>
-                </div>
-              </div>
+               </div>
             </div>
           )}
 

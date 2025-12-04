@@ -1126,7 +1126,17 @@ function UploadContent() {
 
       clearInterval(interval);
       setUploadProgress(100);
-      setPublishedId(isEditing && editId ? editId : data.id);
+      const itemId = isEditing && editId ? editId : data.id;
+      setPublishedId(itemId);
+
+      // 触发 AI 评分（后台异步，不阻塞用户）
+      if (itemId) {
+        fetch('/api/score-item', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId })
+        }).catch(err => console.warn('评分触发失败:', err));
+      }
 
       // Clear creation session cache on successful publish
       localStorage.removeItem('spark_create_session_v1');

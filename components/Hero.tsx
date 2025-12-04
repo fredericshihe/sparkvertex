@@ -57,14 +57,15 @@ await ai.chat("Help me build a website");`
       const { data, error } = await supabase
         .from('items')
         .select(`
-          id, title, description, tags, prompt, content, downloads, page_views, likes, price, icon_url,
+          id, title, description, tags, prompt, content, downloads, page_views, likes, price, icon_url, daily_rank,
+          total_score, quality_score, richness_score, utility_score, analysis_reason, analysis_reason_en,
           profiles:author_id (
             username,
             avatar_url
           )
         `)
         .eq('is_public', true)
-        .order('created_at', { ascending: false })
+        .order('daily_rank', { ascending: true })
         .limit(5);
 
       if (error) {
@@ -88,7 +89,13 @@ await ai.chat("Help me build a website");`
             likes: item.likes || 0,
             downloads: item.downloads || 0,
             page_views: item.page_views || 0,
-            price: item.price || 0
+            price: item.price || 0,
+            total_score: item.total_score,
+            quality_score: item.quality_score,
+            richness_score: item.richness_score,
+            utility_score: item.utility_score,
+            analysis_reason: item.analysis_reason,
+            analysis_reason_en: item.analysis_reason_en
           };
         });
         setCards(mappedCards);
@@ -201,14 +208,19 @@ await ai.chat("Help me build a website");`
             <div className="h-[220px] md:h-44 relative bg-slate-900 overflow-hidden flex-shrink-0">
               {generatePreviewHtml(activeCard?.content, activeCard?.color)}
               
-              {/* AI Verified Badge */}
-              {(activeCard?.tags || []).includes('AI Verified') && (
-                <div className="absolute top-2 right-2 z-20">
+              {/* Badges */}
+              <div className="absolute top-2 right-2 z-20 flex flex-col gap-1 items-end">
+                {(activeCard?.total_score !== undefined && activeCard?.total_score > 0) && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-brand-500/20 text-brand-400 border border-brand-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.3)]">
+                    <i className="fa-solid fa-wand-magic-sparkles text-[10px]"></i> {activeCard.total_score}
+                  </span>
+                )}
+                {(activeCard?.tags || []).includes('AI Verified') && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(234,179,8,0.3)]">
                     <i className="fa-solid fa-certificate"></i> {t.home.ai_verified}
                   </span>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             <div className="p-4 text-left flex flex-col flex-grow">

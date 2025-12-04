@@ -17,9 +17,10 @@ interface ProjectCardProps {
   onEdit?: (item: Item) => void;
   onDelete?: (id: string) => void;
   onHover?: (item: Item) => void;
+  className?: string;
 }
 
-export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onDelete, onHover }: ProjectCardProps) {
+export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onDelete, onHover, className = '' }: ProjectCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
@@ -88,7 +89,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   return (
     <div 
       ref={cardRef}
-      className={`h-[360px] md:h-80 flip-card group cursor-pointer transition-transform duration-200 active:scale-95 touch-manipulation ${isFlipped ? 'flipped' : ''}`} 
+      className={`flip-card group cursor-pointer transition-transform duration-200 active:scale-95 touch-manipulation ${isFlipped ? 'flipped' : ''} ${className || 'h-[360px] md:h-80'}`} 
       onClick={() => !isFlipped && onClick(item.id)}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -158,6 +159,11 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
               {item.is_public === false && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-slate-900/80 text-slate-400 border border-slate-700 flex items-center gap-1 shadow-lg">
                   <i className="fa-solid fa-lock text-[10px]"></i> {t.project_card.private}
+                </span>
+              )}
+              {(item.total_score !== undefined && item.total_score > 0) && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-brand-500/20 text-brand-400 border border-brand-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.3)]">
+                  <i className="fa-solid fa-wand-magic-sparkles text-[10px]"></i> {item.total_score}
                 </span>
               )}
               {(item.tags || []).includes('AI Verified') && (

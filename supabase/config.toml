@@ -1,0 +1,4 @@
+project_id = "waesizzoqodntrlvrwhw"
+
+[functions.score-items]
+verify_jwt = false

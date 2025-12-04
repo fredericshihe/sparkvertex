@@ -225,6 +225,7 @@ export const translations = {
     },
     explore: {
       title: '灵枢广场',
+      top_rated: '高分榜单',
       dev_center: '开发者中心',
       dev_desc: '仅需 <span class="text-brand-400 font-bold text-sm">5分钟</span>，<br/>人人都能开发自己的应用。',
       start_create: '开始创作',
@@ -359,6 +360,11 @@ export const translations = {
       copy_link: '复制链接',
       link_copied: '链接已复制',
       back_to_detail: '返回详情',
+      ai_analysis: 'AI 深度评测',
+      quality: '代码质量',
+      richness: '功能丰富度',
+      utility: '实用价值',
+      reason: '评测理由',
     },
     auth_modal: {
       welcome_back: '欢迎回来',
@@ -1032,6 +1038,7 @@ export const translations = {
     },
     explore: {
       title: 'Spark Square',
+      top_rated: 'Top Rated',
       dev_center: 'Dev Center',
       dev_desc: 'In just <span class="text-brand-400 font-bold text-sm">5 mins</span>,<br/>anyone can create their own app.',
       start_create: 'Start Creating',
@@ -1166,6 +1173,11 @@ export const translations = {
       copy_link: 'Copy Link',
       link_copied: 'Link copied',
       back_to_detail: 'Back to Details',
+      ai_analysis: 'AI Analysis',
+      quality: 'Quality',
+      richness: 'Richness',
+      utility: 'Utility',
+      reason: 'Reason',
     },
     auth_modal: {
       welcome_back: 'Welcome Back',

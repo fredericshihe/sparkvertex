@@ -36,3 +36,21 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     return false;
   }
 }
+
+export function getFingerprint(): string {
+  if (typeof window === 'undefined') return 'server-side';
+  
+  const STORAGE_KEY = 'spark_client_fp';
+  let fp = localStorage.getItem(STORAGE_KEY);
+  
+  if (!fp) {
+    // Generate a simple UUID-like string
+    fp = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+    localStorage.setItem(STORAGE_KEY, fp);
+  }
+  
+  return fp;
+}

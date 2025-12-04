@@ -11,7 +11,7 @@ import { useToast } from '@/context/ToastContext';
 import { getPreviewContent } from '@/lib/preview';
 import AddToHomeScreenGuide from '@/components/AddToHomeScreenGuide';
 import { saveToHistory } from '@/lib/db';
-import { copyToClipboard } from '@/lib/utils';
+import { copyToClipboard, getFingerprint } from '@/lib/utils';
 import { useLanguage } from '@/context/LanguageContext';
 import { translations } from '@/lib/i18n/translations';
 
@@ -128,7 +128,10 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
 
     // Use RPC for secure increment
     // RLS policies prevent direct updates from non-authors, so we must use a Postgres Function
-    const { error } = await supabase.rpc('increment_views', { item_id: itemId });
+    const { error } = await supabase.rpc('increment_views', { 
+      p_item_id: itemId,
+      fingerprint: getFingerprint()
+    });
     
     if (error) {
       console.error('Failed to increment views:', error);
@@ -141,7 +144,10 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
     
     // Use RPC for secure increment (assuming you have a similar function for downloads)
     // If not, you should create one: create function increment_downloads(item_id uuid) ...
-    const { error } = await supabase.rpc('increment_downloads', { item_id: itemId });
+    const { error } = await supabase.rpc('increment_downloads', { 
+      p_item_id: itemId,
+      fingerprint: getFingerprint()
+    });
     
     if (error) {
        console.error('Failed to increment downloads:', error);
@@ -500,6 +506,58 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                 <span className="font-bold text-white text-sm">{Math.round((item.content?.length || 0) / 1024)}KB</span>
               </div>
             </div>
+            
+            {/* AI Analysis Score */}
+            {(item.total_score !== undefined && item.total_score > 0) && (
+              <div className="mb-8 bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-bold text-brand-400 uppercase tracking-wider flex items-center gap-2">
+                    <i className="fa-solid fa-wand-magic-sparkles"></i> {t.detail.ai_analysis}
+                  </h3>
+                  <div className="flex items-center gap-1 bg-brand-500/20 px-2 py-1 rounded-lg border border-brand-500/30">
+                    <span className="text-xs text-brand-300 font-bold">Score</span>
+                    <span className="text-lg font-black text-brand-400 leading-none">{item.total_score}</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-3 mb-4">
+                  {/* Quality */}
+                  <div>
+                    <div className="flex justify-between text-[10px] uppercase font-bold text-slate-500 mb-1">
+                      <span>{t.detail.quality}</span>
+                      <span>{item.quality_score || 0}</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${item.quality_score || 0}%` }}></div>
+                    </div>
+                  </div>
+                  {/* Richness */}
+                  <div>
+                    <div className="flex justify-between text-[10px] uppercase font-bold text-slate-500 mb-1">
+                      <span>{t.detail.richness}</span>
+                      <span>{item.richness_score || 0}</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-purple-500 rounded-full" style={{ width: `${item.richness_score || 0}%` }}></div>
+                    </div>
+                  </div>
+                  {/* Utility */}
+                  <div>
+                    <div className="flex justify-between text-[10px] uppercase font-bold text-slate-500 mb-1">
+                      <span>{t.detail.utility}</span>
+                      <span>{item.utility_score || 0}</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-green-500 rounded-full" style={{ width: `${item.utility_score || 0}%` }}></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-xs text-slate-300 italic border-l-2 border-slate-600 pl-3 py-1">
+                  "{language === 'en' ? (item.analysis_reason_en || item.analysis_reason) : (item.analysis_reason || item.analysis_reason_en)}"
+                </div>
+              </div>
+            )}
             
             {/* Description */}
             <div className="mb-8">

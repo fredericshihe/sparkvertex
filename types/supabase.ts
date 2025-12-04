@@ -27,6 +27,7 @@ export interface Item {
   total_score?: number;
   daily_rank?: number;
   analysis_reason?: string;
+  analysis_reason_en?: string;
 }
 
 export interface Order {
