@@ -239,6 +239,9 @@ export const translations = {
       no_apps: '暂无相关应用',
       no_apps_desc: '换个关键词搜索，或者去创建一个吧！',
       load_more: '加载更多',
+      ai_driven_title: 'AI 驱动的广场',
+      ai_verified_desc: '全部应用由 AI 认证，安全可靠',
+      ai_scoring_desc: 'AI 实时动态评分进行排序推荐',
     },
     why: {
       title: 'SparkVertex 核心理念',
@@ -1053,6 +1056,9 @@ export const translations = {
       no_apps: 'No related apps found',
       no_apps_desc: 'Try another keyword, or create one!',
       load_more: 'Load More',
+      ai_driven_title: 'AI-Driven Plaza',
+      ai_verified_desc: 'All apps are AI-verified, safe and reliable',
+      ai_scoring_desc: 'AI real-time dynamic scoring for sorting and recommendation',
     },
     why: {
       title: 'SparkVertex Philosophy',
