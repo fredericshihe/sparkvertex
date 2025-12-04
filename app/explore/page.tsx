@@ -341,7 +341,7 @@ export default function Explore() {
   };
 
   return (
-    <div className="flex h-screen pt-16 bg-slate-950 overflow-hidden">
+    <div className="flex h-[100dvh] pt-16 bg-slate-950 overflow-hidden">
       {/* Sidebar Navigation */}
       <aside className="w-64 flex-shrink-0 border-r border-slate-800 bg-slate-900/50 backdrop-blur-xl hidden md:flex flex-col">
         <div className="p-6">
@@ -525,18 +525,25 @@ export default function Explore() {
                     </div>
 
                     {/* Right: Preview Visual */}
-                    <div className="w-full md:w-[55%] relative bg-slate-800/50 border-l border-slate-800/50 overflow-hidden group-hover:bg-slate-800/80 transition-colors">
+                    <div className="w-full md:w-[55%] h-64 md:h-auto relative bg-slate-800/50 border-t md:border-t-0 md:border-l border-slate-800/50 overflow-hidden group-hover:bg-slate-800/80 transition-colors">
                        {/* We can reuse the iframe preview logic or just show a placeholder if no content */}
-                       <div className="absolute inset-0 flex items-center justify-center">
-                          <iframe 
-                              srcDoc={getPreviewContent(topItems[0]?.content || '')} 
-                              className="w-[200%] h-[200%] border-0 transform scale-50 origin-center pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity" 
-                              tabIndex={-1}
-                              scrolling="no"
-                              sandbox="allow-scripts"
-                              allow="autoplay 'none'; camera 'none'; microphone 'none'"
-                              title="Featured App Preview"
-                           />
+                       <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+                          {topItems[0]?.content ? (
+                            <iframe 
+                                srcDoc={getPreviewContent(topItems[0]?.content)} 
+                                className="w-[200%] h-[200%] border-0 transform scale-50 origin-center pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity bg-slate-900" 
+                                tabIndex={-1}
+                                scrolling="no"
+                                sandbox="allow-scripts"
+                                allow="autoplay 'none'; camera 'none'; microphone 'none'"
+                                title="Featured App Preview"
+                            />
+                          ) : (
+                            <div className="flex flex-col items-center justify-center text-slate-600">
+                                <i className="fa-solid fa-image text-4xl mb-2"></i>
+                                <span className="text-xs">No Preview</span>
+                            </div>
+                          )}
                            {/* Overlay for click */}
                            <div 
                              className="absolute inset-0 z-20 cursor-pointer"
