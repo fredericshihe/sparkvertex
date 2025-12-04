@@ -1081,7 +1081,7 @@ function UploadContent() {
                  setDuplicateModal({
                    show: true,
                    type: 'vector',
-                   isSelf: isSelf,
+                   isSelf: isSelf || false,
                    similarity: bestMatch.similarity,
                    matchedItemId: bestMatch.id
                  });
