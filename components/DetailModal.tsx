@@ -529,7 +529,7 @@ export default function DetailModal() {
                           <i className="fa-solid fa-wand-magic-sparkles"></i> {t.detail.ai_analysis}
                         </h3>
                         <div className="flex items-center gap-1 bg-brand-500/20 px-2 py-1 rounded-lg border border-brand-500/30">
-                          <span className="text-xs text-brand-300 font-bold">Score</span>
+                          <span className="text-xs text-brand-300 font-bold">{t.detail.score}</span>
                           <span className="text-lg font-black text-brand-400 leading-none">{item.total_score}</span>
                         </div>
                       </div>

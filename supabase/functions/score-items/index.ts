@@ -112,12 +112,14 @@ Evaluate on three dimensions (0-100 score) using this strict rubric:
    - 50-69: Tech demo, low practical value.
    - <50: Useless, broken logic.
 
+For reason_zh, you MUST use Simplified Chinese.
+
 Return ONLY a valid JSON object:
 {
   "quality": number,
   "richness": number,
   "utility": number,
-  "reason_zh": "简明扼要、专业的评估总结（最多50字）。重点说明得分原因。（中文）",
+  "reason_zh": "简明扼要、专业的评估总结（最多50字）。重点说明得分原因。必须使用中文。",
   "reason_en": "Concise, professional summary of the evaluation (max 50 words). Focus on why it got these scores. (English)"
 }`;
 

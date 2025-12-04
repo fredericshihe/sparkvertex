@@ -158,6 +158,8 @@ function CreateContent() {
   const { openLoginModal } = useModal();
   const { success: toastSuccess, error: toastError } = useToast();
   
+  const isFromUpload = searchParams.get('from') === 'upload';
+  
   const LOADING_TIPS = LOADING_TIPS_DATA[language === 'zh' ? 'zh' : 'en'];
   
   const stepNames = {
@@ -2178,8 +2180,18 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
              {/* Regenerate Button */}
              <div className="relative group">
                <button 
-                  onClick={() => startGeneration(false, currentGenerationPrompt, '', false, 'regenerate')}
-                  className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded flex items-center gap-1 transition border border-slate-700"
+                  onClick={() => {
+                    if (isFromUpload) {
+                      toastError(language === 'zh' ? '上传的作品不支持重新生成，仅支持修改' : 'Uploaded works cannot be regenerated, only modified');
+                      return;
+                    }
+                    startGeneration(false, currentGenerationPrompt, '', false, 'regenerate');
+                  }}
+                  className={`text-xs px-2 py-1 rounded flex items-center gap-1 transition border ${
+                    isFromUpload 
+                      ? 'bg-slate-800/50 text-slate-500 border-slate-800 cursor-not-allowed' 
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  }`}
                >
                   <RefreshCw size={12} />
                   <span className="hidden sm:inline">{t.create.regenerate}</span>
@@ -2190,9 +2202,12 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                     {language === 'zh' ? '重新生成' : 'Regenerate'}
                   </div>
                   <p className="leading-relaxed opacity-90">
-                    {language === 'zh' 
-                      ? '使用当前的提示词和设置重新生成应用。如果对当前结果不满意（如布局错乱、功能缺失），可以尝试此操作。这将消耗积分。' 
-                      : 'Regenerate the app using the current prompt and settings. Use this if the current result is not ideal (e.g., layout issues, missing features). This will consume credits.'}
+                    {isFromUpload 
+                      ? (language === 'zh' ? '上传的作品不支持重新生成，请使用对话框进行修改。' : 'Uploaded works cannot be regenerated. Please use the chat to make modifications.')
+                      : (language === 'zh' 
+                        ? '使用当前的提示词和设置重新生成应用。如果对当前结果不满意（如布局错乱、功能缺失），可以尝试此操作。这将消耗积分。' 
+                        : 'Regenerate the app using the current prompt and settings. Use this if the current result is not ideal (e.g., layout issues, missing features). This will consume credits.')
+                    }
                   </p>
                </div>
              </div>
