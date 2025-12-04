@@ -211,8 +211,8 @@ await ai.chat("Help me build a website");`
               {/* Badges */}
               <div className="absolute top-2 right-2 z-20 flex flex-col gap-1 items-end">
                 {(activeCard?.total_score !== undefined && activeCard?.total_score > 0) && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-brand-500/20 text-brand-400 border border-brand-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(59,130,246,0.3)]">
-                    <i className="fa-solid fa-wand-magic-sparkles text-[10px]"></i> {activeCard.total_score}
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(234,179,8,0.3)]">
+                    <i className="fa-solid fa-shield-halved text-[10px]"></i> {activeCard.total_score}
                   </span>
                 )}
                 {(activeCard?.tags || []).includes('AI Verified') && (

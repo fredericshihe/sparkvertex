@@ -424,12 +424,6 @@ export default function Explore() {
               </h1>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                <p className="text-slate-400 text-sm">
-                  {category === 'all' 
-                    ? t.explore.explore_all_desc 
-                    : t.explore.browse_category.replace('{category}', getCategoryLabel(categories.find(c => c.id === category) || categories[0]))}
-                </p>
-                
                 {/* AI Features Badge */}
                 <div className="flex flex-wrap items-center gap-3 px-3 py-1 rounded-lg bg-brand-500/10 border border-brand-500/20 self-start sm:self-auto">
                     <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
