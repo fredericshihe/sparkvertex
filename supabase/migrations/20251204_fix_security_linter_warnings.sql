@@ -81,6 +81,12 @@ alter default privileges in schema extensions grant all on types to postgres, an
 -- Enable RLS if not already enabled
 alter table public.analytics_events enable row level security;
 
+-- Drop existing policies if they exist (to allow re-running this migration)
+drop policy if exists "Users can insert their own analytics events" on public.analytics_events;
+drop policy if exists "Service role has full access to analytics events" on public.analytics_events;
+drop policy if exists "Users can view their own analytics events" on public.analytics_events;
+drop policy if exists "Anonymous users can insert analytics events" on public.analytics_events;
+
 -- Policy 1: Allow authenticated users to insert their own events
 -- Fix: Use (select auth.uid()) to avoid re-evaluation for each row
 create policy "Users can insert their own analytics events"
