@@ -1013,14 +1013,17 @@ function UploadContent() {
       if (!isEditing) {
         const { data: existing } = await supabase
           .from('items')
-          .select('id')
+          .select('id, author_id')
           .eq('content_hash', contentHash)
           .single();
 
         if (existing) {
-          toastError(language === 'zh' ? '系统中已存在完全相同的代码，请勿重复上传！' : 'Identical code already exists in the system!');
-          setLoading(false);
-          return;
+          // Allow re-uploading own content
+          if (existing.author_id !== session.user.id) {
+            toastError(language === 'zh' ? '系统中已存在完全相同的代码，请勿重复上传！' : 'Identical code already exists in the system!');
+            setLoading(false);
+            return;
+          }
         }
       }
 
@@ -1053,19 +1056,31 @@ function UploadContent() {
             
             if (!matchError && similarItems && similarItems.length > 0) {
               const bestMatch = similarItems[0];
-              // 0.98 Threshold: Block
-              if (bestMatch.similarity > 0.98) {
-                 toastError(language === 'zh' 
-                   ? '检测到高度相似的作品（相似度 > 98%），系统判定为重复上传。' 
-                   : 'Highly similar work detected (> 98%). Upload rejected as duplicate.');
-                 setLoading(false);
-                 return;
-              }
-              // 0.90 Threshold: Warn
-              if (bestMatch.similarity > 0.90) {
-                 toastError(language === 'zh' 
-                   ? '提示：您的作品与现有作品相似度较高。' 
-                   : 'Note: Your work is quite similar to an existing one.');
+              
+              // Check ownership of the matched item to allow self-duplicates
+              const { data: matchOwner } = await supabase
+                .from('items')
+                .select('author_id')
+                .eq('id', bestMatch.id)
+                .single();
+                
+              const isSelf = matchOwner && matchOwner.author_id === session.user.id;
+
+              if (!isSelf) {
+                // 0.98 Threshold: Block
+                if (bestMatch.similarity > 0.98) {
+                   toastError(language === 'zh' 
+                     ? '检测到高度相似的作品（相似度 > 98%），系统判定为重复上传。' 
+                     : 'Highly similar work detected (> 98%). Upload rejected as duplicate.');
+                   setLoading(false);
+                   return;
+                }
+                // 0.90 Threshold: Warn
+                if (bestMatch.similarity > 0.90) {
+                   toastError(language === 'zh' 
+                     ? '提示：您的作品与现有作品相似度较高。' 
+                     : 'Note: Your work is quite similar to an existing one.');
+                }
               }
             }
           }

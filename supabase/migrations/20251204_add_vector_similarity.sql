@@ -12,6 +12,9 @@ create index if not exists items_embedding_idx on items using ivfflat (embedding
 with (lists = 100);
 
 -- Create a function to match similar items
+-- Drop the function first to avoid return type conflict errors
+drop function if exists match_items(vector(768), float, int);
+
 create or replace function match_items (
   query_embedding vector(768),
   match_threshold float,
