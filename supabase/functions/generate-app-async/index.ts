@@ -99,42 +99,32 @@ serve(async (req) => {
 
     // 6. Call LLM
     const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
-    const deepseekApiKey = Deno.env.get('DEEPSEEK_API_KEY');
     
-    // OPTIMIZATION 1: Model Routing (Mixed Model Strategy)
-    // Use Gemini 3 Pro Preview for speed by default (Creation).
-    // For modifications, we use Gemini 2.5 Pro as primary if no image is involved.
-    let primaryProvider = 'google';
+    // 优化1: 模型路由（混合模型策略）
+    // 默认使用 Gemini 3 Pro Preview（创建场景）
+    // 修改场景且无图片时使用 Gemini 2.5 Pro
     let modelName = 'gemini-3-pro-preview';
     
     if (type === 'modification' && !image_url) {
-        primaryProvider = 'google';
         modelName = 'gemini-2.5-pro';
     }
     
     const envModel = Deno.env.get('GOOGLE_MODEL_NAME');
-    if (envModel && primaryProvider === 'google') {
+    if (envModel) {
         modelName = envModel;
     }
 
-    if (primaryProvider === 'google' && !googleApiKey) {
-        throw new Error('Missing Google API Key');
-    }
-    if (primaryProvider === 'deepseek' && !deepseekApiKey) {
-        // Fallback to Google if DeepSeek key is missing
-        console.warn('Missing DeepSeek API Key, falling back to Google');
-        primaryProvider = 'google';
-        modelName = 'gemini-3-pro-preview';
+    if (!googleApiKey) {
+        throw new Error('缺少 Google API Key');
     }
 
-    // OPTIMIZATION 5: Precise Diff Strategy
-    // Enforce strict context limits in system prompt to reduce token usage
-    let finalSystemPrompt = system_prompt || 'You are a helpful assistant.';
-    if (type === 'modification') {
-        finalSystemPrompt += '\n\nCRITICAL INSTRUCTION: When generating diffs, DO NOT output large chunks of unchanged code. Only output the specific lines being modified with 3 lines of context before and after. This is for performance.';
-    }
+    // 优化2: 隐式缓存设置
+    // 系统提示词设计为稳定且足够长(>1024 tokens)以触发Gemini隐式缓存
+    // 关键点：system prompt保持不变，user prompt包含变化的内容
+    const finalSystemPrompt = system_prompt || 'You are a helpful assistant.';
 
-    // Construct messages
+    // 构建消息数组以支持隐式缓存
+    // 对于修改操作，将现有代码作为缓存内容放在messages数组前面
     const messages = [
         { role: 'system', content: finalSystemPrompt }
     ];
@@ -173,124 +163,95 @@ serve(async (req) => {
                 let response;
                 let retryCount = 0;
                 const maxRetries = 3;
-                let currentProvider = primaryProvider;
                 let currentModel = modelName;
 
-                // Helper to fetch from provider
-                const fetchCompletion = async (provider: string, model: string) => {
-                    if (provider === 'deepseek') {
-                        return await fetch('https://api.deepseek.com/chat/completions', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${deepseekApiKey}`
-                            },
-                            body: JSON.stringify({
-                                model: model, // Use the passed model name (deepseek-reasoner)
-                                messages: messages,
-                                stream: true,
-                                temperature: 0.7,
-                                max_tokens: 8192 // Explicitly set max_tokens for DeepSeek Reasoner if needed, though it defaults high
-                            })
-                        });
-                    } else {
-                        return await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${googleApiKey}`
-                            },
-                            body: JSON.stringify({
-                                model: model,
-                                max_tokens: 65536,
-                                messages: messages,
-                                stream: true
-                            })
-                        });
-                    }
+                // 调用 Gemini API
+                const fetchCompletion = async (model: string) => {
+                    return await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${googleApiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: model,
+                            max_tokens: 65536,
+                            messages: messages,
+                            stream: true
+                        })
+                    });
                 };
 
                 while (true) {
                     try {
-                        console.log(`Attempting generation with ${currentProvider} (${currentModel})...`);
-                        response = await fetchCompletion(currentProvider, currentModel);
+                        console.log(`尝试使用 ${currentModel} 生成...`);
+                        response = await fetchCompletion(currentModel);
 
                         if (response.ok) break;
 
                         const errorText = await response.text();
-                        
-                        // Log usage metadata for debugging cache hits
-                        try {
-                            // Note: usage_metadata is not available in error response, but might be in success response headers or body
-                            // For stream=true, usage is usually in the last chunk.
-                        } catch (e) {}
 
-                        // Retry on 503 (Overloaded) or 429 (Rate Limit)
+                        // 处理 503 (服务过载) 或 429 (配额限制)
                         if (response.status === 503 || response.status === 429) {
-                            console.warn(`Provider ${currentProvider} Error (${response.status}): ${errorText}`);
+                            console.warn(`API 错误 (${response.status}): ${errorText}`);
                             
-                            // If Google fails with 429, switch to Gemini 2.5 Pro immediately if available
-                            if (currentProvider === 'google' && response.status === 429 && !image_url && currentModel !== 'gemini-2.5-pro') {
-                                console.warn('Google Quota Exceeded. Switching to Gemini 2.5 Pro fallback...');
-                                currentProvider = 'google';
+                            // 如果遇到 429 错误，尝试切换到 Gemini 2.5 Pro
+                            if (response.status === 429 && !image_url && currentModel !== 'gemini-2.5-pro') {
+                                console.warn('配额超限，切换到 Gemini 2.5 Pro 备用模型...');
                                 currentModel = 'gemini-2.5-pro'; 
-                                retryCount = 0; // Reset retries for new provider
+                                retryCount = 0;
                                 continue;
                             }
 
                             retryCount++;
                             if (retryCount > maxRetries) {
-                                // If we exhausted retries on Google and haven't switched yet (maybe due to image_url), try Gemini 2.5 Pro if possible
-                                if (currentProvider === 'google' && !image_url && currentModel !== 'gemini-2.5-pro') {
-                                     console.warn('Google Max Retries. Switching to Gemini 2.5 Pro fallback...');
-                                     currentProvider = 'google';
+                                // 如果还未切换且可以切换，尝试 Gemini 2.5 Pro
+                                if (!image_url && currentModel !== 'gemini-2.5-pro') {
+                                     console.warn('重试次数已达上限，切换到 Gemini 2.5 Pro 备用模型...');
                                      currentModel = 'gemini-2.5-pro';
                                      retryCount = 0;
                                      continue;
                                 }
                                 
-                                throw new Error(`Upstream API Error: ${response.status} ${errorText}`);
+                                throw new Error(`上游 API 错误: ${response.status} ${errorText}`);
                             }
                             
                             const delay = retryCount * 1000; 
-                            console.warn(`Retrying in ${delay}ms...`);
+                            console.warn(`${delay}ms 后重试...`);
                             await new Promise(resolve => setTimeout(resolve, delay));
                             continue;
                         }
 
-                        throw new Error(`Upstream API Error: ${response.status} ${errorText}`);
+                        throw new Error(`上游 API 错误: ${response.status} ${errorText}`);
 
                     } catch (e: any) {
-                        // If it's the error we just threw, rethrow it
-                        if (e.message.startsWith('Upstream API Error')) throw e;
+                        if (e.message.startsWith('上游 API 错误')) throw e;
                         
-                        // Network errors
                         retryCount++;
                         if (retryCount > maxRetries) throw e;
                         
                         const delay = retryCount * 1000;
-                        console.warn(`Network Error: ${e.message}. Retrying in ${delay}ms...`);
+                        console.warn(`网络错误: ${e.message}，${delay}ms 后重试...`);
                         await new Promise(resolve => setTimeout(resolve, delay));
                     }
                 }
 
-                // 7. Process Stream & Update DB
+                // 7. 处理流式响应并更新数据库
                 const reader = response.body?.getReader();
                 const decoder = new TextDecoder();
                 
-                // Initialize fullContent
+                // 初始化完整内容
                 let fullContent = '';
                 
-                let dbBuffer = ''; 
                 let streamBuffer = ''; 
                 let lastUpdate = Date.now();
-                let lastBroadcastLength = fullContent.length; // Track last broadcast length for debounce
+                let lastBroadcastLength = fullContent.length;
                 let streamClosed = false; 
                 
                 const taskChannel = supabaseAdmin.channel(`task-${taskId}`);
                 await taskChannel.subscribe((status) => {
                     if (status !== 'SUBSCRIBED') { 
-                        console.log(`Channel status: ${status}`);
+                        console.log(`频道状态: ${status}`);
                     }
                 });
 
@@ -298,7 +259,7 @@ serve(async (req) => {
                   try {
                     while (true) {
                       if (streamClosed) {
-                          console.log('Client disconnected, stopping generation');
+                          console.log('客户端已断开连接，停止生成');
                           break;
                       }
 
@@ -318,15 +279,31 @@ serve(async (req) => {
                                   const data = JSON.parse(trimmed.slice(6));
                                   const content = data.choices?.[0]?.delta?.content || '';
                                   fullContent += content;
+                                  
+                                  // 隐式缓存监控：检查usage_metadata以追踪缓存命中情况
+                                  // Gemini会在响应中返回cached_content_token_count
+                                  if (data.usage_metadata) {
+                                      const usage = data.usage_metadata;
+                                      const cachedTokens = usage.cached_content_token_count || 0;
+                                      const totalPromptTokens = usage.prompt_token_count || 0;
+                                      const cacheHitRate = totalPromptTokens > 0 ? (cachedTokens / totalPromptTokens * 100).toFixed(1) : '0';
+                                      
+                                      console.log(`🚀 Implicit Cache Stats: ${cachedTokens}/${totalPromptTokens} tokens cached (${cacheHitRate}% hit rate)`);
+                                      
+                                      // 如果缓存命中率>80%，说明隐式缓存工作良好
+                                      if (cachedTokens > 0) {
+                                          console.log(`✅ Cache hit! Saved ${cachedTokens} tokens (~${(cachedTokens * 0.0001).toFixed(2)} credits)`);
+                                      }
+                                  }
                               } catch (e) {
                                   // ignore parse error
                               }
                           }
                       }
 
-                      // OPTIMIZATION 4: Realtime Debounce
-                      // Accumulate ~150 chars or wait 500ms before broadcasting
-                      // This significantly reduces the number of WebSocket messages
+                      // 优化3: Realtime 防抖
+                      // 累积约150字符或等待500ms后再广播
+                      // 显著减少 WebSocket 消息数量
                       const contentDiff = fullContent.length - lastBroadcastLength;
                       
                       if (contentDiff > 150 || (contentDiff > 0 && Date.now() - lastUpdate > 500)) {
@@ -345,7 +322,7 @@ serve(async (req) => {
                           try {
                               taskChannel.send(msg);
                           } catch (rtError) {
-                              console.warn('Realtime send failed:', rtError);
+                              console.warn('Realtime 发送失败:', rtError);
                           }
                           
                           lastBroadcastLength = fullContent.length;
@@ -354,27 +331,26 @@ serve(async (req) => {
                           try {
                               controller.enqueue(encoder.encode(JSON.stringify({ status: 'processing', length: fullContent.length }) + '\n'));
                           } catch (streamErr) {
-                              console.log('Stream closed by client, stopping updates');
+                              console.log('客户端已关闭流，停止更新');
                               streamClosed = true;
                               break; 
                           }
                       }
                     }
                   } catch (streamError: any) {
-                      console.error('Stream reading error:', streamError);
-                      // If we have partial content, we should try to save it or at least not fail completely if it's substantial
+                      console.error('流读取错误:', streamError);
                       if (fullContent.length > 100) {
-                          console.log('Recovering from stream error with partial content...');
+                          console.log('从流错误中恢复，保存部分内容...');
                       } else {
                           throw streamError;
                       }
                   }
                 }
 
-                // Final Update - Always save to DB even if client disconnected
-                console.log('Generation completed, saving result...');
+                // 最终更新 - 即使客户端断开也要保存到数据库
+                console.log('生成完成，正在保存结果...');
                 
-                // SAFETY FIX: Remove Python-style Unicode escapes that crash JS (Backend Sync)
+                // 安全修复：移除会导致 JS 崩溃的 Python 风格 Unicode 转义
                 const sanitizedContent = fullContent.replace(/\\U([0-9a-fA-F]{8})/g, (match, p1) => {
                     return '\\u{' + p1.replace(/^0+/, '') + '}';
                 });
@@ -383,9 +359,9 @@ serve(async (req) => {
                     .from('generation_tasks')
                     .update({ result_code: sanitizedContent, status: 'completed' })
                     .eq('id', taskId);
-                console.log('Result saved successfully');
+                console.log('结果保存成功');
                 
-                // Broadcast completion via Realtime
+                // 通过 Realtime 广播完成状态
                 try {
                     const completionMsg = {
                         type: 'broadcast',
@@ -395,36 +371,36 @@ serve(async (req) => {
                     
                     taskChannel.send(completionMsg);
                 } catch (rtErr) {
-                    console.log('Realtime completion broadcast failed:', rtErr);
+                    console.log('Realtime 完成广播失败:', rtErr);
                 }
                 
-                // Clean up channel
+                // 清理频道
                 try {
                     await supabaseAdmin.removeChannel(taskChannel);
                 } catch (e) {
-                    console.log('Channel cleanup warning:', e);
+                    console.log('频道清理警告:', e);
                 }
                 
-                // Send final message only if stream is still open
+                // 仅在流仍打开时发送最终消息
                 if (!streamClosed) {
                     try {
                         controller.enqueue(encoder.encode(JSON.stringify({ status: 'completed' }) + '\n'));
                     } catch (e) {
-                        console.log('Stream already closed, skipping final message');
+                        console.log('流已关闭，跳过最终消息');
                     }
                 }
                 
                 try {
                     controller.close();
                 } catch (e) {
-                    // Ignore stream closed errors
+                    // 忽略流关闭错误
                 }
             } catch (error: any) {
-                console.error('Async Generation Error:', error);
+                console.error('异步生成错误:', error);
                 
-                const errorMessage = error.message || 'Unknown error occurred during generation';
+                const errorMessage = error.message || '生成过程中发生未知错误';
 
-                // Try to update task status to failed
+                // 尝试更新任务状态为失败
                 try {
                     if (taskId) {
                         await supabaseAdmin
@@ -434,19 +410,19 @@ serve(async (req) => {
                     }
                 } catch (e) {}
                 
-                // Try to send error message if stream is still open
+                // 如果流仍打开，尝试发送错误消息
                 try {
                     if (!controller.desiredSize || controller.desiredSize >= 0) {
                         controller.enqueue(encoder.encode(JSON.stringify({ error: errorMessage }) + '\n'));
                     }
                 } catch (e) {
-                    console.log('Cannot send error, stream already closed');
+                    console.log('无法发送错误，流已关闭');
                 }
                 
                 try {
                     controller.close();
                 } catch (e) {
-                    console.log('Stream already closed');
+                    console.log('流已关闭');
                 }
             }
         }
@@ -461,9 +437,9 @@ serve(async (req) => {
     });
 
   } catch (error: any) {
-    console.error('Main Handler Error:', error);
+    console.error('主处理器错误:', error);
 
-    // Try to update task status to failed if we have a taskId
+    // 如果有 taskId，尝试更新任务状态为失败
     if (taskId) {
         try {
             const supabaseAdmin = createClient(
@@ -475,7 +451,7 @@ serve(async (req) => {
                 .update({ status: 'failed', error_message: error.message })
                 .eq('id', taskId);
         } catch (e) {
-            console.error('Failed to update task status:', e);
+            console.error('更新任务状态失败:', e);
         }
     }
 
