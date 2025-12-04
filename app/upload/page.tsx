@@ -414,15 +414,17 @@ function UploadContent() {
   }, []);
 
   useEffect(() => {
-    if (editId) {
-      setIsEditing(true);
-      loadItemData(editId);
-    } else {
-      // Check for generated content from Create Wizard
+    const init = async () => {
       const fromCreate = searchParams.get('from') === 'create';
+
+      if (editId) {
+        setIsEditing(true);
+        await loadItemData(editId);
+      } 
+      
+      // Check for generated content from Create Wizard (overrides DB content if present)
       if (fromCreate) {
         const generatedCode = localStorage.getItem('spark_generated_code');
-        // const generatedMeta = localStorage.getItem('spark_generated_meta'); // No longer needed as we re-analyze
         
         if (generatedCode) {
           setFileContent(generatedCode);
@@ -436,7 +438,9 @@ function UploadContent() {
           localStorage.removeItem('spark_generated_meta');
         }
       }
-    }
+    };
+
+    init();
   }, [editId]);
 
   const validateCode = (code: string) => {
@@ -968,7 +972,12 @@ function UploadContent() {
     localStorage.setItem('spark_upload_import', fileContent);
     // Clear any existing creation session to ensure we start fresh with the uploaded code
     localStorage.removeItem('spark_create_session_v1');
-    router.push('/create?from=upload');
+    
+    if (editId) {
+      router.push(`/create?from=upload&edit=${editId}`);
+    } else {
+      router.push('/create?from=upload');
+    }
   };
 
   const handlePublish = async () => {

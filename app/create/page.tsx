@@ -794,13 +794,13 @@ ${description}
       if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
       if (channelRef.current) supabase.removeChannel(channelRef.current);
 
-      // Set Timeout Timer (45 seconds)
+      // Set Timeout Timer (90 seconds)
       timeoutTimerRef.current = setTimeout(() => {
           // Only show timeout if we haven't received ANY code yet
           if (!hasStartedStreaming) {
               setShowTimeoutModal(true);
           }
-      }, 45000);
+      }, 90000);
 
       // Restart progress bar if needed (fake progress for visual feedback)
       progressIntervalRef.current = setInterval(() => {
@@ -1741,7 +1741,13 @@ Remember: You're building for production. Code must be clean, performant, and er
         description: wizardData.description,
         tags: [wizardData.category, wizardData.style]
       }));
-      router.push('/upload?from=create');
+      
+      const editId = searchParams.get('edit');
+      if (editId) {
+        router.push(`/upload?from=create&edit=${editId}`);
+      } else {
+        router.push('/upload?from=create');
+      }
     } catch (e) {
       console.error('Failed to save to localStorage:', e);
       toastError(t.common.error);
@@ -2524,7 +2530,7 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                ref={iframeRef}
                srcDoc={getPreviewContent(generatedCode)}
                className="w-full h-full bg-slate-900"
-               sandbox="allow-scripts allow-forms allow-modals allow-popups"
+               sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads allow-same-origin"
              />
           </div>
           
