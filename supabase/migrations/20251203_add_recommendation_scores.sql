@@ -15,7 +15,9 @@ CREATE INDEX IF NOT EXISTS idx_items_daily_rank ON items(daily_rank);
 
 -- Function to calculate total score automatically
 CREATE OR REPLACE FUNCTION calculate_item_total_score()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SET search_path = public, pg_temp
+AS $$
 BEGIN
   -- Weights: Quality 40%, Utility 40%, Richness 20%
   IF NEW.quality_score IS NOT NULL AND NEW.richness_score IS NOT NULL AND NEW.utility_score IS NOT NULL THEN
@@ -35,7 +37,9 @@ EXECUTE FUNCTION calculate_item_total_score();
 -- Function to update daily ranks based on scores and popularity
 -- Optimized for balance: Prevents long-term dominance and gives exposure to new/old high-quality apps
 CREATE OR REPLACE FUNCTION update_daily_ranks()
-RETURNS void AS $$
+RETURNS void 
+SET search_path = public, pg_temp
+AS $$
 BEGIN
   WITH ranked_items AS (
     SELECT 

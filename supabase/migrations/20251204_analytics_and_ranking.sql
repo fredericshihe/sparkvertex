@@ -21,6 +21,7 @@ CREATE OR REPLACE FUNCTION increment_downloads(p_item_id bigint, fingerprint tex
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     current_user_id UUID;
@@ -62,6 +63,7 @@ CREATE OR REPLACE FUNCTION increment_views(p_item_id bigint, fingerprint text)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     current_user_id UUID;
@@ -102,6 +104,7 @@ CREATE OR REPLACE FUNCTION update_daily_ranks()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   WITH ranked_items AS (
