@@ -221,9 +221,8 @@ export default function Explore() {
         )
       `)
       .eq('is_public', true)
-      // Sort by Total Score (High Quality) first, then Newest
-      .order('total_score', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false })
+      // Sort by daily_rank (综合排名算法：质量+点赞+新鲜度+随机)
+      .order('daily_rank', { ascending: true, nullsFirst: false })
       .range(rangeStart, rangeEnd);
 
     if (category !== 'all') {
