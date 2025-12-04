@@ -465,45 +465,45 @@ export default function Explore() {
                     <div className="flex-1 p-8 md:p-12 flex flex-col justify-center relative z-10">
                        <div className="flex items-center gap-3 mb-4">
                           <img 
-                            src={topItems[0].authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${topItems[0].author}`} 
+                            src={topItems[0]?.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${topItems[0]?.author}`} 
                             className="w-8 h-8 rounded-full border border-slate-700" 
-                            alt={topItems[0].author} 
+                            alt={topItems[0]?.author} 
                             onError={(e) => {
-                              e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${topItems[0].author}`;
+                              e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${topItems[0]?.author}`;
                             }}
                           />
-                          <span className="text-slate-400 text-sm font-medium">{topItems[0].author}</span>
-                          {topItems[0].total_score > 0 && (
+                          <span className="text-slate-400 text-sm font-medium">{topItems[0]?.author}</span>
+                          {(topItems[0]?.total_score || 0) > 0 && (
                             <span className="px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 text-xs font-bold border border-brand-500/20">
-                              {topItems[0].total_score} 分
+                              {topItems[0]?.total_score} 分
                             </span>
                           )}
                        </div>
                        
                        <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 leading-tight">
-                         {topItems[0].title}
+                         {topItems[0]?.title}
                        </h2>
                        
                        <p className="text-slate-400 text-lg mb-8 line-clamp-3 leading-relaxed max-w-xl">
-                         {topItems[0].description}
+                         {topItems[0]?.description}
                        </p>
                        
                        <div className="flex items-center gap-4 mt-auto">
                           <button 
-                            onClick={() => openDetailModal(topItems[0].id, topItems[0])}
+                            onClick={() => topItems[0] && openDetailModal(topItems[0].id, topItems[0])}
                             className="px-8 py-4 bg-white text-slate-950 rounded-xl font-bold hover:bg-slate-200 transition shadow-lg shadow-white/5 flex items-center gap-2"
                           >
                             {t.explore.try_now || '立即体验'} <i className="fa-solid fa-arrow-right"></i>
                           </button>
                           <button 
-                             onClick={() => handleLike(topItems[0].id)}
+                             onClick={() => topItems[0] && handleLike(topItems[0].id)}
                              className={`w-14 h-14 rounded-xl flex items-center justify-center border transition ${
-                               myLikes.has(topItems[0].id) 
+                               topItems[0] && myLikes.has(topItems[0].id) 
                                  ? 'bg-rose-500/10 border-rose-500/50 text-rose-500' 
                                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'
                              }`}
                           >
-                             <i className={`fa-solid fa-heart ${myLikes.has(topItems[0].id) ? 'fa-beat' : ''}`}></i>
+                             <i className={`fa-solid fa-heart ${topItems[0] && myLikes.has(topItems[0].id) ? 'fa-beat' : ''}`}></i>
                           </button>
                        </div>
                     </div>
@@ -513,7 +513,7 @@ export default function Explore() {
                        {/* We can reuse the iframe preview logic or just show a placeholder if no content */}
                        <div className="absolute inset-0 flex items-center justify-center">
                           <iframe 
-                              srcDoc={getPreviewContent(topItems[0].content || '')} 
+                              srcDoc={getPreviewContent(topItems[0]?.content || '')} 
                               className="w-[200%] h-[200%] border-0 transform scale-50 origin-center pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity" 
                               tabIndex={-1}
                               scrolling="no"
@@ -522,7 +522,7 @@ export default function Explore() {
                            {/* Overlay for click */}
                            <div 
                              className="absolute inset-0 z-20 cursor-pointer"
-                             onClick={() => openDetailModal(topItems[0].id, topItems[0])}
+                             onClick={() => topItems[0] && openDetailModal(topItems[0].id, topItems[0])}
                            ></div>
                        </div>
                     </div>
