@@ -1018,12 +1018,13 @@ function UploadContent() {
           .single();
 
         if (existing) {
-          // Allow re-uploading own content
-          if (existing.author_id !== session.user.id) {
+          if (existing.author_id === session.user.id) {
+            toastError(language === 'zh' ? '您已发布过该作品，请前往个人中心编辑原作品，勿重复发布。' : 'You have already published this work. Please edit the existing one.');
+          } else {
             toastError(language === 'zh' ? '系统中已存在完全相同的代码，请勿重复上传！' : 'Identical code already exists in the system!');
-            setLoading(false);
-            return;
           }
+          setLoading(false);
+          return;
         }
       }
 
@@ -1057,7 +1058,7 @@ function UploadContent() {
             if (!matchError && similarItems && similarItems.length > 0) {
               const bestMatch = similarItems[0];
               
-              // Check ownership of the matched item to allow self-duplicates
+              // Check ownership for error message context
               const { data: matchOwner } = await supabase
                 .from('items')
                 .select('author_id')
@@ -1066,21 +1067,25 @@ function UploadContent() {
                 
               const isSelf = matchOwner && matchOwner.author_id === session.user.id;
 
-              if (!isSelf) {
-                // 0.98 Threshold: Block
-                if (bestMatch.similarity > 0.98) {
-                   toastError(language === 'zh' 
+              // 0.98 Threshold: Block
+              if (bestMatch.similarity > 0.98) {
+                 if (isSelf) {
+                    toastError(language === 'zh' 
+                     ? '您已发布过高度相似的作品，请前往个人中心编辑原作品。' 
+                     : 'You have a highly similar work. Please edit the existing one.');
+                 } else {
+                    toastError(language === 'zh' 
                      ? '检测到高度相似的作品（相似度 > 98%），系统判定为重复上传。' 
                      : 'Highly similar work detected (> 98%). Upload rejected as duplicate.');
-                   setLoading(false);
-                   return;
-                }
-                // 0.90 Threshold: Warn
-                if (bestMatch.similarity > 0.90) {
-                   toastError(language === 'zh' 
-                     ? '提示：您的作品与现有作品相似度较高。' 
-                     : 'Note: Your work is quite similar to an existing one.');
-                }
+                 }
+                 setLoading(false);
+                 return;
+              }
+              // 0.90 Threshold: Warn
+              if (bestMatch.similarity > 0.90) {
+                 toastError(language === 'zh' 
+                   ? '提示：您的作品与现有作品相似度较高。' 
+                   : 'Note: Your work is quite similar to an existing one.');
               }
             }
           }
