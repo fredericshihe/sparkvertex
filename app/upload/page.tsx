@@ -9,18 +9,14 @@ import { useToast } from '@/context/ToastContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { getPreviewContent } from '@/lib/preview';
 import { copyToClipboard } from '@/lib/utils';
+import { sha256 } from '@/lib/sha256';
 
 // --- Helper Functions (Ported from SparkWorkbench.html) ---
 
 async function calculateContentHash(content: string) {
   // Normalize: remove all whitespace, newlines, and convert to lowercase
   const normalized = content.replace(/\s+/g, '').toLowerCase();
-  
-  // Use Web Crypto API to calculate SHA-256
-  const msgBuffer = new TextEncoder().encode(normalized);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return await sha256(normalized);
 }
 
 async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, temperature = 0.7) {
@@ -108,7 +104,7 @@ async function analyzeCategory(htmlContent: string, language: string = 'en') {
   return map[category] || 'tool';
 }
 
-async function analyzeTitle(htmlContent: string, language: string = 'en') {
+async function analyzeTitle(htmlContent: string, language: string = 'en', temperature: number = 0.5) {
   const isZh = language === 'zh';
   const systemPrompt = isZh
     ? '你是一个专业的 SEO 专家和产品经理。你需要分析 HTML 代码并提取或创作一个简洁、吸引人且符合 SEO 规范的标题。'
@@ -132,14 +128,14 @@ Requirements:
 
 Return only the title text. No quotes. No explanation. Code:\n\n${htmlContent.substring(0, 20000)}`;
   
-  const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
+  const result = await callDeepSeekAPI(systemPrompt, userPrompt, temperature);
   if (!result) return isZh ? '未命名应用' : 'Untitled App';
   
   let titleText = typeof result === 'string' ? result : String(result);
   return titleText.trim().replace(/["'《》]/g, '');
 }
 
-async function analyzeDescription(htmlContent: string, language: string = 'en') {
+async function analyzeDescription(htmlContent: string, language: string = 'en', temperature: number = 0.7) {
   const isZh = language === 'zh';
   const systemPrompt = isZh
     ? '你是一个科技编辑。你需要分析 HTML 代码并生成一段简洁、专业、极具吸引力的产品介绍。'
@@ -161,7 +157,7 @@ Requirements:
 
 Return only the description text. Code:\n\n${htmlContent.substring(0, 20000)}`;
   
-  const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.7);
+  const result = await callDeepSeekAPI(systemPrompt, userPrompt, temperature);
   if (!result) return isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.';
   
   let descText = typeof result === 'string' ? result : String(result);
@@ -189,7 +185,7 @@ Return only comma-separated tag names. No other text. Code:\n\n${htmlContent.sub
   return tags.slice(0, 6);
 }
 
-async function analyzePrompt(htmlContent: string, language: string = 'en') {
+async function analyzePrompt(htmlContent: string, language: string = 'en', temperature: number = 0.5) {
   const isZh = language === 'zh';
   const systemPrompt = isZh
     ? '你是一个资深的 Prompt 工程师。你需要分析 HTML 代码并生成一个简洁、核心的 Prompt，用于指导 AI 重新生成类似应用。'
@@ -215,7 +211,7 @@ No verbose technical details or edge cases, only the core generation instruction
 
 Code:\n\n${htmlContent.substring(0, 20000)}`;
   
-  const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
+  const result = await callDeepSeekAPI(systemPrompt, userPrompt, temperature);
   if (!result) return isZh ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.';
   
   return typeof result === 'string' ? result : String(result);
@@ -398,7 +394,11 @@ function UploadContent() {
     isSelf: boolean;
     similarity?: number;
     matchedItemId?: string;
+    matchedTitle?: string;
   }>({ show: false, type: 'hash', isSelf: false });
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
+  const [duplicateCheckPassed, setDuplicateCheckPassed] = useState(false);
+  const [embedding, setEmbedding] = useState<number[] | null>(null);
   
   // Validation State
   const [validationState, setValidationState] = useState<{
@@ -501,7 +501,12 @@ function UploadContent() {
         if (event.data && event.data.type === 'spark-validation-success') {
             clearTimeout((window as any).__validationTimeout);
             setValidationState({ status: 'success' });
-            performAIAnalysis(fileContent);
+            // Check for duplicates immediately after validation
+            checkDuplicateEarly(fileContent).then(result => {
+              if (result.passed) {
+                performAIAnalysis(fileContent, result.data);
+              }
+            });
         }
 
         if (event.data && event.data.type === 'spark-validation-empty') {
@@ -776,12 +781,227 @@ function UploadContent() {
     return { optimizedHtml: newHtml, wasOptimized: optimized };
   };
 
-  const performAIAnalysis = async (html: string) => {
+  const checkDuplicateEarly = async (content: string) => {
+    console.log('🔍 [Duplicate Check] Starting early detection...');
+    setIsCheckingDuplicate(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log('🔍 [Duplicate Check] Skipped: No session');
+        setIsCheckingDuplicate(false);
+        return { passed: true }; // Allow to proceed if not logged in yet
+      }
+
+      // 1. Hash Check (Fast)
+      const contentHash = await calculateContentHash(content);
+      console.log('🔍 [Duplicate Check] Content Hash:', contentHash);
+
+      // Build query to check for hash duplicates
+      let hashQuery = supabase
+        .from('items')
+        .select('id, author_id')
+        .eq('content_hash', contentHash);
+      
+      // If editing, exclude the current item being edited
+      if (isEditing && editId) {
+        console.log('🔍 [Duplicate Check] Editing mode - excluding ID:', editId);
+        hashQuery = hashQuery.neq('id', editId);
+      }
+      
+      const { data: existing } = await hashQuery.maybeSingle();
+
+      console.log('🔍 [Duplicate Check] Hash Match Found:', existing ? 'YES' : 'NO', existing?.id, '(isEditing:', isEditing, 'editId:', editId, ')');
+
+      if (existing) {
+        // Get the matched item's title
+        const { data: matchedItem } = await supabase
+          .from('items')
+          .select('title')
+          .eq('id', existing.id)
+          .single();
+        
+        setDuplicateModal({
+          show: true,
+          type: 'hash',
+          isSelf: existing.author_id === session.user.id,
+          matchedItemId: existing.id,
+          matchedTitle: matchedItem?.title
+        });
+        setIsCheckingDuplicate(false);
+        return { passed: false }; // Block
+      }
+
+      // 2. Vector Check (Slower, but required early)
+      // We need to extract title and description first to generate embedding
+      let titleRes = '';
+      let descRes = '';
+      let embedding = null;
+
+      try {
+        // Run analysis in parallel
+        [titleRes, descRes] = await Promise.all([
+          analyzeTitle(content, language),
+          analyzeDescription(content, language)
+        ]);
+        
+        console.log('🔍 [Duplicate Check] Generated Title:', titleRes);
+
+        // Use the code content directly for embedding to detect slight modifications (e.g. color changes)
+        // Truncate to 20000 chars to fit within token limits (approx 5k tokens)
+        const textToEmbed = content.substring(0, 20000);
+        
+        const embedRes = await fetch('/api/embed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: textToEmbed })
+        });
+
+        if (embedRes.ok) {
+          const embedData = await embedRes.json();
+          embedding = embedData.embedding;
+          if (embedding) setEmbedding(embedding);
+
+          if (embedding) {
+            const { data: similarItems, error: matchError } = await supabase.rpc('match_items', {
+              query_embedding: embedding,
+              match_threshold: 0.90,
+              match_count: 5  // Get more results to filter out current item if editing
+            });
+            
+            if (matchError) console.error('🔍 [Duplicate Check] Vector Match Error:', matchError);
+            
+            if (!matchError && similarItems && similarItems.length > 0) {
+              // Filter out the current item being edited
+              console.log('🔍 [Duplicate Check] Vector results before filter:', similarItems.map((i: any) => ({ id: i.id, similarity: i.similarity })));
+              const filteredItems = isEditing && editId 
+                ? similarItems.filter((item: any) => {
+                    const isMatch = String(item.id) !== String(editId);
+                    console.log('🔍 [Duplicate Check] Comparing:', item.id, '!==', editId, '=', isMatch);
+                    return isMatch;
+                  })
+                : similarItems;
+              
+              console.log('🔍 [Duplicate Check] Filtered items count:', filteredItems.length, '(original:', similarItems.length, ')');
+              
+              if (filteredItems.length > 0) {
+                const bestMatch = filteredItems[0];
+                console.log('🔍 [Duplicate Check] Vector Similarity:', bestMatch.similarity, 'ID:', bestMatch.id);
+                
+                const { data: matchOwner } = await supabase
+                  .from('items')
+                  .select('author_id, title')
+                  .eq('id', bestMatch.id)
+                  .single();
+                  
+                const isSelf = matchOwner && matchOwner.author_id === session.user.id;
+
+                // 0.98 Threshold: Block
+                if (bestMatch.similarity > 0.98) {
+                   console.log('🔍 [Duplicate Check] BLOCKED by Vector (Similarity > 0.98)');
+                   setDuplicateModal({
+                     show: true,
+                     type: 'vector',
+                     isSelf: isSelf || false,
+                     similarity: bestMatch.similarity,
+                     matchedItemId: bestMatch.id,
+                     matchedTitle: matchOwner?.title
+                   });
+                   setIsCheckingDuplicate(false);
+                   return { passed: false };
+                }
+                // 0.90 Threshold: Warn (but allow pass)
+                if (bestMatch.similarity > 0.90) {
+                   console.log('🔍 [Duplicate Check] WARN by Vector (Similarity > 0.90)');
+                   toastError(language === 'zh' 
+                     ? '提示：您的作品与现有作品相似度较高。' 
+                     : 'Note: Your work is quite similar to an existing one.');
+                }
+              } else {
+                  console.log('🔍 [Duplicate Check] No similar vectors found > 0.90');
+              }
+            } else {
+                console.log('🔍 [Duplicate Check] No similar vectors found > 0.90');
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Early vector check failed:', e);
+      }
+
+      setIsCheckingDuplicate(false);
+      setDuplicateCheckPassed(true);
+      console.log('🔍 [Duplicate Check] Passed');
+      
+      // Return pre-computed data to avoid re-analysis
+      return { 
+        passed: true, 
+        data: { 
+          title: titleRes, 
+          description: descRes,
+          embedding: embedding 
+        } 
+      }; 
+
+    } catch (error) {
+      console.error('Early duplicate check failed:', error);
+      setIsCheckingDuplicate(false);
+      return { passed: true }; // Allow to proceed on error
+    }
+  };
+
+  const performAIAnalysis = async (html: string, preComputedData?: any) => {
     // Check login first
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       openLoginModal();
       return;
+    }
+
+    // Rate limit check: Max 10 analysis per hour per user
+    const rateLimitKey = `ai_analysis_${session.user.id}`;
+    const rateLimitData = localStorage.getItem(rateLimitKey);
+    
+    if (rateLimitData) {
+      try {
+        const { count, timestamp } = JSON.parse(rateLimitData);
+        const oneHourAgo = Date.now() - 60 * 60 * 1000;
+        
+        if (timestamp > oneHourAgo) {
+          if (count >= 10) {
+            toastError(language === 'zh' 
+              ? '操作过于频繁，请稍后再试（每小时最多 10 次分析）' 
+              : 'Too many requests. Please try again later (10 analyses per hour).');
+            setAnalysisState({
+              status: 'error',
+              message: language === 'zh' ? '频率限制' : 'Rate limit exceeded'
+            });
+            return;
+          }
+          // Increment count
+          localStorage.setItem(rateLimitKey, JSON.stringify({
+            count: count + 1,
+            timestamp: timestamp
+          }));
+        } else {
+          // Reset if expired
+          localStorage.setItem(rateLimitKey, JSON.stringify({
+            count: 1,
+            timestamp: Date.now()
+          }));
+        }
+      } catch (e) {
+        // Reset on error
+        localStorage.setItem(rateLimitKey, JSON.stringify({
+          count: 1,
+          timestamp: Date.now()
+        }));
+      }
+    } else {
+      // First time
+      localStorage.setItem(rateLimitKey, JSON.stringify({
+        count: 1,
+        timestamp: Date.now()
+      }));
     }
 
     // Start a new analysis session
@@ -794,8 +1014,8 @@ function UploadContent() {
     const tasks: { id: string; label: string; status: 'pending' | 'done' }[] = [
       { id: 'security', label: t.upload.task_security, status: 'pending' },
       { id: 'category', label: t.upload.task_category, status: 'pending' },
-      { id: 'title', label: t.upload.task_title, status: 'pending' },
-      { id: 'desc', label: t.upload.task_desc, status: 'pending' },
+      { id: 'title', label: t.upload.task_title, status: preComputedData?.title ? 'done' : 'pending' },
+      { id: 'desc', label: t.upload.task_desc, status: preComputedData?.description ? 'done' : 'pending' },
       { id: 'tech', label: t.upload.task_tech, status: 'pending' },
       { id: 'prompt', label: t.upload.task_prompt, status: 'pending' },
       { id: 'mobile', label: t.upload.task_mobile, status: 'pending' },
@@ -887,15 +1107,26 @@ function UploadContent() {
       };
 
       // Create promises with side effects to update UI immediately
-      const titlePromise = analyzeTitle(html, language).then(res => {
-        if (analysisSessionIdRef.current === currentSessionId) setTitle(res);
-        return res;
-      });
+      // If preComputedData exists, use it directly
+      const titlePromise = preComputedData?.title 
+        ? Promise.resolve(preComputedData.title).then(res => {
+            if (analysisSessionIdRef.current === currentSessionId) setTitle(res);
+            return res;
+          })
+        : analyzeTitle(html, language).then(res => {
+            if (analysisSessionIdRef.current === currentSessionId) setTitle(res);
+            return res;
+          });
       
-      const descPromise = analyzeDescription(html, language).then(res => {
-        if (analysisSessionIdRef.current === currentSessionId) setDescription(res);
-        return res;
-      });
+      const descPromise = preComputedData?.description
+        ? Promise.resolve(preComputedData.description).then(res => {
+            if (analysisSessionIdRef.current === currentSessionId) setDescription(res);
+            return res;
+          })
+        : analyzeDescription(html, language).then(res => {
+            if (analysisSessionIdRef.current === currentSessionId) setDescription(res);
+            return res;
+          });
 
       const promptPromise = analyzePrompt(html, language).then(res => {
         if (analysisSessionIdRef.current === currentSessionId) setPrompt(res);
@@ -1014,92 +1245,11 @@ function UploadContent() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error(t.upload.login_required);
 
-      // Calculate Hash
+      // Calculate Hash (needed for storage)
       const contentHash = await calculateContentHash(fileContent);
 
-      // Check for duplicates (Hash Check)
-      if (!isEditing) {
-        const { data: existing } = await supabase
-          .from('items')
-          .select('id, author_id')
-          .eq('content_hash', contentHash)
-          .maybeSingle();
-
-        if (existing) {
-          setDuplicateModal({
-            show: true,
-            type: 'hash',
-            isSelf: existing.author_id === session.user.id,
-            matchedItemId: existing.id
-          });
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Check for Semantic Duplicates (Vector Similarity)
-      let embedding = null;
-      // We generate embedding for both new and edited items to keep it fresh, 
-      // but we only block duplicates on new uploads (or maybe significant edits? let's stick to new for now to avoid blocking valid updates)
-      // Actually, if I edit my own item, it will be similar to itself. So I should exclude my own item ID if editing.
-      // But match_items doesn't support excluding ID easily without modifying RPC.
-      // For now, let's only run the BLOCKING check if !isEditing.
-      
-      const textToEmbed = `${title}\n${description}\n${prompt || ''}`;
-      try {
-        const embedRes = await fetch('/api/embed', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: textToEmbed })
-        });
-        
-        if (embedRes.ok) {
-          const embedData = await embedRes.json();
-          embedding = embedData.embedding;
-          
-          if (embedding && !isEditing) {
-            const { data: similarItems, error: matchError } = await supabase.rpc('match_items', {
-              query_embedding: embedding,
-              match_threshold: 0.90, // Check for > 0.90
-              match_count: 1
-            });
-            
-            if (!matchError && similarItems && similarItems.length > 0) {
-              const bestMatch = similarItems[0];
-              
-              // Check ownership for error message context
-              const { data: matchOwner } = await supabase
-                .from('items')
-                .select('author_id')
-                .eq('id', bestMatch.id)
-                .single();
-                
-              const isSelf = matchOwner && matchOwner.author_id === session.user.id;
-
-              // 0.98 Threshold: Block
-              if (bestMatch.similarity > 0.98) {
-                 setDuplicateModal({
-                   show: true,
-                   type: 'vector',
-                   isSelf: isSelf || false,
-                   similarity: bestMatch.similarity,
-                   matchedItemId: bestMatch.id
-                 });
-                 setLoading(false);
-                 return;
-              }
-              // 0.90 Threshold: Warn
-              if (bestMatch.similarity > 0.90) {
-                 toastError(language === 'zh' 
-                   ? '提示：您的作品与现有作品相似度较高。' 
-                   : 'Note: Your work is quite similar to an existing one.');
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.warn('Vector embedding failed, skipping semantic check:', e);
-      }
+      // Use cached embedding from early detection if available
+      const finalEmbedding = embedding;
 
       // Check daily limit (5 posts per day)
       if (!isEditing) {
@@ -1178,7 +1328,7 @@ function UploadContent() {
           is_public: isPublic
         };
         if (iconUrl) updateData.icon_url = iconUrl;
-        if (embedding) updateData.embedding = embedding;
+        if (finalEmbedding) updateData.embedding = finalEmbedding;
         
         // Update hash as well
         updateData.content_hash = contentHash;
@@ -1223,7 +1373,7 @@ function UploadContent() {
           downloads: 0,
           icon_url: iconUrl,
           content_hash: contentHash,
-          embedding: embedding
+          embedding: finalEmbedding
         };
 
         let result = await supabase.from('items').insert(insertPayload).select().single();
@@ -1494,6 +1644,21 @@ function UploadContent() {
                 </div>
               </div>
           </div>
+
+          {/* Duplicate Check Status */}
+          {isCheckingDuplicate && (
+            <div className="glass-panel rounded-2xl p-6 mb-6 border-2 border-orange-500/30">
+              <div className="flex items-center gap-3 text-orange-400">
+                <i className="fa-solid fa-shield-halved fa-pulse text-2xl"></i>
+                <div className="flex-grow">
+                  <div className="font-bold">{language === 'zh' ? '🔍 正在检测重复内容...' : '🔍 Checking for duplicates...'}</div>
+                  <div className="text-xs text-slate-400 mt-1">
+                    {language === 'zh' ? '正在进行全网原创性比对，请稍候...' : 'Checking for originality across the platform...'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* AI Analysis Status */}
           <div className="glass-panel rounded-2xl p-6 mb-6">
@@ -2002,6 +2167,14 @@ function UploadContent() {
                       <h4 className="text-white font-bold mb-2">
                         {language === 'zh' ? '检测到您自己的作品' : 'Your Own Work Detected'}
                       </h4>
+                      {duplicateModal.matchedTitle && (
+                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2 mb-3">
+                          <p className="text-sm text-blue-200">
+                            <i className="fa-solid fa-file-code mr-2"></i>
+                            <span className="font-medium">{duplicateModal.matchedTitle}</span>
+                          </p>
+                        </div>
+                      )}
                       <p className="text-slate-300 text-sm leading-relaxed">
                         {language === 'zh' 
                           ? duplicateModal.type === 'hash'
@@ -2030,6 +2203,14 @@ function UploadContent() {
                       <h4 className="text-white font-bold mb-2">
                         {language === 'zh' ? '检测到重复内容' : 'Duplicate Content Found'}
                       </h4>
+                      {duplicateModal.matchedTitle && (
+                        <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 mb-3">
+                          <p className="text-sm text-red-200">
+                            <i className="fa-solid fa-file-code mr-2"></i>
+                            <span className="font-medium">{duplicateModal.matchedTitle}</span>
+                          </p>
+                        </div>
+                      )}
                       <p className="text-slate-300 text-sm leading-relaxed">
                         {language === 'zh' 
                           ? duplicateModal.type === 'hash'
@@ -2053,21 +2234,7 @@ function UploadContent() {
               )}
             </div>
 
-            {/* Detection Method Explanation */}
-            <div className="bg-slate-900/30 border border-slate-700/50 rounded-lg p-4 mb-6">
-              <div className="flex items-start gap-3">
-                <i className="fa-solid fa-info-circle text-slate-400 flex-shrink-0 mt-0.5"></i>
-                <div className="text-xs text-slate-400 leading-relaxed">
-                  {language === 'zh' 
-                    ? duplicateModal.type === 'hash'
-                      ? '检测方式：通过 SHA-256 哈希指纹比对代码结构，忽略空格与格式差异，精确识别完全一致的代码。'
-                      : '检测方式：使用 Google Gemini 向量模型分析核心逻辑与功能描述，即使修改变量名或样式也能识别本质相似。'
-                    : duplicateModal.type === 'hash'
-                      ? 'Detection: SHA-256 hash fingerprint ignores whitespace/formatting to identify identical code.'
-                      : 'Detection: Google Gemini vector analysis identifies core logic similarity despite variable/style changes.'}
-                </div>
-              </div>
-            </div>
+
 
             {/* Actions */}
             <div className="flex gap-3">
