@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { getPreviewContent } from '@/lib/preview';
-import { QRCodeSVG } from 'qrcode.react';
 import { useLanguage } from '@/context/LanguageContext';
 import { getCategoryFromTags } from '@/lib/categories';
+
+const QRCodeSVG = dynamic(() => import('qrcode.react').then(mod => mod.QRCodeSVG), { ssr: false });
 
 const CARD_COLORS = [
   "from-purple-500 to-pink-500",

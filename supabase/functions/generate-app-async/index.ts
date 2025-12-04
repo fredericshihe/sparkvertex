@@ -98,23 +98,33 @@ serve(async (req) => {
       .eq('id', taskId);
 
     // 6. Call LLM
-    const apiKey = Deno.env.get('GOOGLE_API_KEY');
+    const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
+    const deepseekApiKey = Deno.env.get('DEEPSEEK_API_KEY');
     
     // OPTIMIZATION 1: Model Routing (Mixed Model Strategy)
     // Use Gemini 3 Pro Preview for speed by default (Creation).
-    // For modifications, we also use Gemini 3 Pro Preview as requested.
+    // For modifications, we use Gemini 2.5 Pro as primary if no image is involved.
+    let primaryProvider = 'google';
     let modelName = 'gemini-3-pro-preview';
-    // if (type === 'modification') {
-    //     modelName = 'gemini-2.5-pro';
-    // }
+    
+    if (type === 'modification' && !image_url) {
+        primaryProvider = 'google';
+        modelName = 'gemini-2.5-pro';
+    }
     
     const envModel = Deno.env.get('GOOGLE_MODEL_NAME');
-    if (envModel) {
+    if (envModel && primaryProvider === 'google') {
         modelName = envModel;
     }
 
-    if (!apiKey) {
-        throw new Error('Missing API Key');
+    if (primaryProvider === 'google' && !googleApiKey) {
+        throw new Error('Missing Google API Key');
+    }
+    if (primaryProvider === 'deepseek' && !deepseekApiKey) {
+        // Fallback to Google if DeepSeek key is missing
+        console.warn('Missing DeepSeek API Key, falling back to Google');
+        primaryProvider = 'google';
+        modelName = 'gemini-3-pro-preview';
     }
 
     // OPTIMIZATION 5: Precise Diff Strategy
@@ -146,12 +156,6 @@ serve(async (req) => {
         messages.push({ role: 'user', content: String(user_prompt) });
     }
 
-    // OPTIMIZATION 6: Prefill (Pre-computation) - REMOVED
-    // We now require Analysis and Summary before the code block, so we cannot prefill with <<<<SEARCH
-    // if (type === 'modification') {
-    //     messages.push({ role: 'assistant', content: '<<<<SEARCH' });
-    // }
-
     // Create a stream to return to the client immediately
     const stream = new ReadableStream({
         async start(controller) {
@@ -168,43 +172,92 @@ serve(async (req) => {
 
                 let response;
                 let retryCount = 0;
-                const maxRetries = 5;
+                const maxRetries = 3;
+                let currentProvider = primaryProvider;
+                let currentModel = modelName;
+
+                // Helper to fetch from provider
+                const fetchCompletion = async (provider: string, model: string) => {
+                    if (provider === 'deepseek') {
+                        return await fetch('https://api.deepseek.com/chat/completions', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${deepseekApiKey}`
+                            },
+                            body: JSON.stringify({
+                                model: model, // Use the passed model name (deepseek-reasoner)
+                                messages: messages,
+                                stream: true,
+                                temperature: 0.7,
+                                max_tokens: 8192 // Explicitly set max_tokens for DeepSeek Reasoner if needed, though it defaults high
+                            })
+                        });
+                    } else {
+                        return await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${googleApiKey}`
+                            },
+                            body: JSON.stringify({
+                                model: model,
+                                max_tokens: 65536,
+                                messages: messages,
+                                stream: true
+                            })
+                        });
+                    }
+                };
 
                 while (true) {
                     try {
-                        response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${apiKey}`
-                          },
-                          body: JSON.stringify({
-                            model: modelName,
-                            max_tokens: 65536,
-                            messages: messages,
-                            stream: true
-                          })
-                        });
+                        console.log(`Attempting generation with ${currentProvider} (${currentModel})...`);
+                        response = await fetchCompletion(currentProvider, currentModel);
 
                         if (response.ok) break;
 
                         const errorText = await response.text();
                         
+                        // Log usage metadata for debugging cache hits
+                        try {
+                            // Note: usage_metadata is not available in error response, but might be in success response headers or body
+                            // For stream=true, usage is usually in the last chunk.
+                        } catch (e) {}
+
                         // Retry on 503 (Overloaded) or 429 (Rate Limit)
                         if (response.status === 503 || response.status === 429) {
+                            console.warn(`Provider ${currentProvider} Error (${response.status}): ${errorText}`);
+                            
+                            // If Google fails with 429, switch to Gemini 2.5 Pro immediately if available
+                            if (currentProvider === 'google' && response.status === 429 && !image_url && currentModel !== 'gemini-2.5-pro') {
+                                console.warn('Google Quota Exceeded. Switching to Gemini 2.5 Pro fallback...');
+                                currentProvider = 'google';
+                                currentModel = 'gemini-2.5-pro'; 
+                                retryCount = 0; // Reset retries for new provider
+                                continue;
+                            }
+
                             retryCount++;
                             if (retryCount > maxRetries) {
-                                console.error('Upstream API Error (Max Retries Exceeded):', response.status, errorText);
+                                // If we exhausted retries on Google and haven't switched yet (maybe due to image_url), try Gemini 2.5 Pro if possible
+                                if (currentProvider === 'google' && !image_url && currentModel !== 'gemini-2.5-pro') {
+                                     console.warn('Google Max Retries. Switching to Gemini 2.5 Pro fallback...');
+                                     currentProvider = 'google';
+                                     currentModel = 'gemini-2.5-pro';
+                                     retryCount = 0;
+                                     continue;
+                                }
+                                
                                 throw new Error(`Upstream API Error: ${response.status} ${errorText}`);
                             }
                             
-                            const delay = retryCount * 1000; // Linear backoff: 1s, 2s, 3s, 4s, 5s
-                            console.warn(`Upstream API Error (${response.status}). Retrying in ${delay}ms...`);
+                            const delay = retryCount * 1000; 
+                            console.warn(`Retrying in ${delay}ms...`);
                             await new Promise(resolve => setTimeout(resolve, delay));
                             continue;
                         }
 
-                        console.error('Upstream API Error:', response.status, errorText);
                         throw new Error(`Upstream API Error: ${response.status} ${errorText}`);
 
                     } catch (e: any) {
@@ -242,73 +295,79 @@ serve(async (req) => {
                 });
 
                 if (reader) {
-                  while (true) {
-                    if (streamClosed) {
-                        console.log('Client disconnected, stopping generation');
-                        break;
+                  try {
+                    while (true) {
+                      if (streamClosed) {
+                          console.log('Client disconnected, stopping generation');
+                          break;
+                      }
+
+                      const { done, value } = await reader.read();
+                      if (done) break;
+
+                      const chunk = decoder.decode(value, { stream: true });
+                      streamBuffer += chunk;
+                      
+                      const lines = streamBuffer.split('\n');
+                      streamBuffer = lines.pop() || '';
+                      
+                      for (const line of lines) {
+                          const trimmed = line.trim();
+                          if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
+                              try {
+                                  const data = JSON.parse(trimmed.slice(6));
+                                  const content = data.choices?.[0]?.delta?.content || '';
+                                  fullContent += content;
+                              } catch (e) {
+                                  // ignore parse error
+                              }
+                          }
+                      }
+
+                      // OPTIMIZATION 4: Realtime Debounce
+                      // Accumulate ~150 chars or wait 500ms before broadcasting
+                      // This significantly reduces the number of WebSocket messages
+                      const contentDiff = fullContent.length - lastBroadcastLength;
+                      
+                      if (contentDiff > 150 || (contentDiff > 0 && Date.now() - lastUpdate > 500)) {
+                          const newChunk = fullContent.slice(lastBroadcastLength);
+                          
+                          const msg = {
+                              type: 'broadcast',
+                              event: 'chunk',
+                              payload: { 
+                                  chunk: newChunk, 
+                                  fullContent: fullContent,
+                                  taskId: taskId
+                              }
+                          };
+
+                          try {
+                              taskChannel.send(msg);
+                          } catch (rtError) {
+                              console.warn('Realtime send failed:', rtError);
+                          }
+                          
+                          lastBroadcastLength = fullContent.length;
+                          lastUpdate = Date.now();
+                          
+                          try {
+                              controller.enqueue(encoder.encode(JSON.stringify({ status: 'processing', length: fullContent.length }) + '\n'));
+                          } catch (streamErr) {
+                              console.log('Stream closed by client, stopping updates');
+                              streamClosed = true;
+                              break; 
+                          }
+                      }
                     }
-
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    const chunk = decoder.decode(value, { stream: true });
-                    streamBuffer += chunk;
-                    
-                    const lines = streamBuffer.split('\n');
-                    streamBuffer = lines.pop() || '';
-                    
-                    for (const line of lines) {
-                        const trimmed = line.trim();
-                        if (trimmed.startsWith('data: ') && trimmed !== 'data: [DONE]') {
-                            try {
-                                const data = JSON.parse(trimmed.slice(6));
-                                const content = data.choices?.[0]?.delta?.content || '';
-                                fullContent += content;
-                            } catch (e) {
-                                // ignore parse error
-                            }
-                        }
-                    }
-
-                    // OPTIMIZATION 4: Realtime Debounce
-                    // Accumulate ~150 chars or wait 500ms before broadcasting
-                    // This significantly reduces the number of WebSocket messages
-                    const contentDiff = fullContent.length - lastBroadcastLength;
-                    
-                    if (contentDiff > 150 || (contentDiff > 0 && Date.now() - lastUpdate > 500)) {
-                        const newChunk = fullContent.slice(lastBroadcastLength);
-                        
-                        const msg = {
-                            type: 'broadcast',
-                            event: 'chunk',
-                            payload: { 
-                                chunk: newChunk, 
-                                fullContent: fullContent,
-                                taskId: taskId
-                            }
-                        };
-
-                        try {
-                            taskChannel.send(msg);
-                        } catch (rtError) {
-                            console.warn('Realtime send failed:', rtError);
-                        }
-                        
-                        lastBroadcastLength = fullContent.length;
-                        lastUpdate = Date.now();
-                        
-                        try {
-                            controller.enqueue(encoder.encode(JSON.stringify({ status: 'processing', length: fullContent.length }) + '\n'));
-                        } catch (streamErr) {
-                            console.log('Stream closed by client, stopping updates');
-                            streamClosed = true;
-                            break; 
-                        }
-                    }
-
-                    // OPTIMIZATION 3: DB Throttling
-                    // REMOVED intermediate DB updates. 
-                    // We only write to the database once at the very end to reduce IOPS and latency.
+                  } catch (streamError: any) {
+                      console.error('Stream reading error:', streamError);
+                      // If we have partial content, we should try to save it or at least not fail completely if it's substantial
+                      if (fullContent.length > 100) {
+                          console.log('Recovering from stream error with partial content...');
+                      } else {
+                          throw streamError;
+                      }
                   }
                 }
 
