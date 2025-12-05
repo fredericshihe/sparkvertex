@@ -30,16 +30,15 @@ export async function POST(request: Request) {
     console.log('[Afdian Create] Request:', { user_id: user.id, amount, credits });
     
     // 2. 生成唯一的订单标识（用作 remark）
-    // 格式：timestamp_userIdPrefix_random
+    // 新格式：userId|timestamp|random（使用 | 作为分隔符，更易解析且不会与UUID冲突）
     const timestamp = Date.now();
     const randomPart = Math.random().toString(36).substring(2, 15);
-    const userIdPart = user.id.substring(0, 8);
-    const outTradeNo = `${timestamp}_${userIdPart}_${randomPart}`;
+    const outTradeNo = `${user.id}|${timestamp}|${randomPart}`;
     
     console.log('[Afdian Create] Generated remark:', outTradeNo);
     
-    // 3. 在 localStorage 暂存订单信息（前端会用，但不是必需的）
-    // Webhook 收到通知时，会根据 remark 和金额创建订单    // 4. 生成爱发电支付链接
+    // 3. Webhook 收到通知时，会根据 remark 直接提取 user_id 并创建订单
+    // 不再需要查询数据库匹配用户    // 4. 生成爱发电支付链接
     let payUrl: string;
     
     if (item_id) {
