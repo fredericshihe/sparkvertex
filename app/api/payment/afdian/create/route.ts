@@ -1,10 +1,14 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { getAlipaySdk } from '@/lib/alipay';
+import { AFDIAN_USER_ID } from '@/lib/afdian';
 
 export async function POST(request: Request) {
   try {
+    if (!AFDIAN_USER_ID) {
+      return NextResponse.json({ error: 'Afdian User ID not configured' }, { status: 500 });
+    }
+
     // 1. 验证用户
     const cookieStore = cookies();
     const supabase = createServerClient(
@@ -21,12 +25,12 @@ export async function POST(request: Request) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    let { amount, credits } = await request.json();
+    const { amount, credits, item_id, plan_id } = await request.json();
     
     // 2. 生成唯一订单号
     const outTradeNo = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // 3. 在数据库创建订单 (使用 credit_orders 表以免与现有 orders 表冲突)
+    // 3. 在数据库创建订单
     const { error: dbError } = await supabase
       .from('credit_orders')
       .insert({
@@ -34,30 +38,39 @@ export async function POST(request: Request) {
         out_trade_no: outTradeNo,
         amount: amount,
         credits: credits,
-        status: 'pending'
+        status: 'pending',
+        provider: 'afdian' // 标记为爱发电订单
       });
 
     if (dbError) throw dbError;
 
-    // 4. 调用支付宝接口
-    // 使用 pageExec 生成支付链接，不再使用 AlipayFormData
-    const result = await getAlipaySdk().pageExec('alipay.trade.wap.pay', {
-      method: 'GET',
-      bizContent: {
-        outTradeNo: outTradeNo,
-        productCode: 'QUICK_WAP_WAY',
-        totalAmount: amount.toString(),
-        subject: `购买 ${credits} 积分`,
-        body: 'Spark Vertex 积分充值',
-      },
-      notifyUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/payment/notify`,
-      returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/profile`,
-    });
+    // 4. 生成爱发电支付链接
+    let payUrl: string;
+    
+    if (item_id) {
+      // 商品购买模式: https://afdian.com/item/{item_id}?remark={订单号}
+      payUrl = `https://afdian.com/item/${item_id}?remark=${encodeURIComponent(outTradeNo)}`;
+    } else if (plan_id) {
+      // 方案赞助模式: https://afdian.com/order/create?user_id=xxx&plan_id=xxx&remark=xxx
+      const params = new URLSearchParams({
+        user_id: AFDIAN_USER_ID,
+        plan_id: plan_id,
+        remark: outTradeNo,
+      });
+      payUrl = `https://afdian.com/order/create?${params.toString()}`;
+    } else {
+      // 通用赞助页面 (用户可以手动选择金额)
+      const params = new URLSearchParams({
+        user_id: AFDIAN_USER_ID,
+        remark: outTradeNo,
+      });
+      payUrl = `https://afdian.com/order/create?${params.toString()}`;
+    }
 
-    return NextResponse.json({ url: result });
+    return NextResponse.json({ url: payUrl });
 
   } catch (error: any) {
-    console.error('Payment Create Error:', error);
+    console.error('Afdian Payment Create Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -10,14 +10,16 @@ import { X, Check, Sparkles } from 'lucide-react';
 const PACKAGES = [
   { 
     id: 'basic', 
-    credits: 120, 
+    credits: 1, // 测试用,正式上线改回120
     price: 19.9, 
     originalPrice: 19.9,
     nameKey: 'basic',
     color: 'from-slate-400 to-slate-600',
     shadow: 'shadow-slate-500/20',
     footerBg: 'bg-slate-900/60',
-    emoji: '🥉'
+    emoji: '🥉',
+    afdian_item_id: '2bfce06ad1d711f0be2b5254001e7c00',
+    afdian_plan_id: ''
   },
   { 
     id: 'standard', 
@@ -29,7 +31,9 @@ const PACKAGES = [
     color: 'from-blue-400 to-blue-600',
     shadow: 'shadow-blue-500/20',
     footerBg: 'bg-blue-950/30',
-    emoji: '🥈'
+    emoji: '🥈',
+    afdian_item_id: '08693af2d1d911f0a58152540025c377',
+    afdian_plan_id: ''
   },
   { 
     id: 'premium', 
@@ -42,7 +46,9 @@ const PACKAGES = [
     color: 'from-purple-400 to-purple-600',
     shadow: 'shadow-purple-500/20',
     footerBg: 'bg-purple-950/30',
-    emoji: '🥈'
+    emoji: '🥈',
+    afdian_item_id: '1e77bf3ad1d911f0aa4e52540025c377',
+    afdian_plan_id: ''
   },
   { 
     id: 'ultimate', 
@@ -55,7 +61,9 @@ const PACKAGES = [
     shadow: 'shadow-amber-500/20',
     isNew: true,
     footerBg: 'bg-amber-950/30',
-    emoji: '🥇'
+    emoji: '🥇',
+    afdian_item_id: '345e4f9ed1d911f0842f52540025c377',
+    afdian_plan_id: ''
   }
 ];
 
@@ -77,27 +85,32 @@ export default function CreditPurchaseModal() {
     if (!selectedPackage) return;
     
     try {
-      const res = await fetch('/api/payment/create', {
+      // 改为调用爱发电支付接口
+      const res = await fetch('/api/payment/afdian/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           amount: selectedPackage.price, 
-          credits: selectedPackage.credits 
+          credits: selectedPackage.credits,
+          item_id: selectedPackage.afdian_item_id,
+          plan_id: selectedPackage.afdian_plan_id
         }),
       });
       
       const data = await res.json();
       
       if (data.url) {
-        // Redirect to Alipay
+        // Redirect to Afdian
         window.location.href = data.url;
       } else {
         console.error('Payment creation failed:', data.error);
         if (warning) warning(t.payment_modal.create_fail);
+        setStep('select'); // Reset on failure
       }
     } catch (error) {
       console.error('Payment request failed:', error);
       if (warning) warning(t.payment_modal.create_fail);
+      setStep('select');
     }
   }, [selectedPackage, t.payment_modal.create_fail, warning]);
 
