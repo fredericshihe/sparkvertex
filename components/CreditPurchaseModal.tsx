@@ -74,12 +74,14 @@ export default function CreditPurchaseModal() {
   const [step, setStep] = useState<'select' | 'pay' | 'success'>('select');
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     if (isCreditPurchaseModalOpen) {
       setStep('select');
       setSelectedPackage(null);
       setIsProcessing(false);
+      setShowConfirm(false);
     }
   }, [isCreditPurchaseModalOpen]);
 
@@ -150,12 +152,53 @@ export default function CreditPurchaseModal() {
     if (isProcessing) return; // 防止重复点击
     console.log('Package selected:', pkg);
     setSelectedPackage(pkg);
-    // Proceed to payment flow
-    setStep('pay');
+    setShowConfirm(true); // 显示确认弹窗
+  };
+  
+  const handleConfirmPurchase = () => {
+    setShowConfirm(false);
+    setStep('pay'); // 确认后才进入支付流程
+  };
+  
+  const handleCancelPurchase = () => {
+    setShowConfirm(false);
+    setSelectedPackage(null);
   };
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
+      {/* Confirmation Modal */}
+      {showConfirm && selectedPackage && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md mx-4 shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-3">确认购买</h3>
+            <p className="text-slate-300 mb-4">
+              您将跳转到爱发电支付页面完成 <span className="text-brand-400 font-bold">¥{selectedPackage.price}</span> 的支付。
+            </p>
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-5">
+              <p className="text-amber-400 text-sm flex items-start gap-2">
+                <span className="text-lg">⚠️</span>
+                <span>支付完成后，请<strong>手动返回本页面</strong>，积分将自动到账。</span>
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancelPurchase}
+                className="flex-1 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-medium transition"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleConfirmPurchase}
+                className="flex-1 py-2.5 rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white font-bold transition shadow-lg"
+              >
+                确认跳转
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="bg-[#0f172a] border border-slate-800 rounded-3xl w-full max-w-6xl shadow-2xl flex flex-col overflow-hidden relative max-h-[95vh]">
         
         {/* Close Button */}
@@ -268,18 +311,18 @@ export default function CreditPurchaseModal() {
                     </p>
                   </div>
                   
-                  {/* Buy Button Overlay (Visible on Hover) */}
+                  {/* Buy Button */}
                   {!isDisabled && (
-                  <div
-                    className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-slate-900/90 backdrop-blur-sm border-t border-slate-700/50 cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSelect(pkg);
-                    }}
-                  >
-                    <div className={`w-full py-3 rounded-xl font-bold text-center transition-all duration-300 bg-gradient-to-r ${pkg.color} text-white shadow-lg`}>
+                  <div className="absolute bottom-0 left-0 w-full p-4">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelect(pkg);
+                      }}
+                      className={`w-full py-3 rounded-xl font-bold text-center transition-all duration-300 bg-gradient-to-r ${pkg.color} text-white shadow-lg hover:shadow-xl hover:scale-105`}
+                    >
                       {t.detail.buy}
-                    </div>
+                    </button>
                   </div>
                   )}
                 </button>
