@@ -56,6 +56,22 @@ export const getPreviewContent = (content: string | null) => {
     'null'
   );
 
+  // 3.4 Fix Google Fonts (Use loli.net mirror for China)
+  patchedContent = patchedContent.replace(
+    /fonts\.googleapis\.com/g, 
+    'fonts.loli.net'
+  );
+  patchedContent = patchedContent.replace(
+    /fonts\.gstatic\.com/g, 
+    'gstatic.loli.net'
+  );
+
+  // 3.5 Fix Tailwind Grid Image (404 -> Data URI)
+  patchedContent = patchedContent.replace(
+    /https:\/\/cdn\.tailwindcss\.com\/img\/grid-slate-900\.svg/g, 
+    'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="rgb(15 23 42 / 0.1)"%3E%3Cpath d="M0 .5H31.5V32"/%3E%3C/svg%3E'
+  );
+
   // 4. Fix Broken Unsplash URLs (AI sometimes outputs just the ID)
   // Example: src="photo-123..." -> src="https://images.unsplash.com/photo-123..."
   patchedContent = patchedContent.replace(
@@ -96,9 +112,9 @@ export const getPreviewContent = (content: string | null) => {
     ${!hasESMReact ? '<script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js"></script>' : ''}
     ${!hasESMReact ? '<script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js"></script>' : ''}
     <script src="https://cdn.staticfile.org/prop-types/15.8.1/prop-types.min.js"></script>
-    ${!hasESMReact ? '<script src="https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>' : ''}
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.0/Recharts.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.5/babel.min.js"></script>
+    ${!hasESMReact ? '<script src="https://cdn.jsdelivr.net/npm/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>' : ''}
+    <script src="https://cdn.staticfile.org/recharts/2.12.0/Recharts.min.js"></script>
+    <script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
     <script>
       // Polyfill for legacy code expecting global lucideReact
       // The UMD build exports as 'lucide' (lowercase) in newer versions, or 'LucideReact' in older ones.

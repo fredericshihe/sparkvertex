@@ -1,0 +1,46 @@
+
+> spark-vertex-next@0.1.0 dev
+> next dev -H 0.0.0.0
+
+  ▲ Next.js 14.2.33
+  - Local:        http://localhost:3000
+  - Network:      http://0.0.0.0:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ⚠ Invalid next.config.js options detected: 
+ ⚠     Unrecognized key(s) in object: 'allowedDevOrigins' at "experimental"
+ ⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
+ ○ (pwa) PWA support is disabled.
+ ✓ Ready in 1271ms
+ ✓ Compiled /middleware in 332ms (226 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 2.1s (931 modules)
+ GET / 200 in 2299ms
+ ✓ Compiled in 195ms (455 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (128kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+ GET / 200 in 23ms
+ ⚠ Cross origin request detected from 192.168.3.151 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+ ✓ Compiled /create in 274ms (929 modules)
+ ✓ Compiled /api/generate in 328ms (673 modules)
+ POST /api/generate 200 in 645ms
+ POST /api/generate 200 in 540ms
+ ✓ Compiled /upload in 272ms (937 modules)
+ ✓ Compiled /api/analyze in 79ms (679 modules)
+ POST /api/analyze 200 in 3067ms
+ POST /api/analyze 200 in 5038ms
+ ✓ Compiled /api/embed in 61ms (681 modules)
+ POST /api/embed 200 in 1035ms
+ ✓ Compiled /api/generate-icon in 63ms (683 modules)
+Using Edge Function to optimize icon prompt...
+ POST /api/analyze 200 in 2384ms
+ POST /api/analyze 200 in 2793ms
+ POST /api/analyze 200 in 3001ms
+ POST /api/analyze 200 in 6066ms
+DeepSeek (Edge) generated prompt: App icon for 'Cyber Tank 2077', a sleek, futuristic tank silhouette composed of glowing neon circuit lines and geometric armor plates. Style: Cyberpunk aesthetic, low-poly 3D render, metallic sheen, holographic details. Lighting: Volumetric neon glow from within, harsh rim lighting from a dark cityscape. Colors: Deep magenta, electric cyan, and matte black with vibrant neon accents. Composition: Dynamic low-angle view, centered, aggressive stance, clean dark gradient background. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background.
+Using SiliconFlow via Edge Function...
+ POST /api/analyze 200 in 12613ms
+ POST /api/generate-icon 200 in 16350ms
+ ✓ Compiled in 269ms (937 modules)
+ ✓ Compiled in 86ms (937 modules)

@@ -479,7 +479,7 @@ function UploadContent() {
             }
             return prev;
         });
-    }, 20000); // 20 seconds timeout
+    }, 60000); // 60 seconds timeout
 
     // Store timeout ID to clear it if validation succeeds
     (window as any).__validationTimeout = timeoutId;
