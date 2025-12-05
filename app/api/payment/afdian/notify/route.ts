@@ -22,18 +22,16 @@ export async function POST(request: Request) {
     const { data } = payload;
     console.log('Order type:', data.type);
     console.log('Order status:', data.order?.status);
+    console.log('Full order object:', JSON.stringify(data.order, null, 2));
     
     // 3. 检查交易状态
     // type 为 order 且 status 为 2 (交易成功)
     if (data.type === 'order' && data.order.status === 2) {
-      const outTradeNo = data.order.remark; // 我们在 remark 中透传了 out_trade_no
       const tradeNo = data.order.out_trade_no; // 爱发电的订单号
-
-      if (!outTradeNo) {
-          console.error('No remark (out_trade_no) found in Afdian order');
-          return NextResponse.json({ ec: 200, em: 'success' }); // 无法处理，但返回成功停止重试
-      }
-
+      const orderAmount = parseFloat(data.order.show_amount); // 实际支付金额
+      
+      console.log('Processing Afdian order:', tradeNo, 'Amount:', orderAmount);
+      
       // 初始化 Supabase Admin 客户端
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -46,16 +44,51 @@ export async function POST(request: Request) {
         }
       );
       
-      // 4. 查询订单
-      console.log('Searching for order:', outTradeNo);
-      const { data: order, error: fetchError } = await supabaseAdmin
-        .from('credit_orders')
-        .select('*')
-        .eq('out_trade_no', outTradeNo)
-        .single();
+      // 商品购买模式下，remark 不会传递，我们通过金额 + 时间窗口匹配订单
+      // 先尝试通过 remark 匹配（如果有的话）
+      let order = null;
+      let fetchError = null;
+      
+      if (data.order.remark) {
+        console.log('Trying to match by remark:', data.order.remark);
+        const result = await supabaseAdmin
+          .from('credit_orders')
+          .select('*')
+          .eq('out_trade_no', data.order.remark)
+          .eq('status', 'pending')
+          .single();
+        order = result.data;
+        fetchError = result.error;
+      }
+      
+      // 如果通过 remark 找不到，尝试通过金额匹配最近的待支付订单
+      if (!order) {
+        console.log('Remark not found, matching by amount:', orderAmount);
+        
+        // 查找最近10分钟内，金额匹配且状态为 pending 的订单
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        const result = await supabaseAdmin
+          .from('credit_orders')
+          .select('*')
+          .eq('provider', 'afdian')
+          .eq('status', 'pending')
+          .eq('amount', orderAmount)
+          .gte('created_at', tenMinutesAgo)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+          
+        order = result.data;
+        fetchError = result.error;
+        
+        if (order) {
+          console.log('Found matching order by amount and time:', order.out_trade_no);
+        }
+      }
 
       if (fetchError || !order) {
-        console.error('Order not found:', outTradeNo, 'Error:', fetchError);
+        console.error('Order not found. Amount:', orderAmount, 'Error:', fetchError);
+        console.error('Afdian trade_no:', tradeNo);
         return NextResponse.json({ ec: 200, em: 'success' });
       }
 
