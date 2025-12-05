@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
+import { useToast } from '@/context/ToastContext';
 import { X, Zap, Crown, Star, Check, Sparkles, Gem } from 'lucide-react';
-import toast from 'react-hot-toast';
 
 export default function CreditPurchaseModal() {
   const { t, language } = useLanguage();
+  const { warning } = useToast();
   const { isCreditPurchaseModalOpen, closeCreditPurchaseModal } = useModal();
   const [step, setStep] = useState<'select' | 'pay' | 'success'>('select');
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
@@ -77,14 +78,7 @@ export default function CreditPurchaseModal() {
   const handleSelect = (pkg: any) => {
     setSelectedPackage(pkg);
     // Temporary: Show coming soon toast instead of proceeding
-    toast(t.credit_purchase.coming_soon, {
-      icon: '🚧',
-      style: {
-        borderRadius: '10px',
-        background: '#333',
-        color: '#fff',
-      },
-    });
+    warning(t.credit_purchase.coming_soon);
     // Uncomment below to enable payment flow later
     // setStep('pay');
   };
