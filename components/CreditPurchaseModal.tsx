@@ -98,6 +98,15 @@ export default function CreditPurchaseModal() {
       
       const data = await res.json();
       
+      // 检查HTTP状态
+      if (!res.ok) {
+        console.error('[Payment] Server error:', res.status, data);
+        const errorMsg = data.error || t.payment_modal?.create_fail || '创建订单失败';
+        if (warning) warning(errorMsg);
+        setStep('select');
+        return;
+      }
+      
       if (data.url) {
         // 存储当前时间戳,用于返回后检查订单
         localStorage.setItem('pending_payment_time', Date.now().toString());
