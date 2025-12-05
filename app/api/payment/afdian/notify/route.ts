@@ -69,26 +69,23 @@ export async function POST(request: Request) {
       if (!order) {
         console.log('[Afdian Webhook] Creating new order from webhook');
         
-        // 根据金额映射积分（与前端 PACKAGES 保持一致）
-        const creditMapping: Record<number, number> = {
-          19.9: 1,    // Basic (测试期间)
-          49.9: 350,  // Standard
-          99.9: 800,  // Premium
-          198.0: 2000 // Ultimate
-        };
-        
-        const credits = creditMapping[orderAmount] || Math.floor(orderAmount * 10); // 默认按 1元=10积分
-        
-        // 从 remark 中提取 user_id
-        // 支持两种格式以保持向后兼容：
-        // 1. 新格式：userId|timestamp|random（直接包含完整UUID）
-        // 2. 旧格式：timestamp_userIdPrefix_random（需要查询匹配）
+        // 从 remark 中提取 user_id 和 credits
+        // 支持三种格式以保持向后兼容：
+        // 1. 最新格式：userId|credits|timestamp|random（直接包含完整UUID和积分数）
+        // 2. 新格式：userId|timestamp|random（直接包含完整UUID）
+        // 3. 旧格式：timestamp_userIdPrefix_random（需要查询匹配）
         let userId: string | null = null;
+        let credits: number | null = null;
+        
         if (data.order.remark) {
-          // 尝试新格式（使用 | 分隔）
+          // 尝试最新格式（userId|credits|timestamp|random）
           if (data.order.remark.includes('|')) {
             const parts = data.order.remark.split('|');
-            if (parts.length >= 3) {
+            if (parts.length >= 4) {
+              userId = parts[0]; // 完整的 user_id
+              credits = parseInt(parts[1], 10); // 积分数
+              console.log('[Afdian Webhook] Extracted from latest format - user_id:', userId, 'credits:', credits);
+            } else if (parts.length >= 3) {
               userId = parts[0]; // 完整的 user_id
               console.log('[Afdian Webhook] Extracted user_id from new format:', userId);
               
@@ -131,6 +128,18 @@ export async function POST(request: Request) {
         if (!userId) {
           console.error('[Afdian Webhook] Cannot extract user_id from remark:', data.order.remark);
           return NextResponse.json({ ec: 200, em: 'cannot identify user' });
+        }
+        
+        // 如果 remark 中没有 credits 信息，则根据金额映射
+        if (!credits || isNaN(credits)) {
+          const creditMapping: Record<number, number> = {
+            19.9: 1,    // Basic (测试期间)
+            49.9: 350,  // Standard
+            99.9: 800,  // Premium
+            198.0: 2000 // Ultimate
+          };
+          credits = creditMapping[orderAmount] || Math.floor(orderAmount * 10);
+          console.log('[Afdian Webhook] Calculated credits from amount:', orderAmount, '->', credits);
         }
         
         // 创建订单

@@ -30,10 +30,10 @@ export async function POST(request: Request) {
     console.log('[Afdian Create] Request:', { user_id: user.id, amount, credits });
     
     // 2. 生成唯一的订单标识（用作 remark）
-    // 新格式：userId|timestamp|random（使用 | 作为分隔符，更易解析且不会与UUID冲突）
+    // 新格式：userId|credits|timestamp|random（使用 | 作为分隔符，更易解析且不会与UUID冲突）
     const timestamp = Date.now();
     const randomPart = Math.random().toString(36).substring(2, 15);
-    const outTradeNo = `${user.id}|${timestamp}|${randomPart}`;
+    const outTradeNo = `${user.id}|${credits}|${timestamp}|${randomPart}`;
     
     console.log('[Afdian Create] Generated remark:', outTradeNo);
     
