@@ -42,36 +42,29 @@ export function verifyAfdianSignature(payload: AfdianWebhookPayload): boolean {
   try {
     const { data } = payload;
     if (!data || !data.order || !data.sign) {
-      console.error('Missing data, order or sign');
+      console.error('[Afdian] Missing required fields in webhook payload');
       return false;
     }
 
     const { order, sign } = data;
     
-    console.log('=== Signature Verification Debug ===');
-    console.log('out_trade_no:', order.out_trade_no);
-    console.log('user_id:', order.user_id);
-    console.log('plan_id:', order.plan_id);
-    console.log('total_amount:', order.total_amount);
-    console.log('sign:', sign);
-    
-    // 1. 拼接被签名的数据: out_trade_no + user_id + plan_id + total_amount
-    // 注意：这里的 user_id 是下单用户在爱发电的 ID，不是我们系统的 user_id
+    // 拼接被签名的数据: out_trade_no + user_id + plan_id + total_amount
     const content = `${order.out_trade_no}${order.user_id}${order.plan_id}${order.total_amount}`;
-    console.log('Signature content:', content);
     
-    // 2. 验证签名
+    // 验证签名
     const verify = crypto.createVerify('SHA256');
     verify.update(content);
     verify.end();
     
     const isValid = verify.verify(AFDIAN_PUBLIC_KEY, sign, 'base64');
-    console.log('Signature valid:', isValid);
-    console.log('=== End Debug ===');
+    
+    if (!isValid) {
+      console.warn('[Afdian] Signature verification failed for order:', order.out_trade_no);
+    }
     
     return isValid;
   } catch (error) {
-    console.error('Afdian signature verification failed:', error);
+    console.error('[Afdian] Signature verification error:', error instanceof Error ? error.message : 'Unknown error');
     return false;
   }
 }

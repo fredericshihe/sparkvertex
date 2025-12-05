@@ -82,52 +82,38 @@ export default function CreditPurchaseModal() {
   }, [isCreditPurchaseModalOpen]);
 
   const handlePurchase = useCallback(async () => {
-    if (!selectedPackage) {
-      console.log('No package selected');
-      return;
-    }
-    
-    console.log('Starting purchase for package:', selectedPackage);
+    if (!selectedPackage) return;
     
     try {
-      // 改为调用爱发电支付接口
-      const requestBody = { 
-        amount: selectedPackage.price, 
-        credits: selectedPackage.credits,
-        item_id: selectedPackage.afdian_item_id,
-        plan_id: selectedPackage.afdian_plan_id
-      };
-      console.log('Request body:', requestBody);
-      
       const res = await fetch('/api/payment/afdian/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ 
+          amount: selectedPackage.price, 
+          credits: selectedPackage.credits,
+          item_id: selectedPackage.afdian_item_id,
+          plan_id: selectedPackage.afdian_plan_id
+        }),
       });
       
-      console.log('Response status:', res.status);
       const data = await res.json();
-      console.log('Response data:', data);
       
       if (data.url) {
-        console.log('Payment URL received:', data.url);
         // 存储当前时间戳,用于返回后检查订单
         localStorage.setItem('pending_payment_time', Date.now().toString());
         
-        // 直接跳转到支付页面（不使用window.open避免被浏览器阻止）
-        console.log('Redirecting to payment URL...');
+        // 直接跳转到支付页面
         window.location.href = data.url;
       } else {
-        console.error('Payment creation failed:', data.error);
         if (warning) warning(t.payment_modal?.create_fail || '创建订单失败');
-        setStep('select'); // Reset on failure
+        setStep('select');
       }
     } catch (error) {
-      console.error('Payment request failed:', error);
+      console.error('[Payment] Error:', error);
       if (warning) warning(t.payment_modal?.create_fail || '请求失败');
       setStep('select');
     }
-  }, [selectedPackage, t.payment_modal, warning, closeCreditPurchaseModal]);
+  }, [selectedPackage, t.payment_modal, warning]);
 
   useEffect(() => {
     if (step === 'pay' && selectedPackage) {
