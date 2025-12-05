@@ -121,7 +121,7 @@ export default function Explore() {
   const [category, setCategory] = useState(exploreCache.category || 'all');
   const { openLoginModal, openDetailModal } = useModal();
   const { language } = useLanguage();
-  const t = translations[language];
+  const t = translations[language] as typeof translations['zh'];
   const ITEMS_PER_PAGE = 12;
 
   useEffect(() => {

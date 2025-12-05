@@ -297,6 +297,10 @@ export const translations = {
       ai_driven_title: 'AI 驱动的广场',
       ai_verified_desc: '全部应用由 AI 认证，安全可靠',
       ai_scoring_desc: 'AI 实时动态评分进行排序推荐',
+      ai_badge_driven: '广场由AI 自主驱动',
+      ai_badge_security: 'AI代码级安全认证',
+      ai_badge_recommendation: 'AI 实时算法推荐',
+      ai_badge_copyright: 'AI双重算法版权保护',
     },
     why: {
       title: 'SparkVertex：重塑软件生产力的 AI 原生平台',
@@ -1169,6 +1173,10 @@ export const translations = {
       ai_driven_title: 'AI-Driven Plaza',
       ai_verified_desc: 'All apps are AI-verified, safe and reliable',
       ai_scoring_desc: 'AI real-time dynamic scoring for sorting and recommendation',
+      ai_badge_driven: 'AI Autonomously Driven',
+      ai_badge_security: 'AI Code-Level Security',
+      ai_badge_recommendation: 'AI Real-time Recommendation',
+      ai_badge_copyright: 'AI Dual-Algo Copyright',
     },
     why: {
       title: 'SparkVertex: AI-Native App Creation Platform',
