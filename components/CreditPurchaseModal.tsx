@@ -25,6 +25,7 @@ export default function CreditPurchaseModal() {
       icon: Star,
       color: 'from-slate-400 to-slate-600',
       shadow: 'shadow-slate-500/20',
+      footerBg: 'bg-slate-900/60',
       emoji: '🥉'
     },
     { 
@@ -37,6 +38,7 @@ export default function CreditPurchaseModal() {
       icon: Zap,
       color: 'from-blue-400 to-blue-600',
       shadow: 'shadow-blue-500/20',
+      footerBg: 'bg-blue-950/30',
       emoji: '🥈'
     },
     { 
@@ -50,6 +52,7 @@ export default function CreditPurchaseModal() {
       icon: Crown,
       color: 'from-purple-400 to-purple-600',
       shadow: 'shadow-purple-500/20',
+      footerBg: 'bg-purple-950/30',
       emoji: '🥈'
     },
     { 
@@ -63,6 +66,7 @@ export default function CreditPurchaseModal() {
       color: 'from-amber-400 to-amber-600',
       shadow: 'shadow-amber-500/20',
       isNew: true,
+      footerBg: 'bg-amber-950/30',
       emoji: '🥇'
     }
   ];
@@ -190,7 +194,7 @@ export default function CreditPurchaseModal() {
                   </div>
 
                   {/* Slogan Footer */}
-                  <div className="px-6 py-4 bg-slate-900/50 border-t border-slate-700/50 mt-auto min-h-[80px] flex items-center justify-center">
+                  <div className={`w-full px-6 py-4 ${pkg.footerBg} border-t border-slate-700/50 mt-auto min-h-[80px] flex items-center justify-center shrink-0`}>
                     <p className="text-xs text-slate-400 text-center italic leading-relaxed">
                         "{pkgData.slogan}"
                     </p>
