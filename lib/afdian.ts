@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 
-export const AFDIAN_PUBLIC_KEY = process.env.AFDIAN_PUBLIC_KEY || `-----BEGIN PUBLIC KEY-----
+// 爱发电公钥 - 从环境变量读取，如果没有则使用默认公钥
+// 注意：Vercel 环境变量中配置时，需要保持正确的格式（包含 -----BEGIN PUBLIC KEY----- 等）
+const DEFAULT_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwwdaCg1Bt+UKZKs0R54y
 lYnuANma4IpgoOwNmk3a0rhg/PQuhUJ0EOZSowIC44l0K3+fqGns3Ygi4AfmEfS4
 EKbdk1ahSxu7Zkp2rHMt+R9arQFQkwSS/5x1dYiHNVMiR8oIXDgjmvxuNes2Cr8f
@@ -9,6 +11,11 @@ I+KWX6aY19Ka/ghv/L4t1IXmz9pctablN5S0CRWpJW3Cn0k6zSXjVdKm4uN7jRlg
 SRaf/Ind46vMCm3N2sgwxu/g3bnooW+db0iLo13zzuvyn727Q3UDQ0MmZcEWMQID
 AQAB
 -----END PUBLIC KEY-----`;
+
+export const AFDIAN_PUBLIC_KEY = process.env.AFDIAN_PUBLIC_KEY || DEFAULT_PUBLIC_KEY;
+
+// 是否启用严格验签模式（环境变量控制）
+const STRICT_SIGNATURE_MODE = process.env.AFDIAN_STRICT_SIGNATURE !== 'false';
 
 export const AFDIAN_USER_ID = process.env.AFDIAN_USER_ID;
 
@@ -52,19 +59,28 @@ export function verifyAfdianSignature(payload: AfdianWebhookPayload): boolean {
     const content = `${order.out_trade_no}${order.user_id}${order.plan_id}${order.total_amount}`;
     
     // 验证签名
-    const verify = crypto.createVerify('SHA256');
-    verify.update(content);
+    const verify = crypto.createVerify('RSA-SHA256');
+    verify.update(content, 'utf8');
     verify.end();
     
     const isValid = verify.verify(AFDIAN_PUBLIC_KEY, sign, 'base64');
     
     if (!isValid) {
       console.warn('[Afdian] Signature verification failed for order:', order.out_trade_no);
+      console.warn('[Afdian] Signature content:', content);
     }
     
     return isValid;
   } catch (error) {
     console.error('[Afdian] Signature verification error:', error instanceof Error ? error.message : 'Unknown error');
+    if (error instanceof Error && error.stack) {
+      console.error('[Afdian] Stack trace:', error.stack);
+    }
     return false;
   }
+}
+
+// 导出验签模式供外部使用
+export function isStrictSignatureMode(): boolean {
+  return STRICT_SIGNATURE_MODE;
 }

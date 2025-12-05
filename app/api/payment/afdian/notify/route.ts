@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import { verifyAfdianSignature, AfdianWebhookPayload } from '@/lib/afdian';
+import { verifyAfdianSignature, AfdianWebhookPayload, isStrictSignatureMode } from '@/lib/afdian';
 
 export async function POST(request: Request) {
   try {
@@ -12,9 +12,12 @@ export async function POST(request: Request) {
     // 2. 验签
     const isValid = verifyAfdianSignature(payload);
     if (!isValid) {
-      console.warn('[Afdian Webhook] Signature verification failed, but continuing to process order');
-      // 注意：为了稳定性，验签失败时仅记录警告，不阻止订单处理
-      // 生产环境建议修复公钥配置后启用严格验签
+      console.error('[Afdian Webhook] Signature verification failed for order:', payload.data?.order?.out_trade_no);
+      // 严格模式下拒绝无效签名的请求
+      return NextResponse.json({ 
+        ec: 400, 
+        em: 'signature verification failed' 
+      }, { status: 400 });
     }
 
     const { data } = payload;
