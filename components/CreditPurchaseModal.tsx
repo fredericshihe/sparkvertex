@@ -73,16 +73,20 @@ export default function CreditPurchaseModal() {
   const { isCreditPurchaseModalOpen, closeCreditPurchaseModal } = useModal();
   const [step, setStep] = useState<'select' | 'pay' | 'success'>('select');
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     if (isCreditPurchaseModalOpen) {
       setStep('select');
       setSelectedPackage(null);
+      setIsProcessing(false);
     }
   }, [isCreditPurchaseModalOpen]);
 
   const handlePurchase = useCallback(async () => {
-    if (!selectedPackage) return;
+    if (!selectedPackage || isProcessing) return;
+    
+    setIsProcessing(true);
     
     try {
       const res = await fetch('/api/payment/afdian/create', {
@@ -104,6 +108,7 @@ export default function CreditPurchaseModal() {
         const errorMsg = data.error || t.payment_modal?.create_fail || '创建订单失败';
         if (warning) warning(errorMsg);
         setStep('select');
+        setIsProcessing(false);
         return;
       }
       
@@ -113,16 +118,19 @@ export default function CreditPurchaseModal() {
         
         // 直接跳转到支付页面
         window.location.href = data.url;
+        // 注意：跳转后页面会卸载，所以不需要重置 isProcessing
       } else {
         if (warning) warning(t.payment_modal?.create_fail || '创建订单失败');
         setStep('select');
+        setIsProcessing(false);
       }
     } catch (error) {
       console.error('[Payment] Error:', error);
       if (warning) warning(t.payment_modal?.create_fail || '请求失败');
       setStep('select');
+      setIsProcessing(false);
     }
-  }, [selectedPackage, t.payment_modal, warning]);
+  }, [selectedPackage, t.payment_modal, warning, isProcessing]);
 
   useEffect(() => {
     if (step === 'pay' && selectedPackage) {
@@ -139,6 +147,7 @@ export default function CreditPurchaseModal() {
   }
 
   const handleSelect = (pkg: any) => {
+    if (isProcessing) return; // 防止重复点击
     console.log('Package selected:', pkg);
     setSelectedPackage(pkg);
     // Proceed to payment flow

@@ -27,8 +27,11 @@ export async function POST(request: Request) {
 
     const { amount, credits, item_id, plan_id } = await request.json();
     
-    // 2. 生成唯一订单号
-    const outTradeNo = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // 2. 生成唯一订单号（加入用户ID的一部分增加唯一性）
+    const timestamp = Date.now();
+    const randomPart = Math.random().toString(36).substr(2, 9);
+    const userIdPart = user.id.substr(0, 8);
+    const outTradeNo = `${timestamp}_${userIdPart}_${randomPart}`;
 
     // 3. 在数据库创建订单
     const { error: dbError } = await supabase
