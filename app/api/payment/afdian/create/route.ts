@@ -29,88 +29,17 @@ export async function POST(request: Request) {
     
     console.log('[Afdian Create] Request:', { user_id: user.id, amount, credits });
     
-    // 2. 检查是否有相同金额的未支付订单（5分钟内）
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    const { data: existingOrder, error: queryError } = await supabase
-      .from('credit_orders')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('status', 'pending')
-      .eq('amount', amount)
-      .eq('credits', credits)
-      .eq('provider', 'afdian')
-      .gte('created_at', fiveMinutesAgo)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // 2. 生成唯一的订单标识（用作 remark）
+    // 格式：timestamp_userIdPrefix_random
+    const timestamp = Date.now();
+    const randomPart = Math.random().toString(36).substring(2, 15);
+    const userIdPart = user.id.substring(0, 8);
+    const outTradeNo = `${timestamp}_${userIdPart}_${randomPart}`;
     
-    if (queryError) {
-      console.error('[Afdian Create] Query error:', queryError);
-    }
+    console.log('[Afdian Create] Generated remark:', outTradeNo);
     
-    let outTradeNo: string;
-    
-    // 如果存在未支付订单，复用它
-    if (existingOrder) {
-      console.log('[Afdian Create] Reusing existing pending order:', existingOrder.out_trade_no);
-      outTradeNo = existingOrder.out_trade_no;
-    } else {
-      console.log('[Afdian Create] No existing order found, creating new one');
-      
-      // 生成新的唯一订单号（使用更强的唯一性保证）
-      const timestamp = Date.now();
-      const randomPart = Math.random().toString(36).substring(2, 15);
-      const userIdPart = user.id.substring(0, 8);
-      const extraRandom = Math.floor(Math.random() * 10000);
-      outTradeNo = `${timestamp}_${userIdPart}_${randomPart}_${extraRandom}`;
-      
-      console.log('[Afdian Create] Generated order ID:', outTradeNo);
-      
-      // 3. 在数据库创建订单
-      const { error: dbError } = await supabase
-        .from('credit_orders')
-        .insert({
-          user_id: user.id,
-          out_trade_no: outTradeNo,
-          amount: amount,
-          credits: credits,
-          status: 'pending',
-          provider: 'afdian' // 标记为爱发电订单
-        });
-
-      if (dbError) {
-        console.error('[Afdian Create] Database error:', dbError);
-        console.error('[Afdian Create] Error details:', { code: dbError.code, message: dbError.message, details: dbError.details });
-        
-        // 检查是否是唯一性约束冲突
-        if (dbError.code === '23505') {
-          // 如果真的发生了冲突，尝试再次查询最新的订单
-          const { data: retryOrder } = await supabase
-            .from('credit_orders')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('status', 'pending')
-            .eq('amount', amount)
-            .eq('credits', credits)
-            .eq('provider', 'afdian')
-            .gte('created_at', fiveMinutesAgo)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
-          if (retryOrder) {
-            console.log('[Afdian Create] Found order after conflict, reusing:', retryOrder.out_trade_no);
-            outTradeNo = retryOrder.out_trade_no;
-          } else {
-            return NextResponse.json({ error: 'Duplicate order conflict, please try again in a moment' }, { status: 409 });
-          }
-        } else {
-          throw dbError;
-        }
-      } else {
-        console.log('[Afdian Create] Order created successfully');
-      }
-    }    // 4. 生成爱发电支付链接
+    // 3. 在 localStorage 暂存订单信息（前端会用，但不是必需的）
+    // Webhook 收到通知时，会根据 remark 和金额创建订单    // 4. 生成爱发电支付链接
     let payUrl: string;
     
     if (item_id) {
