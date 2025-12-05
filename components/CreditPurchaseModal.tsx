@@ -82,24 +82,35 @@ export default function CreditPurchaseModal() {
   }, [isCreditPurchaseModalOpen]);
 
   const handlePurchase = useCallback(async () => {
-    if (!selectedPackage) return;
+    if (!selectedPackage) {
+      console.log('No package selected');
+      return;
+    }
+    
+    console.log('Starting purchase for package:', selectedPackage);
     
     try {
       // 改为调用爱发电支付接口
+      const requestBody = { 
+        amount: selectedPackage.price, 
+        credits: selectedPackage.credits,
+        item_id: selectedPackage.afdian_item_id,
+        plan_id: selectedPackage.afdian_plan_id
+      };
+      console.log('Request body:', requestBody);
+      
       const res = await fetch('/api/payment/afdian/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          amount: selectedPackage.price, 
-          credits: selectedPackage.credits,
-          item_id: selectedPackage.afdian_item_id,
-          plan_id: selectedPackage.afdian_plan_id
-        }),
+        body: JSON.stringify(requestBody),
       });
       
+      console.log('Response status:', res.status);
       const data = await res.json();
+      console.log('Response data:', data);
       
       if (data.url) {
+        console.log('Payment URL received:', data.url);
         // 存储当前时间戳,用于返回后检查订单
         localStorage.setItem('pending_payment_time', Date.now().toString());
         
@@ -110,21 +121,22 @@ export default function CreditPurchaseModal() {
         
         // 延迟跳转,让用户看到提示
         setTimeout(() => {
+          console.log('Opening payment URL...');
           window.open(data.url, '_blank');
           // 关闭模态框,让用户可以看到页面
           closeCreditPurchaseModal();
         }, 1500);
       } else {
         console.error('Payment creation failed:', data.error);
-        if (warning) warning(t.payment_modal.create_fail);
+        if (warning) warning(t.payment_modal?.create_fail || '创建订单失败');
         setStep('select'); // Reset on failure
       }
     } catch (error) {
       console.error('Payment request failed:', error);
-      if (warning) warning(t.payment_modal.create_fail);
+      if (warning) warning(t.payment_modal?.create_fail || '请求失败');
       setStep('select');
     }
-  }, [selectedPackage, t.payment_modal.create_fail, warning, closeCreditPurchaseModal]);
+  }, [selectedPackage, t.payment_modal, warning, closeCreditPurchaseModal]);
 
   useEffect(() => {
     if (step === 'pay' && selectedPackage) {
