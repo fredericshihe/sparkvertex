@@ -5,8 +5,15 @@ import { AFDIAN_USER_ID } from '@/lib/afdian';
 
 export async function POST(request: Request) {
   try {
+    // 环境变量校验
     if (!AFDIAN_USER_ID) {
+      console.error('[Afdian Create] AFDIAN_USER_ID not configured');
       return NextResponse.json({ error: 'Afdian User ID not configured' }, { status: 500 });
+    }
+    
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('[Afdian Create] Supabase configuration missing');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
     // 1. 验证用户
