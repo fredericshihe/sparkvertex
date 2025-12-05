@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import alipaySdk from '@/lib/alipay';
+import { getAlipaySdk } from '@/lib/alipay';
 import { AlipayFormData } from 'alipay-sdk';
 
 export async function POST(request: Request) {
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     formData.addField('returnUrl', `${process.env.NEXT_PUBLIC_APP_URL}/profile`);
 
     // 生成支付链接
-    const result = await alipaySdk.exec(
+    const result = await getAlipaySdk().exec(
       'alipay.trade.wap.pay',
       {},
       { formData: formData }

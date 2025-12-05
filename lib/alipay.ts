@@ -1,11 +1,23 @@
-import AlipaySdk from 'alipay-sdk';
+import { AlipaySdk } from 'alipay-sdk';
 
-const alipaySdk = new AlipaySdk({
-  appId: process.env.ALIPAY_APP_ID!,
-  privateKey: process.env.ALIPAY_PRIVATE_KEY!,
-  alipayPublicKey: process.env.ALIPAY_PUBLIC_KEY!,
-  // 支付宝网关，沙箱环境用 'https://openapi.alipaydev.com/gateway.do'
-  gateway: 'https://openapi.alipay.com/gateway.do', 
-});
+let alipaySdkInstance: AlipaySdk | null = null;
 
-export default alipaySdk;
+export function getAlipaySdk() {
+  if (alipaySdkInstance) return alipaySdkInstance;
+
+  const appId = process.env.ALIPAY_APP_ID;
+  if (!appId) {
+    throw new Error('ALIPAY_APP_ID is missing');
+  }
+
+  alipaySdkInstance = new AlipaySdk({
+    appId,
+    privateKey: process.env.ALIPAY_PRIVATE_KEY!,
+    alipayPublicKey: process.env.ALIPAY_PUBLIC_KEY!,
+    // 支付宝网关，沙箱环境用 'https://openapi.alipaydev.com/gateway.do'
+    gateway: 'https://openapi.alipay.com/gateway.do', 
+  });
+
+  return alipaySdkInstance;
+}
+

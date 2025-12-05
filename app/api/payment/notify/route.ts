@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import alipaySdk from '@/lib/alipay';
+import { getAlipaySdk } from '@/lib/alipay';
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     });
 
     // 2. 验签
-    const checkResult = alipaySdk.checkNotifySign(params);
+    const checkResult = getAlipaySdk().checkNotifySign(params);
     if (!checkResult) {
       console.error('支付宝验签失败');
       // 签名失败也要返回 success 吗？通常不，返回 fail 让支付宝重试，或者直接忽略
