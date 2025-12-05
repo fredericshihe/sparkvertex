@@ -27,9 +27,11 @@ export async function POST(request: Request) {
 
     const { amount, credits, item_id, plan_id } = await request.json();
     
+    console.log('[Afdian Create] Request:', { user_id: user.id, amount, credits });
+    
     // 2. 检查是否有相同金额的未支付订单（5分钟内）
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    const { data: existingOrder } = await supabase
+    const { data: existingOrder, error: queryError } = await supabase
       .from('credit_orders')
       .select('*')
       .eq('user_id', user.id)
@@ -42,6 +44,10 @@ export async function POST(request: Request) {
       .limit(1)
       .maybeSingle();
     
+    if (queryError) {
+      console.error('[Afdian Create] Query error:', queryError);
+    }
+    
     let outTradeNo: string;
     
     // 如果存在未支付订单，复用它
@@ -49,13 +55,18 @@ export async function POST(request: Request) {
       console.log('[Afdian Create] Reusing existing pending order:', existingOrder.out_trade_no);
       outTradeNo = existingOrder.out_trade_no;
     } else {
-      // 生成新的唯一订单号
-      const timestamp = Date.now();
-      const randomPart = Math.random().toString(36).substr(2, 9);
-      const userIdPart = user.id.substr(0, 8);
-      outTradeNo = `${timestamp}_${userIdPart}_${randomPart}`;
+      console.log('[Afdian Create] No existing order found, creating new one');
       
-      // 3. 在数据库创建订单订单
+      // 生成新的唯一订单号（使用更强的唯一性保证）
+      const timestamp = Date.now();
+      const randomPart = Math.random().toString(36).substring(2, 15);
+      const userIdPart = user.id.substring(0, 8);
+      const extraRandom = Math.floor(Math.random() * 10000);
+      outTradeNo = `${timestamp}_${userIdPart}_${randomPart}_${extraRandom}`;
+      
+      console.log('[Afdian Create] Generated order ID:', outTradeNo);
+      
+      // 3. 在数据库创建订单
       const { error: dbError } = await supabase
         .from('credit_orders')
         .insert({
@@ -69,11 +80,35 @@ export async function POST(request: Request) {
 
       if (dbError) {
         console.error('[Afdian Create] Database error:', dbError);
+        console.error('[Afdian Create] Error details:', { code: dbError.code, message: dbError.message, details: dbError.details });
+        
         // 检查是否是唯一性约束冲突
         if (dbError.code === '23505') {
-          return NextResponse.json({ error: 'Duplicate order, please try again' }, { status: 409 });
+          // 如果真的发生了冲突，尝试再次查询最新的订单
+          const { data: retryOrder } = await supabase
+            .from('credit_orders')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('status', 'pending')
+            .eq('amount', amount)
+            .eq('credits', credits)
+            .eq('provider', 'afdian')
+            .gte('created_at', fiveMinutesAgo)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (retryOrder) {
+            console.log('[Afdian Create] Found order after conflict, reusing:', retryOrder.out_trade_no);
+            outTradeNo = retryOrder.out_trade_no;
+          } else {
+            return NextResponse.json({ error: 'Duplicate order conflict, please try again in a moment' }, { status: 409 });
+          }
+        } else {
+          throw dbError;
         }
-        throw dbError;
+      } else {
+        console.log('[Afdian Create] Order created successfully');
       }
     }    // 4. 生成爱发电支付链接
     let payUrl: string;
