@@ -2,7 +2,6 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getAlipaySdk } from '@/lib/alipay';
-import { AlipayFormData } from 'alipay-sdk';
 
 export async function POST(request: Request) {
   try {
@@ -47,29 +46,19 @@ export async function POST(request: Request) {
     if (dbError) throw dbError;
 
     // 4. 调用支付宝接口
-    const formData = new AlipayFormData();
-    formData.setMethod('get');
-    
-    // 手机网站支付
-    formData.addField('bizContent', {
-      outTradeNo: outTradeNo,
-      productCode: 'QUICK_WAP_WAY',
-      totalAmount: amount.toString(),
-      subject: `购买 ${credits} 积分`,
-      body: 'Spark Vertex 积分充值',
+    // 使用 pageExec 生成支付链接，不再使用 AlipayFormData
+    const result = await getAlipaySdk().pageExec('alipay.trade.wap.pay', {
+      method: 'GET',
+      bizContent: {
+        outTradeNo: outTradeNo,
+        productCode: 'QUICK_WAP_WAY',
+        totalAmount: amount.toString(),
+        subject: `购买 ${credits} 积分`,
+        body: 'Spark Vertex 积分充值',
+      },
+      notifyUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/payment/notify`,
+      returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/profile`,
     });
-
-    // 设置回调地址
-    formData.addField('notifyUrl', `${process.env.NEXT_PUBLIC_APP_URL}/api/payment/notify`);
-    // 支付成功后跳转回的页面
-    formData.addField('returnUrl', `${process.env.NEXT_PUBLIC_APP_URL}/profile`);
-
-    // 生成支付链接
-    const result = await getAlipaySdk().exec(
-      'alipay.trade.wap.pay',
-      {},
-      { formData: formData }
-    );
 
     return NextResponse.json({ url: result });
 
