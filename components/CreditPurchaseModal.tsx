@@ -1,75 +1,70 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
-import { X, Zap, Crown, Star, Check, Sparkles, Gem } from 'lucide-react';
+import { X, Check, Sparkles } from 'lucide-react';
+
+// Define packages outside component to avoid recreation
+const PACKAGES = [
+  { 
+    id: 'basic', 
+    credits: 120, 
+    price: 19.9, 
+    originalPrice: 19.9,
+    nameKey: 'basic',
+    color: 'from-slate-400 to-slate-600',
+    shadow: 'shadow-slate-500/20',
+    footerBg: 'bg-slate-900/60',
+    emoji: '🥉'
+  },
+  { 
+    id: 'standard', 
+    credits: 350, 
+    price: 49.9, 
+    originalPrice: 58.0, // 15% bonus implied
+    bonus: 15,
+    nameKey: 'standard',
+    color: 'from-blue-400 to-blue-600',
+    shadow: 'shadow-blue-500/20',
+    footerBg: 'bg-blue-950/30',
+    emoji: '🥈'
+  },
+  { 
+    id: 'premium', 
+    credits: 800, 
+    price: 99.9, 
+    originalPrice: 133.0, // 25% bonus implied
+    bonus: 25,
+    nameKey: 'premium',
+    bestValue: true,
+    color: 'from-purple-400 to-purple-600',
+    shadow: 'shadow-purple-500/20',
+    footerBg: 'bg-purple-950/30',
+    emoji: '🥈'
+  },
+  { 
+    id: 'ultimate', 
+    credits: 2000, 
+    price: 198.0, 
+    originalPrice: 332.0, // 40% bonus implied
+    bonus: 40,
+    nameKey: 'ultimate',
+    color: 'from-amber-400 to-amber-600',
+    shadow: 'shadow-amber-500/20',
+    isNew: true,
+    footerBg: 'bg-amber-950/30',
+    emoji: '🥇'
+  }
+];
 
 export default function CreditPurchaseModal() {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const { warning } = useToast();
   const { isCreditPurchaseModalOpen, closeCreditPurchaseModal } = useModal();
   const [step, setStep] = useState<'select' | 'pay' | 'success'>('select');
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
-  const [localNotice, setLocalNotice] = useState<string | null>(null);
-
-    // Define packages with the new 198 tier
-  const PACKAGES = [
-    { 
-      id: 'basic', 
-      credits: 120, 
-      price: 19.9, 
-      originalPrice: 19.9,
-      nameKey: 'basic',
-      icon: Star,
-      color: 'from-slate-400 to-slate-600',
-      shadow: 'shadow-slate-500/20',
-      footerBg: 'bg-slate-900/60',
-      emoji: '🥉'
-    },
-    { 
-      id: 'standard', 
-      credits: 350, 
-      price: 49.9, 
-      originalPrice: 58.0, // 15% bonus implied
-      bonus: 15,
-      nameKey: 'standard',
-      icon: Zap,
-      color: 'from-blue-400 to-blue-600',
-      shadow: 'shadow-blue-500/20',
-      footerBg: 'bg-blue-950/30',
-      emoji: '🥈'
-    },
-    { 
-      id: 'premium', 
-      credits: 800, 
-      price: 99.9, 
-      originalPrice: 133.0, // 25% bonus implied
-      bonus: 25,
-      nameKey: 'premium',
-      bestValue: true,
-      icon: Crown,
-      color: 'from-purple-400 to-purple-600',
-      shadow: 'shadow-purple-500/20',
-      footerBg: 'bg-purple-950/30',
-      emoji: '🥈'
-    },
-    { 
-      id: 'ultimate', 
-      credits: 2000, 
-      price: 198.0, 
-      originalPrice: 332.0, // 40% bonus implied
-      bonus: 40,
-      nameKey: 'ultimate',
-      icon: Gem,
-      color: 'from-amber-400 to-amber-600',
-      shadow: 'shadow-amber-500/20',
-      isNew: true,
-      footerBg: 'bg-amber-950/30',
-      emoji: '🥇'
-    }
-  ];
 
   useEffect(() => {
     if (isCreditPurchaseModalOpen) {
@@ -78,16 +73,7 @@ export default function CreditPurchaseModal() {
     }
   }, [isCreditPurchaseModalOpen]);
 
-  if (!isCreditPurchaseModalOpen) return null;
-
-  const handleSelect = (pkg: any) => {
-    console.log('Package selected:', pkg);
-    setSelectedPackage(pkg);
-    // Proceed to payment flow
-    setStep('pay');
-  };
-
-  const handlePurchase = async () => {
+  const handlePurchase = useCallback(async () => {
     if (!selectedPackage) return;
     
     try {
@@ -113,13 +99,27 @@ export default function CreditPurchaseModal() {
       console.error('Payment request failed:', error);
       if (warning) warning(t.payment_modal.create_fail);
     }
-  };
+  }, [selectedPackage, t.payment_modal.create_fail, warning]);
 
   useEffect(() => {
     if (step === 'pay' && selectedPackage) {
       handlePurchase();
     }
-  }, [step, selectedPackage]);
+  }, [step, selectedPackage, handlePurchase]);
+
+  if (!isCreditPurchaseModalOpen) return null;
+  
+  // Safety check for translation
+  if (!t || !t.credit_purchase || !t.credit_purchase.packages) {
+    return null;
+  }
+
+  const handleSelect = (pkg: any) => {
+    console.log('Package selected:', pkg);
+    setSelectedPackage(pkg);
+    // Proceed to payment flow
+    setStep('pay');
+  };
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
@@ -161,8 +161,8 @@ export default function CreditPurchaseModal() {
           {/* Packages Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 max-w-7xl mx-auto">
             {PACKAGES.map((pkg) => {
-              const Icon = pkg.icon;
               const pkgData = (t.credit_purchase.packages as any)[pkg.nameKey];
+              if (!pkgData) return null;
               
               return (
                 <button
