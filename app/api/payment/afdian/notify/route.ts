@@ -67,6 +67,18 @@ export async function POST(request: Request) {
         
         // 查找最近10分钟内，金额匹配且状态为 pending 的订单
         const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        
+        // 先查看所有待支付订单用于调试
+        const { data: allPendingOrders } = await supabaseAdmin
+          .from('credit_orders')
+          .select('*')
+          .eq('provider', 'afdian')
+          .eq('status', 'pending')
+          .gte('created_at', tenMinutesAgo)
+          .order('created_at', { ascending: false });
+        
+        console.log('All pending afdian orders in last 10 min:', JSON.stringify(allPendingOrders, null, 2));
+        
         const result = await supabaseAdmin
           .from('credit_orders')
           .select('*')
@@ -83,6 +95,8 @@ export async function POST(request: Request) {
         
         if (order) {
           console.log('Found matching order by amount and time:', order.out_trade_no);
+        } else {
+          console.log('No matching order found. Searched for amount:', orderAmount);
         }
       }
 
