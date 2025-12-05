@@ -12,6 +12,7 @@ export default function CreditPurchaseModal() {
   const { isCreditPurchaseModalOpen, closeCreditPurchaseModal } = useModal();
   const [step, setStep] = useState<'select' | 'pay' | 'success'>('select');
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
+  const [localNotice, setLocalNotice] = useState<string | null>(null);
 
     // Define packages with the new 198 tier
   const PACKAGES = [
@@ -85,6 +86,9 @@ export default function CreditPurchaseModal() {
       console.error('Toast warning function is not available');
       alert(t.credit_purchase.coming_soon);
     }
+    // Local fallback banner in case toast is blocked/hidden
+    setLocalNotice(t.credit_purchase.coming_soon);
+    setTimeout(() => setLocalNotice(null), 3200);
     // Uncomment below to enable payment flow later
     // setStep('pay');
   };
@@ -117,6 +121,13 @@ export default function CreditPurchaseModal() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8 custom-scrollbar">
+
+          {localNotice && (
+            <div className="max-w-4xl mx-auto mb-4 rounded-xl border border-amber-400/40 bg-amber-500/10 text-amber-100 px-4 py-3 text-sm flex items-center gap-2">
+              <span className="text-amber-300">⚠️</span>
+              <span>{localNotice}</span>
+            </div>
+          )}
           
           {/* Packages Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 max-w-7xl mx-auto">
