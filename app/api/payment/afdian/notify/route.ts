@@ -89,46 +89,37 @@ export async function POST(request: Request) {
 
       console.log('[Afdian Webhook] Found order:', order.id, 'Credits:', order.credits);
 
-      if (order.status === 'pending') {
-        // 5. 更新订单状态
-        const { error: updateError } = await supabaseAdmin
-          .from('credit_orders')
-          .update({ 
-            status: 'paid',
-            trade_no: tradeNo,
-            updated_at: new Date().toISOString(),
-            payment_info: data.order // 保存爱发电的完整订单信息以备查
-          })
-          .eq('id', order.id);
+      // 幂等性检查：如果 trade_no 已经存在于其他 paid 订单，说明已处理过
+      const { data: existingPaidOrder } = await supabaseAdmin
+        .from('credit_orders')
+        .select('id')
+        .eq('trade_no', tradeNo)
+        .eq('status', 'paid')
+        .single();
 
-        if (updateError) {
-            console.error('[Afdian Webhook] Failed to update order:', updateError);
-            return NextResponse.json({ ec: 500, em: 'database error' }, { status: 500 });
+      if (existingPaidOrder) {
+        console.log('[Afdian Webhook] Order already processed (idempotency check):', tradeNo);
+        return NextResponse.json({ ec: 200, em: 'success' });
+      }
+
+      if (order.status === 'pending') {
+        // 5. 原子性更新订单状态（使用 RPC 调用数据库函数，包含事务和锁）
+        const { data: result, error: processError } = await supabaseAdmin
+          .rpc('process_credit_order', {
+            order_id: order.id,
+            afdian_trade_no: tradeNo,
+            afdian_order_info: data.order
+          });
+
+        if (processError) {
+          console.error('[Afdian Webhook] Failed to process order:', processError);
+          return NextResponse.json({ ec: 500, em: 'database error' }, { status: 500 });
         }
 
-        // 6. 给用户加积分
-        const { data: profile, error: profileError } = await supabaseAdmin
-            .from('profiles')
-            .select('credits')
-            .eq('id', order.user_id)
-            .single();
-            
-        if (profileError) {
-            console.error('[Afdian Webhook] Failed to fetch profile:', profileError);
-        } else if (profile) {
-            const oldCredits = profile.credits || 0;
-            const newCredits = oldCredits + order.credits;
-            
-            const { error: creditError } = await supabaseAdmin
-                .from('profiles')
-                .update({ credits: newCredits })
-                .eq('id', order.user_id);
-                
-            if (creditError) {
-                console.error('[Afdian Webhook] Failed to update credits:', creditError);
-            } else {
-                console.log('[Afdian Webhook] Credits updated:', oldCredits, '->', newCredits);
-            }
+        if (result && result.success) {
+          console.log('[Afdian Webhook] Credits updated:', result.old_credits, '->', result.new_credits);
+        } else {
+          console.error('[Afdian Webhook] Process failed:', result);
         }
       }
     }
