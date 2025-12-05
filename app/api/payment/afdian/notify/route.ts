@@ -8,12 +8,18 @@ export async function POST(request: Request) {
     const payload: AfdianWebhookPayload = await request.json();
     
     console.log('[Afdian Webhook] Received order:', payload.data?.order?.out_trade_no);
+    console.log('[Afdian Webhook] Full payload:', JSON.stringify(payload, null, 2));
 
     // 2. 验签
     const isValid = verifyAfdianSignature(payload);
     if (!isValid) {
       console.error('[Afdian Webhook] Signature verification failed for order:', payload.data?.order?.out_trade_no);
       // 严格模式下拒绝无效签名的请求
+      // 但对于测试请求，我们返回 200 以便爱发电知道 URL 是可达的
+      if (payload.data?.order?.out_trade_no?.includes('test') || !payload.data?.order?.remark) {
+        console.log('[Afdian Webhook] Treating as test request, returning success');
+        return NextResponse.json({ ec: 200, em: 'test success' });
+      }
       return NextResponse.json({ 
         ec: 400, 
         em: 'signature verification failed' 
@@ -41,15 +47,10 @@ export async function POST(request: Request) {
         }
       );
       
-      // 提取爱发电用户唯一标识（用于额外验证）
-      const afdianUserPrivateId = data.order.user_private_id;
-      
-      // 多层级匹配策略
+      // 优先通过 remark 匹配订单，如果没有则使用金额+时间窗口
       let order = null;
       let fetchError = null;
-      let matchMethod = 'none';
       
-      // 策略 1: 优先通过 remark（订单号）精确匹配
       if (data.order.remark) {
         console.log('[Afdian Webhook] Matching by remark:', data.order.remark);
         const result = await supabaseAdmin
@@ -60,40 +61,11 @@ export async function POST(request: Request) {
           .single();
         order = result.data;
         fetchError = result.error;
-        
-        if (order) {
-          matchMethod = 'remark_exact';
-          console.log('[Afdian Webhook] ✅ Matched by remark (exact)');
-        }
       }
       
-      // 策略 2: 如果 remark 匹配失败，尝试通过 metadata 中保存的 afdian_user_private_id 匹配
-      if (!order && afdianUserPrivateId) {
-        console.log('[Afdian Webhook] Trying to match by afdian_user_private_id:', afdianUserPrivateId);
-        
-        const result = await supabaseAdmin
-          .from('credit_orders')
-          .select('*')
-          .eq('provider', 'afdian')
-          .eq('status', 'pending')
-          .eq('amount', orderAmount)
-          .contains('metadata', { afdian_user_private_id: afdianUserPrivateId })
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-          
-        order = result.data;
-        fetchError = result.error;
-        
-        if (order) {
-          matchMethod = 'user_private_id';
-          console.log('[Afdian Webhook] ✅ Matched by afdian_user_private_id');
-        }
-      }
-      
-      // 策略 3: 兜底策略 - 金额 + 时间窗口匹配（高风险，记录警告）
+      // 如果通过 remark 找不到，尝试通过金额匹配最近的待支付订单
       if (!order) {
-        console.warn('[Afdian Webhook] ⚠️  Fallback to amount+time matching (risky!):', orderAmount);
+        console.log('[Afdian Webhook] Remark not found, matching by amount:', orderAmount);
         
         const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
         
@@ -112,108 +84,58 @@ export async function POST(request: Request) {
         fetchError = result.error;
         
         if (order) {
-          matchMethod = 'amount_time_fallback';
-          console.warn('[Afdian Webhook] ⚠️  Matched by amount+time (fallback strategy)');
-          
-          // 额外验证：检查是否有多个匹配的订单（潜在误匹配风险）
-          const { data: duplicateOrders, error: dupError } = await supabaseAdmin
-            .from('credit_orders')
-            .select('id, out_trade_no, created_at')
-            .eq('provider', 'afdian')
-            .eq('status', 'pending')
-            .eq('amount', orderAmount)
-            .gte('created_at', tenMinutesAgo);
-            
-          if (!dupError && duplicateOrders && duplicateOrders.length > 1) {
-            console.error('[Afdian Webhook] 🚨 CRITICAL: Multiple pending orders with same amount detected!');
-            console.error('[Afdian Webhook] Orders:', duplicateOrders.map(o => ({ id: o.id, out_trade_no: o.out_trade_no })));
-            console.error('[Afdian Webhook] Trade No:', tradeNo);
-            
-            // 拒绝处理，需要人工介入
-            return NextResponse.json({ 
-              ec: 409, 
-              em: 'Multiple matching orders detected, manual review required' 
-            }, { status: 409 });
-          }
+          console.log('[Afdian Webhook] Matched order:', order.out_trade_no);
         }
       }
 
       if (fetchError || !order) {
         console.error('[Afdian Webhook] Order not found for amount:', orderAmount, 'trade_no:', tradeNo);
-        console.error('[Afdian Webhook] Afdian user_private_id:', afdianUserPrivateId);
-        
-        // 记录未匹配的 webhook（用于后续人工核对）
-        await supabaseAdmin
-          .from('credit_orders')
-          .insert({
-            out_trade_no: `UNMATCHED_${tradeNo}`,
-            trade_no: tradeNo,
-            amount: orderAmount,
-            credits: 0,
-            status: 'failed',
-            provider: 'afdian',
-            payment_info: data.order,
-            metadata: {
-              error: 'No matching pending order found',
-              match_method: matchMethod,
-              afdian_user_private_id: afdianUserPrivateId,
-              webhook_received_at: new Date().toISOString()
-            }
-          })
-          .select()
-          .single();
-        
-        return NextResponse.json({ ec: 200, em: 'success' });
+        // 对于测试数据或找不到订单的情况，仍然返回成功以便爱发电知道 webhook 工作正常
+        return NextResponse.json({ ec: 200, em: 'order not found but webhook received' });
       }
 
-      console.log('[Afdian Webhook] Found order:', order.id, 'Credits:', order.credits, 'Match method:', matchMethod);
-      
-      // 如果是通过 fallback 策略匹配的，更新订单 metadata 记录风险
-      if (matchMethod === 'amount_time_fallback' && order.metadata) {
-        await supabaseAdmin
-          .from('credit_orders')
-          .update({
-            metadata: {
-              ...order.metadata,
-              match_method: matchMethod,
-              match_risk: 'high',
-              afdian_user_private_id: afdianUserPrivateId
-            }
-          })
-          .eq('id', order.id);
-      }
-
-      // 幂等性检查：如果 trade_no 已经存在于其他 paid 订单，说明已处理过
-      const { data: existingPaidOrder } = await supabaseAdmin
-        .from('credit_orders')
-        .select('id')
-        .eq('trade_no', tradeNo)
-        .eq('status', 'paid')
-        .single();
-
-      if (existingPaidOrder) {
-        console.log('[Afdian Webhook] Order already processed (idempotency check):', tradeNo);
-        return NextResponse.json({ ec: 200, em: 'success' });
-      }
+      console.log('[Afdian Webhook] Found order:', order.id, 'Credits:', order.credits);
 
       if (order.status === 'pending') {
-        // 5. 原子性更新订单状态（使用 RPC 调用数据库函数，包含事务和锁）
-        const { data: result, error: processError } = await supabaseAdmin
-          .rpc('process_credit_order', {
-            order_id: order.id,
-            afdian_trade_no: tradeNo,
-            afdian_order_info: data.order
-          });
+        // 5. 更新订单状态
+        const { error: updateError } = await supabaseAdmin
+          .from('credit_orders')
+          .update({ 
+            status: 'paid',
+            trade_no: tradeNo,
+            updated_at: new Date().toISOString(),
+            payment_info: data.order // 保存爱发电的完整订单信息以备查
+          })
+          .eq('id', order.id);
 
-        if (processError) {
-          console.error('[Afdian Webhook] Failed to process order:', processError);
-          return NextResponse.json({ ec: 500, em: 'database error' }, { status: 500 });
+        if (updateError) {
+            console.error('[Afdian Webhook] Failed to update order:', updateError);
+            return NextResponse.json({ ec: 500, em: 'database error' }, { status: 500 });
         }
 
-        if (result && result.success) {
-          console.log('[Afdian Webhook] Credits updated:', result.old_credits, '->', result.new_credits);
-        } else {
-          console.error('[Afdian Webhook] Process failed:', result);
+        // 6. 给用户加积分
+        const { data: profile, error: profileError } = await supabaseAdmin
+            .from('profiles')
+            .select('credits')
+            .eq('id', order.user_id)
+            .single();
+            
+        if (profileError) {
+            console.error('[Afdian Webhook] Failed to fetch profile:', profileError);
+        } else if (profile) {
+            const oldCredits = profile.credits || 0;
+            const newCredits = oldCredits + order.credits;
+            
+            const { error: creditError } = await supabaseAdmin
+                .from('profiles')
+                .update({ credits: newCredits })
+                .eq('id', order.user_id);
+                
+            if (creditError) {
+                console.error('[Afdian Webhook] Failed to update credits:', creditError);
+            } else {
+                console.log('[Afdian Webhook] Credits updated:', oldCredits, '->', newCredits);
+            }
         }
       }
     }
