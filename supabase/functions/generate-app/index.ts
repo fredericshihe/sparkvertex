@@ -121,18 +121,10 @@ serve(async (req) => {
     // 4. Credit Check & Cost Calculation
     const isModification = type === 'modification';
     // Cost Calculation based on Gemini 3 Pro Pricing (Dec 2025)
-    // Input: $2/1M tokens, Output: $12/1M tokens
-    // Creation (~25k tokens total, mostly output): 
-    //   Input (~5k): $0.01
-    //   Output (~20k): $0.24
-    //   Total: ~$0.25 (¥1.80) -> Set to 3 Credits (¥3.00 value)
+    // Creation: 30 Credits (High complexity, large context)
+    // Modification: 8 Credits (Context Caching enabled, lower input cost)
     
-    // Modification (~6k tokens total):
-    //   Input (~4k): $0.008
-    //   Output (~2k): $0.024
-    //   Total: ~$0.032 (¥0.23) -> Set to 0.5 Credits (¥0.50 value)
-    
-    const COST = isModification ? 0.5 : 3.0;
+    const COST = isModification ? 8.0 : 30.0;
     
     // Fetch current credits
     const { data: profile, error: profileError } = await supabaseAdmin

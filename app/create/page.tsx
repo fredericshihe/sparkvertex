@@ -155,7 +155,7 @@ function CreateContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t, language } = useLanguage();
-  const { openLoginModal } = useModal();
+  const { openLoginModal, openCreditPurchaseModal } = useModal();
   const { success: toastSuccess, error: toastError } = useToast();
   
   const isFromUpload = searchParams.get('from') === 'upload';
@@ -222,9 +222,6 @@ function CreateContent() {
   const [credits, setCredits] = useState(30);
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('Spark Creator');
-
-  // State: Credit Modal
-  const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
   
   // State: Preview Scaling
   const [previewScale, setPreviewScale] = useState(1);
@@ -932,8 +929,8 @@ ${description}
                     console.warn('Patch failed, falling back to full generation...');
                     
                     const confirmMsg = language === 'zh' 
-                        ? '智能修改遇到困难。是否花费 3 积分进行全量重写？全量重写能保证代码正确性。' 
-                        : 'Smart edit failed. Do you want to spend 3 credits for a full rewrite? This guarantees code correctness.';
+                        ? '智能修改遇到困难。是否花费 30 积分进行全量重写？全量重写能保证代码正确性。' 
+                        : 'Smart edit failed. Do you want to spend 30 credits for a full rewrite? This guarantees code correctness.';
                     
                     if (confirm(confirmMsg)) {
                          toastSuccess(language === 'zh' ? '正在进行全量重写...' : 'Starting full rewrite...');
@@ -1094,9 +1091,9 @@ ${description}
         stack: new Error().stack 
     });
 
-    // Cost: Modification = 0.5, New Generation / Regenerate = 3.0
-    // Full modification fallback costs more (3.0) but less than full gen
-    const COST = isModification ? (forceFull ? 3.0 : 0.5) : 3.0;
+    // Cost: Modification = 8.0, New Generation / Regenerate = 30.0
+    // Full modification fallback costs more (30.0) but less than full gen
+    const COST = isModification ? (forceFull ? 30.0 : 8.0) : 30.0;
     setTimeoutCost(COST);
     
     try {
@@ -1107,7 +1104,7 @@ ${description}
       }
 
       if (credits < COST) {
-        setIsCreditModalOpen(true);
+        openCreditPurchaseModal();
         return;
       }
     } catch (e) {
@@ -2682,39 +2679,6 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                 className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20"
               >
                 {language === 'zh' ? '继续等待' : 'Keep Waiting'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isCreditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#1a1b26] border border-gray-800 rounded-xl p-6 max-w-md w-full shadow-2xl transform transition-all">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i className="fa-solid fa-triangle-exclamation text-2xl text-red-500"></i>
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">
-                {t.create.error_credits}
-              </h3>
-              <p className="text-gray-400">
-                {t.create.error_credits_desc}
-              </p>
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => setIsCreditModalOpen(false)}
-                className="flex-1 px-4 py-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium transition-colors"
-              >
-                {t.common.later}
-              </button>
-              <button
-                onClick={() => router.push('/profile')}
-                className="flex-1 px-4 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium transition-all shadow-lg shadow-blue-900/20"
-              >
-                {t.create.get_credits}
               </button>
             </div>
           </div>

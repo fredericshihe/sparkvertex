@@ -57,7 +57,7 @@ serve(async (req) => {
     }
 
     // 5. Credit Deduction
-    const COST = type === 'modification' ? 0.5 : 3.0;
+    const COST = type === 'modification' ? 8.0 : 30.0;
     
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')

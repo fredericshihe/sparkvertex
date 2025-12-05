@@ -71,8 +71,8 @@ export const translations = {
       manage_orders: '订单管理',
       logout: '退出',
       credits: '当前积分',
-      daily_bonus: '每日登录赠送 1 积分',
-      create_cost: '创建消耗 3 积分，修改消耗 0.5 积分',
+      daily_bonus: '每日登录赠送 2 积分',
+      create_cost: '创建消耗 30 积分，修改消耗 8 积分',
       tabs: {
         works: '我的作品',
         purchased: '已购买',
@@ -176,7 +176,7 @@ export const translations = {
       upload_html_error: '请上传 HTML 文件',
       fill_title_desc: '请填写标题和描述',
       fill_desc_first: '请先填写描述或等待AI分析完成',
-      icon_gen_limit: '每个作品最多只能自动生成 3 次图标',
+      icon_gen_limit: '每个作品最多只能自动生成 3 次图标 (3积分/次)',
       icon_gen_success: '图标生成成功 (剩余 {n} 次)',
       icon_gen_fail: '图标生成失败，请重试',
       publish_fail: '发布失败: ',
@@ -244,27 +244,27 @@ export const translations = {
       ai_scoring_desc: 'AI 实时动态评分进行排序推荐',
     },
     why: {
-      title: 'SparkVertex 核心理念',
+      title: 'SparkVertex：重塑软件生产力的 AI 原生平台',
       badge: 'The Future of Software',
-      subtitle: '去中心化的微软件时代',
-      desc_short: '软件不应是庞大的黑盒，而应是轻量、透明、触手可及的工具。',
-      desc_long: '<span class="text-white font-bold">Single File, Local First.</span> 我们相信，最好的应用应该像一张图片、一段文档一样易于分享和存储。没有复杂的构建流程，没有云端锁定，<span class="text-brand-400">你拥有代码的绝对所有权</span>。',
+      subtitle: '让每一个创意在 5 分钟内落地',
+      desc_short: '我们致力于让非技术背景的创作者也能驾驭代码的力量。通过 AI 大模型驱动的一站式工作流，实现从灵感到应用发布的零门槛跨越。',
+      desc_long: '我们正在打破软件工程的壁垒。通过集成 DeepSeek、Gemini 等先进大模型与系统级 Prompt 工程，我们将自然语言直接转化为可执行的 PWA/HTML 应用。无需配置环境，无需复杂部署，扫码即用。',
       features: {
         ai: {
-          title: 'AI 智能增强',
-          desc: '不仅仅是托管，更是进化。<br/><br/>当你上传代码时，SparkVertex 的 <span class="text-white font-medium">AI 引擎</span> 会自动介入：<span class="text-brand-400">安全审计</span>排除恶意代码，<span class="text-brand-400">移动端优化</span>注入触摸适配逻辑，甚至自动为你生成精美的<span class="text-brand-400">应用图标</span>。你只管写核心逻辑，剩下的脏活累活交给 AI。'
+          title: 'AI 驱动的生成式开发',
+          desc: '利用 DeepSeek、Gemini 等顶尖大模型，结合平台独有的系统级 Prompt 工程，将自然语言指令转化为高质量的 HTML/PWA 代码。支持对话式修改与迭代，让开发像聊天一样简单。'
         },
         money: {
-          title: '极速变现',
-          desc: '从灵感到收入，只需几分钟。<br/><br/>无需注册公司，无需接入支付网关。SparkVertex 内置了<span class="text-white font-medium">打赏与付费查看体系</span>。你可以为你的微应用源码设置价格，或者开启打赏功能。无论是<span class="text-green-400">实用工具、创意游戏还是教育课件</span>，你的每一次智力产出都值得被认可与付费。'
+          title: '无摩擦的 PWA 分发',
+          desc: '打破传统应用商店的围墙。应用以轻量级 HTML 单文件形式存在，支持 PWA 标准。用户无需下载安装，微信/浏览器扫码即用，实现真正的“即用即走”。'
         },
         prompt: {
-          title: 'Prompt 逆向工程',
-          desc: '授人以鱼，不如授人以渔。<br/><br/>在 SparkVertex，我们不仅分享代码，更分享<span class="text-purple-400">“咒语”</span>。平台具备强大的 <span class="text-white font-medium">Prompt 逆向分析能力</span>，能从现有代码中反推生成它的 Prompt。你可以一键复制这些 Prompt，在自己的 AI 对话中复现、修改、迭代，迅速掌握 AI 编程的精髓。'
+          title: 'AI 全托管的智能商店',
+          desc: '构建下一代应用分发中心。摒弃低效的人工审核，由 AI 智能体接管全流程：从代码级的安全审计、版权检测，到基于用户行为的个性化推荐。秒级上架，安全无忧。'
         },
         no_install: {
-          title: '即用即走',
-          desc: '打破应用商店的围墙。<br/><br/>没有下载，没有安装，没有更新。基于 Web 标准，你的应用可以在<span class="text-white font-medium">任何设备、任何浏览器</span>上运行。通过 PWA 技术，它们能像原生 App 一样全屏运行，甚至离线使用。这是最纯粹的软件分发方式——<span class="text-cyan-400">一个链接，就是一切。</span>'
+          title: '开放社区与未来演进',
+          desc: '不仅是商店，更是开源社区。支持源码与 Prompt 的透明查看，促进知识共享。未来将上线“傻瓜式后端配置”，赋能更多复杂业务场景，打造全能型低代码平台。'
         }
       },
       cta_title: '准备好释放你的创造力了吗？',
@@ -604,7 +604,7 @@ export const translations = {
       view_code: '查看代码',
       regenerate: '重新生成',
       remaining_credits: '剩余积分',
-      modification_cost: '修改消耗 0.5 积分',
+      modification_cost: '修改消耗 8 积分',
       app_generated: '应用已生成！你可以在上方预览效果。如果需要调整，请直接告诉我。',
       chat_placeholder: '例如：把背景改成黑色...',
       
@@ -888,8 +888,8 @@ export const translations = {
       manage_orders: 'Orders',
       logout: 'Logout',
       credits: 'Credits',
-      daily_bonus: 'Daily Login: +1 Credit',
-      create_cost: 'Create: 3 Credits, Edit: 0.5 Credits',
+      daily_bonus: 'Daily Login: +2 Credits',
+      create_cost: 'Create: 30 Credits, Edit: 8 Credits',
       tabs: {
         works: 'Works',
         purchased: 'Library',
@@ -993,7 +993,7 @@ export const translations = {
       upload_html_error: 'Please upload HTML file',
       fill_title_desc: 'Please fill title and description',
       fill_desc_first: 'Please fill description or wait for AI',
-      icon_gen_limit: 'Max 3 icon generations per work',
+      icon_gen_limit: 'Max 3 icon generations per work (3 Credits/each)',
       icon_gen_success: 'Icon generated ({n} left)',
       icon_gen_fail: 'Icon generation failed, retry',
       publish_fail: 'Publish failed: ',
@@ -1061,27 +1061,27 @@ export const translations = {
       ai_scoring_desc: 'AI real-time dynamic scoring for sorting and recommendation',
     },
     why: {
-      title: 'SparkVertex Philosophy',
+      title: 'SparkVertex: AI-Native App Creation Platform',
       badge: 'The Future of Software',
-      subtitle: 'Decentralized Micro-Software Era',
-      desc_short: 'Software should not be a black box, but a lightweight, transparent, and accessible tool.',
-      desc_long: '<span class="text-white font-bold">Single File, Local First.</span> We believe the best apps should be as easy to share and store as an image or document. No complex builds, no cloud lock-in, <span class="text-brand-400">you own the code absolutely</span>.',
+      subtitle: 'Turning Ideas into Reality in 5 Minutes',
+      desc_short: 'Empowering non-technical creators to harness the power of code. A zero-barrier workflow from inspiration to publication, driven by advanced AI models.',
+      desc_long: 'We are breaking down the barriers of software engineering. By leveraging advanced LLMs (DeepSeek, Gemini) and system-level prompt engineering, we turn natural language into executable PWA/HTML apps. No setup, no deployment—just scan and use.',
       features: {
         ai: {
-          title: 'AI Enhanced',
-          desc: 'Not just hosting, but evolution.<br/><br/>When you upload code, SparkVertex\'s <span class="text-white font-medium">AI Engine</span> intervenes: <span class="text-brand-400">Security Audit</span> removes malicious code, <span class="text-brand-400">Mobile Optimization</span> injects touch logic, and even auto-generates beautiful <span class="text-brand-400">App Icons</span>. You focus on logic, AI handles the chores.'
+          title: 'Generative Development',
+          desc: 'Powered by top-tier LLMs like DeepSeek and Gemini, combined with our unique system-level Prompt Engineering, we transform natural language into high-quality HTML/PWA code. Development becomes as simple as chatting.'
         },
         money: {
-          title: 'Instant Monetization',
-          desc: 'From idea to income in minutes.<br/><br/>No company registration, no payment gateway integration. SparkVertex has built-in <span class="text-white font-medium">Reward & Paid Access</span>. Set a price for your source code or enable tips. Whether <span class="text-green-400">tools, games, or courseware</span>, your intellectual output deserves recognition and payment.'
+          title: 'Frictionless Distribution',
+          desc: 'Breaking the walls of traditional app stores. Apps exist as lightweight single HTML files, PWA-ready. No download, no install. Scan with WeChat or browser to use instantly.'
         },
         prompt: {
-          title: 'Prompt Reverse Engineering',
-          desc: 'Teach a man to fish.<br/><br/>At SparkVertex, we share not just code, but <span class="text-purple-400">"Spells"</span>. The platform has powerful <span class="text-white font-medium">Prompt Reverse Analysis</span> to deduce the Prompt from code. Copy these Prompts, reproduce, modify, and iterate in your own AI chat to master AI programming.'
+          title: 'AI-Managed Ecosystem',
+          desc: 'The next-gen distribution hub. Replacing inefficient manual reviews with AI agents that handle security audits, copyright checks, and personalized recommendations. Instant publishing, total security.'
         },
         no_install: {
-          title: 'Use and Go',
-          desc: 'Break the App Store walls.<br/><br/>No download, no install, no update. Based on Web standards, your app runs on <span class="text-white font-medium">any device, any browser</span>. With PWA, they run full-screen like native apps, even offline. This is the purest distribution—<span class="text-cyan-400">One link is everything.</span>'
+          title: 'Open Community & Roadmap',
+          desc: 'More than a store, it\'s an open-source community. Transparent source code and prompts foster knowledge sharing. Future updates will include "No-Code Backend" configuration to empower complex business scenarios.'
         }
       },
       cta_title: 'Ready to unleash your creativity?',
@@ -1421,7 +1421,7 @@ export const translations = {
       view_code: 'Code',
       regenerate: 'Regenerate',
       remaining_credits: 'Credits',
-      modification_cost: 'Edit costs 0.5 credits',
+      modification_cost: 'Edit costs 8 credits',
       app_generated: 'App generated! Preview above. Tell me if you need changes.',
       chat_placeholder: 'e.g., Change background to black...',
       

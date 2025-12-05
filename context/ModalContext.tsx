@@ -31,6 +31,9 @@ interface ModalContextType {
   openRewardModal: (authorId: string) => void;
   closeRewardModal: () => void;
   rewardAuthorId: string | null;
+  isCreditPurchaseModalOpen: boolean;
+  openCreditPurchaseModal: () => void;
+  closeCreditPurchaseModal: () => void;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -48,6 +51,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [isManageOrdersModalOpen, setIsManageOrdersModalOpen] = useState(false);
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
   const [rewardAuthorId, setRewardAuthorId] = useState<string | null>(null);
+  const [isCreditPurchaseModalOpen, setIsCreditPurchaseModalOpen] = useState(false);
 
   // History Management Refs
   const historyStatePushed = useRef(false);
@@ -128,6 +132,9 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     setRewardAuthorId(null);
   };
 
+  const openCreditPurchaseModal = () => setIsCreditPurchaseModalOpen(true);
+  const closeCreditPurchaseModal = () => setIsCreditPurchaseModalOpen(false);
+
   // Scroll Locking Effect
   useEffect(() => {
     const anyModalOpen = 
@@ -138,7 +145,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       isPaymentQRModalOpen || 
       isPaymentModalOpen || 
       isManageOrdersModalOpen ||
-      isRewardModalOpen;
+      isRewardModalOpen ||
+      isCreditPurchaseModalOpen;
 
     if (anyModalOpen) {
       document.body.style.overflow = 'hidden';
@@ -157,7 +165,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     isPaymentQRModalOpen, 
     isPaymentModalOpen, 
     isManageOrdersModalOpen,
-    isRewardModalOpen
+    isRewardModalOpen,
+    isCreditPurchaseModalOpen
   ]);
 
   return (
@@ -189,7 +198,10 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       isRewardModalOpen,
       openRewardModal,
       closeRewardModal,
-      rewardAuthorId
+      rewardAuthorId,
+      isCreditPurchaseModalOpen,
+      openCreditPurchaseModal,
+      closeCreditPurchaseModal
     }}>
       {children}
     </ModalContext.Provider>

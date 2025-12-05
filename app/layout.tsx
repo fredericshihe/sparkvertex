@@ -35,6 +35,7 @@ import PaymentQRModal from '@/components/PaymentQRModal';
 import PaymentModal from '@/components/PaymentModal';
 import RewardModal from '@/components/RewardModal';
 import ManageOrdersModal from '@/components/ManageOrdersModal';
+import CreditPurchaseModal from '@/components/CreditPurchaseModal';
 import CityBackground from '@/components/CityBackground';
 import WeChatGuard from '@/components/WeChatGuard';
 import StorageManager from '@/components/StorageManager';
@@ -78,6 +79,7 @@ export default function RootLayout({
               <PaymentModal />
               <RewardModal />
               <ManageOrdersModal />
+              <CreditPurchaseModal />
             </ModalProvider>
           </ToastProvider>
         </LanguageProvider>

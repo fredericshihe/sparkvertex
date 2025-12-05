@@ -2,137 +2,287 @@
 > spark-vertex-next@0.1.0 dev
 > next dev -H 0.0.0.0
 
-   ▲ Next.js 14.0.4
-   - Local:        http://localhost:3000
-   - Network:      http://0.0.0.0:3000
-   - Environments: .env.local
+  ▲ Next.js 14.2.33
+  - Local:        http://localhost:3000
+  - Network:      http://0.0.0.0:3000
+  - Environments: .env.local
 
+ ✓ Starting...
  ○ (pwa) PWA support is disabled.
- ✓ Ready in 1527ms
- ✓ Compiled /middleware in 127ms (217 modules)
-request to https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1pL7W0Q5n-wU.woff2 failed, reason: Client network socket disconnected before secure TLS connection was established
-
-Retrying 1/3...
+ ✓ Ready in 1289ms
+ ✓ Compiled /middleware in 326ms (226 modules)
  ○ Compiling / ...
- ✓ Compiled / in 2.1s (863 modules)
- ✓ Compiled in 208ms (425 modules)
- ✓ Compiled /create in 251ms (875 modules)
- ✓ Compiled /api/generate in 386ms (638 modules)
- ✓ Compiled in 136ms (1061 modules)
- ✓ Compiled in 147ms (1061 modules)
- ✓ Compiled in 343ms (889 modules)
- ✓ Compiled in 362ms (889 modules)
- ✓ Compiled in 368ms (889 modules)
- ✓ Compiled in 259ms (889 modules)
- ✓ Compiled in 332ms (889 modules)
- ✓ Compiled in 306ms (889 modules)
- ✓ Compiled /api/generate in 228ms (638 modules)
- ✓ Compiled /preview/mobile/[id] in 99ms (638 modules)
- ✓ Compiled /api/generate in 65ms (638 modules)
- ✓ Compiled /preview/mobile/[id] in 214ms (1066 modules)
- ✓ Compiled /api/generate in 43ms (643 modules)
- ✓ Compiled in 160ms (875 modules)
- ✓ Compiled in 461ms (889 modules)
- ✓ Compiled in 240ms (889 modules)
- ✓ Compiled in 242ms (889 modules)
- ✓ Compiled in 315ms (889 modules)
- ✓ Compiled /api/generate in 197ms (638 modules)
- ✓ Compiled in 385ms (889 modules)
- ✓ Compiled /api/generate in 70ms (638 modules)
- ✓ Compiled in 303ms (1075 modules)
- ✓ Compiled in 311ms (1075 modules)
- ✓ Compiled in 262ms (1075 modules)
- ✓ Compiled in 248ms (889 modules)
- ✓ Compiled in 144ms (875 modules)
- ✓ Compiled in 275ms (889 modules)
- ✓ Compiled in 371ms (889 modules)
- ✓ Compiled in 244ms (889 modules)
- ✓ Compiled /api/generate in 246ms (638 modules)
- ✓ Compiled in 325ms (1075 modules)
- ✓ Compiled in 297ms (1075 modules)
- ✓ Compiled in 259ms (1075 modules)
- ✓ Compiled in 347ms (1075 modules)
- ✓ Compiled in 336ms (1075 modules)
- ✓ Compiled in 129ms (875 modules)
- ✓ Compiled in 60ms (875 modules)
- ✓ Compiled in 62ms (875 modules)
- ✓ Compiled /api/generate in 48ms (638 modules)
- ✓ Compiled in 122ms (875 modules)
- ✓ Compiled in 77ms (875 modules)
- ✓ Compiled /api/generate in 72ms (638 modules)
- ⨯ ./lib/patch.ts
-Error: Failed to read source code from /Users/shihe/Documents/spark-vertex-next/lib/patch.ts
+ ✓ Compiled / in 1557ms (920 modules)
+ GET / 200 in 1798ms
+ ✓ Compiled in 255ms (450 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (128kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+ ✓ Compiled /upload in 162ms (903 modules)
+ GET /upload 200 in 248ms
+ ⚠ Cross origin request detected from 192.168.3.151 to /_next/* resource. In a future major version of Next.js, you will need to explicitly configure "allowedDevOrigins" in next.config to allow this.
+Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+ ✓ Compiled /api/analyze in 261ms (660 modules)
+ POST /api/analyze 200 in 2205ms
+ POST /api/analyze 200 in 2700ms
+ POST /api/analyze 200 in 3126ms
+ POST /api/analyze 200 in 2408ms
+ POST /api/analyze 200 in 5001ms
+ ✓ Compiled /api/generate-icon in 74ms (662 modules)
+Using Edge Function to optimize icon prompt...
+ POST /api/analyze 200 in 7015ms
+DeepSeek (Edge) generated prompt: App icon for 'MarkNote Pro', a minimalist, glowing stylus tip hovering over a frosted glass pane with a single, elegant ink stroke. Style: Glassmorphism, 3D icon, clean, precise, translucent. Lighting: Soft, diffused backlight with a subtle glow from the stroke. Colors: Deep cobalt blue, electric cyan, and clean white on a soft gray gradient background. Composition: Centered, floating elements with immense negative space. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background.
+Using SiliconFlow via Edge Function...
+ POST /api/analyze 200 in 14332ms
+ POST /api/generate-icon 200 in 23478ms
+ ✓ Compiled /api/embed in 70ms (664 modules)
+ POST /api/embed 200 in 2872ms
+ ✓ Compiled /api/score-item in 244ms (350 modules)
+ POST /api/score-item 200 in 3490ms
+ ✓ Compiled /profile in 215ms (1110 modules)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (128kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+ POST /api/analyze 200 in 2252ms
+ POST /api/analyze 200 in 2449ms
+ POST /api/analyze 200 in 2685ms
+ POST /api/analyze 200 in 2236ms
+ POST /api/analyze 200 in 4991ms
+Using Edge Function to optimize icon prompt...
+ POST /api/analyze 200 in 7840ms
+DeepSeek (Edge) generated prompt: App icon for 'MarkNote Pro', a minimalist glass stylus drawing a single, elegant arrow that transforms into a glowing dot. Style: Glassmorphism, frosted glass, clean, 3D icon, depth. Lighting: Soft ambient light with a subtle inner glow. Colors: Cool gradient of frosted cyan to translucent lavender, with a bright white accent. Composition: Centered, floating on a clean, subtle gradient background. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background.
+Using SiliconFlow via Edge Function...
+ POST /api/analyze 200 in 15786ms
+ POST /api/generate-icon 200 in 37403ms
+ POST /api/embed 200 in 705ms
+ ✓ Compiled in 379ms (1114 modules)
+ ✓ Compiled in 324ms (920 modules)
+ ✓ Compiled in 249ms (920 modules)
+ ✓ Compiled in 227ms (920 modules)
+ ✓ Compiled /api/analyze in 154ms (660 modules)
+ POST /api/analyze 200 in 3061ms
+ POST /api/analyze 200 in 5451ms
+ ✓ Compiled /api/embed in 53ms (662 modules)
+ POST /api/embed 200 in 903ms
+ ✓ Compiled /api/generate-icon in 50ms (664 modules)
+Using Edge Function to optimize icon prompt...
+ POST /api/analyze 200 in 2060ms
+ POST /api/analyze 200 in 2119ms
+ POST /api/analyze 200 in 2661ms
+DeepSeek (Edge) generated prompt: App icon for 'MarkNote Pro', a minimalist glassy magnifying glass focusing on a vibrant, stylized paintbrush stroke. Style: iOS 17 style icon, frosted glass, clean, 3D depth, precise. Lighting: Soft ambient light with a subtle inner glow. Colors: Gradient from deep sapphire blue to electric cyan, with a single pop of coral on the brush tip. Composition: Centered, symmetrical, floating on a clean, slightly blurred gradient background. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background.
+Using SiliconFlow via Edge Function...
+ POST /api/analyze 200 in 9229ms
+ POST /api/generate-icon 200 in 14840ms
+ POST /api/analyze 200 in 14879ms
+ POST /api/embed 200 in 832ms
+ ✓ Compiled in 388ms (920 modules)
+ ⨯ ./app/upload/page.tsx
+Error: 
+  [31mx[0m Expected a semicolon
+      ,-[[36;1;4m/Users/shihe/Documents/spark-vertex-next/app/upload/page.tsx[0m:1258:1]
+ [2m1258[0m |       }
+ [2m1259[0m | 
+ [2m1260[0m |       // Check daily limit (5 posts per day)
+ [2m1261[0m |       if (!isEditing) {
+      : [31;1m      ^[0m
+ [2m1262[0m |         const today = new Date();
+ [2m1263[0m |         today.setUTCHours(0, 0, 0, 0);
+ [2m1264[0m |         const todayStr = today.toISOString();
+      `----
+
+  [31mx[0m Expected a semicolon
+      ,-[[36;1;4m/Users/shihe/Documents/spark-vertex-next/app/upload/page.tsx[0m:1440:1]
+ [2m1440[0m |         setStep(4);
+ [2m1441[0m |       }, 500);
+ [2m1442[0m | 
+ [2m1443[0m |     } catch (error: any) {
+      : [31;1m      ^^^^^[0m
+ [2m1444[0m |       clearInterval(interval);
+ [2m1445[0m |       toastError(t.upload.publish_fail + error.message);
+ [2m1446[0m |       setLoading(false);
+      `----
+
+  [31mx[0m Expression expected
+      ,-[[36;1;4m/Users/shihe/Documents/spark-vertex-next/app/upload/page.tsx[0m:1445:1]
+ [2m1445[0m |       toastError(t.upload.publish_fail + error.message);
+ [2m1446[0m |       setLoading(false);
+ [2m1447[0m |     }
+ [2m1448[0m |   };
+      : [31;1m  ^[0m
+ [2m1449[0m | 
+ [2m1450[0m |   const addTag = () => {
+ [2m1451[0m |     if (tagInput && !tags.includes(tagInput)) {
+      `----
 
 Caused by:
-    No such file or directory (os error 2)
+    Syntax Error
 
 Import trace for requested module:
-./lib/patch.ts
-./app/create/page.tsx
- ⨯ ./lib/patch.ts
-Error: Failed to read source code from /Users/shihe/Documents/spark-vertex-next/lib/patch.ts
+./app/upload/page.tsx
+ ○ (pwa) PWA support is disabled.
+ ⨯ ./app/upload/page.tsx
+Error: 
+  [31mx[0m Expected a semicolon
+      ,-[[36;1;4m/Users/shihe/Documents/spark-vertex-next/app/upload/page.tsx[0m:1258:1]
+ [2m1258[0m |       }
+ [2m1259[0m | 
+ [2m1260[0m |       // Check daily limit (5 posts per day)
+ [2m1261[0m |       if (!isEditing) {
+      : [31;1m      ^[0m
+ [2m1262[0m |         const today = new Date();
+ [2m1263[0m |         today.setUTCHours(0, 0, 0, 0);
+ [2m1264[0m |         const todayStr = today.toISOString();
+      `----
+
+  [31mx[0m Expected a semicolon
+      ,-[[36;1;4m/Users/shihe/Documents/spark-vertex-next/app/upload/page.tsx[0m:1440:1]
+ [2m1440[0m |         setStep(4);
+ [2m1441[0m |       }, 500);
+ [2m1442[0m | 
+ [2m1443[0m |     } catch (error: any) {
+      : [31;1m      ^^^^^[0m
+ [2m1444[0m |       clearInterval(interval);
+ [2m1445[0m |       toastError(t.upload.publish_fail + error.message);
+ [2m1446[0m |       setLoading(false);
+      `----
+
+  [31mx[0m Expression expected
+      ,-[[36;1;4m/Users/shihe/Documents/spark-vertex-next/app/upload/page.tsx[0m:1445:1]
+ [2m1445[0m |       toastError(t.upload.publish_fail + error.message);
+ [2m1446[0m |       setLoading(false);
+ [2m1447[0m |     }
+ [2m1448[0m |   };
+      : [31;1m  ^[0m
+ [2m1449[0m | 
+ [2m1450[0m |   const addTag = () => {
+ [2m1451[0m |     if (tagInput && !tags.includes(tagInput)) {
+      `----
 
 Caused by:
-    No such file or directory (os error 2)
+    Syntax Error
 
 Import trace for requested module:
-./lib/patch.ts
-./app/create/page.tsx
- ✓ Compiled in 85ms (875 modules)
- ✓ Compiled /api/generate in 91ms (638 modules)
- ✓ Compiled in 428ms (1075 modules)
- ✓ Compiled in 148ms (875 modules)
- ✓ Compiled in 277ms (889 modules)
- ✓ Compiled /api/generate in 69ms (638 modules)
- ✓ Compiled /preview/mobile/[id] in 101ms (638 modules)
- ✓ Compiled /api/generate in 44ms (640 modules)
- ✓ Compiled /not-found in 177ms (1066 modules)
- ✓ Compiled /api/generate in 43ms (643 modules)
- ✓ Compiled in 150ms (875 modules)
- ✓ Compiled /api/generate in 75ms (638 modules)
- ✓ Compiled /preview/mobile/[id] in 72ms (638 modules)
- ✓ Compiled in 123ms (1061 modules)
- ✓ Compiled /api/generate in 35ms (640 modules)
- ✓ Compiled /not-found in 180ms (1066 modules)
- ✓ Compiled in 198ms (875 modules)
- ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
- ✓ Compiled in 74ms (875 modules)
- ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
- ✓ Compiled in 343ms (889 modules)
- ✓ Compiled in 311ms (889 modules)
- ✓ Compiled /api/generate in 240ms (638 modules)
- ✓ Compiled in 319ms (889 modules)
- ✓ Compiled in 309ms (889 modules)
- ✓ Compiled in 234ms (889 modules)
- ✓ Compiled in 231ms (889 modules)
- ✓ Compiled in 223ms (889 modules)
- ✓ Compiled in 310ms (889 modules)
- ✓ Compiled /api/generate in 249ms (638 modules)
- ✓ Compiled in 328ms (889 modules)
- ✓ Compiled in 449ms (889 modules)
- ✓ Compiled in 348ms (889 modules)
- ✓ Compiled in 225ms (889 modules)
- ✓ Compiled /api/generate in 220ms (638 modules)
- ✓ Compiled in 412ms (889 modules)
- ✓ Compiled in 356ms (889 modules)
- ✓ Compiled in 250ms (889 modules)
- ✓ Compiled in 305ms (889 modules)
- ✓ Compiled in 239ms (889 modules)
- ✓ Compiled in 264ms (889 modules)
- ✓ Compiled in 304ms (889 modules)
- ✓ Compiled in 235ms (889 modules)
- ✓ Compiled /api/generate in 222ms (638 modules)
- ✓ Compiled in 340ms (1075 modules)
- ✓ Compiled in 131ms (875 modules)
- ✓ Compiled /api/generate in 42ms (638 modules)
- ✓ Compiled in 162ms (1061 modules)
- ✓ Compiled in 319ms (1075 modules)
- ✓ Compiled in 237ms (1075 modules)
- ✓ Compiled in 332ms (889 modules)
- ✓ Compiled /api/generate in 172ms (638 modules)
- ✓ Compiled in 97ms (1061 modules)
- ✓ Compiled in 257ms (1075 modules)
-Task Creation Error: {
+./app/upload/page.tsx
+ ○ Compiling /_error ...
+ GET /upload 500 in 5ms
+ ✓ Compiled /_not-found in 472ms (1136 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /upload 200 in 29ms
+ ✓ Compiled in 534ms (1150 modules)
+ ✓ Compiled /api/analyze in 255ms (701 modules)
+ POST /api/analyze 200 in 2710ms
+ POST /api/analyze 200 in 5208ms
+ ✓ Compiled /api/embed in 60ms (703 modules)
+ POST /api/embed 200 in 854ms
+ ✓ Compiled /api/generate-icon in 52ms (705 modules)
+Using Edge Function to optimize icon prompt...
+ POST /api/analyze 200 in 2052ms
+ POST /api/analyze 200 in 2467ms
+ POST /api/analyze 200 in 2493ms
+DeepSeek (Edge) generated prompt: App icon for 'MarkNote Pro', a minimalist floating stylus drawing a glowing, precise vector arrow that transforms into a digital brushstroke. Style: MacOS Big Sur style, 3D icon, frosted glass, clean depth. Lighting: Soft, diffused studio lighting from above. Colors: Vibrant gradient from electric blue to cyan, with a single pop of coral orange. Composition: Centered, floating on a clean, subtle gradient background. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background.
+Using SiliconFlow via Edge Function...
+ POST /api/analyze 200 in 9674ms
+ POST /api/analyze 200 in 14945ms
+ POST /api/generate-icon 200 in 45335ms
+ POST /api/score-item 200 in 3294ms
+ ✓ Compiled /explore in 229ms (1338 modules)
+ ✓ Compiled in 405ms (1151 modules)
+ ✓ Compiled in 279ms (1151 modules)
+ GET /profile 200 in 79ms
+ ✓ Compiled /api/analyze in 93ms (702 modules)
+ POST /api/analyze 200 in 2638ms
+ POST /api/analyze 200 in 5162ms
+ ✓ Compiled /api/embed in 64ms (704 modules)
+ POST /api/embed 200 in 887ms
+ ✓ Compiled /api/generate-icon in 153ms (706 modules)
+Using Edge Function to optimize icon prompt...
+ POST /api/analyze 200 in 2097ms
+ POST /api/analyze 200 in 2779ms
+ POST /api/analyze 200 in 3097ms
+DeepSeek (Edge) generated prompt: App icon for 'MarkNote Pro', a stylized, minimalist eye with a glowing digital brush stroke across the pupil. Style: Glassmorphism, frosted glass, clean, geometric. Lighting: Soft volumetric backlighting. Colors: Deep teal, electric cyan, and frosted white. Composition: Centered, symmetrical, on a subtle gradient background. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background.
+Using SiliconFlow via Edge Function...
+ POST /api/analyze 200 in 9097ms
+ POST /api/analyze 200 in 12903ms
+ POST /api/generate-icon 200 in 22320ms
+ ✓ Compiled in 375ms (1151 modules)
+ ✓ Compiled in 387ms (1151 modules)
+ ✓ Compiled in 319ms (1151 modules)
+ ✓ Compiled in 236ms (1151 modules)
+ ✓ Compiled in 310ms (1151 modules)
+ ✓ Compiled in 224ms (1151 modules)
+ ✓ Compiled /explore in 158ms (511 modules)
+ GET /explore 200 in 87ms
+ ✓ Compiled /api/analyze in 188ms (706 modules)
+ POST /api/analyze 200 in 3417ms
+ POST /api/analyze 200 in 4568ms
+ ✓ Compiled /api/embed in 60ms (708 modules)
+ POST /api/embed 200 in 701ms
+ ✓ Compiled /create in 288ms (1365 modules)
+ ✓ Compiled / in 89ms (728 modules)
+ GET /explore 200 in 85ms
+ POST /api/analyze 200 in 2392ms
+ POST /api/analyze 200 in 5481ms
+ POST /api/embed 200 in 669ms
+ ✓ Compiled /api/generate in 141ms (727 modules)
+ POST /api/generate 200 in 483ms
+ ✓ Compiled /api/analyze in 111ms (726 modules)
+ POST /api/analyze 200 in 4279ms
+ POST /api/analyze 200 in 4994ms
+ ✓ Compiled /api/embed in 75ms (728 modules)
+ POST /api/embed 200 in 926ms
+ ✓ Compiled /api/generate in 123ms (725 modules)
+ POST /api/generate 200 in 562ms
+ POST /api/generate 200 in 356ms
+ ✓ Compiled /api/analyze in 119ms (726 modules)
+ POST /api/analyze 200 in 2876ms
+ POST /api/analyze 200 in 4071ms
+ ✓ Compiled /api/embed in 67ms (728 modules)
+ POST /api/embed 200 in 1020ms
+ ✓ Compiled /api/generate-icon in 166ms (730 modules)
+Using Edge Function to optimize icon prompt...
+ POST /api/analyze 200 in 1977ms
+ POST /api/analyze 200 in 2592ms
+ POST /api/analyze 200 in 2936ms
+ POST /api/analyze 200 in 7322ms
+DeepSeek (Edge) generated prompt: App icon for 'MarkNote Pro', a minimalist glass orb with a floating, stylized ink droplet and a single, clean vector arrow. Style: iOS 17 design language, frosted glass, 3D icon, soft depth. Lighting: Soft ambient light with a subtle rim light. Colors: Icy blue, frosted white, and a single accent of vibrant teal. Composition: Centered, floating, clean gradient background. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background.
+Using SiliconFlow via Edge Function...
+ POST /api/analyze 200 in 12123ms
+ POST /api/generate-icon 200 in 21409ms
+ POST /api/score-item 200 in 3137ms
+ ✓ Compiled in 908ms (1187 modules)
+ ✓ Compiled in 1582ms (1413 modules)
+ ✓ Compiled /api/analyze in 96ms (726 modules)
+ POST /api/analyze 200 in 3401ms
+ POST /api/analyze 200 in 5140ms
+ ✓ Compiled /api/embed in 75ms (728 modules)
+ POST /api/embed 200 in 943ms
+ ✓ Compiled in 381ms (1187 modules)
+ ✓ Compiled in 249ms (1187 modules)
+ ✓ Compiled in 257ms (1187 modules)
+ ✓ Compiled in 251ms (1187 modules)
+ ✓ Compiled in 348ms (1187 modules)
+ ✓ Compiled in 239ms (1187 modules)
+ ✓ Compiled in 307ms (1187 modules)
+ ✓ Compiled /api/analyze in 246ms (726 modules)
+ POST /api/analyze 200 in 4361ms
+ POST /api/analyze 200 in 5044ms
+ ✓ Compiled /api/embed in 81ms (728 modules)
+ POST /api/embed 200 in 967ms
+ POST /api/analyze 200 in 2654ms
+ POST /api/analyze 200 in 3924ms
+ POST /api/embed 200 in 732ms
+ POST /api/analyze 200 in 2889ms
+ POST /api/analyze 200 in 4646ms
+ POST /api/embed 200 in 838ms
+ ✓ Compiled in 356ms (1384 modules)
+ POST /api/analyze 200 in 2854ms
+ POST /api/analyze 200 in 4184ms
+ POST /api/embed 200 in 730ms
+ ✓ Compiled in 385ms (1187 modules)
+ ✓ Compiled in 259ms (1187 modules)
+ ✓ Compiled /api/analyze in 94ms (726 modules)
+ POST /api/analyze 200 in 2741ms
+ POST /api/analyze 200 in 4504ms
+ ✓ Compiled /api/embed in 88ms (728 modules)
+ POST /api/embed 200 in 796ms
+ ✓ Compiled /api/generate-icon in 162ms (730 modules)
+Rate limit check error: {
   message: 'TypeError: fetch failed',
   details: 'TypeError: fetch failed\n' +
     '\n' +
@@ -145,28 +295,26 @@ Task Creation Error: {
   hint: '',
   code: ''
 }
- ✓ Compiled in 381ms (1075 modules)
- ✓ Compiled in 338ms (1075 modules)
- ✓ Compiled in 348ms (1075 modules)
- ✓ Compiled in 232ms (889 modules)
- ✓ Compiled in 244ms (889 modules)
- ✓ Compiled in 288ms (889 modules)
- ✓ Compiled /api/generate in 126ms (638 modules)
- ✓ Compiled in 231ms (889 modules)
- ✓ Compiled in 296ms (889 modules)
- ✓ Compiled in 240ms (889 modules)
- ✓ Compiled /api/generate in 96ms (638 modules)
- ✓ Compiled in 361ms (889 modules)
- ✓ Compiled in 467ms (889 modules)
- ✓ Compiled in 166ms (437 modules)
- ✓ Compiled in 127ms (437 modules)
- ✓ Compiled in 135ms (437 modules)
- ✓ Compiled in 169ms (437 modules)
- ✓ Compiled in 227ms (437 modules)
- ⨯ Error: Cannot find module './638.js'
+Using Edge Function to optimize icon prompt...
+ POST /api/analyze 200 in 2472ms
+ POST /api/analyze 200 in 3103ms
+ POST /api/analyze 200 in 3662ms
+DeepSeek (Edge) generated prompt: App icon for 'MarkNote Pro', a minimalist, stylized magnifying glass revealing a vibrant, abstract brushstroke on a frosted glass surface. Style: MacOS Big Sur style, 3D icon, soft shadows, depth, glassmorphism. Lighting: Soft studio lighting from top left, subtle inner glow. Colors: Gradient from deep sapphire blue to electric teal, with a single vibrant coral accent. Composition: Centered, floating, clean background. Shape: Square, full bleed, no rounded corners. High quality, 8k, masterpiece. Negative prompt: text, letters, words, ui elements, buttons, screenshots, phone frame, borders, low quality, blurry, rounded corners, shadow, drop shadow, ios icon shape, squircle, mask, transparent background.
+Using SiliconFlow via Edge Function...
+ POST /api/analyze 200 in 8171ms
+ POST /api/analyze 200 in 2297ms
+ POST /api/analyze 200 in 12533ms
+ POST /api/analyze 200 in 4201ms
+ POST /api/embed 200 in 735ms
+ POST /api/generate-icon 200 in 15883ms
+ GET /profile 200 in 85ms
+ ✓ Compiled in 454ms (1187 modules)
+ ✓ Compiled in 330ms (1187 modules)
+ ✓ Compiled in 333ms (1187 modules)
+ ⨯ Error: Cannot find module './276.js'
 Require stack:
 - /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js
-- /Users/shihe/Documents/spark-vertex-next/.next/server/app/page.js
+- /Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js
 - /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
 - /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
 - /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
@@ -191,8 +339,8 @@ Require stack:
     at __webpack_require__.e (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:110:67)
     at Array.map (<anonymous>)
     at __webpack_require__.X (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:162:22)
-    at /Users/shihe/Documents/spark-vertex-next/.next/server/app/page.js:14:16835
-    at Object.<anonymous> (/Users/shihe/Documents/spark-vertex-next/.next/server/app/page.js:14:16887)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js:1:10505
+    at Object.<anonymous> (/Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js:1:10558)
     at Module._compile (node:internal/modules/cjs/loader:1706:14)
     at Object..js (node:internal/modules/cjs/loader:1839:10)
     at Module.load (node:internal/modules/cjs/loader:1441:32)
@@ -203,13 +351,26 @@ Require stack:
     at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
     at require (node:internal/modules/helpers:147:16)
     at requirePage (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js:109:84)
-    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:59:84
-    at async loadComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:59:26)
-    at async DevServer.findPageComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:671:36) {
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:103:84
+    at async loadComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:103:26)
+    at async DevServer.findPageComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:714:36)
+    at async DevServer.findPageComponents (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/next-dev-server.js:577:20)
+    at async DevServer.renderPageComponent (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/base-server.js:1910:24)
+    at async DevServer.renderToResponseImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/base-server.js:1962:32)
+    at async DevServer.pipeImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:272:17)
+    at async DevServer.handleRequestImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/base-server.js:818:17)
+    at async /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/next-dev-server.js:339:20
+    at async Span.traceAsyncFn (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/trace/trace.js:154:20)
+    at async DevServer.handleRequest (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/next-dev-server.js:336:24)
+    at async invokeRender (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js:179:21)
+    at async handleRequest (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js:359:24)
+    at async requestHandlerImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js:383:13)
+    at async Server.requestListener (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js:141:13) {
   code: 'MODULE_NOT_FOUND',
   requireStack: [
     '/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js',
-    '/Users/shihe/Documents/spark-vertex-next/.next/server/app/page.js',
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js',
     '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js',
     '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js',
     '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js',
@@ -219,105 +380,12 @@ Require stack:
     '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js',
     '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js'
   ],
-  page: '/'
+  page: '/profile'
 }
- ✓ Compiled /_error in 352ms (1035 modules)
-[Error: ENOENT: no such file or directory, stat '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'] {
-  errno: -2,
-  code: 'ENOENT',
-  syscall: 'stat',
-  path: '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'
-}
-[Error: ENOENT: no such file or directory, stat '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'] {
-  errno: -2,
-  code: 'ENOENT',
-  syscall: 'stat',
-  path: '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'
-}
- ⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'] {
-  errno: -2,
-  code: 'ENOENT',
-  syscall: 'stat',
-  path: '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'
-}
- ⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'] {
-  errno: -2,
-  code: 'ENOENT',
-  syscall: 'stat',
-  path: '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'
-}
-<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, stat '/Users/shihe/Documents/spark-vertex-next/.next/cache/webpack/client-development/13.pack.gz'
-<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/shihe/Documents/spark-vertex-next/.next/server'
-<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/pages/_error' in /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server for build dependencies doesn't lead to expected result '/Users/shihe/Documents/spark-vertex-next/.next/server/pages/_error.js', but to 'Error: Can't resolve '../../../../.next/server/pages/_error' in '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server'' instead. Resolving dependencies are ignored for this path.
-<w>  at resolve commonjs file ../../../../.next/server/pages/_error (expected /Users/shihe/Documents/spark-vertex-next/.next/server/pages/_error.js)
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/export/worker.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/export/worker.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w>  at resolve commonjs /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/not-found_client-reference-manifest' in /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server for build dependencies doesn't lead to expected result '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js', but to 'Error: Can't resolve '../../../../.next/server/app/not-found_client-reference-manifest' in '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server'' instead. Resolving dependencies are ignored for this path.
-<w>  at resolve commonjs file ../../../../.next/server/app/not-found_client-reference-manifest (expected /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js)
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/export/worker.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/export/worker.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w>  at resolve commonjs /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
- ⚠ Fast Refresh had to perform a full reload due to a runtime error.
- ✓ Compiled /not-found in 112ms (1040 modules)
-<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js'
-<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/not-found_client-reference-manifest' in /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server for build dependencies doesn't lead to expected result '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js', but to 'Error: Can't resolve '../../../../.next/server/app/not-found_client-reference-manifest' in '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server'' instead. Resolving dependencies are ignored for this path.
-<w>  at resolve commonjs file ../../../../.next/server/app/not-found_client-reference-manifest (expected /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js)
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w>  at resolve commonjs /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
- ✓ Compiled in 161ms (1035 modules)
- ✓ Compiled in 137ms (1035 modules)
- ✓ Compiled in 172ms (558 modules)
- ✓ Compiled in 139ms (558 modules)
-<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js'
-<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/not-found_client-reference-manifest' in /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server for build dependencies doesn't lead to expected result '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js', but to 'Error: Can't resolve '../../../../.next/server/app/not-found_client-reference-manifest' in '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server'' instead. Resolving dependencies are ignored for this path.
-<w>  at resolve commonjs file ../../../../.next/server/app/not-found_client-reference-manifest (expected /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js)
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w>  at resolve commonjs /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
- ✓ Compiled /upload in 472ms (1061 modules)
- ✓ Compiled /not-found in 194ms (1066 modules)
-<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js'
-<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/not-found_client-reference-manifest' in /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server for build dependencies doesn't lead to expected result '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js', but to 'Error: Can't resolve '../../../../.next/server/app/not-found_client-reference-manifest' in '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server'' instead. Resolving dependencies are ignored for this path.
-<w>  at resolve commonjs file ../../../../.next/server/app/not-found_client-reference-manifest (expected /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js)
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w>  at resolve commonjs /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
- ⨯ Error: Cannot find module './638.js'
+ ⨯ Error: Cannot find module './682.js'
 Require stack:
 - /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js
-- /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found.js
+- /Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js
 - /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
 - /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
 - /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
@@ -342,8 +410,8 @@ Require stack:
     at __webpack_require__.e (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:110:67)
     at Array.map (<anonymous>)
     at __webpack_require__.X (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:162:22)
-    at /Users/shihe/Documents/spark-vertex-next/.next/server/app/page.js:14:16835
-    at Object.<anonymous> (/Users/shihe/Documents/spark-vertex-next/.next/server/app/page.js:14:16887)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/pages/_document.js:1:335
+    at Object.<anonymous> (/Users/shihe/Documents/spark-vertex-next/.next/server/pages/_document.js:1:376)
     at Module._compile (node:internal/modules/cjs/loader:1706:14)
     at Object..js (node:internal/modules/cjs/loader:1839:10)
     at Module.load (node:internal/modules/cjs/loader:1441:32)
@@ -354,72 +422,14 @@ Require stack:
     at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
     at require (node:internal/modules/helpers:147:16)
     at requirePage (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js:109:84)
-    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:59:84
-    at async loadComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:59:26)
-    at async DevServer.findPageComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:671:36) {
-  code: 'MODULE_NOT_FOUND',
-  requireStack: [
-    '/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js',
-    '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found.js',
-    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js',
-    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js',
-    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js',
-    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js',
-    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js',
-    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js',
-    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js',
-    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js'
-  ],
-  page: '/'
-}
- ⨯ Error: Cannot find module './329.js'
-Require stack:
-- /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js
-- /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found.js
-- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
-- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
-- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
-- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js
-- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js
-- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
-- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js
-- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js
-    at Function.<anonymous> (node:internal/modules/cjs/loader:1383:15)
-    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:55:36
-    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
-    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
-    at Function._load (node:internal/modules/cjs/loader:1192:37)
-    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
-    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
-    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
-    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
-    at require (node:internal/modules/helpers:147:16)
-    at __webpack_require__.f.require (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:198:28)
-    at /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:111:40
-    at Array.reduce (<anonymous>)
-    at __webpack_require__.e (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:110:67)
-    at Array.map (<anonymous>)
-    at __webpack_require__.X (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:162:22)
-    at /Users/shihe/Documents/spark-vertex-next/.next/server/pages/_document.js:1:287
-    at Object.<anonymous> (/Users/shihe/Documents/spark-vertex-next/.next/server/pages/_document.js:1:328)
-    at Module._compile (node:internal/modules/cjs/loader:1706:14)
-    at Object..js (node:internal/modules/cjs/loader:1839:10)
-    at Module.load (node:internal/modules/cjs/loader:1441:32)
-    at Function._load (node:internal/modules/cjs/loader:1263:12)
-    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
-    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
-    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
-    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
-    at require (node:internal/modules/helpers:147:16)
-    at requirePage (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js:109:84)
-    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:55:65
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:72:65
     at async Promise.all (index 0)
-    at async loadComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:54:33)
-    at async DevServer.findPageComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:671:36) {
+    at async loadComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:71:33)
+    at async DevServer.findPageComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:714:36) {
   code: 'MODULE_NOT_FOUND',
   requireStack: [
     '/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js',
-    '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found.js',
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js',
     '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js',
     '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js',
     '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js',
@@ -430,32 +440,161 @@ Require stack:
     '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js'
   ]
 }
- ○ (pwa) PWA support is disabled.
-<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js'
-<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '../../../../.next/server/app/not-found_client-reference-manifest' in /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server for build dependencies doesn't lead to expected result '/Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js', but to 'Error: Can't resolve '../../../../.next/server/app/not-found_client-reference-manifest' in '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server'' instead. Resolving dependencies are ignored for this path.
-<w>  at resolve commonjs file ../../../../.next/server/app/not-found_client-reference-manifest (expected /Users/shihe/Documents/spark-vertex-next/.next/server/app/not-found_client-reference-manifest.js)
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/worker.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/webpack/loaders/next-route-loader/index.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/webpack/bundle5.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/webpack/bundle5.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/webpack/webpack.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/webpack/webpack.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/webpack/webpack-lib.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/compiled/webpack/webpack-lib.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/workbox-webpack-plugin/build/inject-manifest.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/workbox-webpack-plugin/build/inject-manifest.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/workbox-webpack-plugin/build/index.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/workbox-webpack-plugin/build/index.js
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/node_modules/@ducanh2912/next-pwa/dist/index.cjs
-<w>  at file /Users/shihe/Documents/spark-vertex-next/node_modules/@ducanh2912/next-pwa/dist/index.cjs
-<w>  at file dependencies /Users/shihe/Documents/spark-vertex-next/next.config.js
-<w>  at file /Users/shihe/Documents/spark-vertex-next/next.config.js
-<w>  at resolve commonjs /Users/shihe/Documents/spark-vertex-next/next.config.js
+ ⨯ Error: Cannot find module './276.js'
+Require stack:
+- /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js
+- /Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js
+    at Function.<anonymous> (node:internal/modules/cjs/loader:1383:15)
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+    at Function._load (node:internal/modules/cjs/loader:1192:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
+    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:147:16)
+    at __webpack_require__.f.require (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:198:28)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:111:40
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:110:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:162:22)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js:1:10505
+    at Object.<anonymous> (/Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js:1:10558)
+    at Module._compile (node:internal/modules/cjs/loader:1706:14)
+    at Object..js (node:internal/modules/cjs/loader:1839:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
+    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:147:16)
+    at requirePage (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js:109:84)
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:103:84
+    at async loadComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:103:26)
+    at async DevServer.findPageComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:714:36)
+    at async DevServer.findPageComponents (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/next-dev-server.js:577:20)
+    at async DevServer.renderPageComponent (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/base-server.js:1910:24)
+    at async DevServer.renderToResponseImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/base-server.js:1962:32)
+    at async DevServer.pipeImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:272:17)
+    at async DevServer.handleRequestImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/base-server.js:818:17)
+    at async /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/next-dev-server.js:339:20
+    at async Span.traceAsyncFn (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/trace/trace.js:154:20)
+    at async DevServer.handleRequest (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/next-dev-server.js:336:24)
+    at async invokeRender (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js:179:21)
+    at async handleRequest (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js:359:24)
+    at async requestHandlerImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js:383:13)
+    at async Server.requestListener (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js:141:13) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js',
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js'
+  ],
+  page: '/profile'
+}
+ ⨯ Error: Cannot find module './682.js'
+Require stack:
+- /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js
+- /Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js
+    at Function.<anonymous> (node:internal/modules/cjs/loader:1383:15)
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+    at Function._load (node:internal/modules/cjs/loader:1192:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
+    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:147:16)
+    at __webpack_require__.f.require (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:198:28)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:111:40
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:110:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:162:22)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/pages/_document.js:1:335
+    at Object.<anonymous> (/Users/shihe/Documents/spark-vertex-next/.next/server/pages/_document.js:1:376)
+    at Module._compile (node:internal/modules/cjs/loader:1706:14)
+    at Object..js (node:internal/modules/cjs/loader:1839:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
+    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:147:16)
+    at requirePage (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js:109:84)
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:72:65
+    at async Promise.all (index 0)
+    at async loadComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:71:33)
+    at async DevServer.findPageComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:714:36) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js',
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js'
+  ]
+}
+ GET /profile 500 in 10ms
+ ✓ Compiled /_not-found in 257ms (1176 modules)
+ GET /_next/static/chunks/fallback/main.js?ts=1764862995903 404 in 366ms
+ GET /_next/static/chunks/fallback/webpack.js?ts=1764862995903 404 in 368ms
+ GET /_next/static/chunks/fallback/pages/_error.js?ts=1764862995903 404 in 366ms
+ GET /_next/static/chunks/fallback/pages/_app.js?ts=1764862995903 404 in 367ms
+ GET /_next/static/chunks/fallback/react-refresh.js?ts=1764862995903 404 in 366ms
+ ✓ Compiled in 505ms (1187 modules)
+ ✓ Compiled in 229ms (1187 modules)
+ ✓ Compiled in 309ms (1187 modules)
+ ✓ Compiled in 319ms (1187 modules)
+ ✓ Compiled in 312ms (1187 modules)
+ ✓ Compiled in 211ms (1187 modules)
+ GET / 200 in 123ms
+ ✓ Compiled /_not-found in 240ms (1176 modules)
+ GET /_next/static/chunks/main-app.js?v=1764864095794 404 in 309ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 312ms
+ GET / 200 in 39ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 17ms
+ GET /_next/static/chunks/main-app.js?v=1764864098435 404 in 19ms
+ GET / 200 in 34ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 20ms
+ GET /_next/static/chunks/main-app.js?v=1764864100834 404 in 20ms
+ GET /explore 200 in 41ms
+ GET /_next/static/chunks/main-app.js?v=1764864101902 404 in 20ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 20ms
+ GET /explore 200 in 16ms
+ GET /_next/static/chunks/main-app.js?v=1764864108522 404 in 18ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 17ms

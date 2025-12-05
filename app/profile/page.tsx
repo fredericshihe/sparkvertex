@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation';
 
 export default function Profile() {
   const router = useRouter();
-  const { openLoginModal, openDetailModal, openEditProfileModal, openPaymentQRModal, openManageOrdersModal } = useModal();
+  const { openLoginModal, openDetailModal, openEditProfileModal, openPaymentQRModal, openManageOrdersModal, openCreditPurchaseModal } = useModal();
   const { success: toastSuccess } = useToast();
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'works' | 'purchased' | 'favorites'>('works');
@@ -339,7 +339,7 @@ export default function Profile() {
             <div className="w-10 h-10 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 text-lg shrink-0">
               <i className="fa-solid fa-coins"></i>
             </div>
-            <div>
+            <div className="flex-1">
               <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">{t.profile.credits}</div>
               <div className="flex items-baseline gap-2">
                 <span className="text-xl font-bold text-white">
@@ -350,6 +350,12 @@ export default function Profile() {
                 <span className="text-xs text-slate-500">分</span>
               </div>
             </div>
+            <button 
+              onClick={openCreditPurchaseModal}
+              className="px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-lg transition shadow-lg shadow-brand-500/20 flex items-center gap-1"
+            >
+              <i className="fa-solid fa-plus"></i> {t.create?.get_credits || '充值'}
+            </button>
           </div>
 
           {/* Info / Top-up Hint (Optional) */}
