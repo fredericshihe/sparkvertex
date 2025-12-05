@@ -64,6 +64,12 @@ export interface AfdianOrder {
   product_type: number;
   discount: string;
   sku_detail: any[];
+  user_private_id?: string; // 爱发电用户唯一标识（用于订单匹配）
+  user_name?: string; // 用户昵称
+  address_person?: string; // 收货人
+  address_phone?: string; // 收货电话
+  address_address?: string; // 收货地址
+  create_time?: number; // 订单创建时间戳
 }
 
 export interface AfdianWebhookPayload {
