@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
-import { X } from 'lucide-react';
+import { X, Zap, Crown, Star, Shield, Check, Sparkles, Rocket, Gem } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function CreditPurchaseModal() {
   const { t, language } = useLanguage();
@@ -11,16 +12,64 @@ export default function CreditPurchaseModal() {
   const [step, setStep] = useState<'select' | 'pay' | 'success'>('select');
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
 
+  // Define packages with the new 198 tier
   const PACKAGES = [
-    { id: 'basic', credits: 120, price: 19.9, label: language === 'zh' ? '基础包' : 'Basic' },
-    { id: 'pro', credits: 350, price: 49.9, label: language === 'zh' ? '超值包' : 'Pro', popular: true },
-    { id: 'max', credits: 800, price: 99.9, label: language === 'zh' ? '豪华包' : 'Max' }
+    { 
+      id: 'basic', 
+      credits: 120, 
+      price: 19.9, 
+      originalPrice: 19.9,
+      nameKey: 'basic',
+      icon: Star,
+      color: 'from-slate-400 to-slate-600',
+      shadow: 'shadow-slate-500/20'
+    },
+    { 
+      id: 'standard', 
+      credits: 350, 
+      price: 49.9, 
+      originalPrice: 58.0,
+      nameKey: 'standard',
+      popular: true,
+      icon: Zap,
+      color: 'from-blue-400 to-blue-600',
+      shadow: 'shadow-blue-500/20'
+    },
+    { 
+      id: 'premium', 
+      credits: 800, 
+      price: 99.9, 
+      originalPrice: 133.0,
+      nameKey: 'premium',
+      bestValue: true,
+      icon: Crown,
+      color: 'from-purple-400 to-purple-600',
+      shadow: 'shadow-purple-500/20'
+    },
+    { 
+      id: 'ultimate', 
+      credits: 2000, 
+      price: 198.0, 
+      originalPrice: 333.0,
+      nameKey: 'ultimate',
+      icon: Gem,
+      color: 'from-amber-400 to-amber-600',
+      shadow: 'shadow-amber-500/20',
+      isNew: true
+    }
+  ];
+
+  const BENEFITS = [
+    { icon: Rocket, key: 'benefit_1' },
+    { icon: Sparkles, key: 'benefit_2' },
+    { icon: Shield, key: 'benefit_3' },
+    { icon: Crown, key: 'benefit_4' },
   ];
 
   useEffect(() => {
     if (isCreditPurchaseModalOpen) {
       setStep('select');
-      setSelectedPackage(PACKAGES[1]); // Default to Pro
+      setSelectedPackage(null);
     }
   }, [isCreditPurchaseModalOpen]);
 
@@ -28,132 +77,157 @@ export default function CreditPurchaseModal() {
 
   const handleSelect = (pkg: any) => {
     setSelectedPackage(pkg);
+    // Temporary: Show coming soon toast instead of proceeding
+    toast(t.credit_purchase.coming_soon, {
+      icon: '🚧',
+      style: {
+        borderRadius: '10px',
+        background: '#333',
+        color: '#fff',
+      },
+    });
+    // Uncomment below to enable payment flow later
+    // setStep('pay');
   };
 
-  const handleNext = () => {
-    setStep('pay');
-  };
-
-  const handlePaid = () => {
-    // Mock success for now, or show contact info
-    // In a real app, this would check payment status
-    setStep('success');
+  const calculateDiscount = (price: number, original: number) => {
+    if (price >= original) return 0;
+    return Math.round(((original - price) / original) * 100);
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden relative">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
+      <div className="bg-[#0f172a] border border-slate-800 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col overflow-hidden relative max-h-[90vh]">
+        
+        {/* Close Button */}
         <button 
           onClick={closeCreditPurchaseModal}
-          className="absolute top-4 right-4 text-slate-400 hover:text-white transition z-10"
+          className="absolute top-6 right-6 text-slate-400 hover:text-white transition z-20 bg-slate-800/50 p-2 rounded-full hover:bg-slate-700"
         >
           <X size={20} />
         </button>
 
-        {step === 'select' && (
-          <div className="p-6">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-white mb-2">{language === 'zh' ? '充值积分' : 'Top Up Credits'}</h2>
-              <p className="text-slate-400 text-sm">{language === 'zh' ? '选择适合您的套餐' : 'Choose a package that fits you'}</p>
-            </div>
+        {/* Header Section */}
+        <div className="relative pt-10 pb-6 px-8 text-center bg-gradient-to-b from-slate-900 to-[#0f172a]">
+          <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+            <div className="absolute top-[-50%] left-[20%] w-96 h-96 bg-brand-500/10 rounded-full blur-3xl"></div>
+            <div className="absolute top-[-20%] right-[20%] w-72 h-72 bg-purple-500/10 rounded-full blur-3xl"></div>
+          </div>
+          
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-3 relative z-10">
+            {t.credit_purchase.title}
+          </h2>
+          <p className="text-slate-400 text-lg relative z-10 max-w-2xl mx-auto">
+            {t.credit_purchase.subtitle}
+          </p>
+        </div>
 
-            <div className="space-y-3 mb-6">
-              {PACKAGES.map(pkg => (
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8 custom-scrollbar">
+          
+          {/* Packages Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10 max-w-7xl mx-auto">
+            {PACKAGES.map((pkg) => {
+              const discount = calculateDiscount(pkg.price, pkg.originalPrice);
+              const Icon = pkg.icon;
+              
+              return (
                 <button
                   key={pkg.id}
                   onClick={() => handleSelect(pkg)}
-                  className={`w-full p-4 rounded-xl border-2 transition-all flex items-center justify-between relative ${
-                    selectedPackage?.id === pkg.id 
-                      ? 'bg-brand-900/20 border-brand-500 shadow-lg shadow-brand-500/10' 
-                      : 'bg-slate-800 border-slate-700 hover:border-slate-600'
-                  }`}
+                  className="group relative flex flex-col bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800 hover:border-slate-600 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl text-left overflow-hidden"
                 >
-                  {pkg.popular && (
-                    <div className="absolute -top-3 left-4 bg-gradient-to-r from-brand-500 to-purple-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">
-                      POPULAR
-                    </div>
-                  )}
-                  <div className="text-left">
-                    <div className="font-bold text-white text-lg">{pkg.credits} {language === 'zh' ? '积分' : 'Credits'}</div>
-                    <div className="text-xs text-slate-400">{pkg.label}</div>
+                  {/* Background Glow on Hover */}
+                  <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${pkg.color} transition-opacity duration-500`}></div>
+
+                  {/* Badges */}
+                  <div className="flex gap-2 mb-4 min-h-[24px]">
+                    {pkg.popular && (
+                      <span className="bg-gradient-to-r from-brand-500 to-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg shadow-brand-500/20 animate-pulse-slow">
+                        {t.credit_purchase.popular}
+                      </span>
+                    )}
+                    {pkg.bestValue && (
+                      <span className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg shadow-purple-500/20">
+                        {t.credit_purchase.best_value}
+                      </span>
+                    )}
+                    {pkg.isNew && (
+                      <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg shadow-amber-500/20">
+                        NEW
+                      </span>
+                    )}
+                    {discount > 0 && (
+                      <span className="bg-green-500/20 text-green-400 border border-green-500/30 text-[10px] font-bold px-2 py-1 rounded-full">
+                        {t.credit_purchase.discount_off.replace('{n}', discount.toString())}
+                      </span>
+                    )}
                   </div>
-                  <div className="text-right">
-                    <div className="font-bold text-brand-400 text-xl">¥{pkg.price}</div>
-                    <div className="text-[10px] text-slate-500">≈ ¥{(pkg.price / pkg.credits).toFixed(2)} / credit</div>
+
+                  {/* Icon & Name */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${pkg.color} flex items-center justify-center shadow-lg ${pkg.shadow}`}>
+                      <Icon size={20} className="text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-white">{(t.credit_purchase.packages as any)[pkg.nameKey].name}</h3>
+                      <p className="text-xs text-slate-400">{(t.credit_purchase.packages as any)[pkg.nameKey].desc}</p>
+                    </div>
+                  </div>
+
+                  {/* Credits */}
+                  <div className="mb-6">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-bold text-white tracking-tight">{pkg.credits}</span>
+                      <span className="text-sm text-slate-400">{t.credit_purchase.credits}</span>
+                    </div>
+                  </div>
+
+                  {/* Price & Button */}
+                  <div className="mt-auto">
+                    <div className="flex items-end gap-2 mb-4">
+                      <span className="text-2xl font-bold text-brand-400">¥{pkg.price}</span>
+                      {pkg.originalPrice > pkg.price && (
+                        <span className="text-sm text-slate-500 line-through mb-1">¥{pkg.originalPrice}</span>
+                      )}
+                    </div>
+                    
+                    <div className={`w-full py-3 rounded-xl font-bold text-center transition-all duration-300 ${
+                      pkg.popular || pkg.bestValue || pkg.isNew
+                        ? `bg-gradient-to-r ${pkg.color} text-white shadow-lg ${pkg.shadow} group-hover:shadow-xl group-hover:scale-[1.02]`
+                        : 'bg-slate-700 text-slate-300 group-hover:bg-slate-600 group-hover:text-white'
+                    }`}>
+                      {t.detail.buy}
+                    </div>
                   </div>
                 </button>
-              ))}
-            </div>
-
-            <button
-              onClick={handleNext}
-              className="w-full py-3 bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white rounded-xl font-bold shadow-lg shadow-brand-500/20 transition"
-            >
-              {language === 'zh' ? '下一步' : 'Next'}
-            </button>
+              );
+            })}
           </div>
-        )}
 
-        {step === 'pay' && (
-          <div className="p-6 text-center">
-            <h2 className="text-xl font-bold text-white mb-6">{language === 'zh' ? '扫码支付' : 'Scan to Pay'}</h2>
-            
-            <div className="bg-white p-4 rounded-xl w-48 h-48 mx-auto mb-6 flex items-center justify-center">
-               {/* Placeholder QR - Replace with actual platform QR */}
-               <div className="w-full h-full bg-slate-200 flex items-center justify-center text-slate-400 text-xs text-center p-2">
-                 {language === 'zh' ? '请配置收款码' : 'Please Configure Payment QR'}
-               </div>
+          {/* Benefits Section */}
+          <div className="max-w-4xl mx-auto bg-slate-800/30 rounded-2xl p-6 border border-slate-700/50">
+            <h3 className="text-center text-slate-300 font-bold mb-6 flex items-center justify-center gap-2">
+              <Crown size={18} className="text-amber-400" />
+              {t.credit_purchase.benefits_title}
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {BENEFITS.map((benefit, index) => {
+                const Icon = benefit.icon;
+                return (
+                  <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/30">
+                    <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
+                      <Icon size={14} className="text-brand-400" />
+                    </div>
+                    <span className="text-xs text-slate-300 font-medium leading-tight">
+                      {(t.credit_purchase as any)[benefit.key]}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-
-            <div className="bg-slate-800/50 rounded-lg p-4 mb-6 text-left">
-              <p className="text-xs text-slate-400 mb-1">{language === 'zh' ? '支付金额' : 'Amount'}</p>
-              <p className="text-2xl font-bold text-brand-400">¥{selectedPackage?.price}</p>
-              <div className="h-px bg-slate-700 my-3"></div>
-              <p className="text-xs text-slate-400 mb-1">{language === 'zh' ? '备注码 (必填)' : 'Remark Code (Required)'}</p>
-              <p className="text-lg font-mono font-bold text-white tracking-widest">
-                {/* Mock Remark Code */}
-                {Math.floor(100000 + Math.random() * 900000)}
-              </p>
-              <p className="text-[10px] text-rose-400 mt-1">
-                <i className="fa-solid fa-circle-exclamation mr-1"></i>
-                {language === 'zh' ? '请在支付备注中填写此码，否则无法自动到账' : 'Please enter this code in payment remark for auto-credit'}
-              </p>
-            </div>
-
-            <button
-              onClick={handlePaid}
-              className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-lg shadow-brand-500/20 transition mb-3"
-            >
-              {language === 'zh' ? '我已支付' : 'I Have Paid'}
-            </button>
-            <button
-              onClick={() => setStep('select')}
-              className="text-sm text-slate-400 hover:text-white transition"
-            >
-              {language === 'zh' ? '返回选择' : 'Back'}
-            </button>
           </div>
-        )}
 
-        {step === 'success' && (
-          <div className="p-8 text-center">
-            <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
-              <i className="fa-solid fa-check text-4xl text-green-500"></i>
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-2">{language === 'zh' ? '提交成功' : 'Submitted'}</h2>
-            <p className="text-slate-400 mb-8">
-              {language === 'zh' 
-                ? '我们会尽快核实您的支付并为您充值积分。请留意账户余额变化。' 
-                : 'We will verify your payment and credit your account shortly. Please check your balance later.'}
-            </p>
-            <button
-              onClick={closeCreditPurchaseModal}
-              className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition"
-            >
-              {language === 'zh' ? '关闭' : 'Close'}
-            </button>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

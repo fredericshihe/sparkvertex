@@ -44,3 +44,94 @@ Using SiliconFlow via Edge Function...
  POST /api/generate-icon 200 in 16350ms
  ✓ Compiled in 269ms (937 modules)
  ✓ Compiled in 86ms (937 modules)
+ ✓ Compiled /profile in 367ms (945 modules)
+ ✓ Compiled in 344ms (945 modules)
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /profile 200 in 112ms
+ ✓ Compiled in 156ms (945 modules)
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /profile 200 in 70ms
+ ✓ Compiled in 492ms (978 modules)
+ GET /profile 200 in 92ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled in 276ms (978 modules)
+ GET /profile 200 in 113ms
+ ✓ Compiled /_not-found in 257ms (967 modules)
+ GET /_next/static/chunks/app-pages-internals.js 404 in 319ms
+ GET /_next/static/chunks/main-app.js?v=1764906622198 404 in 321ms
+ GET /_next/static/css/app/layout.css?v=1764906622198 404 in 325ms
+ GET /_next/static/chunks/app/profile/page.js 404 in 321ms
+ ⨯ Error: Cannot find module './276.js'
+Require stack:
+- /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js
+- /Users/shihe/Documents/spark-vertex-next/.next/server/app/_not-found/page.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js
+- /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js
+    at Function.<anonymous> (node:internal/modules/cjs/loader:1383:15)
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:55:36
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+    at Function._load (node:internal/modules/cjs/loader:1192:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
+    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:147:16)
+    at __webpack_require__.f.require (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:198:28)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:111:40
+    at Array.reduce (<anonymous>)
+    at __webpack_require__.e (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:110:67)
+    at Array.map (<anonymous>)
+    at __webpack_require__.X (/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js:162:22)
+    at /Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js:1:10829
+    at Object.<anonymous> (/Users/shihe/Documents/spark-vertex-next/.next/server/app/profile/page.js:1:10881)
+    at Module._compile (node:internal/modules/cjs/loader:1706:14)
+    at Object..js (node:internal/modules/cjs/loader:1839:10)
+    at Module.load (node:internal/modules/cjs/loader:1441:32)
+    at Function._load (node:internal/modules/cjs/loader:1263:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1463:12)
+    at mod.require (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:147:16)
+    at requirePage (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js:109:84)
+    at /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:103:84
+    at async loadComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js:103:26)
+    at async DevServer.findPageComponentsImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:714:36)
+    at async DevServer.findPageComponents (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/next-dev-server.js:577:20)
+    at async DevServer.renderPageComponent (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/base-server.js:1910:24)
+    at async DevServer.renderToResponseImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/base-server.js:1962:32)
+    at async DevServer.pipeImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/base-server.js:922:25)
+    at async NextNodeServer.handleCatchallRenderRequest (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/next-server.js:272:17)
+    at async DevServer.handleRequestImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/base-server.js:818:17)
+    at async /Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/next-dev-server.js:339:20
+    at async Span.traceAsyncFn (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/trace/trace.js:154:20)
+    at async DevServer.handleRequest (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/next-dev-server.js:336:24)
+    at async invokeRender (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js:179:21)
+    at async handleRequest (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js:359:24)
+    at async requestHandlerImpl (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js:383:13)
+    at async Server.requestListener (/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js:141:13) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/webpack-runtime.js',
+    '/Users/shihe/Documents/spark-vertex-next/.next/server/app/_not-found/page.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/require.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/load-components.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/build/utils.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-middleware.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/dev/hot-reloader-webpack.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/router-server.js',
+    '/Users/shihe/Documents/spark-vertex-next/node_modules/next/dist/server/lib/start-server.js'
+  ],
+  page: '/profile'
+}
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 588ms (1191 modules)
+ GET /profile 500 in 666ms
