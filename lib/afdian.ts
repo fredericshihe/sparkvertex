@@ -16,15 +16,31 @@ AQAB
 function formatPublicKey(key: string): string {
   if (!key) return key;
   
-  // 1. 处理转义的换行符 (Vercel 环境变量常见问题)
-  let formatted = key.replace(/\\n/g, '\n');
+  let cleanKey = key;
   
-  // 2. 移除多余的引号（如果用户不小心加了引号）
-  if (formatted.startsWith('"') && formatted.endsWith('"')) {
-    formatted = formatted.slice(1, -1);
+  // 1. 移除首尾可能存在的引号
+  if ((cleanKey.startsWith('"') && cleanKey.endsWith('"')) || 
+      (cleanKey.startsWith("'") && cleanKey.endsWith("'"))) {
+    cleanKey = cleanKey.slice(1, -1);
   }
+
+  // 2. 处理转义换行符 (将 \n 转换为实际换行，以便后续处理)
+  cleanKey = cleanKey.replace(/\\n/g, '\n');
+
+  // 3. 提取纯 Base64 内容
+  // 移除头尾标记
+  cleanKey = cleanKey
+    .replace(/-----BEGIN PUBLIC KEY-----/g, '')
+    .replace(/-----END PUBLIC KEY-----/g, '');
+    
+  // 移除所有空白字符（空格、换行、制表符等）
+  const base64Content = cleanKey.replace(/\s+/g, '');
   
-  return formatted;
+  // 4. 重新构建标准的 PEM 格式
+  // 每 64 个字符插入一个换行符
+  const chunked = base64Content.match(/.{1,64}/g)?.join('\n');
+  
+  return `-----BEGIN PUBLIC KEY-----\n${chunked}\n-----END PUBLIC KEY-----`;
 }
 
 export const AFDIAN_PUBLIC_KEY = formatPublicKey(process.env.AFDIAN_PUBLIC_KEY || DEFAULT_PUBLIC_KEY);
@@ -83,11 +99,13 @@ export function verifyAfdianSignature(payload: AfdianWebhookPayload): boolean {
     if (!isValid) {
       console.warn('[Afdian] Signature verification failed for order:', order.out_trade_no);
       console.warn('[Afdian] Signature content:', content);
+      console.warn('[Afdian] Public Key Length:', AFDIAN_PUBLIC_KEY.length);
     }
     
     return isValid;
   } catch (error) {
     console.error('[Afdian] Signature verification error:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('[Afdian] Public Key Length:', AFDIAN_PUBLIC_KEY.length);
     if (error instanceof Error && error.stack) {
       console.error('[Afdian] Stack trace:', error.stack);
     }
