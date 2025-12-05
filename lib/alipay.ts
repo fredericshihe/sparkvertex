@@ -14,8 +14,8 @@ export function getAlipaySdk() {
     appId,
     privateKey: process.env.ALIPAY_PRIVATE_KEY!,
     alipayPublicKey: process.env.ALIPAY_PUBLIC_KEY!,
-    // 支付宝网关，沙箱环境用 'https://openapi.alipaydev.com/gateway.do'
-    gateway: 'https://openapi.alipay.com/gateway.do', 
+    // 优先使用环境变量中的网关，默认为生产环境
+    gateway: process.env.ALIPAY_GATEWAY || 'https://openapi.alipay.com/gateway.do', 
   });
 
   return alipaySdkInstance;
