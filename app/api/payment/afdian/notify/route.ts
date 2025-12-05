@@ -79,23 +79,32 @@ export async function POST(request: Request) {
         
         const credits = creditMapping[orderAmount] || Math.floor(orderAmount * 10); // 默认按 1元=10积分
         
-        // 从 remark 中提取 user_id（格式：timestamp_userId_random）
+        // 从 remark 中提取 user_id（格式：timestamp_userId8位_random）
         let userId: string | null = null;
         if (data.order.remark) {
           const parts = data.order.remark.split('_');
-          if (parts.length >= 2) {
-            userId = parts[1]; // userId 的前8位
+          if (parts.length >= 3) {
+            const userIdPrefix = parts[1]; // userId 的前8位
             
-            // 查询完整的 user_id
-            const { data: profiles } = await supabaseAdmin
+            console.log('[Afdian Webhook] Searching for user with prefix:', userIdPrefix);
+            
+            // 查询完整的 user_id（UUID格式匹配）
+            const { data: profiles, error: profileError } = await supabaseAdmin
               .from('profiles')
               .select('id')
-              .ilike('id', `${userId}%`)
+              .like('id', `${userIdPrefix}%`)
               .limit(1)
               .maybeSingle();
             
+            if (profileError) {
+              console.error('[Afdian Webhook] Profile query error:', profileError);
+            }
+            
             if (profiles) {
               userId = profiles.id;
+              console.log('[Afdian Webhook] Found user:', userId);
+            } else {
+              console.error('[Afdian Webhook] No user found with prefix:', userIdPrefix);
             }
           }
         }
