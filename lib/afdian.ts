@@ -12,7 +12,22 @@ SRaf/Ind46vMCm3N2sgwxu/g3bnooW+db0iLo13zzuvyn727Q3UDQ0MmZcEWMQID
 AQAB
 -----END PUBLIC KEY-----`;
 
-export const AFDIAN_PUBLIC_KEY = process.env.AFDIAN_PUBLIC_KEY || DEFAULT_PUBLIC_KEY;
+// 格式化公钥，处理环境变量中可能存在的格式问题（如换行符被转义）
+function formatPublicKey(key: string): string {
+  if (!key) return key;
+  
+  // 1. 处理转义的换行符 (Vercel 环境变量常见问题)
+  let formatted = key.replace(/\\n/g, '\n');
+  
+  // 2. 移除多余的引号（如果用户不小心加了引号）
+  if (formatted.startsWith('"') && formatted.endsWith('"')) {
+    formatted = formatted.slice(1, -1);
+  }
+  
+  return formatted;
+}
+
+export const AFDIAN_PUBLIC_KEY = formatPublicKey(process.env.AFDIAN_PUBLIC_KEY || DEFAULT_PUBLIC_KEY);
 
 // 是否启用严格验签模式（环境变量控制）
 const STRICT_SIGNATURE_MODE = process.env.AFDIAN_STRICT_SIGNATURE !== 'false';
