@@ -191,6 +191,13 @@ export default function CreditPurchaseModal() {
                   {/* Background Glow on Hover */}
                   <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${pkg.color} transition-opacity duration-500`}></div>
 
+                  {/* Temporary Warning for Basic Plan */}
+                  {pkg.id === 'basic' && (
+                    <div className="w-full bg-red-500/20 text-red-400 text-xs font-bold py-1 text-center border-b border-red-500/20">
+                      测试中请勿付费
+                    </div>
+                  )}
+
                   {/* Top Banner for Badges */}
                   <div className="relative px-6 pt-6 pb-2 flex justify-between items-start">
                      <div className="flex flex-col gap-1">
