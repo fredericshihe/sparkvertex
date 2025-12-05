@@ -466,14 +466,6 @@ export default function Explore() {
           {/* Top 1 Featured Hero (App Store Style) */}
           {!searchQuery && topItems.length > 0 && topItems[0] && (
             <div className="mb-16 mt-8">
-               {/* Label */}
-               <div className="flex items-center gap-2 mb-6 px-1">
-                  <i className="fa-solid fa-star text-brand-500"></i>
-                  <span className="text-xs font-bold tracking-widest text-slate-400 uppercase">
-                    {t.explore.top_rated || (language === 'zh' ? '本周最佳' : 'Editor\'s Choice')}
-                  </span>
-               </div>
-
                {/* Hero Card */}
                <div className="relative group rounded-3xl bg-slate-900 border border-slate-800 overflow-hidden shadow-2xl transition-all hover:shadow-brand-900/20 hover:border-slate-700">
                   {/* Background Gradient Mesh */}
