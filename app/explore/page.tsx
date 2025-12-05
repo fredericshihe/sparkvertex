@@ -354,7 +354,7 @@ export default function Explore() {
             <button
               key={cat.id}
               onClick={() => filterByCategory(cat.id)}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+              className={`w-full text-left flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                 category === cat.id 
                   ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/20' 
                   : 'text-slate-400 hover:bg-slate-800 hover:text-white'
@@ -427,22 +427,22 @@ export default function Explore() {
                 <div className="flex flex-wrap items-center gap-3 px-3 py-1 rounded-lg bg-brand-500/10 border border-brand-500/20 self-start sm:self-auto">
                     <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
                        <i className="fa-solid fa-microchip text-purple-400"></i>
-                       广场由AI 自主驱动
+                       {t.explore.ai_badge_driven}
                     </span>
                     <span className="w-px h-3 bg-brand-500/30 hidden sm:block"></span>
                     <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
                        <i className="fa-solid fa-shield-halved text-green-400"></i>
-                       AI代码级安全认证
+                       {t.explore.ai_badge_security}
                     </span>
                     <span className="w-px h-3 bg-brand-500/30 hidden sm:block"></span>
                     <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
                        <i className="fa-solid fa-bolt text-yellow-400"></i>
-                       AI 实时算法推荐
+                       {t.explore.ai_badge_recommendation}
                     </span>
                     <span className="w-px h-3 bg-brand-500/30 hidden sm:block"></span>
                     <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
                        <i className="fa-solid fa-copyright text-blue-400"></i>
-                       AI双重算法版权保护
+                       {t.explore.ai_badge_copyright}
                     </span>
                 </div>
               </div>
