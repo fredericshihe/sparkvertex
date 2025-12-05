@@ -186,7 +186,13 @@ export default function CreditPurchaseModal() {
                   </div>
                   
                   {/* Buy Button Overlay (Visible on Hover) */}
-                  <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-slate-900/90 backdrop-blur-sm border-t border-slate-700/50 pointer-events-none">
+                  <div
+                    className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-slate-900/90 backdrop-blur-sm border-t border-slate-700/50 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelect(pkg);
+                    }}
+                  >
                     <div className={`w-full py-3 rounded-xl font-bold text-center transition-all duration-300 bg-gradient-to-r ${pkg.color} text-white shadow-lg`}>
                       {t.detail.buy}
                     </div>
