@@ -100,8 +100,20 @@ export default function CreditPurchaseModal() {
       const data = await res.json();
       
       if (data.url) {
-        // Redirect to Afdian
-        window.location.href = data.url;
+        // 存储当前时间戳,用于返回后检查订单
+        localStorage.setItem('pending_payment_time', Date.now().toString());
+        
+        // 提示用户
+        if (warning) {
+          warning('即将跳转到爱发电支付页面,支付完成后请返回本页面刷新');
+        }
+        
+        // 延迟跳转,让用户看到提示
+        setTimeout(() => {
+          window.open(data.url, '_blank');
+          // 关闭模态框,让用户可以看到页面
+          closeCreditPurchaseModal();
+        }, 1500);
       } else {
         console.error('Payment creation failed:', data.error);
         if (warning) warning(t.payment_modal.create_fail);
@@ -112,7 +124,7 @@ export default function CreditPurchaseModal() {
       if (warning) warning(t.payment_modal.create_fail);
       setStep('select');
     }
-  }, [selectedPackage, t.payment_modal.create_fail, warning]);
+  }, [selectedPackage, t.payment_modal.create_fail, warning, closeCreditPurchaseModal]);
 
   useEffect(() => {
     if (step === 'pay' && selectedPackage) {
@@ -177,11 +189,14 @@ export default function CreditPurchaseModal() {
               const pkgData = (t.credit_purchase.packages as any)[pkg.nameKey];
               if (!pkgData) return null;
               
+              const isDisabled = pkg.id !== 'basic';
+
               return (
                 <button
                   key={pkg.id}
-                  onClick={() => handleSelect(pkg)}
-                  className="group relative flex flex-col bg-slate-800/40 border border-slate-700/50 rounded-2xl p-0 hover:bg-slate-800 hover:border-slate-600 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl text-left overflow-hidden h-full"
+                  onClick={() => !isDisabled && handleSelect(pkg)}
+                  disabled={isDisabled}
+                  className={`group relative flex flex-col bg-slate-800/40 border border-slate-700/50 rounded-2xl p-0 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800 hover:border-slate-600 hover:-translate-y-1 hover:shadow-xl'} transition-all duration-300 text-left overflow-hidden h-full`}
                 >
                   {/* Background Glow on Hover */}
                   <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${pkg.color} transition-opacity duration-500`}></div>
@@ -239,6 +254,7 @@ export default function CreditPurchaseModal() {
                   </div>
                   
                   {/* Buy Button Overlay (Visible on Hover) */}
+                  {!isDisabled && (
                   <div
                     className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-slate-900/90 backdrop-blur-sm border-t border-slate-700/50 cursor-pointer"
                     onClick={(e) => {
@@ -250,6 +266,7 @@ export default function CreditPurchaseModal() {
                       {t.detail.buy}
                     </div>
                   </div>
+                  )}
                 </button>
               );
             })}
