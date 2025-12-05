@@ -147,7 +147,7 @@ export const translations = {
       success_title: '提交成功',
       success_desc: '系统正在核实您的订单，积分将在 1-3 分钟内到账。',
       close_btn: '关闭',
-      coming_soon: '积分充值系统即将上线，敬请期待！',
+      coming_soon: '付费功能正在加紧开发中，感谢您的支持！',
     },
     upload: {
       title: '发布应用',
@@ -1019,7 +1019,7 @@ export const translations = {
       success_title: 'Submitted',
       success_desc: 'Verifying your order. Credits will be added in 1-3 mins.',
       close_btn: 'Close',
-      coming_soon: 'Credit system coming soon, stay tuned!',
+      coming_soon: 'Payment function is under development, thank you for your support!',
     },
     upload: {
       title: 'Publish App',

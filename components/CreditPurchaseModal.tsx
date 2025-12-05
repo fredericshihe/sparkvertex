@@ -116,7 +116,7 @@ export default function CreditPurchaseModal() {
           </p>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8 custom-scrollbar">
           
           {/* Packages Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 max-w-7xl mx-auto">
