@@ -29,8 +29,16 @@ export async function POST(request: Request) {
     
     // 2. 生成唯一订单号
     const outTradeNo = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // 获取客户端信息作为指纹（用于额外验证）
+    const clientFingerprint = {
+      user_agent: request.headers.get('user-agent'),
+      ip: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      timestamp: Date.now(),
+      session_id: Math.random().toString(36).substr(2, 16)
+    };
 
-    // 3. 在数据库创建订单
+    // 3. 在数据库创建订单（增加 metadata 字段）
     const { error: dbError } = await supabase
       .from('credit_orders')
       .insert({
@@ -39,10 +47,25 @@ export async function POST(request: Request) {
         amount: amount,
         credits: credits,
         status: 'pending',
-        provider: 'afdian' // 标记为爱发电订单
+        provider: 'afdian',
+        metadata: {
+          fingerprint: clientFingerprint,
+          item_id: item_id,
+          plan_id: plan_id,
+          created_from: 'web_frontend'
+        }
       });
 
-    if (dbError) throw dbError;
+    if (dbError) {
+      // 如果违反唯一性约束（同一用户同金额pending订单已存在）
+      if (dbError.code === '23505') {
+        console.error('[Payment] Duplicate pending order detected:', user.id, amount);
+        return NextResponse.json({ 
+          error: '您已有相同金额的待支付订单，请先完成或取消该订单' 
+        }, { status: 409 });
+      }
+      throw dbError;
+    }
 
     // 4. 生成爱发电支付链接
     let payUrl: string;
