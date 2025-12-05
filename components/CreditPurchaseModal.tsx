@@ -53,10 +53,10 @@ export default function CreditPurchaseModal() {
     },
     { 
       id: 'ultimate', 
-      credits: 1600, 
+      credits: 2000, 
       price: 198.0, 
-      originalPrice: 282.0, // 30% bonus implied
-      bonus: 30,
+      originalPrice: 332.0, // 40% bonus implied
+      bonus: 40,
       nameKey: 'ultimate',
       icon: Gem,
       color: 'from-amber-400 to-amber-600',

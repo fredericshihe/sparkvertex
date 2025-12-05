@@ -131,9 +131,9 @@ export const translations = {
           name: '极客包', 
           badge: '专业生产力',
           slogan: '单次修改仅需 0.8 元，专业开发者的最高性价比之选',
-          unit_price: '¥0.1 / 积分',
-          benefit_1: '可创建 53 个 完整应用',
-          benefit_2: '或进行 200 次 深度修改'
+          unit_price: '¥0.10 / 积分',
+          benefit_1: '可创建 66 个 完整应用',
+          benefit_2: '或进行 250 次 深度修改'
         },
       },
       payment_title: '扫码支付',
@@ -1003,9 +1003,9 @@ export const translations = {
           name: 'Geek Pack', 
           badge: 'Pro Productivity',
           slogan: 'Edit for just ¥0.8, the highest cost-performance choice for pro developers',
-          unit_price: '¥0.1 / Credit',
-          benefit_1: 'Create 53 Full Apps',
-          benefit_2: 'Or 200 Deep Edits'
+          unit_price: '¥0.10 / Credit',
+          benefit_1: 'Create 66 Full Apps',
+          benefit_2: 'Or 250 Deep Edits'
         },
       },
       payment_title: 'Scan to Pay',
