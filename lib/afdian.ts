@@ -28,10 +28,10 @@ function formatPublicKey(key: string): string {
   cleanKey = cleanKey.replace(/\\n/g, '\n');
 
   // 3. 提取纯 Base64 内容
-  // 移除头尾标记
+  // 移除头尾标记 (支持 PUBLIC KEY 和 RSA PUBLIC KEY)
   cleanKey = cleanKey
-    .replace(/-----BEGIN PUBLIC KEY-----/g, '')
-    .replace(/-----END PUBLIC KEY-----/g, '');
+    .replace(/-----BEGIN [A-Z ]+-----/g, '')
+    .replace(/-----END [A-Z ]+-----/g, '');
     
   // 移除所有空白字符（空格、换行、制表符等）
   const base64Content = cleanKey.replace(/\s+/g, '');
@@ -77,40 +77,50 @@ export interface AfdianWebhookPayload {
 }
 
 export function verifyAfdianSignature(payload: AfdianWebhookPayload): boolean {
-  try {
-    const { data } = payload;
-    if (!data || !data.order || !data.sign) {
-      console.error('[Afdian] Missing required fields in webhook payload');
-      return false;
-    }
-
-    const { order, sign } = data;
-    
-    // 拼接被签名的数据: out_trade_no + user_id + plan_id + total_amount
-    const content = `${order.out_trade_no}${order.user_id}${order.plan_id}${order.total_amount}`;
-    
-    // 验证签名
-    const verify = crypto.createVerify('RSA-SHA256');
-    verify.update(content, 'utf8');
-    verify.end();
-    
-    const isValid = verify.verify(AFDIAN_PUBLIC_KEY, sign, 'base64');
-    
-    if (!isValid) {
-      console.warn('[Afdian] Signature verification failed for order:', order.out_trade_no);
-      console.warn('[Afdian] Signature content:', content);
-      console.warn('[Afdian] Public Key Length:', AFDIAN_PUBLIC_KEY.length);
-    }
-    
-    return isValid;
-  } catch (error) {
-    console.error('[Afdian] Signature verification error:', error instanceof Error ? error.message : 'Unknown error');
-    console.error('[Afdian] Public Key Length:', AFDIAN_PUBLIC_KEY.length);
-    if (error instanceof Error && error.stack) {
-      console.error('[Afdian] Stack trace:', error.stack);
-    }
+  const { data } = payload;
+  if (!data || !data.order || !data.sign) {
+    console.error('[Afdian] Missing required fields in webhook payload');
     return false;
   }
+
+  const { order, sign } = data;
+  // 拼接被签名的数据: out_trade_no + user_id + plan_id + total_amount
+  const content = `${order.out_trade_no}${order.user_id}${order.plan_id}${order.total_amount}`;
+
+  // 内部验证函数
+  const tryVerify = (key: string, keyName: string): boolean => {
+    try {
+      const verify = crypto.createVerify('RSA-SHA256');
+      verify.update(content, 'utf8');
+      verify.end();
+      return verify.verify(key, sign, 'base64');
+    } catch (error) {
+      console.error(`[Afdian] Verification error with ${keyName}:`, error instanceof Error ? error.message : 'Unknown error');
+      return false;
+    }
+  };
+
+  // 1. 尝试使用配置的公钥 (环境变量或默认)
+  let isValid = tryVerify(AFDIAN_PUBLIC_KEY, 'Configured Key');
+
+  // 2. 如果验证失败且配置的公钥不是默认公钥，尝试使用默认公钥作为后备
+  // 这可以防止用户错误配置环境变量导致验证失败
+  if (!isValid && AFDIAN_PUBLIC_KEY !== formatPublicKey(DEFAULT_PUBLIC_KEY)) {
+    console.warn('[Afdian] Verification failed with configured key, trying default key fallback...');
+    const defaultKey = formatPublicKey(DEFAULT_PUBLIC_KEY);
+    if (tryVerify(defaultKey, 'Default Key')) {
+      console.log('[Afdian] Verification succeeded with default key fallback!');
+      isValid = true;
+    }
+  }
+  
+  if (!isValid) {
+    console.warn('[Afdian] Signature verification failed for order:', order.out_trade_no);
+    console.warn('[Afdian] Signature content:', content);
+    console.warn('[Afdian] Public Key Length:', AFDIAN_PUBLIC_KEY.length);
+  }
+  
+  return isValid;
 }
 
 // 导出验签模式供外部使用
