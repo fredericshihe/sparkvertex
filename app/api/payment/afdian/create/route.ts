@@ -22,8 +22,8 @@ export async function POST(request: Request) {
         },
       }
     );
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { amount, credits, item_id, plan_id } = await request.json();
     
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const { error: dbError } = await supabase
       .from('credit_orders')
       .insert({
-        user_id: session.user.id,
+        user_id: user.id,
         out_trade_no: outTradeNo,
         amount: amount,
         credits: credits,

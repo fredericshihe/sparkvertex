@@ -17,8 +17,8 @@ export async function POST(request: Request) {
       }
     );
     
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { out_trade_no } = await request.json();
     if (!out_trade_no) {
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       .from('credit_orders')
       .select('*')
       .eq('out_trade_no', out_trade_no)
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .single();
 
     if (error || !order) {
