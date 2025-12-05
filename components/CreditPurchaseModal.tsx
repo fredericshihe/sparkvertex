@@ -76,9 +76,15 @@ export default function CreditPurchaseModal() {
   if (!isCreditPurchaseModalOpen) return null;
 
   const handleSelect = (pkg: any) => {
+    console.log('Package selected:', pkg);
     setSelectedPackage(pkg);
     // Temporary: Show coming soon toast instead of proceeding
-    warning(t.credit_purchase.coming_soon);
+    if (warning) {
+      warning(t.credit_purchase.coming_soon);
+    } else {
+      console.error('Toast warning function is not available');
+      alert(t.credit_purchase.coming_soon);
+    }
     // Uncomment below to enable payment flow later
     // setStep('pay');
   };
