@@ -114,18 +114,9 @@ export default function CreditPurchaseModal() {
         // 存储当前时间戳,用于返回后检查订单
         localStorage.setItem('pending_payment_time', Date.now().toString());
         
-        // 提示用户
-        if (warning) {
-          warning('即将跳转到爱发电支付页面,支付完成后请返回本页面刷新');
-        }
-        
-        // 延迟跳转,让用户看到提示
-        setTimeout(() => {
-          console.log('Opening payment URL...');
-          window.open(data.url, '_blank');
-          // 关闭模态框,让用户可以看到页面
-          closeCreditPurchaseModal();
-        }, 1500);
+        // 直接跳转到支付页面（不使用window.open避免被浏览器阻止）
+        console.log('Redirecting to payment URL...');
+        window.location.href = data.url;
       } else {
         console.error('Payment creation failed:', data.error);
         if (warning) warning(t.payment_modal?.create_fail || '创建订单失败');
@@ -142,7 +133,8 @@ export default function CreditPurchaseModal() {
     if (step === 'pay' && selectedPackage) {
       handlePurchase();
     }
-  }, [step, selectedPackage, handlePurchase]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   if (!isCreditPurchaseModalOpen) return null;
   
