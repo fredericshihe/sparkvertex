@@ -88,23 +88,26 @@ export async function POST(request: Request) {
             
             console.log('[Afdian Webhook] Searching for user with prefix:', userIdPrefix);
             
-            // 查询完整的 user_id（UUID格式匹配）
-            const { data: profiles, error: profileError } = await supabaseAdmin
+            // 查询 profiles，在应用层过滤（UUID类型不支持LIKE操作）
+            const { data: allProfiles, error: profileError } = await supabaseAdmin
               .from('profiles')
-              .select('id')
-              .like('id', `${userIdPrefix}%`)
-              .limit(1)
-              .maybeSingle();
+              .select('id');
             
             if (profileError) {
               console.error('[Afdian Webhook] Profile query error:', profileError);
             }
             
-            if (profiles) {
-              userId = profiles.id;
-              console.log('[Afdian Webhook] Found user:', userId);
+            if (allProfiles && allProfiles.length > 0) {
+              // 在应用层查找匹配的用户
+              const matchedProfile = allProfiles.find(p => p.id.startsWith(userIdPrefix));
+              if (matchedProfile) {
+                userId = matchedProfile.id;
+                console.log('[Afdian Webhook] Found user:', userId);
+              } else {
+                console.error('[Afdian Webhook] No user found with prefix:', userIdPrefix);
+              }
             } else {
-              console.error('[Afdian Webhook] No user found with prefix:', userIdPrefix);
+              console.error('[Afdian Webhook] No profiles found in database');
             }
           }
         }
