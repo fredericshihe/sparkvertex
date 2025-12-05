@@ -83,19 +83,43 @@ export default function CreditPurchaseModal() {
   const handleSelect = (pkg: any) => {
     console.log('Package selected:', pkg);
     setSelectedPackage(pkg);
-    // Temporary: Show coming soon toast instead of proceeding
-    if (warning) {
-      warning(t.credit_purchase.coming_soon);
-    } else {
-      console.error('Toast warning function is not available');
-      alert(t.credit_purchase.coming_soon);
-    }
-    // Local fallback banner in case toast is blocked/hidden
-    setLocalNotice(t.credit_purchase.coming_soon);
-    setTimeout(() => setLocalNotice(null), 3200);
-    // Uncomment below to enable payment flow later
-    // setStep('pay');
+    // Proceed to payment flow
+    setStep('pay');
   };
+
+  const handlePurchase = async () => {
+    if (!selectedPackage) return;
+    
+    try {
+      const res = await fetch('/api/payment/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          amount: selectedPackage.price, 
+          credits: selectedPackage.credits 
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.url) {
+        // Redirect to Alipay
+        window.location.href = data.url;
+      } else {
+        console.error('Payment creation failed:', data.error);
+        if (warning) warning(t.payment_modal.create_fail);
+      }
+    } catch (error) {
+      console.error('Payment request failed:', error);
+      if (warning) warning(t.payment_modal.create_fail);
+    }
+  };
+
+  useEffect(() => {
+    if (step === 'pay' && selectedPackage) {
+      handlePurchase();
+    }
+  }, [step, selectedPackage]);
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
@@ -109,6 +133,14 @@ export default function CreditPurchaseModal() {
           <X size={20} />
         </button>
 
+        {step === 'pay' ? (
+           <div className="flex flex-col items-center justify-center h-full py-20">
+              <div className="w-16 h-16 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-6"></div>
+              <h3 className="text-xl font-bold text-white mb-2">{t.payment_modal.creating_order}</h3>
+              <p className="text-slate-400">{t.payment_modal.redirecting}</p>
+           </div>
+        ) : (
+        <>
         {/* Header Section */}
         <div className="relative pt-10 pb-6 px-8 text-center bg-gradient-to-b from-slate-900 to-[#0f172a]">
           <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
@@ -125,13 +157,6 @@ export default function CreditPurchaseModal() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8 custom-scrollbar">
-
-          {localNotice && (
-            <div className="max-w-4xl mx-auto mb-4 rounded-xl border border-amber-400/40 bg-amber-500/10 text-amber-100 px-4 py-3 text-sm flex items-center gap-2">
-              <span className="text-amber-300">⚠️</span>
-              <span>{localNotice}</span>
-            </div>
-          )}
           
           {/* Packages Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 max-w-7xl mx-auto">
@@ -218,6 +243,8 @@ export default function CreditPurchaseModal() {
           </div>
 
         </div>
+        </>
+        )}
       </div>
     </div>
   );

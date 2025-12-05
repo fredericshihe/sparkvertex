@@ -135,3 +135,224 @@ Require stack:
  ○ Compiling /_error ...
  ✓ Compiled /_error in 588ms (1191 modules)
  GET /profile 500 in 666ms
+ GET /profile 200 in 112ms
+ ✓ Compiled /_not-found in 160ms (1194 modules)
+ GET /_next/static/chunks/main-app.js?v=1764906806440 404 in 238ms
+ GET /_next/static/css/app/layout.css?v=1764906806440 404 in 246ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 238ms
+ GET /_next/static/chunks/app/profile/page.js 404 in 238ms
+ GET /_next/static/chunks/app/layout.js 404 in 238ms
+ ✓ Compiled in 214ms (1191 modules)
+ ✓ Compiled in 118ms (1191 modules)
+ ⨯ ./components/CreditPurchaseModal.tsx
+Error: 
+  [31mx[0m Return statement is not allowed here
+     ,-[[36;1;4m/Users/shihe/Documents/spark-vertex-next/components/CreditPurchaseModal.tsx[0m:216:1]
+ [2m216[0m |     }
+ [2m217[0m |   }, [isCreditPurchaseModalOpen]);
+ [2m218[0m | 
+ [2m219[0m |   if (!isCreditPurchaseModalOpen) return null;
+     : [31;1m                                  ^^^^^^^^^^^^[0m
+ [2m220[0m | 
+ [2m221[0m |   const handleSelect = (pkg: any) => {
+ [2m222[0m |     setSelectedPackage(pkg);
+     `----
+
+  [31mx[0m Return statement is not allowed here
+     ,-[[36;1;4m/Users/shihe/Documents/spark-vertex-next/components/CreditPurchaseModal.tsx[0m:238:1]
+ [2m238[0m |         return Math.round(((original - price) / original) * 100);
+ [2m239[0m |       };
+ [2m240[0m |     
+ [2m241[0m | [31;1m,[0m[31;1m-[0m[31;1m>[0m   return (
+ [2m242[0m | [31;1m|[0m       <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
+ [2m243[0m | [31;1m|[0m         <div className="bg-[#0f172a] border border-slate-800 rounded-3xl w-full max-w-5xl shadow-2xl flex flex-col overflow-hidden relative max-h-[90vh]">
+ [2m244[0m | [31;1m|[0m           
+ [2m245[0m | [31;1m|[0m           {/* Close Button */}
+ [2m246[0m | [31;1m|[0m           <button 
+ [2m247[0m | [31;1m|[0m             onClick={closeCreditPurchaseModal}
+ [2m248[0m | [31;1m|[0m             className="absolute top-6 right-6 text-slate-400 hover:text-white transition z-20 bg-slate-800/50 p-2 rounded-full hover:bg-slate-700"
+ [2m249[0m | [31;1m|[0m           >
+ [2m250[0m | [31;1m|[0m             <X size={20} />
+ [2m251[0m | [31;1m|[0m           </button>
+ [2m252[0m | [31;1m|[0m   
+ [2m253[0m | [31;1m|[0m           {/* Header Section */}
+ [2m254[0m | [31;1m|[0m           <div className="relative pt-10 pb-6 px-8 text-center bg-gradient-to-b from-slate-900 to-[#0f172a]">
+ [2m255[0m | [31;1m|[0m             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+ [2m256[0m | [31;1m|[0m               <div className="absolute top-[-50%] left-[20%] w-96 h-96 bg-brand-500/10 rounded-full blur-3xl"></div>
+ [2m257[0m | [31;1m|[0m               <div className="absolute top-[-20%] right-[20%] w-72 h-72 bg-purple-500/10 rounded-full blur-3xl"></div>
+ [2m258[0m | [31;1m|[0m             </div>
+ [2m259[0m | [31;1m|[0m             
+ [2m260[0m | [31;1m|[0m             <h2 className="text-3xl md:text-4xl font-bold text-white mb-3 relative z-10">
+ [2m261[0m | [31;1m|[0m               {t.credit_purchase.title}
+ [2m262[0m | [31;1m|[0m             </h2>
+ [2m263[0m | [31;1m|[0m             <p className="text-slate-400 text-lg relative z-10 max-w-2xl mx-auto">
+ [2m264[0m | [31;1m|[0m               {t.credit_purchase.subtitle}
+ [2m265[0m | [31;1m|[0m             </p>
+ [2m266[0m | [31;1m|[0m           </div>
+ [2m267[0m | [31;1m|[0m   
+ [2m268[0m | [31;1m|[0m           <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8 custom-scrollbar">
+ [2m269[0m | [31;1m|[0m             
+ [2m270[0m | [31;1m|[0m             {/* Packages Grid */}
+ [2m271[0m | [31;1m|[0m             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10 max-w-7xl mx-auto">
+ [2m272[0m | [31;1m|[0m               {PACKAGES.map((pkg) => {
+ [2m273[0m | [31;1m|[0m                 const discount = calculateDiscount(pkg.price, pkg.originalPrice);
+ [2m274[0m | [31;1m|[0m                 const Icon = pkg.icon;
+ [2m275[0m | [31;1m|[0m                 
+ [2m276[0m | [31;1m|[0m                 return (
+ [2m277[0m | [31;1m|[0m                   <button
+ [2m278[0m | [31;1m|[0m                     key={pkg.id}
+ [2m279[0m | [31;1m|[0m                     onClick={() => handleSelect(pkg)}
+ [2m280[0m | [31;1m|[0m                     className="group relative flex flex-col bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800 hover:border-slate-600 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl text-left overflow-hidden"
+ [2m281[0m | [31;1m|[0m                   >
+ [2m282[0m | [31;1m|[0m                     {/* Background Glow on Hover */}
+ [2m283[0m | [31;1m|[0m                     <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${pkg.color} transition-opacity duration-500`}></div>
+ [2m284[0m | [31;1m|[0m   
+ [2m285[0m | [31;1m|[0m                     {/* Badges */}
+ [2m286[0m | [31;1m|[0m                     <div className="flex gap-2 mb-4 min-h-[24px]">
+ [2m287[0m | [31;1m|[0m                       {pkg.popular && (
+ [2m288[0m | [31;1m|[0m                         <span className="bg-gradient-to-r from-brand-500 to-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg shadow-brand-500/20 animate-pulse-slow">
+ [2m289[0m | [31;1m|[0m                           {t.credit_purchase.popular}
+ [2m290[0m | [31;1m|[0m                         </span>
+ [2m291[0m | [31;1m|[0m                       )}
+ [2m292[0m | [31;1m|[0m                       {pkg.bestValue && (
+ [2m293[0m | [31;1m|[0m                         <span className="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg shadow-purple-500/20">
+ [2m294[0m | [31;1m|[0m                           {t.credit_purchase.best_value}
+ [2m295[0m | [31;1m|[0m                         </span>
+ [2m296[0m | [31;1m|[0m                       )}
+ [2m297[0m | [31;1m|[0m                       {pkg.isNew && (
+ [2m298[0m | [31;1m|[0m                         <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg shadow-amber-500/20">
+ [2m299[0m | [31;1m|[0m                           NEW
+ [2m300[0m | [31;1m|[0m                         </span>
+ [2m301[0m | [31;1m|[0m                       )}
+ [2m302[0m | [31;1m|[0m                       {discount > 0 && (
+ [2m303[0m | [31;1m|[0m                         <span className="bg-green-500/20 text-green-400 border border-green-500/30 text-[10px] font-bold px-2 py-1 rounded-full">
+ [2m304[0m | [31;1m|[0m                           {t.credit_purchase.discount_off.replace('{n}', discount.toString())}
+ [2m305[0m | [31;1m|[0m                         </span>
+ [2m306[0m | [31;1m|[0m                       )}
+ [2m307[0m | [31;1m|[0m                     </div>
+ [2m308[0m | [31;1m|[0m   
+ [2m309[0m | [31;1m|[0m                     {/* Icon & Name */}
+ [2m310[0m | [31;1m|[0m                     <div className="flex items-center gap-3 mb-4">
+ [2m311[0m | [31;1m|[0m                       <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${pkg.color} flex items-center justify-center shadow-lg ${pkg.shadow}`}>
+ [2m312[0m | [31;1m|[0m                         <Icon size={20} className="text-white" />
+ [2m313[0m | [31;1m|[0m                       </div>
+ [2m314[0m | [31;1m|[0m                       <div>
+ [2m315[0m | [31;1m|[0m                         <h3 className="text-lg font-bold text-white">{(t.credit_purchase.packages as any)[pkg.nameKey].name}</h3>
+ [2m316[0m | [31;1m|[0m                         <p className="text-xs text-slate-400">{(t.credit_purchase.packages as any)[pkg.nameKey].desc}</p>
+ [2m317[0m | [31;1m|[0m                       </div>
+ [2m318[0m | [31;1m|[0m                     </div>
+ [2m319[0m | [31;1m|[0m   
+ [2m320[0m | [31;1m|[0m                     {/* Credits */}
+ [2m321[0m | [31;1m|[0m                     <div className="mb-6">
+ [2m322[0m | [31;1m|[0m                       <div className="flex items-baseline gap-1">
+ [2m323[0m | [31;1m|[0m                         <span className="text-3xl font-bold text-white tracking-tight">{pkg.credits}</span>
+ [2m324[0m | [31;1m|[0m                         <span className="text-sm text-slate-400">{t.credit_purchase.credits}</span>
+ [2m325[0m | [31;1m|[0m                       </div>
+ [2m326[0m | [31;1m|[0m                     </div>
+ [2m327[0m | [31;1m|[0m   
+ [2m328[0m | [31;1m|[0m                     {/* Price & Button */}
+ [2m329[0m | [31;1m|[0m                     <div className="mt-auto">
+ [2m330[0m | [31;1m|[0m                       <div className="flex items-end gap-2 mb-4">
+ [2m331[0m | [31;1m|[0m                         <span className="text-2xl font-bold text-brand-400">¥{pkg.price}</span>
+ [2m332[0m | [31;1m|[0m                         {pkg.originalPrice > pkg.price && (
+ [2m333[0m | [31;1m|[0m                           <span className="text-sm text-slate-500 line-through mb-1">¥{pkg.originalPrice}</span>
+ [2m334[0m | [31;1m|[0m                         )}
+ [2m335[0m | [31;1m|[0m                       </div>
+ [2m336[0m | [31;1m|[0m                       
+ [2m337[0m | [31;1m|[0m                       <div className={`w-full py-3 rounded-xl font-bold text-center transition-all duration-300 ${
+ [2m338[0m | [31;1m|[0m                         pkg.popular || pkg.bestValue || pkg.isNew
+ [2m339[0m | [31;1m|[0m                           ? `bg-gradient-to-r ${pkg.color} text-white shadow-lg ${pkg.shadow} group-hover:shadow-xl group-hover:scale-[1.02]`
+ [2m340[0m | [31;1m|[0m                           : 'bg-slate-700 text-slate-300 group-hover:bg-slate-600 group-hover:text-white'
+ [2m341[0m | [31;1m|[0m                       }`}>
+ [2m342[0m | [31;1m|[0m                         {t.detail.buy}
+ [2m343[0m | [31;1m|[0m                       </div>
+ [2m344[0m | [31;1m|[0m                     </div>
+ [2m345[0m | [31;1m|[0m                   </button>
+ [2m346[0m | [31;1m|[0m                 );
+ [2m347[0m | [31;1m|[0m               })}
+ [2m348[0m | [31;1m|[0m             </div>
+ [2m349[0m | [31;1m|[0m   
+ [2m350[0m | [31;1m|[0m             {/* Benefits Section */}
+ [2m351[0m | [31;1m|[0m             <div className="max-w-4xl mx-auto bg-slate-800/30 rounded-2xl p-6 border border-slate-700/50">
+ [2m352[0m | [31;1m|[0m               <h3 className="text-center text-slate-300 font-bold mb-6 flex items-center justify-center gap-2">
+ [2m353[0m | [31;1m|[0m                 <Crown size={18} className="text-amber-400" />
+ [2m354[0m | [31;1m|[0m                 {t.credit_purchase.benefits_title}
+ [2m355[0m | [31;1m|[0m               </h3>
+ [2m356[0m | [31;1m|[0m               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+ [2m357[0m | [31;1m|[0m                 {BENEFITS.map((benefit, index) => {
+ [2m358[0m | [31;1m|[0m                   const Icon = benefit.icon;
+ [2m359[0m | [31;1m|[0m                   return (
+ [2m360[0m | [31;1m|[0m                     <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/30">
+ [2m361[0m | [31;1m|[0m                       <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
+ [2m362[0m | [31;1m|[0m                         <Icon size={14} className="text-brand-400" />
+ [2m363[0m | [31;1m|[0m                       </div>
+ [2m364[0m | [31;1m|[0m                       <span className="text-xs text-slate-300 font-medium leading-tight">
+ [2m365[0m | [31;1m|[0m                         {(t.credit_purchase as any)[benefit.key]}
+ [2m366[0m | [31;1m|[0m                       </span>
+ [2m367[0m | [31;1m|[0m                     </div>
+ [2m368[0m | [31;1m|[0m                   );
+ [2m369[0m | [31;1m|[0m                 })}
+ [2m370[0m | [31;1m|[0m               </div>
+ [2m371[0m | [31;1m|[0m             </div>
+ [2m372[0m | [31;1m|[0m   
+ [2m373[0m | [31;1m|[0m           </div>
+ [2m374[0m | [31;1m|[0m         </div>
+ [2m375[0m | [31;1m|[0m       </div>
+ [2m376[0m | [31;1m`[0m[31;1m-[0m[31;1m>[0m   );
+ [2m377[0m |     }
+     `----
+
+  [31mx[0m Expression expected
+     ,-[[36;1;4m/Users/shihe/Documents/spark-vertex-next/components/CreditPurchaseModal.tsx[0m:374:1]
+ [2m374[0m |       </div>
+ [2m375[0m |     </div>
+ [2m376[0m |   );
+ [2m377[0m | }
+     : [31;1m^[0m
+     `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./components/CreditPurchaseModal.tsx
+./app/layout.tsx
+ ✓ Compiled in 451ms (1189 modules)
+ ✓ Compiled in 193ms (1203 modules)
+ GET /profile 200 in 109ms
+ ✓ Compiled /_not-found in 115ms (1192 modules)
+ GET /_next/static/chunks/main-app.js?v=1764908083042 404 in 185ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 186ms
+ GET /profile 200 in 17ms
+ GET /_next/static/chunks/main-app.js?v=1764908088297 404 in 13ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 13ms
+ GET /profile 200 in 14ms
+ GET /_next/static/chunks/main-app.js?v=1764908099958 404 in 12ms
+ GET /_next/static/chunks/app-pages-internals.js 404 in 13ms
+ ✓ Compiled in 184ms (1189 modules)
+ ✓ Compiled in 105ms (1189 modules)
+ ✓ Compiled in 188ms (1203 modules)
+ ✓ Compiled in 415ms (1198 modules)
+ ✓ Compiled in 205ms (1198 modules)
+ ✓ Compiled in 334ms (1184 modules)
+ ⚠ Found a change in next.config.js. Restarting the server to apply the changes...
+  ▲ Next.js 14.2.33
+  - Local:        http://localhost:3000
+  - Network:      http://0.0.0.0:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ⚠ Invalid next.config.js options detected: 
+ ⚠     Unrecognized key(s) in object: 'allowedDevOrigins' at "experimental"
+ ⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
+ ○ (pwa) PWA support is disabled.
+ ✓ Ready in 1856ms
+ ⚠ Found a change in next.config.js. Restarting the server to apply the changes...
+  ▲ Next.js 14.2.33
+  - Local:        http://localhost:3000
+  - Network:      http://0.0.0.0:3000
+  - Environments: .env.local
+
+ ✓ Starting...
+ ○ (pwa) PWA support is disabled.
+ ✓ Ready in 2.1s
