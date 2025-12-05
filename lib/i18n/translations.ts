@@ -280,7 +280,7 @@ export const translations = {
     },
     explore: {
       title: '灵枢广场',
-      top_rated: '高分榜单',
+      top_rated: '本周最佳',
       dev_center: '开发者中心',
       dev_desc: '仅需 <span class="text-brand-400 font-bold text-sm">5分钟</span>，<br/>人人都能开发自己的应用。',
       start_create: '开始创作',
@@ -1152,7 +1152,7 @@ export const translations = {
     },
     explore: {
       title: 'Spark Square',
-      top_rated: 'Top Rated',
+      top_rated: 'Editor\'s Choice',
       dev_center: 'Dev Center',
       dev_desc: 'In just <span class="text-brand-400 font-bold text-sm">5 mins</span>,<br/>anyone can create their own app.',
       start_create: 'Start Creating',

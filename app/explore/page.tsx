@@ -479,7 +479,7 @@ export default function Explore() {
                   {/* Background Gradient Mesh */}
                   <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-brand-900/20 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
                   
-                  <div className="flex flex-col md:flex-row h-auto md:h-[450px]">
+                  <div className="flex flex-col md:flex-row h-auto md:min-h-[450px]">
                     {/* Left: Content */}
                     <div className="flex-1 p-8 md:p-12 flex flex-col justify-center relative z-10">
                        <div className="flex items-center gap-3 mb-4">
