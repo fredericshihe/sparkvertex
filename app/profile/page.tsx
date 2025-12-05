@@ -33,6 +33,24 @@ export default function Profile() {
       fetchProfile();
       fetchItems();
       fetchCounts();
+      
+      // 检查是否有待处理的支付
+      const checkPendingPayment = () => {
+        const pendingTime = localStorage.getItem('pending_payment_time');
+        if (pendingTime) {
+          const elapsed = Date.now() - parseInt(pendingTime);
+          // 如果在10分钟内,提示用户刷新检查积分
+          if (elapsed < 10 * 60 * 1000) {
+            toastSuccess?.('正在检查支付状态...');
+            // 刷新积分
+            fetchProfile();
+            // 清除标记
+            localStorage.removeItem('pending_payment_time');
+          }
+        }
+      };
+      
+      checkPendingPayment();
 
       // Subscribe to profile changes for real-time credit updates
       const channel = supabase
