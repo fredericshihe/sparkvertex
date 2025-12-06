@@ -315,115 +315,7 @@ function CreateContent() {
     }
   }, [streamingCode]);
 
-  useEffect(() => {
-    checkAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
-        checkAuth();
-      }
-      if (event === 'SIGNED_OUT') {
-        setUserId(null);
-      }
-    });
-
-    // Function to check and refresh session if needed
-    const checkAndRefreshSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.expires_at) {
-          const expiresAt = session.expires_at * 1000;
-          const now = Date.now();
-          const timeUntilExpiry = expiresAt - now;
-          const fifteenMinutes = 15 * 60 * 1000;
-
-          // If token expires in less than 15 minutes or already expired, refresh it
-          if (timeUntilExpiry < fifteenMinutes) {
-            console.log('Token expiring soon or expired, refreshing session...');
-            const { error } = await supabase.auth.refreshSession();
-            if (error) {
-              console.error('Failed to refresh session:', error);
-            } else {
-              console.log('Session refreshed successfully');
-            }
-          }
-        }
-      } catch (e) {
-        console.error('Session refresh check failed', e);
-      }
-    };
-
-    // Enhanced session refresh - check every 45 minutes
-    const sessionRefreshInterval = setInterval(checkAndRefreshSession, 1000 * 60 * 45);
-
-    // Handle visibility change - refresh session when user returns to tab
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        console.log('Tab became visible, checking session...');
-        checkAndRefreshSession();
-        checkAuth(); // Also re-check credits and profile
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // Also handle page focus as backup
-    const handleFocus = () => {
-      console.log('Window focused, checking session...');
-      checkAndRefreshSession();
-    };
-
-    window.addEventListener('focus', handleFocus);
-
-    let profileSubscription: any;
-
-    const setupSubscription = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-
-        if (profileSubscription) supabase.removeChannel(profileSubscription);
-
-        profileSubscription = supabase
-          .channel('profile-credits')
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'profiles',
-              filter: `id=eq.${session.user.id}`
-            },
-            (payload) => {
-              const newProfile = payload.new as any;
-              if (newProfile.credits !== undefined) {
-                setCredits(newProfile.credits);
-              }
-            }
-          )
-          .subscribe();
-      } catch (error) {
-        console.error('Failed to setup subscription:', error);
-      }
-    };
-
-    setupSubscription();
-
-    const authListener = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        setupSubscription();
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-      authListener.data.subscription.unsubscribe();
-      clearInterval(sessionRefreshInterval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-      if (profileSubscription) supabase.removeChannel(profileSubscription);
-    };
-  }, []);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -564,6 +456,8 @@ function CreateContent() {
         console.log('Resuming task monitoring for:', currentTaskId);
         monitorTask(currentTaskId);
     }
+  }, [isGenerating, currentTaskId]);
+
   useEffect(() => {
     if (step === 'category' && !wizardData.description && !generatedCode) return;
 
@@ -653,6 +547,117 @@ function CreateContent() {
       console.error('Auth check failed:', error);
     }
   };
+
+  // Auth and session management effect
+  useEffect(() => {
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+        checkAuth();
+      }
+      if (event === 'SIGNED_OUT') {
+        setUserId(null);
+      }
+    });
+
+    // Function to check and refresh session if needed
+    const checkAndRefreshSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.expires_at) {
+          const expiresAt = session.expires_at * 1000;
+          const now = Date.now();
+          const timeUntilExpiry = expiresAt - now;
+          const fifteenMinutes = 15 * 60 * 1000;
+
+          // If token expires in less than 15 minutes or already expired, refresh it
+          if (timeUntilExpiry < fifteenMinutes) {
+            console.log('Token expiring soon or expired, refreshing session...');
+            const { error } = await supabase.auth.refreshSession();
+            if (error) {
+              console.error('Failed to refresh session:', error);
+            } else {
+              console.log('Session refreshed successfully');
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Session refresh check failed', e);
+      }
+    };
+
+    // Enhanced session refresh - check every 45 minutes
+    const sessionRefreshInterval = setInterval(checkAndRefreshSession, 1000 * 60 * 45);
+
+    // Handle visibility change - refresh session when user returns to tab
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('Tab became visible, checking session...');
+        checkAndRefreshSession();
+        checkAuth(); // Also re-check credits and profile
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Also handle page focus as backup
+    const handleFocus = () => {
+      console.log('Window focused, checking session...');
+      checkAndRefreshSession();
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    let profileSubscription: any;
+
+    const setupSubscription = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        if (profileSubscription) supabase.removeChannel(profileSubscription);
+
+        profileSubscription = supabase
+          .channel('profile-credits')
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'profiles',
+              filter: `id=eq.${session.user.id}`
+            },
+            (payload) => {
+              const newProfile = payload.new as any;
+              if (newProfile.credits !== undefined) {
+                setCredits(newProfile.credits);
+              }
+            }
+          )
+          .subscribe();
+      } catch (error) {
+        console.error('Failed to setup subscription:', error);
+      }
+    };
+
+    setupSubscription();
+
+    const authListener = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        setupSubscription();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      authListener.data.subscription.unsubscribe();
+      clearInterval(sessionRefreshInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      if (profileSubscription) supabase.removeChannel(profileSubscription);
+    };
+  }, []);
 
   const handleExit = () => {
     if (step === 'category' && !wizardData.description) {
