@@ -75,6 +75,7 @@ export default function CreditPurchaseModal() {
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
 
   useEffect(() => {
@@ -83,6 +84,7 @@ export default function CreditPurchaseModal() {
       setSelectedPackage(null);
       setIsProcessing(false);
       setShowConfirm(false);
+      setIsMobile(window.innerWidth < 768);
     }
   }, [isCreditPurchaseModalOpen]);
 
@@ -91,67 +93,72 @@ export default function CreditPurchaseModal() {
     
     setIsProcessing(true);
     
-    // 【关键】立即打开一个空白窗口（先占位，避免浏览器拦截）
-    // 必须在用户点击事件的同步调用栈中执行，否则会被拦截
-    const paymentWindow = window.open('about:blank', '_blank');
-    
-    // 如果浏览器阻止了弹窗
-    if (!paymentWindow) {
-      if (warning) warning('请允许弹窗以完成支付');
-      setIsProcessing(false);
-      return;
-    }
-    
-    // 给空白窗口添加加载提示
-    try {
-      paymentWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>正在跳转支付...</title>
-          <style>
-            body {
-              margin: 0;
-              padding: 0;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              min-height: 100vh;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            }
-            .container {
-              text-align: center;
-              color: white;
-            }
-            .spinner {
-              width: 50px;
-              height: 50px;
-              border: 4px solid rgba(255,255,255,0.3);
-              border-top-color: white;
-              border-radius: 50%;
-              animation: spin 1s linear infinite;
-              margin: 0 auto 20px;
-            }
-            @keyframes spin {
-              to { transform: rotate(360deg); }
-            }
-            h2 { margin: 0 0 10px; font-size: 24px; }
-            p { margin: 0; font-size: 16px; opacity: 0.9; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="spinner"></div>
-            <h2>正在创建订单...</h2>
-            <p>请稍候，即将跳转到支付页面</p>
-          </div>
-        </body>
-        </html>
-      `);
-    } catch (e) {
-      console.warn('[Payment] Cannot write to popup window:', e);
+    let paymentWindow: Window | null = null;
+
+    // 仅在非移动端使用新窗口打开方式
+    if (!isMobile) {
+      // 【关键】立即打开一个空白窗口（先占位，避免浏览器拦截）
+      // 必须在用户点击事件的同步调用栈中执行，否则会被拦截
+      paymentWindow = window.open('about:blank', '_blank');
+      
+      // 如果浏览器阻止了弹窗
+      if (!paymentWindow) {
+        if (warning) warning('请允许弹窗以完成支付');
+        setIsProcessing(false);
+        return;
+      }
+      
+      // 给空白窗口添加加载提示
+      try {
+        paymentWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>正在跳转支付...</title>
+            <style>
+              body {
+                margin: 0;
+                padding: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+              }
+              .container {
+                text-align: center;
+                color: white;
+              }
+              .spinner {
+                width: 50px;
+                height: 50px;
+                border: 4px solid rgba(255,255,255,0.3);
+                border-top-color: white;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 20px;
+              }
+              @keyframes spin {
+                to { transform: rotate(360deg); }
+              }
+              h2 { margin: 0 0 10px; font-size: 24px; }
+              p { margin: 0; font-size: 16px; opacity: 0.9; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="spinner"></div>
+              <h2>正在创建订单...</h2>
+              <p>请稍候，即将跳转到支付页面</p>
+            </div>
+          </body>
+          </html>
+        `);
+      } catch (e) {
+        console.warn('[Payment] Cannot write to popup window:', e);
+      }
     }
     
     try {
@@ -176,7 +183,7 @@ export default function CreditPurchaseModal() {
         if (warning) warning(errorMsg);
         
         // 关闭空白窗口
-        paymentWindow.close();
+        if (paymentWindow) paymentWindow.close();
         setStep('select');
         setIsProcessing(false);
         return;
@@ -187,17 +194,22 @@ export default function CreditPurchaseModal() {
         const paymentTime = Date.now().toString();
         localStorage.setItem('pending_payment_time', paymentTime);
         
-        // 将空白窗口重定向到支付链接
-        paymentWindow.location.href = data.url;
-        
-        // 切换到"支付中"状态，显示轮询 UI
-        setStep('pay');
-        
-        // 开始轮询支付状态
-        startPollingPaymentStatus(paymentTime);
+        if (isMobile) {
+          // 移动端：直接跳转当前页面
+          window.location.href = data.url;
+        } else {
+          // PC端：将空白窗口重定向到支付链接
+          if (paymentWindow) paymentWindow.location.href = data.url;
+          
+          // 切换到"支付中"状态，显示轮询 UI
+          setStep('pay');
+          
+          // 开始轮询支付状态
+          startPollingPaymentStatus(paymentTime);
+        }
       } else {
         if (warning) warning(t.payment_modal?.create_fail || '创建订单失败');
-        paymentWindow.close();
+        if (paymentWindow) paymentWindow.close();
         setStep('select');
         setIsProcessing(false);
       }
@@ -206,11 +218,11 @@ export default function CreditPurchaseModal() {
       if (warning) warning(t.payment_modal?.create_fail || '请求失败');
       
       // 出错时关闭空白窗口
-      paymentWindow.close();
+      if (paymentWindow) paymentWindow.close();
       setStep('select');
       setIsProcessing(false);
     }
-  }, [selectedPackage, t.payment_modal, warning, isProcessing]);
+  }, [selectedPackage, t.payment_modal, warning, isProcessing, isMobile]);
 
   // P2: 改进轮询支付状态逻辑
   const startPollingPaymentStatus = useCallback((paymentTime: string) => {
@@ -311,7 +323,11 @@ export default function CreditPurchaseModal() {
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md mx-4 shadow-2xl">
             <h3 className="text-xl font-bold text-white mb-3">确认购买</h3>
             <p className="text-slate-300 mb-4">
-              将在<strong>新标签页</strong>打开爱发电支付页面，完成 <span className="text-brand-400 font-bold">¥{selectedPackage.price}</span> 的支付。
+              {isMobile ? (
+                  <>将在当前页面跳转到爱发电支付页面，完成 <span className="text-brand-400 font-bold">¥{selectedPackage.price}</span> 的支付。</>
+              ) : (
+                  <>将在<strong>新标签页</strong>打开爱发电支付页面，完成 <span className="text-brand-400 font-bold">¥{selectedPackage.price}</span> 的支付。</>
+              )}
             </p>
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-5">
               <p className="text-blue-400 text-sm flex items-start gap-2">
@@ -330,7 +346,7 @@ export default function CreditPurchaseModal() {
                 onClick={handleConfirmPurchase}
                 className="flex-1 py-2.5 rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white font-bold transition shadow-lg"
               >
-                确认跳转
+                {isMobile ? '确认支付' : '确认跳转'}
               </button>
             </div>
           </div>
