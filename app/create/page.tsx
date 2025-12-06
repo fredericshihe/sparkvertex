@@ -226,6 +226,7 @@ function CreateContent() {
   // State: Preview Scaling
   const [previewScale, setPreviewScale] = useState(1);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
   
   const STORAGE_KEY = 'spark_create_session_v1';
 
@@ -773,6 +774,110 @@ function CreateContent() {
       ? "我想做一个 [分类] 应用，主要给 [目标用户] 使用，核心功能是 [功能1] 和 [功能2]。"
       : "I want to build a [Category] app for [Target User]. Core features include [Feature 1] and [Feature 2].");
     appendToDescription(template);
+  };
+
+  const optimizePrompt = async () => {
+    if (!wizardData.description.trim()) {
+      toastError(language === 'zh' ? '请先输入描述' : 'Please enter a description first');
+      return;
+    }
+
+    const OPTIMIZE_COST = 2;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        openLoginModal();
+        return;
+      }
+
+      if (credits < OPTIMIZE_COST) {
+        openCreditPurchaseModal();
+        return;
+      }
+
+      const confirmMsg = language === 'zh'
+        ? `AI 将优化您的提示词，使其更加详细和专业。此操作将消耗 ${OPTIMIZE_COST} 积分，是否继续？`
+        : `AI will optimize your prompt to make it more detailed and professional. This will cost ${OPTIMIZE_COST} credits. Continue?`;
+
+      if (!confirm(confirmMsg)) return;
+
+      setIsOptimizingPrompt(true);
+
+      // Deduct credits first
+      const { error: deductError } = await supabase.rpc('deduct_credits', { amount: OPTIMIZE_COST });
+      if (deductError) {
+        console.error('Failed to deduct credits:', deductError);
+        toastError(language === 'zh' ? '积分扣除失败' : 'Failed to deduct credits');
+        setIsOptimizingPrompt(false);
+        return;
+      }
+
+      // Update local credits optimistically
+      setCredits(prev => Math.max(0, prev - OPTIMIZE_COST));
+
+      const systemPrompt = language === 'zh'
+        ? '你是一个专业的需求分析师和产品经理。你的任务是优化用户提供的应用描述，使其更加详细、具体、可执行，同时保持用户的原意。'
+        : 'You are a professional requirements analyst and product manager. Your task is to optimize the user-provided app description to make it more detailed, specific, and actionable while preserving the original intent.';
+
+      const userPrompt = language === 'zh'
+        ? `请优化以下应用描述，使其更加详细和专业。要求：
+1. 保持原有意图不变
+2. 添加具体的功能细节和用户场景
+3. 使用清晰、专业的语言
+4. 长度控制在 200-400 字
+5. 直接输出优化后的描述，不要加任何前缀或说明
+
+原始描述：
+${wizardData.description}`
+        : `Please optimize the following app description to make it more detailed and professional. Requirements:
+1. Keep the original intent unchanged
+2. Add specific feature details and user scenarios
+3. Use clear, professional language
+4. Keep length between 100-200 words
+5. Output the optimized description directly without any prefix or explanation
+
+Original description:
+${wizardData.description}`;
+
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_prompt: systemPrompt,
+          user_prompt: userPrompt,
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Optimization failed');
+      }
+
+      const data = await response.json();
+      const optimizedText = data.content?.trim();
+
+      if (optimizedText) {
+        setWizardData(prev => ({ ...prev, description: optimizedText }));
+        toastSuccess(language === 'zh' ? 'AI 优化完成' : 'AI optimization completed');
+      } else {
+        throw new Error('Empty response');
+      }
+
+    } catch (error: any) {
+      console.error('Prompt optimization failed:', error);
+      toastError(error.message || (language === 'zh' ? '优化失败，请重试' : 'Optimization failed, please try again'));
+      // Refund credits on failure
+      try {
+        await supabase.rpc('add_credits', { user_id: userId, amount: OPTIMIZE_COST });
+        setCredits(prev => prev + OPTIMIZE_COST);
+      } catch (refundError) {
+        console.error('Failed to refund credits:', refundError);
+      }
+    } finally {
+      setIsOptimizingPrompt(false);
+    }
   };
 
   // --- Generation Logic ---
@@ -2170,14 +2275,36 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                   className="w-full h-48 bg-transparent border-none outline-none appearance-none p-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-base leading-relaxed"
                 ></textarea>
                 
-                {/* Mad Libs Button */}
-                <div className="absolute bottom-4 left-4">
+                {/* Action Buttons */}
+                <div className="absolute bottom-4 left-4 flex items-center gap-2">
                    <button 
                      onClick={useMadLibsTemplate}
                      className="text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-lg transition flex items-center gap-1 border border-slate-700"
                    >
                      <Edit3 size={12} />
                      {language === 'zh' ? '使用填空模板' : 'Use Template'}
+                   </button>
+                   <button 
+                     onClick={optimizePrompt}
+                     disabled={isOptimizingPrompt || !wizardData.description.trim()}
+                     className="text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1 border border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed relative group"
+                   >
+                     {isOptimizingPrompt ? (
+                       <>
+                         <i className="fa-solid fa-spinner fa-spin"></i>
+                         {language === 'zh' ? '优化中...' : 'Optimizing...'}
+                       </>
+                     ) : (
+                       <>
+                         <Wand2 size={12} />
+                         {language === 'zh' ? 'AI 优化 (2积分)' : 'AI Optimize (2 credits)'}
+                       </>
+                     )}
+                     <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-slate-800 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-slate-700">
+                       {language === 'zh' 
+                         ? 'AI 将优化您的描述，使其更详细、专业。消耗 2 积分。' 
+                         : 'AI will optimize your description to make it more detailed and professional. Costs 2 credits.'}
+                     </div>
                    </button>
                 </div>
 
