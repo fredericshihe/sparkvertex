@@ -4,7 +4,7 @@
  * 使用 Vercel Cron 或手动触发
  * 配置: vercel.json 中添加 cron 配置
  * 
- * Cron Expression: "0 2 * * *" (每天凌晨2点执行)
+ * Cron Expression: daily at 2am
  */
 
 import { createClient } from '@supabase/supabase-js';

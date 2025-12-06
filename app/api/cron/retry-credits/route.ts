@@ -4,7 +4,7 @@
  * 使用 Vercel Cron 或手动触发
  * 配置: vercel.json 中添加 cron 配置
  * 
- * Cron Expression: "0 * * * *" (每小时执行一次)
+ * Cron Expression: every hour
  */
 
 import { createClient } from '@supabase/supabase-js';
