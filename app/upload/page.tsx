@@ -21,7 +21,8 @@ async function calculateContentHash(content: string) {
 
 async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, temperature = 0.7) {
   try {
-    const response = await fetch('/api/analyze', {
+    // 1. Submit Job to Queue
+    const enqueueRes = await fetch('/api/ai-jobs/enqueue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -31,22 +32,48 @@ async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, tempera
       })
     });
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      const errorMessage = data.error || `API Error: ${response.status}`;
-      
-      // Throw specific errors for Rate Limit, Auth, and Validation
-      if (response.status === 429) throw new Error(errorMessage); // Rate Limit
-      if (response.status === 401) throw new Error(errorMessage); // Auth
-      if (response.status === 400) throw new Error(errorMessage); // Validation
-      
-      throw new Error(errorMessage);
+    if (!enqueueRes.ok) {
+      const errorData = await enqueueRes.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to enqueue job: ${enqueueRes.status}`);
     }
 
-    const data = await response.json();
-    return data.content;
+    const { taskId } = await enqueueRes.json();
+    if (!taskId) throw new Error('No taskId returned from enqueue API');
+
+    // Trigger Worker (Fire and Forget)
+    fetch('/api/ai-jobs/process', { method: 'POST' }).catch(e => console.error('Worker trigger failed:', e));
+
+    // 2. Poll for Status
+    // Poll every 2 seconds, timeout after 90 seconds
+    const startTime = Date.now();
+    const timeoutMs = 90000; 
+    
+    while (Date.now() - startTime < timeoutMs) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const statusRes = await fetch(`/api/ai-jobs/status?taskId=${taskId}`);
+      if (!statusRes.ok) {
+        console.warn(`Status check failed: ${statusRes.status}`);
+        continue;
+      }
+
+      const statusData = await statusRes.json();
+      
+      if (statusData.status === 'succeeded' || statusData.status === 'completed') {
+        return statusData.result;
+      }
+      
+      if (statusData.status === 'failed') {
+        throw new Error(statusData.error || 'AI processing failed');
+      }
+      
+      // If 'queued' or 'running', continue polling
+    }
+
+    throw new Error('AI processing timed out (90s)');
+    
   } catch (err: any) {
-    console.error('AI API Error:', err);
+    console.error('AI Async API Error:', err);
     // Re-throw if it's one of our specific errors
     if (err.message && (
       err.message.includes('Rate limit') || 
@@ -58,6 +85,7 @@ async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, tempera
     )) {
       throw err;
     }
+    // For other errors, return null to allow fallback (e.g. default category)
     return null;
   }
 }
