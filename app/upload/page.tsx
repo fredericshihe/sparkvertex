@@ -746,6 +746,7 @@ function UploadContent() {
   const [iconPreview, setIconPreview] = useState<string>('');
   const [isGeneratingIcon, setIsGeneratingIcon] = useState(false);
   const [generationCount, setGenerationCount] = useState(0);
+  const [firstIconGenerationComplete, setFirstIconGenerationComplete] = useState(false);
 
   // Add a ref to track the current analysis session ID
   // const analysisSessionIdRef = useRef(0); // Already declared above
@@ -776,6 +777,7 @@ function UploadContent() {
     setIconPreview('');
     setIsGeneratingIcon(false);
     setGenerationCount(0);
+    setFirstIconGenerationComplete(false); // 重置首次图标生成状态
     setStep(1);
   };
 
@@ -1131,6 +1133,7 @@ function UploadContent() {
             const blob = await res.blob();
             const file = new File([blob], 'icon.png', { type: 'image/png' });
             setIconFile(file);
+            setFirstIconGenerationComplete(true); // 标记首次图标生成完成
             return data.url;
           }
           return null;
@@ -1864,6 +1867,10 @@ function UploadContent() {
                   {/* AI Generate */}
                   <button 
                     onClick={async () => {
+                      if (!firstIconGenerationComplete) {
+                        toastError(language === 'zh' ? '请等待首次自动图标生成完成' : 'Please wait for the first icon generation to complete');
+                        return;
+                      }
                       if (!description) {
                         toastError(t.upload.fill_desc_first);
                         return;
@@ -1936,10 +1943,12 @@ function UploadContent() {
                         setIsGeneratingIcon(false);
                       }
                     }}
-                    disabled={isGeneratingIcon || !description || generationCount >= 3}
+                    disabled={!firstIconGenerationComplete || isGeneratingIcon || !description || generationCount >= 3}
                     className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white py-2 rounded-lg font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isGeneratingIcon ? (
+                    {!firstIconGenerationComplete ? (
+                      <><i className="fa-solid fa-hourglass-half"></i> {language === 'zh' ? '等待首次分析完成...' : 'Waiting for initial analysis...'}</>
+                    ) : isGeneratingIcon ? (
                       <><i className="fa-solid fa-circle-notch fa-spin"></i> {t.upload.ai_generating}</>
                     ) : generationCount >= 3 ? (
                       <><i className="fa-solid fa-ban"></i> {t.upload.limit_reached}</>
