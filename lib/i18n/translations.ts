@@ -149,16 +149,6 @@ export const translations = {
       close_btn: '关闭',
       coming_soon: '付费功能正在加紧开发中，感谢您的支持！',
     },
-    create: {
-      ai_optimize_prompt: 'AI 优化提示词',
-      ai_optimize_cost: '消耗 2 积分',
-      ai_optimize_tooltip: 'AI 将优化您的描述，使其更详细、专业',
-      ai_optimizing: '优化中...',
-      ai_optimize_success: 'AI 优化完成',
-      ai_optimize_failed: '优化失败，请重试',
-      ai_optimize_confirm: 'AI 将优化您的提示词，使其更加详细和专业。此操作将消耗 2 积分，是否继续？',
-      prompt_empty_error: '请先输入描述',
-    },
     upload: {
       title: '发布应用',
       edit_title: '编辑应用',
@@ -616,6 +606,15 @@ export const translations = {
       android_step2: '选择"安装应用"',
     },
     create: {
+      ai_optimize_prompt: 'AI 优化提示词',
+      ai_optimize_cost: '消耗 2 积分',
+      ai_optimize_tooltip: 'AI 将优化您的描述，使其更详细、专业',
+      ai_optimizing: '优化中...',
+      ai_optimize_success: 'AI 优化完成',
+      ai_optimize_failed: '优化失败，请重试',
+      ai_optimize_confirm: 'AI 将优化您的提示词，使其更加详细和专业。此操作将消耗 2 积分，是否继续？',
+      prompt_empty_error: '请先输入描述',
+      
       step_category: '类型',
       step_device: '设备',
       step_style: '风格',
