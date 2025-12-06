@@ -1,5 +1,77 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 
+/**
+ * P1: 基于内存的速率限制器（用于 Edge Runtime）
+ * 适用于无法访问持久化存储的场景
+ */
+interface RateLimitOptions {
+  interval: number; // 时间窗口（毫秒）
+  uniqueTokenPerInterval: number; // 每个时间窗口内唯一 token 的数量
+}
+
+interface RateLimitResult {
+  success: boolean;
+  limit: number;
+  remaining: number;
+  reset: number;
+}
+
+export default function rateLimit(options: RateLimitOptions) {
+  const tokenCache = new Map<string, number[]>();
+
+  return {
+    check: async (limit: number, token: string): Promise<RateLimitResult> => {
+      const now = Date.now();
+      const windowStart = now - options.interval;
+
+      // 获取该 token 的请求时间戳列表
+      const timestamps = tokenCache.get(token) || [];
+
+      // 过滤掉时间窗口外的请求
+      const validTimestamps = timestamps.filter((ts) => ts > windowStart);
+
+      // 检查是否超过限制
+      if (validTimestamps.length >= limit) {
+        const oldestTimestamp = validTimestamps[0];
+        const resetTime = oldestTimestamp + options.interval;
+
+        throw new Error('Rate limit exceeded');
+      }
+
+      // 添加当前请求时间戳
+      validTimestamps.push(now);
+      tokenCache.set(token, validTimestamps);
+
+      // 清理过期的 token（防止内存泄漏）
+      if (tokenCache.size > options.uniqueTokenPerInterval) {
+        const tokensToDelete: string[] = [];
+        
+        for (const [key, stamps] of tokenCache.entries()) {
+          const validStamps = stamps.filter((ts) => ts > windowStart);
+          
+          if (validStamps.length === 0) {
+            tokensToDelete.push(key);
+          } else {
+            tokenCache.set(key, validStamps);
+          }
+        }
+        
+        tokensToDelete.forEach((key) => tokenCache.delete(key));
+      }
+
+      return {
+        success: true,
+        limit,
+        remaining: limit - validTimestamps.length,
+        reset: now + options.interval,
+      };
+    },
+  };
+}
+
+/**
+ * 基于数据库的速率限制器（原有功能，保持兼容性）
+ */
 export async function checkRateLimit(
   client: SupabaseClient,
   userId: string,

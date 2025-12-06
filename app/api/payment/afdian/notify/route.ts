@@ -16,11 +16,13 @@ export async function POST(request: Request) {
     // 1. 获取爱发电 POST 过来的 JSON 数据
     const payload: AfdianWebhookPayload = await request.json();
     
-    console.log('[Afdian Webhook] Received order:', payload.data?.order?.out_trade_no);
-    // 生产环境不记录完整 payload，避免泄露敏感信息
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Afdian Webhook] Full payload:', JSON.stringify(payload, null, 2));
-    }
+    // P2: 优化日志记录 - 只记录必要的非敏感信息
+    console.log('[Afdian Webhook] Processing:', {
+      trade_no: payload.data?.order?.out_trade_no?.substring(0, 20) + '...',
+      amount: payload.data?.order?.show_amount,
+      status: payload.data?.order?.status,
+      type: payload.data?.type
+    });
 
     // 2. 验签
     const isValid = verifyAfdianSignature(payload);
@@ -153,104 +155,110 @@ export async function POST(request: Request) {
           return NextResponse.json({ ec: 200, em: 'cannot identify user' });
         }
         
-        // 如果 remark 中没有 credits 信息，则根据金额映射
+        // P0: 严格的价格-积分映射表（防止篡改）
+        const STRICT_PRICE_MAP: Record<number, { price: number, tolerance: number }> = {
+          1: { price: 19.9, tolerance: 0.5 },      // Basic (测试) - 允许 ±0.5 误差
+          350: { price: 49.9, tolerance: 0.5 },    // Standard
+          800: { price: 99.9, tolerance: 0.5 },    // Premium
+          2000: { price: 198.0, tolerance: 1.0 }   // Ultimate
+        };
+        
+        // 如果 remark 中没有 credits 信息，则根据金额反推
         if (!credits || isNaN(credits)) {
-          const creditMapping: Record<string, number> = {
-            '19.9': 1,    // Basic (测试)
-            '49.9': 350,  // Standard
-            '99.9': 800,  // Premium
-            '198.0': 2000 // Ultimate
-          };
-          // 使用字符串匹配避免浮点数精度问题
-          credits = creditMapping[orderAmount.toFixed(1)] || Math.floor(orderAmount * 10);
-          console.log('[Afdian Webhook] Calculated credits from amount:', orderAmount, '->', credits);
+          // 从金额反推积分数（向下取整到最接近的套餐）
+          const creditOptions = Object.keys(STRICT_PRICE_MAP).map(Number).sort((a, b) => a - b);
+          let matchedCredits = null;
+          
+          for (const option of creditOptions) {
+            const { price, tolerance } = STRICT_PRICE_MAP[option];
+            if (Math.abs(orderAmount - price) <= tolerance) {
+              matchedCredits = option;
+              break;
+            }
+          }
+          
+          if (!matchedCredits) {
+            console.error('[Afdian Webhook] Cannot match amount to any plan:', orderAmount);
+            return NextResponse.json({ 
+              ec: 400, 
+              em: 'invalid payment amount' 
+            }, { status: 400 });
+          }
+          
+          credits = matchedCredits;
+          console.log('[Afdian Webhook] Matched amount', orderAmount, 'to', credits, 'credits');
         }
         
-        // 验证金额是否合理（防止篡改）
-        // 注意：爱发电可能返回实际支付金额，而不是商品价格
-        // 所以我们只验证金额不能太低（至少要大于等于最小单价）
-        const minAmountPerCredit = 0.01; // 最低 1 分钱 1 积分
-        const expectedMinAmount = credits * minAmountPerCredit;
+        // P0: 严格验证金额是否匹配积分数
+        const expectedPlan = STRICT_PRICE_MAP[credits];
+        if (!expectedPlan) {
+          console.error('[Afdian Webhook] Invalid credits value:', credits);
+          return NextResponse.json({ 
+            ec: 400, 
+            em: 'invalid credits value' 
+          }, { status: 400 });
+        }
         
-        if (orderAmount < expectedMinAmount) {
-          console.error('[Afdian Webhook] Amount too low! Expected min:', expectedMinAmount, 'Got:', orderAmount, 'Credits:', credits);
+        const { price: expectedPrice, tolerance } = expectedPlan;
+        const priceDiff = Math.abs(orderAmount - expectedPrice);
+        
+        if (priceDiff > tolerance) {
+          console.error('[Afdian Webhook] Amount verification failed!', {
+            expected: expectedPrice,
+            got: orderAmount,
+            diff: priceDiff,
+            tolerance,
+            credits
+          });
           return NextResponse.json({ 
             ec: 400, 
             em: 'amount verification failed' 
           }, { status: 400 });
         }
         
-        console.log('[Afdian Webhook] Amount validation passed:', orderAmount, 'for', credits, 'credits');
+        console.log('[Afdian Webhook] Amount validation passed:', { amount: orderAmount, credits, expected: expectedPrice });
         
-        // 验证用户是否存在
-        const { data: userProfile, error: userCheckError } = await supabaseAdmin
-          .from('profiles')
-          .select('id, credits')
-          .eq('id', userId)
-          .single();
+        // P0: 使用数据库函数实现原子性事务（防止并发竞争）
+        // 调用存储过程处理订单创建和积分更新
+        const { data: result, error: processError } = await supabaseAdmin
+          .rpc('process_credit_order', {
+            p_user_id: userId,
+            p_out_trade_no: data.order.remark || tradeNo,
+            p_trade_no: tradeNo,
+            p_amount: orderAmount,
+            p_credits: credits,
+            p_provider: 'afdian',
+            p_payment_info: data.order
+          });
         
-        if (userCheckError || !userProfile) {
-          console.error('[Afdian Webhook] User profile not found:', userId, userCheckError);
-          return NextResponse.json({ 
-            ec: 400, 
-            em: 'user not found' 
-          }, { status: 400 });
-        }
-        
-        // 创建订单并更新积分（使用事务保证原子性）
-        // 先创建订单
-        const { data: newOrder, error: createError } = await supabaseAdmin
-          .from('credit_orders')
-          .insert({
-            user_id: userId,
-            out_trade_no: data.order.remark || tradeNo,
-            trade_no: tradeNo,
-            amount: orderAmount,
-            credits: credits,
-            status: 'paid',
-            provider: 'afdian',
-            payment_info: data.order
-          })
-          .select()
-          .single();
-        
-        if (createError) {
-          console.error('[Afdian Webhook] Failed to create order:', createError);
-          // 检查是否是唯一约束冲突（重复订单）
-          if (createError.code === '23505') {
+        if (processError) {
+          console.error('[Afdian Webhook] Failed to process order:', processError);
+          
+          // 检查是否是重复订单
+          if (processError.message?.includes('already exists') || processError.code === '23505') {
             console.log('[Afdian Webhook] Duplicate order detected, treating as success');
             return NextResponse.json({ ec: 200, em: 'order already exists' });
           }
-          return NextResponse.json({ ec: 500, em: 'failed to create order' }, { status: 500 });
-        }
-        
-        order = newOrder;
-        console.log('[Afdian Webhook] Created order:', order.id, 'Credits:', order.credits);
-        
-        // 更新用户积分
-        const oldCredits = userProfile.credits || 0;
-        const newCredits = oldCredits + credits;
-        
-        const { error: creditError } = await supabaseAdmin
-          .from('profiles')
-          .update({ credits: newCredits })
-          .eq('id', userId);
-        
-        if (creditError) {
-          console.error('[Afdian Webhook] CRITICAL: Failed to update credits for order:', order.id, creditError);
-          // 积分更新失败，将订单状态改为 pending_credits，以便后续重试
-          await supabaseAdmin
-            .from('credit_orders')
-            .update({ status: 'pending_credits' })
-            .eq('id', order.id);
+          
+          // 检查是否是用户不存在
+          if (processError.message?.includes('not found')) {
+            return NextResponse.json({ 
+              ec: 400, 
+              em: 'user not found' 
+            }, { status: 400 });
+          }
           
           return NextResponse.json({ 
             ec: 500, 
-            em: 'credit update failed, will retry' 
+            em: 'failed to process order' 
           }, { status: 500 });
         }
         
-        console.log('[Afdian Webhook] Credits updated:', oldCredits, '->', newCredits);
+        console.log('[Afdian Webhook] Order processed successfully:', {
+          order_id: result?.order_id,
+          old_credits: result?.old_credits,
+          new_credits: result?.new_credits
+        });
         
       } else {
         // 订单已存在但未支付，更新为已支付

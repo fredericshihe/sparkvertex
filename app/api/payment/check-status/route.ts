@@ -1,6 +1,13 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import rateLimit from '@/lib/rate-limit';
+
+// P1: 速率限制 - 每个用户每分钟最多查询30次（每2秒1次）
+const limiter = rateLimit({
+  interval: 60 * 1000,
+  uniqueTokenPerInterval: 500,
+});
 
 /**
  * 支付状态查询接口
@@ -33,6 +40,13 @@ export async function GET(request: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // P1: 应用速率限制
+    try {
+      await limiter.check(30, user.id);
+    } catch {
+      return NextResponse.json({ error: '查询过于频繁，请稍后再试' }, { status: 429 });
     }
 
     // 2. 解析查询参数

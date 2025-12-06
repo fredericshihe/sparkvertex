@@ -2,6 +2,14 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { AFDIAN_USER_ID } from '@/lib/afdian';
+import { randomBytes } from 'crypto';
+import rateLimit from '@/lib/rate-limit';
+
+// P1: 速率限制 - 每个用户每分钟最多创建5个订单
+const limiter = rateLimit({
+  interval: 60 * 1000,
+  uniqueTokenPerInterval: 500,
+});
 
 export async function POST(request: Request) {
   try {
@@ -32,14 +40,21 @@ export async function POST(request: Request) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    // P1: 应用速率限制
+    try {
+      await limiter.check(5, user.id);
+    } catch {
+      return NextResponse.json({ error: '请求过于频繁，请稍后再试' }, { status: 429 });
+    }
+
     const { amount, credits, item_id, plan_id } = await request.json();
     
-    console.log('[Afdian Create] Request:', { user_id: user.id, amount, credits });
+    console.log('[Afdian Create] Order request:', { user_id: user.id.substring(0, 8), amount, credits });
     
     // 2. 生成唯一的订单标识（用作 remark）
-    // 新格式：userId|credits|timestamp|random（使用 | 作为分隔符，更易解析且不会与UUID冲突）
+    // P1: 使用加密安全的随机数
     const timestamp = Date.now();
-    const randomPart = Math.random().toString(36).substring(2, 15);
+    const randomPart = randomBytes(16).toString('hex');
     const outTradeNo = `${user.id}|${credits}|${timestamp}|${randomPart}`;
     
     console.log('[Afdian Create] Generated remark:', outTradeNo);

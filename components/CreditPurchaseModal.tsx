@@ -212,10 +212,10 @@ export default function CreditPurchaseModal() {
     }
   }, [selectedPackage, t.payment_modal, warning, isProcessing]);
 
-  // 轮询支付状态
+  // P2: 改进轮询支付状态逻辑
   const startPollingPaymentStatus = useCallback((paymentTime: string) => {
     let pollCount = 0;
-    const maxPolls = 60; // 最多轮询60次（3分钟）
+    const maxPolls = 100; // P2: 延长到5分钟（100次 × 3秒）
     
     const checkPaymentStatus = async () => {
       try {
@@ -266,11 +266,9 @@ export default function CreditPurchaseModal() {
           setIsProcessing(false);
           
           if (!paid && pollCount >= maxPolls) {
-            // 超时了但未检测到支付
-            console.log('[Payment Poll] Timeout, stopping poll');
-            localStorage.removeItem('pending_payment_time');
-            setStep('select');
-            if (warning) warning('支付检测超时，请手动刷新页面查看积分');
+            // P2: 超时后保持在支付页面，允许手动检查
+            console.log('[Payment Poll] Timeout, but keeping payment page open');
+            if (warning) warning('自动检测超时，请使用「手动检查状态」按钮，或联系客服');
           }
         }
       }, 3000); // 每3秒检查一次
@@ -356,7 +354,7 @@ export default function CreditPurchaseModal() {
               <p className="text-slate-400 mb-6 text-center max-w-md">
                 已在新标签页打开支付页面，完成支付后将自动检测
               </p>
-              <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 max-w-md">
+              <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 max-w-md mb-6">
                 <div className="flex items-start gap-3 mb-3">
                   <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-blue-400 text-sm">1</span>
@@ -376,16 +374,37 @@ export default function CreditPurchaseModal() {
                   <p className="text-sm text-slate-300">积分自动到账</p>
                 </div>
               </div>
-              <button
-                onClick={() => {
-                  setStep('select');
-                  setIsProcessing(false);
-                  localStorage.removeItem('pending_payment_time');
-                }}
-                className="mt-6 px-6 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm transition"
-              >
-                取消支付
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    const paymentTime = localStorage.getItem('pending_payment_time');
+                    if (paymentTime) {
+                      const res = await fetch(`/api/payment/check-status?timestamp=${paymentTime}&limit=5`);
+                      const data = await res.json();
+                      if (data.statusCount?.paid > 0) {
+                        setStep('success');
+                        if (success) success('支付成功！积分已到账');
+                        setTimeout(() => window.location.reload(), 2000);
+                      } else {
+                        if (warning) warning('暂未检测到支付，请稍等片刻');
+                      }
+                    }
+                  }}
+                  className="px-6 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition"
+                >
+                  手动检查状态
+                </button>
+                <button
+                  onClick={() => {
+                    setStep('select');
+                    setIsProcessing(false);
+                    localStorage.removeItem('pending_payment_time');
+                  }}
+                  className="px-6 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm transition"
+                >
+                  取消支付
+                </button>
+              </div>
            </div>
         ) : step === 'success' ? (
            <div className="flex flex-col items-center justify-center h-full py-20 px-6">
