@@ -15,7 +15,17 @@ CREATE POLICY "Users can create own credit orders" ON credit_orders
 
 -- 2. Add missing indexes for foreign keys to improve query performance
 
--- Index for feedback.user_id foreign key
+-- Profile Page Optimization
+CREATE INDEX IF NOT EXISTS idx_items_author_id ON items(author_id);
+CREATE INDEX IF NOT EXISTS idx_orders_buyer_id ON orders(buyer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_seller_id ON orders(seller_id);
+CREATE INDEX IF NOT EXISTS idx_likes_user_id ON likes(user_id);
+
+-- Explore Page Optimization
+CREATE INDEX IF NOT EXISTS idx_items_public_rank ON items(is_public, daily_rank);
+CREATE INDEX IF NOT EXISTS idx_items_tags ON items USING gin(tags); -- For tag filtering if needed
+
+-- Other Foreign Keys
 CREATE INDEX IF NOT EXISTS idx_feedback_user_id ON feedback(user_id);
 
 -- Index for likes.item_id foreign key
