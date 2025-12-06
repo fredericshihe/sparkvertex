@@ -1873,6 +1873,13 @@ function UploadContent() {
                         return;
                       }
                       
+                      // Show confirmation dialog for manual generation (costs 2 credits)
+                      const confirmMsg = language === 'zh' 
+                        ? 'AI 将生成高清应用图标，此操作将消耗 2 积分，是否继续？' 
+                        : 'AI will generate a high-quality app icon. This will cost 2 credits. Continue?';
+                      
+                      if (!confirm(confirmMsg)) return;
+                      
                       setIsGeneratingIcon(true);
                       setGenerationCount(prev => prev + 1);
                       
@@ -1880,7 +1887,7 @@ function UploadContent() {
                         const response = await fetch('/api/generate-icon', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ title, description })
+                          body: JSON.stringify({ title, description, firstCall: false })
                         });
                         
                         if (!response.ok) {

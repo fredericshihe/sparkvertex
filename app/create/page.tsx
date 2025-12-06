@@ -2181,7 +2181,7 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                   <button
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat.id)}
-                    className="p-4 bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700 hover:border-brand-500 rounded-xl transition-all group text-left hover:shadow-lg hover:-translate-y-1"
+                    className="relative p-4 bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700 hover:border-brand-500 rounded-xl transition-all group text-left hover:shadow-lg hover:-translate-y-1 hover:z-10"
                   >
                     <div className="w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center mb-3 group-hover:scale-110 transition shadow-inner">
                       <i className={`fa-solid ${cat.icon} text-xl text-brand-400`}></i>
