@@ -10,7 +10,7 @@ import { X, Check, Sparkles } from 'lucide-react';
 const PACKAGES = [
   { 
     id: 'basic', 
-    credits: 1,
+    credits: 120,
     price: 19.9, 
     originalPrice: 19.9,
     nameKey: 'basic',
@@ -430,6 +430,15 @@ export default function CreditPurchaseModal() {
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-3 relative z-10">
             {t.credit_purchase.title}
           </h2>
+          
+          <div className="relative z-10 mb-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-medium animate-fade-in">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+            </span>
+            支付通道已开通，即刻生效
+          </div>
+
           <p className="text-slate-400 text-lg relative z-10 max-w-2xl mx-auto">
             {t.credit_purchase.subtitle}
           </p>
@@ -443,7 +452,7 @@ export default function CreditPurchaseModal() {
               const pkgData = (t.credit_purchase.packages as any)[pkg.nameKey];
               if (!pkgData) return null;
               
-              const isDisabled = pkg.id !== 'basic';
+              const isDisabled = false;
 
               return (
                 <button
@@ -454,13 +463,6 @@ export default function CreditPurchaseModal() {
                 >
                   {/* Background Glow on Hover */}
                   <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${pkg.color} transition-opacity duration-500`}></div>
-
-                  {/* Test Warning for Basic Plan */}
-                  {pkg.id === 'basic' && (
-                    <div className="w-full bg-red-500/20 text-red-400 text-xs font-bold py-1 text-center border-b border-red-500/20">
-                      支付测试通道，请勿点击
-                    </div>
-                  )}
 
                   {/* Top Banner for Badges */}
                   <div className="relative px-6 pt-6 pb-2 flex justify-between items-start">

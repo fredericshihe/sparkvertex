@@ -157,7 +157,7 @@ export async function POST(request: Request) {
         
         // P0: 严格的价格-积分映射表（防止篡改）
         const STRICT_PRICE_MAP: Record<number, { price: number, tolerance: number }> = {
-          1: { price: 1.0, tolerance: 0.5 },       // Basic (测试) - 临时改为 1 元
+          120: { price: 19.9, tolerance: 0.5 },    // Basic
           350: { price: 49.9, tolerance: 0.5 },    // Standard
           800: { price: 99.9, tolerance: 0.5 },    // Premium
           2000: { price: 198.0, tolerance: 1.0 }   // Ultimate
