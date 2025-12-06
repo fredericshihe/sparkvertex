@@ -423,12 +423,49 @@ function UploadContent() {
   useEffect(() => {
     checkAuth();
     
-    // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Subscribe to auth changes and automatically refresh session
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
+      
+      // 当 token 刷新时，更新用户信息
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('[Auth] Token refreshed successfully');
+      }
+      
+      // 当会话过期时，提示用户重新登录
+      if (event === 'SIGNED_OUT') {
+        console.warn('[Auth] Session expired, user signed out');
+      }
     });
 
-    return () => subscription.unsubscribe();
+    // 定期检查并刷新会话（每45分钟检查一次）
+    // 因为 access token 默认有效期是 1 小时
+    const refreshInterval = setInterval(async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (session && !error) {
+        // 检查 token 是否即将过期（还剩 15 分钟）
+        const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
+        const now = Date.now();
+        const timeUntilExpiry = expiresAt - now;
+        const fifteenMinutes = 15 * 60 * 1000;
+        
+        if (timeUntilExpiry < fifteenMinutes) {
+          console.log('[Auth] Token expiring soon, refreshing...');
+          const { error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError) {
+            console.error('[Auth] Failed to refresh session:', refreshError);
+          } else {
+            console.log('[Auth] Session refreshed proactively');
+          }
+        }
+      }
+    }, 45 * 60 * 1000); // 每45分钟检查一次
+
+    return () => {
+      subscription.unsubscribe();
+      clearInterval(refreshInterval);
+    };
   }, []);
 
   useEffect(() => {

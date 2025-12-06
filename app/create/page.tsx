@@ -327,16 +327,53 @@ function CreateContent() {
       }
     });
 
-    const keepAliveInterval = setInterval(async () => {
+    // Function to check and refresh session if needed
+    const checkAndRefreshSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          console.debug('Session keep-alive check passed');
+        if (session?.expires_at) {
+          const expiresAt = session.expires_at * 1000;
+          const now = Date.now();
+          const timeUntilExpiry = expiresAt - now;
+          const fifteenMinutes = 15 * 60 * 1000;
+
+          // If token expires in less than 15 minutes or already expired, refresh it
+          if (timeUntilExpiry < fifteenMinutes) {
+            console.log('Token expiring soon or expired, refreshing session...');
+            const { error } = await supabase.auth.refreshSession();
+            if (error) {
+              console.error('Failed to refresh session:', error);
+            } else {
+              console.log('Session refreshed successfully');
+            }
+          }
         }
       } catch (e) {
-        console.error('Keep-alive check failed', e);
+        console.error('Session refresh check failed', e);
       }
-    }, 1000 * 60 * 4);
+    };
+
+    // Enhanced session refresh - check every 45 minutes
+    const sessionRefreshInterval = setInterval(checkAndRefreshSession, 1000 * 60 * 45);
+
+    // Handle visibility change - refresh session when user returns to tab
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('Tab became visible, checking session...');
+        checkAndRefreshSession();
+        checkAuth(); // Also re-check credits and profile
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Also handle page focus as backup
+    const handleFocus = () => {
+      console.log('Window focused, checking session...');
+      checkAndRefreshSession();
+    };
+
+    window.addEventListener('focus', handleFocus);
 
     let profileSubscription: any;
 
@@ -381,7 +418,9 @@ function CreateContent() {
     return () => {
       subscription.unsubscribe();
       authListener.data.subscription.unsubscribe();
-      clearInterval(keepAliveInterval);
+      clearInterval(sessionRefreshInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
       if (profileSubscription) supabase.removeChannel(profileSubscription);
     };
   }, []);
@@ -525,8 +564,6 @@ function CreateContent() {
         console.log('Resuming task monitoring for:', currentTaskId);
         monitorTask(currentTaskId);
     }
-  }, [isGenerating, currentTaskId]);
-
   useEffect(() => {
     if (step === 'category' && !wizardData.description && !generatedCode) return;
 
@@ -543,9 +580,46 @@ function CreateContent() {
     };
     
     const timeoutId = setTimeout(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+        } catch (e) {
+          console.error('Failed to save session:', e);
+        }
     }, 1000);
 
+    return () => clearTimeout(timeoutId);
+  }, [step, wizardData, generatedCode, chatHistory, codeHistory, currentGenerationPrompt, previewMode, currentTaskId]);
+
+  // Save immediately when page visibility changes (user switches tabs)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && (wizardData.description || generatedCode)) {
+        try {
+          const stateToSave = {
+            step,
+            wizardData,
+            generatedCode,
+            chatHistory,
+            codeHistory,
+            currentGenerationPrompt,
+            previewMode,
+            currentTaskId,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+          console.log('Session saved on tab hide');
+        } catch (e) {
+          console.error('Failed to save session on visibility change:', e);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [step, wizardData, generatedCode, chatHistory, codeHistory, currentGenerationPrompt, previewMode, currentTaskId]);
     return () => clearTimeout(timeoutId);
   }, [step, wizardData, generatedCode, chatHistory, codeHistory, currentGenerationPrompt, previewMode]);
 

@@ -46,7 +46,7 @@ export default function rateLimit(options: RateLimitOptions) {
       if (tokenCache.size > options.uniqueTokenPerInterval) {
         const tokensToDelete: string[] = [];
         
-        for (const [key, stamps] of tokenCache.entries()) {
+        Array.from(tokenCache.entries()).forEach(([key, stamps]) => {
           const validStamps = stamps.filter((ts) => ts > windowStart);
           
           if (validStamps.length === 0) {
@@ -54,7 +54,7 @@ export default function rateLimit(options: RateLimitOptions) {
           } else {
             tokenCache.set(key, validStamps);
           }
-        }
+        });
         
         tokensToDelete.forEach((key) => tokenCache.delete(key));
       }
