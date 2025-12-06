@@ -378,7 +378,7 @@ function UploadContent() {
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
   const [isEditing, setIsEditing] = useState(false);
-  const { openLoginModal } = useModal();
+  const { openLoginModal, openCreditPurchaseModal } = useModal();
   const { error: toastError, success: toastSuccess } = useToast();
   const [step, setStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
@@ -1886,7 +1886,9 @@ function UploadContent() {
                         if (!response.ok) {
                           const data = await response.json().catch(() => ({}));
                           const msg = data.error || `API Error: ${response.status}`;
-                          throw new Error(msg);
+                          const err: any = new Error(msg);
+                          err.status = response.status;
+                          throw err;
                         }
 
                         const data = await response.json();
@@ -1916,7 +1918,11 @@ function UploadContent() {
                         }
                       } catch (error: any) {
                         console.error('Icon generation failed', error);
-                        toastError(error.message || t.upload.icon_gen_fail);
+                        if (error.status === 403 || error.message.includes('Insufficient credits')) {
+                            openCreditPurchaseModal();
+                        } else {
+                            toastError(error.message || t.upload.icon_gen_fail);
+                        }
                         // Revert count on failure if you want, but usually attempts are counted regardless
                         // setGenerationCount(prev => prev - 1); 
                       } finally {
