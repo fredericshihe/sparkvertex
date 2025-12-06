@@ -57,7 +57,7 @@ serve(async (req) => {
     }
 
     // 5. Credit Deduction
-    const COST = type === 'modification' ? 8.0 : 30.0;
+    const COST = type === 'modification' ? 5.0 : 15.0;
     
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
@@ -343,7 +343,7 @@ serve(async (req) => {
                           };
 
                           try {
-                              taskChannel.send(msg);
+                              await taskChannel.send(msg, { httpSend: true });
                           } catch (rtError) {
                               console.warn('Realtime 发送失败:', rtError);
                           }
@@ -392,7 +392,7 @@ serve(async (req) => {
                         payload: { taskId, fullContent }
                     };
                     
-                    taskChannel.send(completionMsg);
+                    await taskChannel.send(completionMsg, { httpSend: true });
                 } catch (rtErr) {
                     console.log('Realtime 完成广播失败:', rtErr);
                 }
@@ -410,13 +410,19 @@ serve(async (req) => {
                         controller.enqueue(encoder.encode(JSON.stringify({ status: 'completed' }) + '\n'));
                     } catch (e) {
                         console.log('流已关闭，跳过最终消息');
+                        streamClosed = true;
                     }
                 }
                 
                 try {
                     controller.close();
-                } catch (e) {
-                    // 忽略流关闭错误
+                } catch (e: any) {
+                    // 忽略流关闭错误（Http: connection closed before message completed）
+                    if (e.name === 'Http' || e.message?.includes('connection closed')) {
+                        console.log('客户端已提前关闭连接（正常）');
+                    } else {
+                        console.warn('流关闭错误:', e);
+                    }
                 }
             } catch (error: any) {
                 console.error('异步生成错误:', error);

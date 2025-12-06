@@ -712,10 +712,13 @@ function CreateContent() {
         }
     }
 
-    // 5. Refund Credits (Optimistic)
+    // 5. Refresh Credits (Backend will handle refund automatically)
+    // 注意：后端Edge Function会检测到客户端断开并自动退款
+    // 这里只需刷新积分余额即可
+    checkAuth(); // 刷新积分余额
+    
     if (refundCost > 0) {
-        setCredits(prev => prev + refundCost);
-        toastSuccess(language === 'zh' ? `已取消并退还 ${refundCost} 积分` : `Cancelled and refunded ${refundCost} credits`);
+        toastSuccess(language === 'zh' ? `已取消生成，积分将自动退还` : `Generation cancelled, credits will be refunded`);
     } else {
         toastSuccess(language === 'zh' ? '已取消生成' : 'Generation cancelled');
     }
@@ -1118,7 +1121,30 @@ ${description}
                          toastSuccess(language === 'zh' ? '正在进行全量重写...' : 'Starting full rewrite...');
                          startGeneration(true, currentGenerationPrompt, '', true, lastOperationType === 'init' ? 'regenerate' : lastOperationType);
                     } else {
-                         toastError(language === 'zh' ? '修改已取消' : 'Modification cancelled');
+                         // User cancelled - refund the 5 credits that were deducted for the failed smart edit
+                         toastError(language === 'zh' ? '修改已取消，正在退还积分...' : 'Modification cancelled, refunding credits...');
+                         
+                         // Refund credits in background
+                         (async () => {
+                             try {
+                                 const { data: { session } } = await supabase.auth.getSession();
+                                 if (session) {
+                                     const { error: refundError } = await supabase.rpc('add_credits', { 
+                                         user_id: session.user.id, 
+                                         amount: 5 
+                                     });
+                                     
+                                     if (!refundError) {
+                                         setCredits(prev => prev + 5);
+                                         toastSuccess(language === 'zh' ? '已退还 5 积分' : 'Refunded 5 credits');
+                                     } else {
+                                         console.error('Failed to refund credits:', refundError);
+                                     }
+                                 }
+                             } catch (refundErr) {
+                                 console.error('Refund error:', refundErr);
+                             }
+                         })();
                     }
                 }
             } else {
@@ -1801,8 +1827,8 @@ Remember: You're building for production. Code must be clean, performant, and er
       const { taskId } = await response.json();
       setCurrentTaskId(taskId);
       
-      setCredits(prev => Math.max(0, prev - COST));
-      // checkAuth(); // Removed to prevent overwriting optimistic update with stale DB data
+      // 注意：积分扣除在后端Edge Function中进行，避免双重扣费
+      // 前端不再进行乐观更新，等待后端扣费后通过checkAuth刷新积分余额
 
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -1981,6 +2007,12 @@ Remember: You're building for production. Code must be clean, performant, and er
 
   const handleElementEditSubmit = () => {
     if (!selectedElement || !editRequest.trim()) return;
+    
+    const confirmMsg = language === 'zh'
+      ? '点选编辑将消耗 5 积分，是否继续？'
+      : 'Visual editing will cost 5 credits. Continue?';
+    
+    if (!confirm(confirmMsg)) return;
     
     const intentLabel = 
         editIntent === 'style' ? 'Visual/Style Update' :
@@ -2341,7 +2373,14 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                   {t.create.btn_back}
                 </button>
                 <button
-                  onClick={() => startGeneration(false, '', '', false, 'init')}
+                  onClick={() => {
+                    const confirmMsg = language === 'zh'
+                      ? '创建应用将消耗 15 积分，是否继续？'
+                      : 'Creating this app will cost 15 credits. Continue?';
+                    if (confirm(confirmMsg)) {
+                      startGeneration(false, '', '', false, 'init');
+                    }
+                  }}
                   disabled={!wizardData.description}
                   className={`flex-1 bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
                 >
@@ -2491,7 +2530,12 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                       toastError(language === 'zh' ? '上传的作品不支持重新生成，仅支持修改' : 'Uploaded works cannot be regenerated, only modified');
                       return;
                     }
-                    startGeneration(false, currentGenerationPrompt, '', false, 'regenerate');
+                    const confirmMsg = language === 'zh'
+                      ? '重新生成将消耗 15 积分，是否继续？'
+                      : 'Regenerating will cost 15 credits. Continue?';
+                    if (confirm(confirmMsg)) {
+                      startGeneration(false, currentGenerationPrompt, '', false, 'regenerate');
+                    }
                   }}
                   className={`text-xs px-2 py-1 rounded flex items-center gap-1 transition border ${
                     isFromUpload 
@@ -2635,13 +2679,30 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !isGenerating && chatInput.trim() && startGeneration(true, '', '', false, 'chat')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isGenerating && chatInput.trim()) {
+                  const confirmMsg = language === 'zh'
+                    ? '对话框修改将消耗 5 积分，是否继续？'
+                    : 'Chat modification will cost 5 credits. Continue?';
+                  if (confirm(confirmMsg)) {
+                    startGeneration(true, '', '', false, 'chat');
+                  }
+                }
+              }}
               placeholder={t.create.chat_placeholder}
               disabled={isGenerating}
               className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-4 pr-12 py-2 lg:py-3 text-sm lg:text-base text-white focus:border-brand-500 outline-none disabled:opacity-50"
             />
             <button 
-              onClick={() => startGeneration(true, '', '', false, 'chat')}
+              onClick={() => {
+                if (!chatInput.trim() || isGenerating) return;
+                const confirmMsg = language === 'zh'
+                  ? '对话框修改将消耗 5 积分，是否继续？'
+                  : 'Chat modification will cost 5 credits. Continue?';
+                if (confirm(confirmMsg)) {
+                  startGeneration(true, '', '', false, 'chat');
+                }
+              }}
               disabled={isGenerating || !chatInput.trim()}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-brand-600 hover:bg-brand-500 text-white rounded-lg flex items-center justify-center transition disabled:opacity-50 disabled:bg-slate-700"
             >
