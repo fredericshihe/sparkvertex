@@ -26,7 +26,19 @@ export default function Profile() {
 
   useEffect(() => {
     checkAuth();
-  }, []);
+    
+    // 检查 URL 参数，看是否是从支付页面跳转回来的
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('payment') === 'success') {
+      // 延迟一下再显示提示，让页面先加载
+      setTimeout(() => {
+        toastSuccess?.('支付成功！正在检查积分到账情况...');
+      }, 500);
+      
+      // 清理 URL 参数
+      window.history.replaceState({}, '', '/profile');
+    }
+  }, [toastSuccess]);
 
   useEffect(() => {
     if (user) {

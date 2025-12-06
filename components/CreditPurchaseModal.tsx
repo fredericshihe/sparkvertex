@@ -247,10 +247,10 @@ export default function CreditPurchaseModal() {
             <p className="text-slate-300 mb-4">
               您将跳转到爱发电支付页面完成 <span className="text-brand-400 font-bold">¥{selectedPackage.price}</span> 的支付。
             </p>
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-5">
-              <p className="text-amber-400 text-sm flex items-start gap-2">
-                <span className="text-lg">⚠️</span>
-                <span>支付完成后，请<strong>手动返回本页面</strong>，积分将自动到账。</span>
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-5">
+              <p className="text-blue-400 text-sm flex items-start gap-2">
+                <span className="text-lg">✨</span>
+                <span>支付完成后，<strong>将自动跳转回个人中心</strong>，积分将在1分钟内到账。</span>
               </p>
             </div>
             <div className="flex gap-3">

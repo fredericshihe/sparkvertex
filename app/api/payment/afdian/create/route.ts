@@ -45,18 +45,33 @@ export async function POST(request: Request) {
     console.log('[Afdian Create] Generated remark:', outTradeNo);
     
     // 3. Webhook 收到通知时，会根据 remark 直接提取 user_id 并创建订单
-    // 不再需要查询数据库匹配用户    // 4. 生成爱发电支付链接
+    // 不再需要查询数据库匹配用户
+    
+    // 4. 生成回调 URL（支付成功后跳转到个人中心）
+    const headers = request.headers;
+    const host = headers.get('host') || 'localhost:3000';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const redirectUrl = `${protocol}://${host}/profile?payment=success`;
+    
+    console.log('[Afdian Create] Redirect URL:', redirectUrl);
+    
+    // 5. 生成爱发电支付链接
     let payUrl: string;
     
     if (item_id) {
-      // 商品购买模式: https://afdian.com/item/{item_id}?remark={订单号}
-      payUrl = `https://afdian.com/item/${item_id}?remark=${encodeURIComponent(outTradeNo)}`;
+      // 商品购买模式: https://afdian.com/item/{item_id}?remark={订单号}&redirect_url={回调地址}
+      const params = new URLSearchParams({
+        remark: outTradeNo,
+        redirect_url: redirectUrl,
+      });
+      payUrl = `https://afdian.com/item/${item_id}?${params.toString()}`;
     } else if (plan_id) {
-      // 方案赞助模式: https://afdian.com/order/create?user_id=xxx&plan_id=xxx&remark=xxx
+      // 方案赞助模式: https://afdian.com/order/create?user_id=xxx&plan_id=xxx&remark=xxx&redirect_url=xxx
       const params = new URLSearchParams({
         user_id: AFDIAN_USER_ID,
         plan_id: plan_id,
         remark: outTradeNo,
+        redirect_url: redirectUrl,
       });
       payUrl = `https://afdian.com/order/create?${params.toString()}`;
     } else {
@@ -64,6 +79,7 @@ export async function POST(request: Request) {
       const params = new URLSearchParams({
         user_id: AFDIAN_USER_ID,
         remark: outTradeNo,
+        redirect_url: redirectUrl,
       });
       payUrl = `https://afdian.com/order/create?${params.toString()}`;
     }
