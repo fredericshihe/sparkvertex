@@ -107,7 +107,7 @@ export const translations = {
           name: '体验包', 
           badge: '入门首选',
           slogan: '一杯奶茶钱，体验全球最强 AI 编程',
-          unit_price: '多赠20积分 = 1次免费创建',
+          unit_price: '¥0.17 / 积分',
           benefit_1: '可创建 8 个 完整应用',
           benefit_2: '或进行 24 次 深度修改'
         },
@@ -115,7 +115,7 @@ export const translations = {
           name: '创作者包', 
           badge: '深度开发',
           slogan: '平均每个应用成本不到 5 元，打造你的专属 App 矩阵',
-          unit_price: '多赠75积分 = 5次免费创建',
+          unit_price: '¥0.14 / 积分',
           benefit_1: '可创建 23 个 完整应用',
           benefit_2: '或进行 70 次 深度修改'
         },
@@ -123,7 +123,7 @@ export const translations = {
           name: '重度包', 
           badge: '超值爆款',
           slogan: '百元不到解锁百次迭代，性价比之王的绝对首选',
-          unit_price: '多赠180积分 = 12次免费创建',
+          unit_price: '¥0.12 / 积分',
           benefit_1: '可创建 53 个 完整应用',
           benefit_2: '或进行 160 次 深度修改'
         },
@@ -131,7 +131,7 @@ export const translations = {
           name: '极客包', 
           badge: '专业生产力',
           slogan: '单次修改仅需 0.5 元，专业开发者的最高性价比之选',
-          unit_price: '多赠450积分 = 30次免费创建',
+          unit_price: '¥0.10 / 积分',
           benefit_1: '可创建 133 个 完整应用',
           benefit_2: '或进行 400 次 深度修改'
         },
@@ -993,7 +993,7 @@ export const translations = {
           name: 'Experience Pack', 
           badge: 'Best for Starters',
           slogan: 'Price of a milk tea to experience the world\'s strongest AI programming',
-          unit_price: 'Bonus 20 credits = 1 free creation',
+          unit_price: '¥0.17 / Credit',
           benefit_1: 'Create 8 Full Apps',
           benefit_2: 'Or 24 Deep Edits'
         },
@@ -1001,7 +1001,7 @@ export const translations = {
           name: 'Creator Pack', 
           badge: 'Deep Development',
           slogan: 'Avg cost < ¥5 per app, build your exclusive App matrix',
-          unit_price: 'Bonus 75 credits = 5 free creations',
+          unit_price: '¥0.14 / Credit',
           benefit_1: 'Create 23 Full Apps',
           benefit_2: 'Or 70 Deep Edits'
         },
@@ -1009,7 +1009,7 @@ export const translations = {
           name: 'Power Pack', 
           badge: 'Best Value',
           slogan: 'Unlock 100 iterations for under ¥100, the absolute best value choice',
-          unit_price: 'Bonus 180 credits = 12 free creations',
+          unit_price: '¥0.12 / Credit',
           benefit_1: 'Create 53 Full Apps',
           benefit_2: 'Or 160 Deep Edits'
         },
@@ -1017,7 +1017,7 @@ export const translations = {
           name: 'Geek Pack', 
           badge: 'Pro Productivity',
           slogan: 'Edit for just ¥0.5, the highest cost-performance choice for pro developers',
-          unit_price: 'Bonus 450 credits = 30 free creations',
+          unit_price: '¥0.10 / Credit',
           benefit_1: 'Create 133 Full Apps',
           benefit_2: 'Or 400 Deep Edits'
         },
