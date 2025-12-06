@@ -518,7 +518,7 @@ export default function CreditPurchaseModal() {
                   
                   {/* Buy Button */}
                   {!isDisabled && (
-                  <div className="absolute bottom-0 left-0 w-full p-4">
+                  <div className="absolute bottom-0 left-0 w-full p-4 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 pointer-events-none group-hover:pointer-events-auto bg-slate-900/90 backdrop-blur-sm">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
