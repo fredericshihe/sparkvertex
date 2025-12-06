@@ -31,30 +31,14 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
 
   useEffect(() => {
     setIsClient(true);
-    
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setShowPreview(true);
-          observer.disconnect();
-        }
-      },
-      { 
-        rootMargin: '200px', 
-        threshold: 0.01 
-      }
-    );
-
-    if (cardRef.current) {
-      observer.observe(cardRef.current);
-    }
-
-    return () => {
-      observer.disconnect();
-    };
+    // Removed IntersectionObserver to improve performance
+    // Previews will now load on hover
   }, []);
 
   const handleMouseEnter = () => {
+    if (!showPreview) {
+      setShowPreview(true);
+    }
     if (onHover) onHover(item);
   };
 
@@ -63,10 +47,11 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   };
 
   const generatePreviewHtml = (item: Item) => {
-    if (!item.content) {
+    // Show placeholder if no content OR preview not loaded yet
+    if (!item.content || !showPreview) {
       return (
         <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-700 to-slate-800'} opacity-20 flex items-center justify-center`}>
-          <i className="fa-solid fa-code text-4xl text-white/50"></i>
+          <i className={`fa-solid ${item.content ? 'fa-play' : 'fa-code'} text-4xl text-white/50 group-hover:scale-110 transition-transform duration-300`}></i>
         </div>
       );
     }
