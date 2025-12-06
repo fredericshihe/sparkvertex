@@ -42,11 +42,11 @@ export default function Profile() {
 
   useEffect(() => {
     if (user) {
-      // Parallelize initial data fetching
+      // ✅ 并行化初始数据获取 - 减少加载时间
       Promise.all([
         fetchProfile(),
-        fetchItems(),
-        fetchCounts()
+        fetchCounts(), // 先获取计数，更快反馈
+        fetchItems()
       ]);
       
       // 检查是否有待处理的支付

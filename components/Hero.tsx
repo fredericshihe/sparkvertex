@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { getPreviewContent } from '@/lib/preview';
 import { useLanguage } from '@/context/LanguageContext';
@@ -18,7 +17,11 @@ const CARD_COLORS = [
   "from-indigo-500 to-violet-500"
 ];
 
-export default function Hero() {
+interface HeroProps {
+  initialItems?: any[];
+}
+
+export default function Hero({ initialItems = [] }: HeroProps) {
   const { openDetailModal, openFeedbackModal } = useModal();
   const { t, language } = useLanguage();
 
@@ -40,70 +43,27 @@ await ai.chat("Help me build a website");`
     }
   ];
 
+  // 使用服务端传递的数据，添加颜色和默认值
+  const processedCards = initialItems.length > 0
+    ? initialItems.map((item, index) => ({
+        ...item,
+        color: CARD_COLORS[index % CARD_COLORS.length],
+        icon: 'fa-cube',
+        code: item.prompt || item.content || `// No code preview available\n// ${item.title}`
+      }))
+    : demoCards;
+
   const [typingText, setTypingText] = useState(t.home.typing_texts[0]);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
-  const [cards, setCards] = useState<any[]>(demoCards);
+  const [cards] = useState<any[]>(processedCards); // 直接使用处理后的数据，不再修改
   const [isClient, setIsClient] = useState(false);
   
   useEffect(() => {
     setIsClient(true);
-    fetchRealItems();
+    // ✅ 已移除客户端数据获取 - 使用服务端传递的 initialItems
   }, []);
-
-  const fetchRealItems = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('items')
-        .select(`
-          id, title, description, tags, prompt, content, downloads, page_views, likes, price, icon_url, daily_rank,
-          total_score, quality_score, richness_score, utility_score, analysis_reason, analysis_reason_en,
-          profiles:author_id (
-            username,
-            avatar_url
-          )
-        `)
-        .eq('is_public', true)
-        .order('daily_rank', { ascending: true })
-        .limit(5);
-
-      if (error) {
-        console.error('Error fetching hero items:', error);
-        return;
-      }
-
-      if (data && data.length > 0) {
-        const mappedCards = data.map((item: any, index) => {
-          return {
-            id: item.id,
-            title: item.title,
-            description: item.description,
-            tags: item.tags || [],
-            color: CARD_COLORS[index % CARD_COLORS.length],
-            icon: 'fa-cube', // Default icon, not really used if we have preview
-            code: item.prompt || item.content || `// No code preview available\n// ${item.title}`,
-            content: item.content,
-            author: Array.isArray(item.profiles) ? item.profiles[0]?.username : item.profiles?.username || 'Unknown',
-            authorAvatar: Array.isArray(item.profiles) ? item.profiles[0]?.avatar_url : item.profiles?.avatar_url,
-            likes: item.likes || 0,
-            downloads: item.downloads || 0,
-            page_views: item.page_views || 0,
-            price: item.price || 0,
-            total_score: item.total_score,
-            quality_score: item.quality_score,
-            richness_score: item.richness_score,
-            utility_score: item.utility_score,
-            analysis_reason: item.analysis_reason,
-            analysis_reason_en: item.analysis_reason_en
-          };
-        });
-        setCards(mappedCards);
-      }
-    } catch (error) {
-      console.error('Error fetching hero items:', error);
-    }
-  };
 
   useEffect(() => {
     const texts = t.home.typing_texts;
