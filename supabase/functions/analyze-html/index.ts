@@ -53,7 +53,8 @@ serve(async (req) => {
     if (!user_prompt) throw new Error('Missing user_prompt');
 
     // 2. 构造请求，开启 stream: true
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
+    // Use v1 endpoint for DeepSeek
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

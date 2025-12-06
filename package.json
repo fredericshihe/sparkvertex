@@ -12,7 +12,6 @@
     "@ducanh2912/next-pwa": "^10.2.9",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.39.0",
-    "@upstash/redis": "^1.35.7",
     "alipay-sdk": "^4.14.0",
     "dexie": "^4.2.1",
     "html2canvas": "^1.4.1",
