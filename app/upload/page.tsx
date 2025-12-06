@@ -1106,7 +1106,7 @@ function UploadContent() {
           const response = await fetch('/api/generate-icon', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, description: desc })
+            body: JSON.stringify({ title, description: desc, firstCall: true })
           });
           
           if (!response.ok) {

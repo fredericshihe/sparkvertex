@@ -72,7 +72,7 @@ export const translations = {
       logout: '退出',
       credits: '当前积分',
       daily_bonus: '每日登录赠送 2 积分',
-      create_cost: '创建消耗 30 积分，修改消耗 8 积分',
+      create_cost: '创建消耗 15 积分，修改消耗 5 积分',
       tabs: {
         works: '我的作品',
         purchased: '已购买',
@@ -107,33 +107,33 @@ export const translations = {
           name: '体验包', 
           badge: '入门首选',
           slogan: '一杯奶茶钱，体验全球最强 AI 编程',
-          unit_price: '¥0.17 / 积分',
-          benefit_1: '可创建 4 个 完整应用',
-          benefit_2: '或进行 15 次 深度修改'
+          unit_price: '多赠20积分 = 1次免费创建',
+          benefit_1: '可创建 8 个 完整应用',
+          benefit_2: '或进行 24 次 深度修改'
         },
         standard: { 
           name: '创作者包', 
           badge: '深度开发',
           slogan: '平均每个应用成本不到 5 元，打造你的专属 App 矩阵',
-          unit_price: '¥0.14 / 积分',
-          benefit_1: '可创建 11 个 完整应用',
-          benefit_2: '或进行 43 次 深度修改'
+          unit_price: '多赠75积分 = 5次免费创建',
+          benefit_1: '可创建 23 个 完整应用',
+          benefit_2: '或进行 70 次 深度修改'
         },
         premium: { 
           name: '重度包', 
           badge: '超值爆款',
           slogan: '百元不到解锁百次迭代，性价比之王的绝对首选',
-          unit_price: '¥0.12 / 积分',
-          benefit_1: '可创建 26 个 完整应用',
-          benefit_2: '或进行 100 次 深度修改'
+          unit_price: '多赠180积分 = 12次免费创建',
+          benefit_1: '可创建 53 个 完整应用',
+          benefit_2: '或进行 160 次 深度修改'
         },
         ultimate: { 
           name: '极客包', 
           badge: '专业生产力',
-          slogan: '单次修改仅需 0.8 元，专业开发者的最高性价比之选',
-          unit_price: '¥0.10 / 积分',
-          benefit_1: '可创建 66 个 完整应用',
-          benefit_2: '或进行 250 次 深度修改'
+          slogan: '单次修改仅需 0.5 元，专业开发者的最高性价比之选',
+          unit_price: '多赠450积分 = 30次免费创建',
+          benefit_1: '可创建 133 个 完整应用',
+          benefit_2: '或进行 400 次 深度修改'
         },
       },
       payment_title: '扫码支付',
@@ -993,33 +993,33 @@ export const translations = {
           name: 'Experience Pack', 
           badge: 'Best for Starters',
           slogan: 'Price of a milk tea to experience the world\'s strongest AI programming',
-          unit_price: '¥0.17 / Credit',
-          benefit_1: 'Create 4 Full Apps',
-          benefit_2: 'Or 15 Deep Edits'
+          unit_price: 'Bonus 20 credits = 1 free creation',
+          benefit_1: 'Create 8 Full Apps',
+          benefit_2: 'Or 24 Deep Edits'
         },
         standard: { 
           name: 'Creator Pack', 
           badge: 'Deep Development',
           slogan: 'Avg cost < ¥5 per app, build your exclusive App matrix',
-          unit_price: '¥0.14 / Credit',
-          benefit_1: 'Create 11 Full Apps',
-          benefit_2: 'Or 43 Deep Edits'
+          unit_price: 'Bonus 75 credits = 5 free creations',
+          benefit_1: 'Create 23 Full Apps',
+          benefit_2: 'Or 70 Deep Edits'
         },
         premium: { 
           name: 'Power Pack', 
           badge: 'Best Value',
           slogan: 'Unlock 100 iterations for under ¥100, the absolute best value choice',
-          unit_price: '¥0.12 / Credit',
-          benefit_1: 'Create 26 Full Apps',
-          benefit_2: 'Or 100 Deep Edits'
+          unit_price: 'Bonus 180 credits = 12 free creations',
+          benefit_1: 'Create 53 Full Apps',
+          benefit_2: 'Or 160 Deep Edits'
         },
         ultimate: { 
           name: 'Geek Pack', 
           badge: 'Pro Productivity',
-          slogan: 'Edit for just ¥0.8, the highest cost-performance choice for pro developers',
-          unit_price: '¥0.10 / Credit',
-          benefit_1: 'Create 66 Full Apps',
-          benefit_2: 'Or 250 Deep Edits'
+          slogan: 'Edit for just ¥0.5, the highest cost-performance choice for pro developers',
+          unit_price: 'Bonus 450 credits = 30 free creations',
+          benefit_1: 'Create 133 Full Apps',
+          benefit_2: 'Or 400 Deep Edits'
         },
       },
       payment_title: 'Scan to Pay',

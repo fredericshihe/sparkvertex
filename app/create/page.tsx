@@ -1111,8 +1111,8 @@ ${description}
                     console.warn('Patch failed, falling back to full generation...');
                     
                     const confirmMsg = language === 'zh' 
-                        ? '智能修改遇到困难。是否花费 30 积分进行全量重写？全量重写能保证代码正确性。' 
-                        : 'Smart edit failed. Do you want to spend 30 credits for a full rewrite? This guarantees code correctness.';
+                        ? '智能修改遇到困难。是否花费 15 积分进行全量重写？全量重写能保证代码正确性。' 
+                        : 'Smart edit failed. Do you want to spend 15 credits for a full rewrite? This guarantees code correctness.';
                     
                     if (confirm(confirmMsg)) {
                          toastSuccess(language === 'zh' ? '正在进行全量重写...' : 'Starting full rewrite...');
@@ -1273,9 +1273,9 @@ ${description}
         stack: new Error().stack 
     });
 
-    // Cost: Modification = 8.0, New Generation / Regenerate = 30.0
-    // Full modification fallback costs more (30.0) but less than full gen
-    const COST = isModification ? (forceFull ? 30.0 : 8.0) : 30.0;
+    // Cost: Modification = 5.0, New Generation / Regenerate = 15.0
+    // Full modification fallback costs more (15.0) but less than full gen
+    const COST = isModification ? (forceFull ? 15.0 : 5.0) : 15.0;
     setTimeoutCost(COST);
     
     try {

@@ -30,33 +30,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized: Please login first' }, { status: 401 });
     }
 
-    // 1.5 Credit Check & Deduction (Cost: 3 Credits)
-    const COST = 3;
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('credits')
-      .eq('id', session.user.id)
-      .single();
+    // Parse request body once
+    const requestBody = await request.json();
+    const { prompt, title, description, firstCall = false } = requestBody;
 
-    if (profileError || !profile) {
-      return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 });
-    }
+    // 1.5 Credit Check & Deduction (Cost: 2 Credits, but free on first call)
+    const COST = 2;
+    
+    // If it's the first call (auto-generated during analysis), it's free
+    if (!firstCall) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('credits')
+        .eq('id', session.user.id)
+        .single();
 
-    const currentCredits = Number(profile.credits || 0);
-    if (currentCredits < COST) {
-      return NextResponse.json({ error: 'Insufficient credits (Required: 3)' }, { status: 403 });
-    }
+      if (profileError || !profile) {
+        return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 });
+      }
 
-    // Deduct credits immediately (optimistic)
-    // In a real production app, you might want to deduct after success, or use a transaction.
-    // For simplicity and to prevent abuse, we deduct first. If generation fails, we could refund (omitted for brevity).
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ credits: currentCredits - COST })
-      .eq('id', session.user.id);
+      const currentCredits = Number(profile.credits || 0);
+      if (currentCredits < COST) {
+        return NextResponse.json({ error: 'Insufficient credits (Required: 2)' }, { status: 403 });
+      }
 
-    if (updateError) {
-      return NextResponse.json({ error: 'Failed to deduct credits' }, { status: 500 });
+      // Deduct credits for manual generation
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ credits: currentCredits - COST })
+        .eq('id', session.user.id);
+
+      if (updateError) {
+        return NextResponse.json({ error: 'Failed to deduct credits' }, { status: 500 });
+      }
     }
 
     // 2. Rate Limiting & Quota
@@ -72,8 +78,6 @@ export async function POST(request: Request) {
     if (!allowed) {
       return NextResponse.json({ error: rateLimitError }, { status: 429 });
     }
-
-    const { prompt, title, description } = await request.json();
 
     if (!prompt && (!title || !description)) {
       return NextResponse.json({ error: 'Prompt or Title/Description is required' }, { status: 400 });

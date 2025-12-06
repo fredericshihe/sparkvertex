@@ -13,6 +13,8 @@ const PACKAGES = [
     credits: 120,
     price: 19.9, 
     originalPrice: 19.9,
+    bonus: 20, // 多赠20积分
+    freeCreates: 1, // 1次免费创建 (120/15=8, 基础100+赠送20)
     nameKey: 'basic',
     color: 'from-slate-400 to-slate-600',
     shadow: 'shadow-slate-500/20',
@@ -25,8 +27,9 @@ const PACKAGES = [
     id: 'standard', 
     credits: 350, 
     price: 49.9, 
-    originalPrice: 58.0, // 15% bonus implied
-    bonus: 15,
+    originalPrice: 58.0,
+    bonus: 75, // 多赠75积分
+    freeCreates: 5, // 5次免费创建 (350/15≈23, 基础275+赠送75)
     nameKey: 'standard',
     color: 'from-blue-400 to-blue-600',
     shadow: 'shadow-blue-500/20',
@@ -39,8 +42,9 @@ const PACKAGES = [
     id: 'premium', 
     credits: 800, 
     price: 99.9, 
-    originalPrice: 133.0, // 25% bonus implied
-    bonus: 25,
+    originalPrice: 133.0,
+    bonus: 180, // 多赠180积分
+    freeCreates: 12, // 12次免费创建 (800/15≈53, 基础620+赠送180)
     nameKey: 'premium',
     bestValue: true,
     color: 'from-purple-400 to-purple-600',
@@ -54,8 +58,9 @@ const PACKAGES = [
     id: 'ultimate', 
     credits: 2000, 
     price: 198.0, 
-    originalPrice: 332.0, // 40% bonus implied
-    bonus: 40,
+    originalPrice: 332.0,
+    bonus: 450, // 多赠450积分
+    freeCreates: 30, // 30次免费创建 (2000/15≈133, 基础1550+赠送450)
     nameKey: 'ultimate',
     color: 'from-amber-400 to-amber-600',
     shadow: 'shadow-amber-500/20',
