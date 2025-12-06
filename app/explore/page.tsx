@@ -76,7 +76,8 @@ const KNOWN_CATEGORIES: Record<string, { key: string, icon: string }> = {
   'AI应用': { key: 'tool', icon: 'fa-robot' },
 };
 
-export const dynamic = 'force-dynamic';
+export const runtime = 'edge'; // 使用边缘运行时，降低延迟
+export const revalidate = 60;  // ISR: 缓存 60 秒
 
 export default async function ExplorePage() {
   const cookieStore = cookies();
@@ -92,29 +93,54 @@ export default async function ExplorePage() {
     }
   );
 
-  // 1. Fetch Categories
-  const { data: tagsData } = await supabase
-    .from('items')
-    .select('tags')
-    .eq('is_public', true);
-
   const CORE_KEYS = ['game', 'design', 'productivity', 'tool', 'devtool', 'entertainment', 'education', 'visualization', 'lifestyle'];
   const categoryCounts: Record<string, number> = {};
   CORE_KEYS.forEach(k => categoryCounts[k] = 0);
+  let totalCount = 0;
 
-  if (tagsData) {
-    tagsData.forEach((item: any) => {
-      if (Array.isArray(item.tags)) {
-        const firstChineseTag = item.tags.find((tag: string) => tag && /[\u4e00-\u9fa5]/.test(tag));
-        if (firstChineseTag) {
-          const normalizedTag = firstChineseTag.trim();
-          const mapping = KNOWN_CATEGORIES[normalizedTag] || KNOWN_CATEGORIES[normalizedTag.toLowerCase()];
-          if (mapping) {
-             categoryCounts[mapping.key] = (categoryCounts[mapping.key] || 0) + 1;
+  // 1. Fetch Categories (Optimized with RPC)
+  try {
+    const { data: tagCounts, error } = await supabase.rpc('get_tag_counts');
+    
+    if (error) throw error;
+
+    if (tagCounts) {
+      tagCounts.forEach((item: { tag: string, count: number }) => {
+        const normalizedTag = item.tag.trim();
+        const mapping = KNOWN_CATEGORIES[normalizedTag] || KNOWN_CATEGORIES[normalizedTag.toLowerCase()];
+        if (mapping) {
+           categoryCounts[mapping.key] = (categoryCounts[mapping.key] || 0) + Number(item.count);
+        }
+      });
+      
+      // Get total count efficiently
+      const { count } = await supabase.from('items').select('*', { count: 'exact', head: true }).eq('is_public', true);
+      totalCount = count || 0;
+    }
+  } catch (error) {
+    console.warn('RPC get_tag_counts failed, falling back to legacy method:', error);
+    
+    // Fallback: Fetch all tags (Slow but works without migration)
+    const { data: tagsData } = await supabase
+      .from('items')
+      .select('tags')
+      .eq('is_public', true);
+
+    if (tagsData) {
+      totalCount = tagsData.length;
+      tagsData.forEach((item: any) => {
+        if (Array.isArray(item.tags)) {
+          const firstChineseTag = item.tags.find((tag: string) => tag && /[\u4e00-\u9fa5]/.test(tag));
+          if (firstChineseTag) {
+            const normalizedTag = firstChineseTag.trim();
+            const mapping = KNOWN_CATEGORIES[normalizedTag] || KNOWN_CATEGORIES[normalizedTag.toLowerCase()];
+            if (mapping) {
+               categoryCounts[mapping.key] = (categoryCounts[mapping.key] || 0) + 1;
+            }
           }
         }
-      }
-    });
+      });
+    }
   }
 
   const dynamicCategories = CORE_KEYS.map(key => {
@@ -129,7 +155,7 @@ export default async function ExplorePage() {
   }).sort((a, b) => b.count - a.count);
 
   const initialCategories = [
-      { id: 'all', label: '发现', translationKey: 'discover', icon: 'fa-compass', count: tagsData?.length || 0 },
+      { id: 'all', label: '发现', translationKey: 'discover', icon: 'fa-compass', count: totalCount },
       ...dynamicCategories
   ];
 

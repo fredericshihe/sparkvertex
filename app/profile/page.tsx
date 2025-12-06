@@ -42,9 +42,12 @@ export default function Profile() {
 
   useEffect(() => {
     if (user) {
-      fetchProfile();
-      fetchItems();
-      fetchCounts();
+      // Parallelize initial data fetching
+      Promise.all([
+        fetchProfile(),
+        fetchItems(),
+        fetchCounts()
+      ]);
       
       // 检查是否有待处理的支付
       const checkPendingPayment = () => {
@@ -133,37 +136,36 @@ export default function Profile() {
   const fetchCounts = async () => {
     if (!user) return;
 
-    // Works count
-    const { count: worksCount } = await supabase
-      .from('items')
-      .select('id', { count: 'exact', head: true })
-      .eq('author_id', user.id);
-
-    // Purchased count
-    const { count: purchasedCount } = await supabase
-      .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('buyer_id', user.id);
-
-    // Favorites count
-    const { count: favoritesCount } = await supabase
-      .from('likes')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id);
-
-    // Pending orders count (Seller side)
-    const { count: pendingCount } = await supabase
-      .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('seller_id', user.id)
-      .eq('status', 'paid');
-
-    setCounts({
-      works: worksCount || 0,
-      purchased: purchasedCount || 0,
-      favorites: favoritesCount || 0
-    });
-    setPendingOrdersCount(pendingCount || 0);
+    try {
+      // 使用存储过程一次性获取所有计数，减少延迟
+      const { data, error } = await supabase.rpc('get_user_counts', { p_user_id: user.id });
+      
+      if (error) {
+        console.error('Error calling get_user_counts:', error);
+        // 降级到原有逻辑
+        const [worksRes, purchasedRes, favoritesRes, pendingRes] = await Promise.all([
+          supabase.from('items').select('id', { count: 'exact', head: true }).eq('author_id', user.id),
+          supabase.from('orders').select('id', { count: 'exact', head: true }).eq('buyer_id', user.id),
+          supabase.from('likes').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+          supabase.from('orders').select('id', { count: 'exact', head: true }).eq('seller_id', user.id).eq('status', 'paid')
+        ]);
+        setCounts({
+          works: worksRes.count || 0,
+          purchased: purchasedRes.count || 0,
+          favorites: favoritesRes.count || 0
+        });
+        setPendingOrdersCount(pendingRes.count || 0);
+      } else if (data) {
+        setCounts({
+          works: data.works || 0,
+          purchased: data.purchased || 0,
+          favorites: data.favorites || 0
+        });
+        setPendingOrdersCount(data.pending_orders || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching counts:', error);
+    }
   };
 
   const fetchItems = async () => {
