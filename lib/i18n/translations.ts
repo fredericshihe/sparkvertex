@@ -1492,6 +1492,15 @@ export const translations = {
       android_step2: 'Select "Install App"',
     },
     create: {
+      ai_optimize_prompt: 'AI Optimize',
+      ai_optimize_cost: 'Costs 2 credits',
+      ai_optimize_tooltip: 'AI will optimize your description to make it more detailed and professional',
+      ai_optimizing: 'Optimizing...',
+      ai_optimize_success: 'AI optimization completed',
+      ai_optimize_failed: 'Optimization failed, please try again',
+      ai_optimize_confirm: 'AI will optimize your prompt to make it more detailed and professional. This will cost 2 credits. Continue?',
+      prompt_empty_error: 'Please enter a description first',
+      
       step_category: 'Type',
       step_device: 'Device',
       step_style: 'Style',
