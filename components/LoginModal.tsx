@@ -5,10 +5,12 @@ import { supabase } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
 import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
+import { useToast } from '@/context/ToastContext';
 
 export default function LoginModal() {
   const { t, language } = useLanguage();
   const { isLoginModalOpen, closeLoginModal } = useModal();
+  const { success: showSuccess } = useToast();
   
   // Views: 'login' (Email), 'register', 'forgot_password'
   const [view, setView] = useState<'login' | 'register' | 'forgot_password'>('login');
@@ -97,6 +99,7 @@ export default function LoginModal() {
           email,
           password,
           options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
             data: {
               full_name: email.split('@')[0],
               username: email.split('@')[0],
@@ -104,7 +107,16 @@ export default function LoginModal() {
             },
           },
         });
+        
         if (error) throw error;
+
+        // Check if auto-login happened (e.g. autoConfirm is on)
+        if (data.session) {
+          showSuccess(t.auth_modal.register_success);
+          closeLoginModal();
+          return;
+        }
+
         if (data.user && data.user.identities && data.user.identities.length === 0) {
           setMessage(t.auth_modal.error_email_exists);
         } else {
