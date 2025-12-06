@@ -744,15 +744,17 @@
         async function loadData() {
             showLoading(true);
             try {
+                // 使用 RPC 函数绕过 RLS 权限限制
                 const [usersResult, ordersResult, healthResult] = await Promise.all([
-                    supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-                    supabase.from('credit_orders').select('*').order('created_at', { ascending: false }),
-                    supabase.from('payment_health_monitor').select('*').single()
+                    supabase.rpc('get_admin_profiles'),
+                    supabase.rpc('get_admin_orders'),
+                    supabase.rpc('get_admin_health').single()
                 ]);
 
                 if (usersResult.error) throw usersResult.error;
                 if (ordersResult.error) throw ordersResult.error;
-
+                // healthResult.error might be "JSON object requested, multiple (or no) rows returned" if empty, handle gracefully
+                
                 const users = usersResult.data || [];
                 const orders = ordersResult.data || [];
                 const healthData = healthResult.data || {};
