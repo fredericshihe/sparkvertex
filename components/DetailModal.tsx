@@ -43,7 +43,6 @@ export default function DetailModal() {
 
   // Preview Scaling
   const [previewScale, setPreviewScale] = useState(1);
-  const [iframeLoaded, setIframeLoaded] = useState(false);
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -108,7 +107,6 @@ export default function DetailModal() {
 
   useEffect(() => {
     if (isDetailModalOpen && detailItemId) {
-      setIframeLoaded(false);
       const cachedItem = itemDetailsCache.get(detailItemId);
       const initialItem = detailItemData || cachedItem;
 
@@ -406,6 +404,7 @@ export default function DetailModal() {
             <div 
               ref={previewContainerRef}
               className={`flex-grow relative bg-slate-900 overflow-hidden ${viewMode === 'app' ? 'w-full h-full' : 'flex justify-center items-center p-4 md:p-8'} bg-[url('/grid.svg')] bg-center`}
+            >
               {loading ? (
                 <i className="fa-solid fa-circle-notch fa-spin text-4xl text-brand-500"></i>
               ) : (
@@ -428,27 +427,15 @@ export default function DetailModal() {
                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-slate-800 rounded-b-2xl z-20 pointer-events-none"></div>
                     )}
 
-                    {/* Loading Overlay for Iframe */}
-                    {!iframeLoaded && (
-                      <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900">
-                        <div className="flex flex-col items-center gap-3">
-                          <i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500"></i>
-                          <span className="text-slate-400 text-xs animate-pulse">{t.common.loading}</span>
-                        </div>
-                      </div>
-                    )}
-
                     <iframe 
                       srcDoc={getPreviewContent(item?.content || '')} 
                       className="w-full h-full border-0" 
-                      onLoad={() => setIframeLoaded(true)}
                       sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups"
                       allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay"
                     />
 
                     {/* Mobile Overlay to prevent about:srcdoc */}
                     <div className="absolute inset-0 z-10 w-full h-full bg-transparent md:hidden" />
-                  </div> className="absolute inset-0 z-10 w-full h-full bg-transparent md:hidden" />
                   </div>
                   
                   {/* Preview Watermark */}
