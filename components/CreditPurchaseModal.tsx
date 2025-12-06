@@ -10,7 +10,7 @@ import { X, Check, Sparkles } from 'lucide-react';
 const PACKAGES = [
   { 
     id: 'basic', 
-    credits: 1, // 测试用,正式上线改回120
+    credits: 1,
     price: 19.9, 
     originalPrice: 19.9,
     nameKey: 'basic',
@@ -75,78 +75,7 @@ export default function CreditPurchaseModal() {
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
-  // 支付状态轮询
-  useEffect(() => {
-    if (!isCreditPurchaseModalOpen) return;
-
-    const pendingPaymentTime = localStorage.getItem('pending_payment_time');
-    if (!pendingPaymentTime) return;
-
-    // 只检查最近5分钟内的支付
-    const timeDiff = Date.now() - parseInt(pendingPaymentTime, 10);
-    if (timeDiff > 5 * 60 * 1000) {
-      localStorage.removeItem('pending_payment_time');
-      return;
-    }
-
-    // 开始轮询
-    setIsCheckingStatus(true);
-    let pollCount = 0;
-    const maxPolls = 20; // 最多轮询20次（约1分钟）
-
-    const checkStatus = async () => {
-      try {
-        const res = await fetch(`/api/payment/check-status?timestamp=${pendingPaymentTime}&limit=5`);
-        if (!res.ok) return;
-
-        const data = await res.json();
-        
-        // 检查是否有已支付的订单
-        if (data.statusCount?.paid > 0) {
-          console.log('[Payment] Payment confirmed!');
-          localStorage.removeItem('pending_payment_time');
-          setIsCheckingStatus(false);
-          if (success) success('支付成功！积分已到账');
-          // 刷新页面以更新积分显示
-          setTimeout(() => window.location.reload(), 1500);
-          return true;
-        }
-
-        return false;
-      } catch (error) {
-        console.error('[Payment] Check status error:', error);
-        return false;
-      }
-    };
-
-    const pollInterval = setInterval(async () => {
-      pollCount++;
-      const paid = await checkStatus();
-      
-      if (paid || pollCount >= maxPolls) {
-        clearInterval(pollInterval);
-        setIsCheckingStatus(false);
-        if (!paid) {
-          localStorage.removeItem('pending_payment_time');
-        }
-      }
-    }, 3000); // 每3秒检查一次
-
-    // 立即检查一次
-    checkStatus().then(paid => {
-      if (paid) {
-        clearInterval(pollInterval);
-        setIsCheckingStatus(false);
-      }
-    });
-
-    return () => {
-      clearInterval(pollInterval);
-      setIsCheckingStatus(false);
-    };
-  }, [isCreditPurchaseModalOpen, success]);
 
   useEffect(() => {
     if (isCreditPurchaseModalOpen) {
@@ -187,12 +116,27 @@ export default function CreditPurchaseModal() {
       }
       
       if (data.url) {
-        // 存储当前时间戳,用于返回后检查订单
-        localStorage.setItem('pending_payment_time', Date.now().toString());
+        // 存储当前时间戳,用于检查订单
+        const paymentTime = Date.now().toString();
+        localStorage.setItem('pending_payment_time', paymentTime);
         
-        // 直接跳转到支付页面
-        window.location.href = data.url;
-        // 注意：跳转后页面会卸载，所以不需要重置 isProcessing
+        // 使用 window.open 在新标签页打开支付链接
+        const paymentWindow = window.open(data.url, '_blank');
+        
+        if (!paymentWindow) {
+          // 如果浏览器阻止了弹窗，提示用户
+          if (warning) warning('请允许弹窗以完成支付');
+          setStep('select');
+          setIsProcessing(false);
+          localStorage.removeItem('pending_payment_time');
+          return;
+        }
+        
+        // 切换到"支付中"状态，显示轮询 UI
+        setStep('pay');
+        
+        // 开始轮询支付状态
+        startPollingPaymentStatus(paymentTime);
       } else {
         if (warning) warning(t.payment_modal?.create_fail || '创建订单失败');
         setStep('select');
@@ -206,8 +150,73 @@ export default function CreditPurchaseModal() {
     }
   }, [selectedPackage, t.payment_modal, warning, isProcessing]);
 
+  // 轮询支付状态
+  const startPollingPaymentStatus = useCallback((paymentTime: string) => {
+    let pollCount = 0;
+    const maxPolls = 60; // 最多轮询60次（3分钟）
+    
+    const checkPaymentStatus = async () => {
+      try {
+        const res = await fetch(`/api/payment/check-status?timestamp=${paymentTime}&limit=5`);
+        if (!res.ok) {
+          console.error('[Payment Poll] API error:', res.status);
+          return false;
+        }
+
+        const data = await res.json();
+        
+        // 检查是否有已支付的订单
+        if (data.statusCount?.paid > 0) {
+          console.log('[Payment Poll] Payment confirmed!');
+          localStorage.removeItem('pending_payment_time');
+          
+          // 切换到成功状态
+          setStep('success');
+          if (success) success('支付成功！积分已到账');
+          
+          // 2秒后刷新页面
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+          
+          return true;
+        }
+
+        return false;
+      } catch (error) {
+        console.error('[Payment Poll] Error:', error);
+        return false;
+      }
+    };
+
+    // 立即检查一次
+    checkPaymentStatus().then(paid => {
+      if (paid) return;
+      
+      // 开始定时轮询
+      const pollInterval = setInterval(async () => {
+        pollCount++;
+        
+        const paid = await checkPaymentStatus();
+        
+        if (paid || pollCount >= maxPolls) {
+          clearInterval(pollInterval);
+          setIsProcessing(false);
+          
+          if (!paid && pollCount >= maxPolls) {
+            // 超时了但未检测到支付
+            console.log('[Payment Poll] Timeout, stopping poll');
+            localStorage.removeItem('pending_payment_time');
+            setStep('select');
+            if (warning) warning('支付检测超时，请手动刷新页面查看积分');
+          }
+        }
+      }, 3000); // 每3秒检查一次
+    });
+  }, [success, warning]);
+
   useEffect(() => {
-    if (step === 'pay' && selectedPackage) {
+    if (step === 'pay' && selectedPackage && !isProcessing) {
       handlePurchase();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -245,12 +254,12 @@ export default function CreditPurchaseModal() {
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md mx-4 shadow-2xl">
             <h3 className="text-xl font-bold text-white mb-3">确认购买</h3>
             <p className="text-slate-300 mb-4">
-              您将跳转到爱发电支付页面完成 <span className="text-brand-400 font-bold">¥{selectedPackage.price}</span> 的支付。
+              将在<strong>新标签页</strong>打开爱发电支付页面，完成 <span className="text-brand-400 font-bold">¥{selectedPackage.price}</span> 的支付。
             </p>
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-5">
               <p className="text-blue-400 text-sm flex items-start gap-2">
                 <span className="text-lg">✨</span>
-                <span>支付完成后，<strong>将自动跳转回个人中心</strong>，积分将在1分钟内到账。</span>
+                <span>支付完成后，<strong>本页面会自动检测</strong>，积分将在1分钟内到账。</span>
               </p>
             </div>
             <div className="flex gap-3">
@@ -273,16 +282,6 @@ export default function CreditPurchaseModal() {
       
       <div className="bg-[#0f172a] border border-slate-800 rounded-3xl w-full max-w-6xl shadow-2xl flex flex-col overflow-hidden relative max-h-[95vh]">
         
-        {/* Payment Status Checking Banner */}
-        {isCheckingStatus && (
-          <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-b border-blue-500/30 px-6 py-3 flex items-center gap-3">
-            <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-sm text-blue-300">
-              正在检查支付状态...
-            </span>
-          </div>
-        )}
-        
         {/* Close Button */}
         <button 
           onClick={closeCreditPurchaseModal}
@@ -292,10 +291,54 @@ export default function CreditPurchaseModal() {
         </button>
 
         {step === 'pay' ? (
-           <div className="flex flex-col items-center justify-center h-full py-20">
-              <div className="w-16 h-16 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-6"></div>
-              <h3 className="text-xl font-bold text-white mb-2">{t.payment_modal.creating_order}</h3>
-              <p className="text-slate-400">{t.payment_modal.redirecting}</p>
+           <div className="flex flex-col items-center justify-center h-full py-20 px-6">
+              <div className="w-20 h-20 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-8"></div>
+              <h3 className="text-2xl font-bold text-white mb-3">支付正在进行中...</h3>
+              <p className="text-slate-400 mb-6 text-center max-w-md">
+                已在新标签页打开支付页面，完成支付后将自动检测
+              </p>
+              <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 max-w-md">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-blue-400 text-sm">1</span>
+                  </div>
+                  <p className="text-sm text-slate-300">在新标签页完成支付</p>
+                </div>
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-blue-400 text-sm">2</span>
+                  </div>
+                  <p className="text-sm text-slate-300">返回本页面等待检测</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-blue-400 text-sm">3</span>
+                  </div>
+                  <p className="text-sm text-slate-300">积分自动到账</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setStep('select');
+                  setIsProcessing(false);
+                  localStorage.removeItem('pending_payment_time');
+                }}
+                className="mt-6 px-6 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm transition"
+              >
+                取消支付
+              </button>
+           </div>
+        ) : step === 'success' ? (
+           <div className="flex flex-col items-center justify-center h-full py-20 px-6">
+              <div className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mb-6">
+                <Check size={48} className="text-green-400" />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-3">支付成功！</h3>
+              <p className="text-slate-400 mb-4">积分已到账，页面即将刷新...</p>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <div className="w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div>
+                <span>正在刷新页面</span>
+              </div>
            </div>
         ) : (
         <>
@@ -333,13 +376,6 @@ export default function CreditPurchaseModal() {
                 >
                   {/* Background Glow on Hover */}
                   <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${pkg.color} transition-opacity duration-500`}></div>
-
-                  {/* Temporary Warning for Basic Plan */}
-                  {pkg.id === 'basic' && (
-                    <div className="w-full bg-red-500/20 text-red-400 text-xs font-bold py-1 text-center border-b border-red-500/20">
-                      测试中请勿付费
-                    </div>
-                  )}
 
                   {/* Top Banner for Badges */}
                   <div className="relative px-6 pt-6 pb-2 flex justify-between items-start">

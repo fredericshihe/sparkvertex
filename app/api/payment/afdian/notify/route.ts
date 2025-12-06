@@ -156,7 +156,7 @@ export async function POST(request: Request) {
         // 如果 remark 中没有 credits 信息，则根据金额映射
         if (!credits || isNaN(credits)) {
           const creditMapping: Record<string, number> = {
-            '19.9': 1,    // Basic (测试期间)
+            '19.9': 1,    // Basic (测试)
             '49.9': 350,  // Standard
             '99.9': 800,  // Premium
             '198.0': 2000 // Ultimate
