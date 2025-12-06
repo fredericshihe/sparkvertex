@@ -7,14 +7,11 @@ export const supabase = createBrowserClient(
     auth: {
       // 自动刷新 token，防止会话过期
       autoRefreshToken: true,
-      // 持久化会话到 localStorage
+      // 持久化会话
       persistSession: true,
       // 检测会话变化
       detectSessionInUrl: true,
-      // 在可见性变化时刷新会话（防止长时间停留导致 token 过期）
-      storageKey: 'supabase.auth.token',
-      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-      // 设置较短的刷新间隔，确保 token 在过期前刷新
+      // 使用 PKCE 流程
       flowType: 'pkce',
     },
     realtime: {
