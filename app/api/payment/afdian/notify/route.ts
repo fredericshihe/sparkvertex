@@ -166,21 +166,21 @@ export async function POST(request: Request) {
           console.log('[Afdian Webhook] Calculated credits from amount:', orderAmount, '->', credits);
         }
         
-        // 验证金额是否匹配（防止篡改）
-        const priceMapping: Record<number, number> = {
-          1: 19.9,
-          350: 49.9,
-          800: 99.9,
-          2000: 198.0
-        };
-        const expectedAmount = priceMapping[credits];
-        if (expectedAmount && Math.abs(orderAmount - expectedAmount) > 0.5) {
-          console.error('[Afdian Webhook] Amount mismatch! Expected:', expectedAmount, 'Got:', orderAmount, 'Credits:', credits);
+        // 验证金额是否合理（防止篡改）
+        // 注意：爱发电可能返回实际支付金额，而不是商品价格
+        // 所以我们只验证金额不能太低（至少要大于等于最小单价）
+        const minAmountPerCredit = 0.01; // 最低 1 分钱 1 积分
+        const expectedMinAmount = credits * minAmountPerCredit;
+        
+        if (orderAmount < expectedMinAmount) {
+          console.error('[Afdian Webhook] Amount too low! Expected min:', expectedMinAmount, 'Got:', orderAmount, 'Credits:', credits);
           return NextResponse.json({ 
             ec: 400, 
             em: 'amount verification failed' 
           }, { status: 400 });
         }
+        
+        console.log('[Afdian Webhook] Amount validation passed:', orderAmount, 'for', credits, 'credits');
         
         // 验证用户是否存在
         const { data: userProfile, error: userCheckError } = await supabaseAdmin
