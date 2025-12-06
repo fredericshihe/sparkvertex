@@ -2176,18 +2176,18 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                 <h2 className="text-3xl font-bold text-white">{t.create.category_title}</h2>
                 <p className="text-slate-400">{t.create.category_subtitle}</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto">
                 {CATEGORIES.map(cat => (
                   <button
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat.id)}
-                    className="p-6 bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700 hover:border-brand-500 rounded-2xl transition-all group text-left hover:shadow-lg hover:-translate-y-1"
+                    className="p-4 bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700 hover:border-brand-500 rounded-xl transition-all group text-left hover:shadow-lg hover:-translate-y-1"
                   >
-                    <div className="w-14 h-14 rounded-2xl bg-slate-900 flex items-center justify-center mb-4 group-hover:scale-110 transition shadow-inner">
-                      <i className={`fa-solid ${cat.icon} text-2xl text-brand-400`}></i>
+                    <div className="w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center mb-3 group-hover:scale-110 transition shadow-inner">
+                      <i className={`fa-solid ${cat.icon} text-xl text-brand-400`}></i>
                     </div>
-                    <h3 className="text-xl font-bold text-white mb-2">{t.categories[cat.id as keyof typeof t.categories]}</h3>
-                    <p className="text-sm text-slate-400 leading-relaxed">{t.categories[`${cat.id}_desc` as keyof typeof t.categories]}</p>
+                    <h3 className="text-lg font-bold text-white mb-1.5">{t.categories[cat.id as keyof typeof t.categories]}</h3>
+                    <p className="text-xs text-slate-400 leading-snug">{t.categories[`${cat.id}_desc` as keyof typeof t.categories]}</p>
                   </button>
                 ))}
               </div>
@@ -2265,52 +2265,52 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
               </div>
               
               {/* Main Input */}
-              <div className="bg-slate-900/50 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors relative overflow-hidden">
+              <div className="bg-slate-900/50 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors relative">
                 <textarea
                   value={wizardData.description}
                   onChange={(e) => setWizardData(prev => ({ ...prev, description: e.target.value }))}
                   maxLength={5000}
                   // @ts-ignore
                   placeholder={t.placeholders?.[currentCategory] || (language === 'zh' ? '例如：我想做一个待办事项应用，风格要极简，支持暗黑模式...' : 'E.g. I want to build a Todo app, minimalist style, dark mode support...')}
-                  className="w-full h-48 bg-transparent border-none outline-none appearance-none p-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-base leading-relaxed"
+                  className="w-full h-48 bg-transparent border-none outline-none appearance-none p-4 pb-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-base leading-relaxed"
                 ></textarea>
                 
-                {/* Action Buttons */}
-                <div className="absolute bottom-4 left-4 flex items-center gap-2">
-                   <button 
-                     onClick={useMadLibsTemplate}
-                     className="text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-lg transition flex items-center gap-1 border border-slate-700"
-                   >
-                     <Edit3 size={12} />
-                     {language === 'zh' ? '使用填空模板' : 'Use Template'}
-                   </button>
-                   <button 
-                     onClick={optimizePrompt}
-                     disabled={isOptimizingPrompt || !wizardData.description.trim()}
-                     className="text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1 border border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed relative group"
-                   >
-                     {isOptimizingPrompt ? (
-                       <>
-                         <i className="fa-solid fa-spinner fa-spin"></i>
-                         {language === 'zh' ? '优化中...' : 'Optimizing...'}
-                       </>
-                     ) : (
-                       <>
-                         <Wand2 size={12} />
-                         {language === 'zh' ? 'AI 优化 (2积分)' : 'AI Optimize (2 credits)'}
-                       </>
-                     )}
-                     <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-slate-800 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-slate-700">
-                       {language === 'zh' 
-                         ? 'AI 将优化您的描述，使其更详细、专业。消耗 2 积分。' 
-                         : 'AI will optimize your description to make it more detailed and professional. Costs 2 credits.'}
-                     </div>
-                   </button>
-                </div>
-
                 <div className="absolute bottom-4 right-4 text-xs text-slate-500">
                   {wizardData.description.length}/5000
                 </div>
+              </div>
+              
+              {/* Action Buttons - Moved outside textarea */}
+              <div className="flex items-center gap-2">
+                 <button 
+                   onClick={useMadLibsTemplate}
+                   className="text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-lg transition flex items-center gap-1 border border-slate-700"
+                 >
+                   <Edit3 size={12} />
+                   {language === 'zh' ? '使用填空模板' : 'Use Template'}
+                 </button>
+                 <button 
+                   onClick={optimizePrompt}
+                   disabled={isOptimizingPrompt || !wizardData.description.trim()}
+                   className="text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1 border border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed relative group"
+                 >
+                   {isOptimizingPrompt ? (
+                     <>
+                       <i className="fa-solid fa-spinner fa-spin"></i>
+                       {language === 'zh' ? '优化中...' : 'Optimizing...'}
+                     </>
+                   ) : (
+                     <>
+                       <Wand2 size={12} />
+                       {language === 'zh' ? 'AI 优化 (2积分)' : 'AI Optimize (2 credits)'}
+                     </>
+                   )}
+                   <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-slate-800 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-slate-700">
+                     {language === 'zh' 
+                       ? 'AI 将优化您的描述，使其更详细、专业。消耗 2 积分。' 
+                       : 'AI will optimize your description to make it more detailed and professional. Costs 2 credits.'}
+                   </div>
+                 </button>
               </div>
 
               {/* Quick Tags */}
