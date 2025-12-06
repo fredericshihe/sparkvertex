@@ -69,12 +69,84 @@ const PACKAGES = [
 
 export default function CreditPurchaseModal() {
   const { t } = useLanguage();
-  const { warning } = useToast();
+  const { warning, success } = useToast();
   const { isCreditPurchaseModalOpen, closeCreditPurchaseModal } = useModal();
   const [step, setStep] = useState<'select' | 'pay' | 'success'>('select');
   const [selectedPackage, setSelectedPackage] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+
+  // 支付状态轮询
+  useEffect(() => {
+    if (!isCreditPurchaseModalOpen) return;
+
+    const pendingPaymentTime = localStorage.getItem('pending_payment_time');
+    if (!pendingPaymentTime) return;
+
+    // 只检查最近5分钟内的支付
+    const timeDiff = Date.now() - parseInt(pendingPaymentTime, 10);
+    if (timeDiff > 5 * 60 * 1000) {
+      localStorage.removeItem('pending_payment_time');
+      return;
+    }
+
+    // 开始轮询
+    setIsCheckingStatus(true);
+    let pollCount = 0;
+    const maxPolls = 20; // 最多轮询20次（约1分钟）
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/api/payment/check-status?timestamp=${pendingPaymentTime}&limit=5`);
+        if (!res.ok) return;
+
+        const data = await res.json();
+        
+        // 检查是否有已支付的订单
+        if (data.statusCount?.paid > 0) {
+          console.log('[Payment] Payment confirmed!');
+          localStorage.removeItem('pending_payment_time');
+          setIsCheckingStatus(false);
+          if (success) success('支付成功！积分已到账');
+          // 刷新页面以更新积分显示
+          setTimeout(() => window.location.reload(), 1500);
+          return true;
+        }
+
+        return false;
+      } catch (error) {
+        console.error('[Payment] Check status error:', error);
+        return false;
+      }
+    };
+
+    const pollInterval = setInterval(async () => {
+      pollCount++;
+      const paid = await checkStatus();
+      
+      if (paid || pollCount >= maxPolls) {
+        clearInterval(pollInterval);
+        setIsCheckingStatus(false);
+        if (!paid) {
+          localStorage.removeItem('pending_payment_time');
+        }
+      }
+    }, 3000); // 每3秒检查一次
+
+    // 立即检查一次
+    checkStatus().then(paid => {
+      if (paid) {
+        clearInterval(pollInterval);
+        setIsCheckingStatus(false);
+      }
+    });
+
+    return () => {
+      clearInterval(pollInterval);
+      setIsCheckingStatus(false);
+    };
+  }, [isCreditPurchaseModalOpen, success]);
 
   useEffect(() => {
     if (isCreditPurchaseModalOpen) {
@@ -200,6 +272,16 @@ export default function CreditPurchaseModal() {
       )}
       
       <div className="bg-[#0f172a] border border-slate-800 rounded-3xl w-full max-w-6xl shadow-2xl flex flex-col overflow-hidden relative max-h-[95vh]">
+        
+        {/* Payment Status Checking Banner */}
+        {isCheckingStatus && (
+          <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 border-b border-blue-500/30 px-6 py-3 flex items-center gap-3">
+            <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-sm text-blue-300">
+              正在检查支付状态...
+            </span>
+          </div>
+        )}
         
         {/* Close Button */}
         <button 
