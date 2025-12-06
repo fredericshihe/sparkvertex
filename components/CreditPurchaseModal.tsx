@@ -91,7 +91,71 @@ export default function CreditPurchaseModal() {
     
     setIsProcessing(true);
     
+    // 【关键】立即打开一个空白窗口（先占位，避免浏览器拦截）
+    // 必须在用户点击事件的同步调用栈中执行，否则会被拦截
+    const paymentWindow = window.open('about:blank', '_blank');
+    
+    // 如果浏览器阻止了弹窗
+    if (!paymentWindow) {
+      if (warning) warning('请允许弹窗以完成支付');
+      setIsProcessing(false);
+      return;
+    }
+    
+    // 给空白窗口添加加载提示
     try {
+      paymentWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>正在跳转支付...</title>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            }
+            .container {
+              text-align: center;
+              color: white;
+            }
+            .spinner {
+              width: 50px;
+              height: 50px;
+              border: 4px solid rgba(255,255,255,0.3);
+              border-top-color: white;
+              border-radius: 50%;
+              animation: spin 1s linear infinite;
+              margin: 0 auto 20px;
+            }
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+            h2 { margin: 0 0 10px; font-size: 24px; }
+            p { margin: 0; font-size: 16px; opacity: 0.9; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="spinner"></div>
+            <h2>正在创建订单...</h2>
+            <p>请稍候，即将跳转到支付页面</p>
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (e) {
+      console.warn('[Payment] Cannot write to popup window:', e);
+    }
+    
+    try {
+      // 执行异步操作：创建订单
       const res = await fetch('/api/payment/afdian/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,6 +174,9 @@ export default function CreditPurchaseModal() {
         console.error('[Payment] Server error:', res.status, data);
         const errorMsg = data.error || t.payment_modal?.create_fail || '创建订单失败';
         if (warning) warning(errorMsg);
+        
+        // 关闭空白窗口
+        paymentWindow.close();
         setStep('select');
         setIsProcessing(false);
         return;
@@ -120,17 +187,8 @@ export default function CreditPurchaseModal() {
         const paymentTime = Date.now().toString();
         localStorage.setItem('pending_payment_time', paymentTime);
         
-        // 使用 window.open 在新标签页打开支付链接
-        const paymentWindow = window.open(data.url, '_blank');
-        
-        if (!paymentWindow) {
-          // 如果浏览器阻止了弹窗，提示用户
-          if (warning) warning('请允许弹窗以完成支付');
-          setStep('select');
-          setIsProcessing(false);
-          localStorage.removeItem('pending_payment_time');
-          return;
-        }
+        // 将空白窗口重定向到支付链接
+        paymentWindow.location.href = data.url;
         
         // 切换到"支付中"状态，显示轮询 UI
         setStep('pay');
@@ -139,12 +197,16 @@ export default function CreditPurchaseModal() {
         startPollingPaymentStatus(paymentTime);
       } else {
         if (warning) warning(t.payment_modal?.create_fail || '创建订单失败');
+        paymentWindow.close();
         setStep('select');
         setIsProcessing(false);
       }
     } catch (error) {
       console.error('[Payment] Error:', error);
       if (warning) warning(t.payment_modal?.create_fail || '请求失败');
+      
+      // 出错时关闭空白窗口
+      paymentWindow.close();
       setStep('select');
       setIsProcessing(false);
     }
@@ -215,12 +277,7 @@ export default function CreditPurchaseModal() {
     });
   }, [success, warning]);
 
-  useEffect(() => {
-    if (step === 'pay' && selectedPackage && !isProcessing) {
-      handlePurchase();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+
 
   if (!isCreditPurchaseModalOpen) return null;
   
@@ -238,7 +295,9 @@ export default function CreditPurchaseModal() {
   
   const handleConfirmPurchase = () => {
     setShowConfirm(false);
-    setStep('pay'); // 确认后才进入支付流程
+    // 立即调用支付函数（在点击事件的同步调用栈中）
+    // 这样 window.open 才不会被浏览器拦截
+    handlePurchase();
   };
   
   const handleCancelPurchase = () => {
@@ -376,6 +435,13 @@ export default function CreditPurchaseModal() {
                 >
                   {/* Background Glow on Hover */}
                   <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${pkg.color} transition-opacity duration-500`}></div>
+
+                  {/* Test Warning for Basic Plan */}
+                  {pkg.id === 'basic' && (
+                    <div className="w-full bg-red-500/20 text-red-400 text-xs font-bold py-1 text-center border-b border-red-500/20">
+                      支付测试通道，请勿点击
+                    </div>
+                  )}
 
                   {/* Top Banner for Badges */}
                   <div className="relative px-6 pt-6 pb-2 flex justify-between items-start">
