@@ -4,10 +4,10 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
+  const taskId = searchParams.get('taskId');
 
-  if (!id) {
-    return NextResponse.json({ error: 'Missing id parameter' }, { status: 400 });
+  if (!taskId) {
+    return NextResponse.json({ error: 'Missing taskId parameter' }, { status: 400 });
   }
 
   const cookieStore = cookies();
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   const { data, error } = await supabase
     .from('ai_jobs')
     .select('status, result, error')
-    .eq('id', id)
+    .eq('id', taskId)
     .eq('user_id', session.user.id) // Ensure user can only check their own jobs
     .single();
 
