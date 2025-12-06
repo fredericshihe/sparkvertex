@@ -620,8 +620,6 @@ function CreateContent() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [step, wizardData, generatedCode, chatHistory, codeHistory, currentGenerationPrompt, previewMode, currentTaskId]);
-    return () => clearTimeout(timeoutId);
-  }, [step, wizardData, generatedCode, chatHistory, codeHistory, currentGenerationPrompt, previewMode]);
 
   const checkAuth = async () => {
     try {
