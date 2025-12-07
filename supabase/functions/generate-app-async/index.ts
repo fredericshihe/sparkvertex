@@ -364,31 +364,48 @@ serve(async (req) => {
                       }
                   }
                 }
+                
+                // 检查 AI 响应是否完整
+                // 如果内容太短且只有 PLAN，说明响应被截断
+                const isIncompleteResponse = fullContent.length < 500 && 
+                                              fullContent.includes('/// PLAN') && 
+                                              !fullContent.includes('<<<<SEARCH') &&
+                                              !fullContent.includes('<!DOCTYPE') &&
+                                              !fullContent.includes('<html');
+                
+                if (isIncompleteResponse) {
+                    console.error('AI 响应不完整：只有 PLAN 没有代码');
+                    console.log('内容长度:', fullContent.length);
+                    console.log('内容预览:', fullContent.substring(0, 300));
+                    throw new Error('AI 响应不完整，请重试');
+                }
 
                 // 最终更新 - 即使客户端断开也要保存到数据库
                 console.log('生成完成，正在保存结果...');
                 console.log(`原始内容长度: ${fullContent.length}`);
                 
-                // 清洗内容：去除 Markdown 标记和非 HTML 前缀（如思维链残留）
-                let cleanContent = fullContent;
-                
                 // 检测是否为 Patch 格式（用于修改操作）
                 const isPatchFormat = fullContent.includes('<<<<SEARCH') || fullContent.includes('<<<< SEARCH');
                 
+                // 清洗内容：只对全量生成（创建作品）进行清洗，修改作品保留原始内容
+                let cleanContent = fullContent;
+                
                 if (isPatchFormat) {
-                    // Patch 格式：只去除 markdown 代码块标记，保留所有内容
-                    console.log('检测到 Patch 格式，保留完整内容');
-                    // 移除开头的 ```diff 或 ``` 或其他代码块标记
-                    cleanContent = cleanContent.replace(/^```[\w]*\s*/i, '');
-                    // 移除结尾的 ```
-                    cleanContent = cleanContent.replace(/\s*```\s*$/, '');
+                    // Patch 格式（修改作品）：不做任何清洗，直接使用原始内容
+                    console.log('检测到 Patch 格式（修改作品），不进行清洗');
                 } else {
-                    // 全量生成格式：需要更严格的清洗
-                    // 1. 去除 Markdown 代码块标记
-                    // 移除开头的 ```html 或 ```
-                    cleanContent = cleanContent.replace(/^[\s\S]*?```(?:html)?\s*/i, '');
-                    // 移除结尾的 ```
-                    cleanContent = cleanContent.replace(/\s*```\s*$/, '');
+                    // 全量生成格式（创建作品）：需要清洗
+                    console.log('全量生成格式（创建作品），进行清洗');
+                    
+                    // 1. 检查是否有 markdown 代码块包裹
+                    const hasMarkdownWrapper = /^[\s\S]*?```(?:html)?\s*\n/i.test(cleanContent);
+                    
+                    if (hasMarkdownWrapper) {
+                        // 有 markdown 代码块，移除开头的 ```html 或 ```
+                        cleanContent = cleanContent.replace(/^[\s\S]*?```(?:html)?\s*\n/i, '');
+                        // 移除结尾的 ```
+                        cleanContent = cleanContent.replace(/\s*```\s*$/, '');
+                    }
                     
                     // 2. 截取 <!DOCTYPE html> 或 <html 之后的内容
                     // 这能有效去除 "STEP: ..." 等前缀干扰
@@ -400,22 +417,34 @@ serve(async (req) => {
                     } else if (htmlTagIndex !== -1) {
                         cleanContent = cleanContent.substring(htmlTagIndex);
                     }
+                    
+                    // 3. 确保移除末尾的 ``` (可能在代码后面)
+                    // 只移除真正在末尾的 markdown 标记
+                    cleanContent = cleanContent.replace(/\n```\s*$/, '');
                 }
                 
                 console.log(`清洗后内容长度: ${cleanContent.length}`);
                 
-                // 检查响应是否完整 - 如果只有PLAN没有代码，说明AI响应被截断
-                const hasOnlyPlan = cleanContent.includes('/// PLAN') && 
-                                    !cleanContent.includes('<<<<SEARCH') && 
-                                    !cleanContent.includes('<!DOCTYPE') &&
-                                    !cleanContent.includes('<html') &&
-                                    cleanContent.length < 1000;
-                
-                if (hasOnlyPlan) {
-                    console.error('AI响应不完整：只有PLAN没有代码');
+                // 安全检查：如果清洗后内容过短（相比原始内容），可能清洗出错了
+                if (cleanContent.length < 100 && fullContent.length > 500) {
+                    console.error('警告：清洗后内容过短，可能清洗逻辑有问题');
+                    console.log('原始内容长度:', fullContent.length);
+                    console.log('清洗后内容预览:', cleanContent.substring(0, 200));
                     console.log('原始内容预览:', fullContent.substring(0, 500));
-                    // 不保存不完整的结果，标记为失败
-                    throw new Error('AI 响应不完整，请重试');
+                    // 如果原始内容包含有效HTML，尝试直接使用原始内容
+                    if (fullContent.includes('<!DOCTYPE html>') || fullContent.includes('<html')) {
+                        console.log('尝试从原始内容中提取HTML...');
+                        const fallbackDocType = fullContent.indexOf('<!DOCTYPE html>');
+                        const fallbackHtml = fullContent.indexOf('<html');
+                        if (fallbackDocType !== -1) {
+                            cleanContent = fullContent.substring(fallbackDocType);
+                        } else if (fallbackHtml !== -1) {
+                            cleanContent = fullContent.substring(fallbackHtml);
+                        }
+                        // 移除末尾的 markdown 标记
+                        cleanContent = cleanContent.replace(/\n```\s*$/, '');
+                        console.log('回退后内容长度:', cleanContent.length);
+                    }
                 }
 
                 // 安全修复：移除会导致 JS 崩溃的 Python 风格 Unicode 转义

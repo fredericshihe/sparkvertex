@@ -1302,8 +1302,15 @@ ${description}
                                  return;
                              }
 
+                             // Check if AI only returned PLAN without code (response truncated)
+                             const hasOnlyPlan = rawCode.includes('/// PLAN') && rawCode.length < 1000;
+                             
                              // Log what we actually received to help debug
                              console.error('[Debug] AI response does not contain valid format. Full rawCode:', rawCode);
+                             
+                             if (hasOnlyPlan) {
+                                 throw new Error(language === 'zh' ? 'AI 响应不完整（只有计划没有代码），请重试' : 'AI response incomplete (only plan, no code), please retry');
+                             }
                              throw new Error(language === 'zh' ? 'AI 未返回有效的修改代码块' : 'AI did not return valid modification blocks');
                         } else {
                              throw new Error(language === 'zh' ? '找到修改块但无法应用（上下文不匹配）' : 'Found modification blocks but could not apply them (context mismatch)');
