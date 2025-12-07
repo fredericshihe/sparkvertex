@@ -403,6 +403,20 @@ serve(async (req) => {
                         .update({ credits: Math.max(0, newBalance) })
                         .eq('id', user.id);
                     console.log(`积分已扣除。剩余: ${Math.max(0, newBalance)}`);
+                    
+                    // 记录用户活动日志（用于分析）
+                    const actionType = type === 'modification' ? 'modify' : 'create';
+                    try {
+                        await supabaseAdmin.rpc('log_user_activity', {
+                            p_user_id: user.id,
+                            p_action_type: actionType,
+                            p_action_detail: { task_id: taskId, type: type, tokens: totalTokens },
+                            p_credits_consumed: actualCost
+                        });
+                        console.log(`活动日志已记录: ${actionType}, 消耗 ${actualCost} 积分`);
+                    } catch (logErr) {
+                        console.warn('活动日志记录失败:', logErr);
+                    }
                 } else {
                     console.warn('无法扣除积分：找不到用户档案');
                 }

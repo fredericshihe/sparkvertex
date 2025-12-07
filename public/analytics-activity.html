@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SparkVertex Analytics | 用户活跃度追踪</title>
+    
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.js"></script>
+
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #4338ca;
+            --secondary: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #3b82f6;
+            --purple: #8b5cf6;
+            
+            --bg-body: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card-hover: #334155;
+            
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            
+            --border: #334155;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--purple) 100%);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+            border: none;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: white;
+            color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255,255,255,0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .last-updated {
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.7);
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem 2rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-icon.green { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .stat-icon.blue { background: rgba(59, 130, 246, 0.2); color: var(--info); }
+        .stat-icon.purple { background: rgba(139, 92, 246, 0.2); color: var(--purple); }
+        .stat-icon.yellow { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .stat-icon.red { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .stat-trend {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .trend-up { color: var(--success); }
+        .trend-down { color: var(--danger); }
+
+        /* Charts */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .chart-container {
+            height: 250px;
+            position: relative;
+        }
+
+        /* Tables */
+        .table-card {
+            background: var(--bg-card);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            margin-bottom: 1.5rem;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .table-title {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        td {
+            font-size: 0.875rem;
+        }
+
+        tbody tr:hover {
+            background: var(--bg-card-hover);
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge-green { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .badge-blue { background: rgba(59, 130, 246, 0.2); color: var(--info); }
+        .badge-yellow { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+
+        /* Real-time indicator */
+        .realtime-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--success);
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        /* Loading */
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <h1>
+                <i class="fa-solid fa-chart-line"></i>
+                用户活跃度追踪
+            </h1>
+            <div class="header-actions">
+                <div class="realtime-indicator">
+                    <div class="pulse"></div>
+                    <span>实时监控中</span>
+                </div>
+                <span class="last-updated" id="lastUpdated">更新于: --:--:--</span>
+                <a href="/analytics-dashboard.html" class="btn btn-secondary">
+                    <i class="fa-solid fa-arrow-left"></i> 返回总览
+                </a>
+                <button class="btn btn-primary" onclick="loadAllData()" id="refreshBtn">
+                    <i class="fa-solid fa-rotate-right"></i> 刷新数据
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container">
+        <!-- Key Stats -->
+        <section class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon green">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <div class="stat-value" id="activeUsers">0</div>
+                <div class="stat-label">实时活跃用户 (30分钟)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon blue">
+                    <i class="fa-solid fa-fire"></i>
+                </div>
+                <div class="stat-value" id="todayActions">0</div>
+                <div class="stat-label">今日总操作数</div>
+                <div class="stat-trend" id="actionsTrend"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon purple">
+                    <i class="fa-solid fa-coins"></i>
+                </div>
+                <div class="stat-value" id="todayCredits">0</div>
+                <div class="stat-label">今日积分消耗</div>
+                <div class="stat-trend" id="creditsTrend"></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon yellow">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                </div>
+                <div class="stat-value" id="todayCreates">0</div>
+                <div class="stat-label">今日创建数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon red">
+                    <i class="fa-solid fa-pencil"></i>
+                </div>
+                <div class="stat-value" id="todayModifies">0</div>
+                <div class="stat-label">今日修改数</div>
+            </div>
+        </section>
+
+        <!-- Charts -->
+        <section class="charts-grid">
+            <!-- Daily Activity Trend -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">📈 每日活跃度趋势 (30天)</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="dailyActivityChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Credits Consumption -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">💰 积分消耗速度 (7天)</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="creditsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Hourly Distribution -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">🕐 小时活跃分布</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="hourlyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Create vs Modify -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">⚡ 创建 vs 修改 (7天)</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="actionTypeChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tables Grid -->
+        <div class="charts-grid">
+            <!-- Realtime Active Users -->
+            <div class="table-card">
+                <div class="table-header">
+                    <h3 class="table-title">🟢 实时活跃用户</h3>
+                    <span class="badge badge-green" id="activeCount">0 在线</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>用户</th>
+                            <th>最后操作</th>
+                            <th>时间</th>
+                            <th>消耗积分</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activeUsersTable">
+                        <tr><td colspan="4" style="text-align:center; color: var(--text-muted);">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Top Active Users -->
+            <div class="table-card">
+                <div class="table-header">
+                    <h3 class="table-title">🏆 活跃用户排行 (7天)</h3>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>用户</th>
+                            <th>操作数</th>
+                            <th>消耗积分</th>
+                            <th>活跃天数</th>
+                        </tr>
+                    </thead>
+                    <tbody id="topUsersTable">
+                        <tr><td colspan="5" style="text-align:center; color: var(--text-muted);">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- User Retention -->
+        <div class="table-card">
+            <div class="table-header">
+                <h3 class="table-title">📊 用户留存率分析</h3>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>注册日期</th>
+                        <th>新增用户</th>
+                        <th>次日留存</th>
+                        <th>3日留存</th>
+                        <th>7日留存</th>
+                    </tr>
+                </thead>
+                <tbody id="retentionTable">
+                    <tr><td colspan="5" style="text-align:center; color: var(--text-muted);">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        // Configuration
+        const SUPABASE_URL = 'https://waesizzoqodntrlvrwhw.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhZXNpenpvcW9kbnRybHZyd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc4MjIyOTYsImV4cCI6MjA3MzM5ODI5Nn0.kE5gSV68q1nLo4z2IqgwqfTBVqNOJw5qs08f6r0SQH0';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let charts = {};
+        let rpcAvailable = true; // 标记 RPC 函数是否可用
+
+        // Chart.js Defaults
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.scale.grid.color = '#334155';
+        Chart.defaults.plugins.tooltip.backgroundColor = '#1e293b';
+        Chart.defaults.plugins.tooltip.borderColor = '#475569';
+        Chart.defaults.plugins.tooltip.borderWidth = 1;
+
+        // Helper functions
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'flex' : 'none';
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = show;
+            btn.innerHTML = show 
+                ? '<i class="fa-solid fa-spinner fa-spin"></i> 加载中...'
+                : '<i class="fa-solid fa-rotate-right"></i> 刷新数据';
+        }
+
+        function showSetupGuide() {
+            // 隐藏所有数据卡片
+            document.querySelectorAll('.grid, .table-card').forEach(el => el.style.display = 'none');
+            
+            // 显示设置指南
+            const main = document.querySelector('main');
+            main.innerHTML = `
+                <div style="max-width: 800px; margin: 0 auto; padding: 2rem;">
+                    <div style="background: linear-gradient(135deg, #1e293b, #334155); border-radius: 16px; padding: 2rem; border: 1px solid #475569;">
+                        <h2 style="color: #fbbf24; margin-bottom: 1rem;">
+                            <i class="fa-solid fa-database"></i> 数据库设置指南
+                        </h2>
+                        <p style="color: #94a3b8; margin-bottom: 1.5rem;">
+                            用户活跃度追踪功能需要先在 Supabase 中执行数据库迁移脚本。请按以下步骤操作：
+                        </p>
+                        
+                        <div style="background: #0f172a; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                            <h3 style="color: #60a5fa; margin-bottom: 1rem;">
+                                <i class="fa-solid fa-list-ol"></i> 操作步骤
+                            </h3>
+                            <ol style="color: #e2e8f0; line-height: 2;">
+                                <li>登录到 <a href="https://supabase.com/dashboard" target="_blank" style="color: #22d3ee;">Supabase Dashboard</a></li>
+                                <li>选择你的项目</li>
+                                <li>进入 <strong>SQL Editor</strong></li>
+                                <li>点击 <strong>New Query</strong></li>
+                                <li>复制并粘贴 <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">supabase/migrations/20251207_add_analytics_tables.sql</code> 文件的内容</li>
+                                <li>点击 <strong>Run</strong> 执行 SQL</li>
+                                <li>刷新此页面</li>
+                            </ol>
+                        </div>
+                        
+                        <div style="background: #0f172a; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                            <h3 style="color: #60a5fa; margin-bottom: 1rem;">
+                                <i class="fa-solid fa-file-code"></i> SQL 文件位置
+                            </h3>
+                            <code style="display: block; background: #1e293b; padding: 1rem; border-radius: 4px; color: #22d3ee; word-break: break-all;">
+                                supabase/migrations/20251207_add_analytics_tables.sql
+                            </code>
+                        </div>
+                        
+                        <div style="background: rgba(251, 191, 36, 0.1); border: 1px solid #fbbf24; border-radius: 8px; padding: 1rem;">
+                            <p style="color: #fbbf24; margin: 0;">
+                                <i class="fa-solid fa-lightbulb"></i> 
+                                <strong>提示：</strong> 该脚本会创建 <code>user_activity_logs</code> 表和相关的分析函数，对现有数据没有影响。
+                            </p>
+                        </div>
+                        
+                        <div style="margin-top: 1.5rem; text-align: center;">
+                            <button onclick="location.reload()" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); border: none; color: white; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 1rem;">
+                                <i class="fa-solid fa-rotate-right"></i> 执行后刷新页面
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateLastUpdated() {
+            document.getElementById('lastUpdated').textContent = `更新于: ${new Date().toLocaleTimeString()}`;
+        }
+
+        function formatTime(dateStr) {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = (now - date) / 1000;
+            
+            if (diff < 60) return '刚刚';
+            if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+            return date.toLocaleDateString();
+        }
+
+        function getActionLabel(type) {
+            const labels = {
+                'create': '创建应用',
+                'modify': '修改应用',
+                'login': '登录',
+                'publish': '发布',
+                'purchase': '购买积分'
+            };
+            return labels[type] || type;
+        }
+
+        // Load all data
+        async function loadAllData() {
+            showLoading(true);
+            try {
+                // 先测试 RPC 函数是否可用
+                const testResult = await supabase.rpc('get_daily_activity_trend', { p_days: 1 });
+                
+                if (testResult.error && testResult.error.message.includes('function')) {
+                    // RPC 函数不存在，显示设置指南
+                    rpcAvailable = false;
+                    showSetupGuide();
+                    showLoading(false);
+                    return;
+                }
+
+                const [
+                    dailyTrend,
+                    hourlyDist,
+                    creditStats,
+                    activeUsers,
+                    userStats,
+                    retention
+                ] = await Promise.all([
+                    supabase.rpc('get_daily_activity_trend', { p_days: 30 }),
+                    supabase.rpc('get_hourly_activity_distribution'),
+                    supabase.rpc('get_credits_consumption_stats', { p_days: 7 }),
+                    supabase.rpc('get_realtime_active_users', { p_minutes: 30 }),
+                    supabase.rpc('get_user_activity_stats'),
+                    supabase.rpc('get_user_retention', { p_cohort_days: 14 })
+                ]);
+
+                // Handle errors gracefully
+                const handleResult = (result, name) => {
+                    if (result.error) {
+                        console.warn(`${name} error:`, result.error);
+                        return [];
+                    }
+                    return result.data || [];
+                };
+
+                const dailyData = handleResult(dailyTrend, 'dailyTrend');
+                const hourlyData = handleResult(hourlyDist, 'hourlyDist');
+                const creditsData = handleResult(creditStats, 'creditStats');
+                const activeData = handleResult(activeUsers, 'activeUsers');
+                const statsData = handleResult(userStats, 'userStats');
+                const retentionData = handleResult(retention, 'retention');
+
+                // Update UI
+                updateStats(dailyData, creditsData, activeData);
+                renderDailyChart(dailyData);
+                renderHourlyChart(hourlyData);
+                renderCreditsChart(creditsData);
+                renderActionTypeChart(dailyData);
+                renderActiveUsersTable(activeData);
+                renderTopUsersTable(statsData);
+                renderRetentionTable(retentionData);
+                
+                updateLastUpdated();
+
+            } catch (error) {
+                console.error('Load error:', error);
+                alert('加载数据失败: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Update stats cards
+        function updateStats(dailyData, creditsData, activeData) {
+            // Active users
+            document.getElementById('activeUsers').textContent = activeData.length;
+            document.getElementById('activeCount').textContent = `${activeData.length} 在线`;
+
+            // Today's data (last item in array)
+            const today = dailyData[dailyData.length - 1] || {};
+            const yesterday = dailyData[dailyData.length - 2] || {};
+
+            document.getElementById('todayActions').textContent = today.total_actions || 0;
+            document.getElementById('todayCreates').textContent = today.create_count || 0;
+            document.getElementById('todayModifies').textContent = today.modify_count || 0;
+
+            // Credits
+            const todayCredits = creditsData[creditsData.length - 1] || {};
+            const yesterdayCredits = creditsData[creditsData.length - 2] || {};
+            document.getElementById('todayCredits').textContent = 
+                Number(todayCredits.total_consumed || 0).toFixed(1);
+
+            // Trends
+            const actionChange = (today.total_actions || 0) - (yesterday.total_actions || 0);
+            const creditChange = (todayCredits.total_consumed || 0) - (yesterdayCredits.total_consumed || 0);
+
+            document.getElementById('actionsTrend').innerHTML = actionChange >= 0
+                ? `<i class="fa-solid fa-arrow-up"></i> <span class="trend-up">+${actionChange} 较昨日</span>`
+                : `<i class="fa-solid fa-arrow-down"></i> <span class="trend-down">${actionChange} 较昨日</span>`;
+
+            document.getElementById('creditsTrend').innerHTML = creditChange >= 0
+                ? `<i class="fa-solid fa-arrow-up"></i> <span class="trend-up">+${creditChange.toFixed(1)} 较昨日</span>`
+                : `<i class="fa-solid fa-arrow-down"></i> <span class="trend-down">${creditChange.toFixed(1)} 较昨日</span>`;
+        }
+
+        // Render daily activity chart
+        function renderDailyChart(data) {
+            const ctx = document.getElementById('dailyActivityChart');
+            if (charts.daily) charts.daily.destroy();
+
+            charts.daily = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => new Date(d.activity_date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })),
+                    datasets: [
+                        {
+                            label: '活跃用户',
+                            data: data.map(d => d.unique_users),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: '新增用户',
+                            data: data.map(d => d.new_users),
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // Render hourly distribution chart
+        function renderHourlyChart(data) {
+            const ctx = document.getElementById('hourlyChart');
+            if (charts.hourly) charts.hourly.destroy();
+
+            // Fill missing hours
+            const hours = new Array(24).fill(0);
+            data.forEach(d => {
+                hours[d.hour_of_day] = d.action_count;
+            });
+
+            charts.hourly = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: hours.map((_, i) => `${i}:00`),
+                    datasets: [{
+                        label: '操作数',
+                        data: hours,
+                        backgroundColor: '#8b5cf6',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // Render credits consumption chart
+        function renderCreditsChart(data) {
+            const ctx = document.getElementById('creditsChart');
+            if (charts.credits) charts.credits.destroy();
+
+            charts.credits = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => new Date(d.stat_date).toLocaleDateString('zh-CN', { weekday: 'short' })),
+                    datasets: [
+                        {
+                            label: '创建消耗',
+                            data: data.map(d => d.create_consumed),
+                            backgroundColor: '#f59e0b',
+                            stack: 'total'
+                        },
+                        {
+                            label: '修改消耗',
+                            data: data.map(d => d.modify_consumed),
+                            backgroundColor: '#ef4444',
+                            stack: 'total'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true, beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // Render action type chart
+        function renderActionTypeChart(data) {
+            const ctx = document.getElementById('actionTypeChart');
+            if (charts.actionType) charts.actionType.destroy();
+
+            const last7Days = data.slice(-7);
+            
+            charts.actionType = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: last7Days.map(d => new Date(d.activity_date).toLocaleDateString('zh-CN', { weekday: 'short' })),
+                    datasets: [
+                        {
+                            label: '创建',
+                            data: last7Days.map(d => d.create_count),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: '修改',
+                            data: last7Days.map(d => d.modify_count),
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // Render active users table
+        function renderActiveUsersTable(data) {
+            const tbody = document.getElementById('activeUsersTable');
+            
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-muted);">当前没有活跃用户</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.slice(0, 10).map(u => `
+                <tr>
+                    <td>
+                        <div style="font-weight: 500;">${u.username || '用户'}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${u.email || ''}</div>
+                    </td>
+                    <td><span class="badge badge-blue">${getActionLabel(u.last_action)}</span></td>
+                    <td style="color: var(--text-muted);">${formatTime(u.last_action_time)}</td>
+                    <td style="font-weight: 600; color: var(--warning);">${Number(u.credits_consumed_in_period || 0).toFixed(1)}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Render top users table
+        function renderTopUsersTable(data) {
+            const tbody = document.getElementById('topUsersTable');
+            
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">暂无数据</td></tr>';
+                return;
+            }
+
+            // Filter users with activity
+            const activeUsers = data.filter(u => u.total_actions > 0).slice(0, 10);
+            
+            if (!activeUsers.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">暂无活跃用户</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = activeUsers.map((u, i) => `
+                <tr>
+                    <td style="font-weight: 600; color: ${i < 3 ? 'var(--warning)' : 'var(--text-main)'};">
+                        ${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}
+                    </td>
+                    <td>
+                        <div style="font-weight: 500;">${u.username || '用户'}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${u.email || ''}</div>
+                    </td>
+                    <td style="font-weight: 600;">${u.total_actions}</td>
+                    <td style="color: var(--warning);">${Number(u.total_credits_consumed || 0).toFixed(1)}</td>
+                    <td><span class="badge badge-green">${u.activity_days}天</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // Render retention table
+        function renderRetentionTable(data) {
+            const tbody = document.getElementById('retentionTable');
+            
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">暂无数据</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.slice(0, 7).map(r => `
+                <tr>
+                    <td>${new Date(r.cohort_date).toLocaleDateString()}</td>
+                    <td style="font-weight: 600;">${r.cohort_size}</td>
+                    <td>
+                        <span class="badge ${r.day_1_rate >= 30 ? 'badge-green' : 'badge-yellow'}">
+                            ${r.day_1_rate || 0}%
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge ${r.day_3_rate >= 20 ? 'badge-green' : 'badge-yellow'}">
+                            ${r.day_3_rate || 0}%
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge ${r.day_7_rate >= 10 ? 'badge-green' : 'badge-yellow'}">
+                            ${r.day_7_rate || 0}%
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Initialize
+        window.addEventListener('load', loadAllData);
+        
+        // Auto refresh every 60 seconds
+        setInterval(loadAllData, 60000);
+    </script>
+</body>
+</html>

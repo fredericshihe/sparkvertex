@@ -222,6 +222,15 @@ serve(async (req) => {
         // Ideally we should have a reliable queue or transaction, but for now logging is sufficient.
     } else {
         console.log(`Deducted ${COST} credits. New balance: ${newCredits}`);
+        
+        // 6. Log user activity for analytics
+        const actionType = isModification ? 'modify' : 'create';
+        await supabaseAdmin.rpc('log_user_activity', {
+          p_user_id: userId,
+          p_action_type: actionType,
+          p_action_detail: { task_id: taskId, type: type },
+          p_credits_consumed: COST
+        }).catch(err => console.error('Activity log error:', err));
     }
 
     // 3. 响应处理与脱敏 (Response Sanitization)
