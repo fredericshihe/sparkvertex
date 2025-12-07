@@ -1316,25 +1316,44 @@ ${description}
                 } catch (e: any) {
                     console.error('Patch failed:', e);
                     
-                    // Helper to get cost - try ref first, then fetch from DB
+                    // Helper to get cost - try ref first, then fetch from DB with retry
                     const getCost = async (): Promise<number> => {
+                        // First check ref
                         if (currentTaskCostRef.current && currentTaskCostRef.current > 0) {
                             return currentTaskCostRef.current;
                         }
-                        // Fallback: fetch from DB
-                        try {
-                            const { data: taskData } = await supabase
-                                .from('generation_tasks')
-                                .select('cost')
-                                .eq('id', taskId)
-                                .single();
-                            if (taskData?.cost && taskData.cost > 0) {
-                                console.log(`[Refund] Fetched cost from DB: ${taskData.cost}`);
-                                return taskData.cost;
+                        
+                        // Retry logic: wait for cost to be written to DB
+                        // The Edge Function writes cost after completion, there might be a small delay
+                        for (let attempt = 0; attempt < 5; attempt++) {
+                            // Wait a bit for DB to be updated
+                            if (attempt > 0) {
+                                await new Promise(resolve => setTimeout(resolve, 500));
                             }
-                        } catch (err) {
-                            console.error('[Refund] Failed to fetch cost from DB:', err);
+                            
+                            // Check ref again (might have been updated by broadcast)
+                            if (currentTaskCostRef.current && currentTaskCostRef.current > 0) {
+                                console.log(`[Refund] Got cost from ref on attempt ${attempt + 1}: ${currentTaskCostRef.current}`);
+                                return currentTaskCostRef.current;
+                            }
+                            
+                            // Fallback: fetch from DB
+                            try {
+                                const { data: taskData } = await supabase
+                                    .from('generation_tasks')
+                                    .select('cost')
+                                    .eq('id', taskId)
+                                    .single();
+                                if (taskData?.cost && taskData.cost > 0) {
+                                    console.log(`[Refund] Fetched cost from DB on attempt ${attempt + 1}: ${taskData.cost}`);
+                                    return taskData.cost;
+                                }
+                            } catch (err) {
+                                console.error(`[Refund] Failed to fetch cost from DB (attempt ${attempt + 1}):`, err);
+                            }
                         }
+                        
+                        console.warn('[Refund] Could not get cost after 5 attempts');
                         return 0;
                     };
                     
