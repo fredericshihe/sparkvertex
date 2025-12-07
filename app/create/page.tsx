@@ -1490,10 +1490,6 @@ ${description}
                 friendlyError = language === 'zh' ? '生成超时 (504)，请尝试简化描述或稍后重试。' : 'Gateway Timeout (504), please simplify your request or try again later.';
             } else if (friendlyError.includes('429')) {
                 friendlyError = language === 'zh' ? '请求过于频繁 (429)，请稍作休息。' : 'Too Many Requests (429), please take a break.';
-            } else if (friendlyError.includes('响应不完整') || friendlyError.includes('incomplete')) {
-                friendlyError = language === 'zh' ? 'AI 响应不完整，可能是网络波动或服务繁忙。请重新发送您的请求。' : 'AI response was incomplete. Please try sending your request again.';
-            } else if (friendlyError.includes('格式不完整')) {
-                friendlyError = language === 'zh' ? 'AI 返回的修改格式不完整，请重新发送您的请求。' : 'AI returned incomplete modification format. Please try again.';
             }
 
             toastError(friendlyError);
