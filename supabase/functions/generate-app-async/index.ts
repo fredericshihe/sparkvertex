@@ -359,8 +359,28 @@ serve(async (req) => {
                 // 最终更新 - 即使客户端断开也要保存到数据库
                 console.log('生成完成，正在保存结果...');
                 
+                // 清洗内容：去除 Markdown 标记和非 HTML 前缀（如思维链残留）
+                let cleanContent = fullContent;
+                
+                // 1. 去除 Markdown 代码块标记
+                // 移除开头的 ```html 或 ```
+                cleanContent = cleanContent.replace(/^[\s\S]*?```(?:html)?\s*/i, '');
+                // 移除结尾的 ```
+                cleanContent = cleanContent.replace(/\s*```\s*$/, '');
+                
+                // 2. 截取 <!DOCTYPE html> 或 <html 之后的内容
+                // 这能有效去除 "STEP: ..." 等前缀干扰
+                const docTypeIndex = cleanContent.indexOf('<!DOCTYPE html>');
+                const htmlTagIndex = cleanContent.indexOf('<html');
+                
+                if (docTypeIndex !== -1) {
+                    cleanContent = cleanContent.substring(docTypeIndex);
+                } else if (htmlTagIndex !== -1) {
+                    cleanContent = cleanContent.substring(htmlTagIndex);
+                }
+
                 // 安全修复：移除会导致 JS 崩溃的 Python 风格 Unicode 转义
-                const sanitizedContent = fullContent.replace(/\\U([0-9a-fA-F]{8})/g, (match, p1) => {
+                const sanitizedContent = cleanContent.replace(/\\U([0-9a-fA-F]{8})/g, (match, p1) => {
                     return '\\u{' + p1.replace(/^0+/, '') + '}';
                 });
 
@@ -424,7 +444,8 @@ serve(async (req) => {
                 // 通过 Realtime 广播完成状态
                 try {
                     // httpSend(event: string, payload: any, opts?: { timeout?: number })
-                    await taskChannel.httpSend('completed', { taskId, fullContent, cost: actualCost });
+                    // 发送清洗后的内容，确保前端预览正常
+                    await taskChannel.httpSend('completed', { taskId, fullContent: sanitizedContent, cost: actualCost });
                 } catch (rtErr) {
                     console.log('Realtime 完成广播失败:', rtErr);
                 }
