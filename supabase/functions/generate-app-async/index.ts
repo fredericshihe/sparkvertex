@@ -367,26 +367,42 @@ serve(async (req) => {
 
                 // 最终更新 - 即使客户端断开也要保存到数据库
                 console.log('生成完成，正在保存结果...');
+                console.log(`原始内容长度: ${fullContent.length}`);
                 
                 // 清洗内容：去除 Markdown 标记和非 HTML 前缀（如思维链残留）
                 let cleanContent = fullContent;
                 
-                // 1. 去除 Markdown 代码块标记
-                // 移除开头的 ```html 或 ```
-                cleanContent = cleanContent.replace(/^[\s\S]*?```(?:html)?\s*/i, '');
-                // 移除结尾的 ```
-                cleanContent = cleanContent.replace(/\s*```\s*$/, '');
+                // 检测是否为 Patch 格式（用于修改操作）
+                const isPatchFormat = fullContent.includes('<<<<SEARCH') || fullContent.includes('<<<< SEARCH');
                 
-                // 2. 截取 <!DOCTYPE html> 或 <html 之后的内容
-                // 这能有效去除 "STEP: ..." 等前缀干扰
-                const docTypeIndex = cleanContent.indexOf('<!DOCTYPE html>');
-                const htmlTagIndex = cleanContent.indexOf('<html');
-                
-                if (docTypeIndex !== -1) {
-                    cleanContent = cleanContent.substring(docTypeIndex);
-                } else if (htmlTagIndex !== -1) {
-                    cleanContent = cleanContent.substring(htmlTagIndex);
+                if (isPatchFormat) {
+                    // Patch 格式：只去除 markdown 代码块标记，保留所有内容
+                    console.log('检测到 Patch 格式，保留完整内容');
+                    // 移除开头的 ```diff 或 ``` 或其他代码块标记
+                    cleanContent = cleanContent.replace(/^```[\w]*\s*/i, '');
+                    // 移除结尾的 ```
+                    cleanContent = cleanContent.replace(/\s*```\s*$/, '');
+                } else {
+                    // 全量生成格式：需要更严格的清洗
+                    // 1. 去除 Markdown 代码块标记
+                    // 移除开头的 ```html 或 ```
+                    cleanContent = cleanContent.replace(/^[\s\S]*?```(?:html)?\s*/i, '');
+                    // 移除结尾的 ```
+                    cleanContent = cleanContent.replace(/\s*```\s*$/, '');
+                    
+                    // 2. 截取 <!DOCTYPE html> 或 <html 之后的内容
+                    // 这能有效去除 "STEP: ..." 等前缀干扰
+                    const docTypeIndex = cleanContent.indexOf('<!DOCTYPE html>');
+                    const htmlTagIndex = cleanContent.indexOf('<html');
+                    
+                    if (docTypeIndex !== -1) {
+                        cleanContent = cleanContent.substring(docTypeIndex);
+                    } else if (htmlTagIndex !== -1) {
+                        cleanContent = cleanContent.substring(htmlTagIndex);
+                    }
                 }
+                
+                console.log(`清洗后内容长度: ${cleanContent.length}`);
 
                 // 安全修复：移除会导致 JS 崩溃的 Python 风格 Unicode 转义
                 const sanitizedContent = cleanContent.replace(/\\U([0-9a-fA-F]{8})/g, (match, p1) => {

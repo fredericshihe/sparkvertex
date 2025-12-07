@@ -1281,6 +1281,12 @@ ${description}
                     
                     if (patched === generatedCode) {
                         console.warn('Patch applied but code is unchanged.');
+                        console.log('[Debug] rawCode length:', rawCode.length);
+                        console.log('[Debug] rawCode preview (first 500 chars):', rawCode.substring(0, 500));
+                        console.log('[Debug] Contains <<<<SEARCH:', rawCode.includes('<<<<SEARCH'));
+                        console.log('[Debug] Contains <!DOCTYPE:', rawCode.includes('<!DOCTYPE html>'));
+                        console.log('[Debug] Contains <html:', rawCode.includes('<html'));
+                        
                         if (!rawCode.includes('<<<<SEARCH')) {
                              // Fallback: Check if AI returned a full file instead of patches
                              if (rawCode.includes('<!DOCTYPE html>') || rawCode.includes('<html')) {
@@ -1300,6 +1306,8 @@ ${description}
                                  return;
                              }
 
+                             // Log what we actually received to help debug
+                             console.error('[Debug] AI response does not contain valid format. Full rawCode:', rawCode);
                              throw new Error(language === 'zh' ? 'AI 未返回有效的修改代码块' : 'AI did not return valid modification blocks');
                         } else {
                              throw new Error(language === 'zh' ? '找到修改块但无法应用（上下文不匹配）' : 'Found modification blocks but could not apply them (context mismatch)');
