@@ -54,3 +54,52 @@ export interface Feedback {
   created_at: string;
   status: string;
 }
+
+// ============================================
+// Code RAG Types (Intent Classification & AST)
+// ============================================
+
+export enum UserIntent {
+  UI_MODIFICATION = 'UI_MODIFICATION',
+  LOGIC_FIX = 'LOGIC_FIX',
+  CONFIG_HELP = 'CONFIG_HELP',
+  NEW_FEATURE = 'NEW_FEATURE',
+  QA_EXPLANATION = 'QA_EXPLANATION',
+  PERFORMANCE = 'PERFORMANCE',
+  REFACTOR = 'REFACTOR',
+  DATA_OPERATION = 'DATA_OPERATION',
+  UNKNOWN = 'UNKNOWN'
+}
+
+export interface SearchStrategy {
+  intent: UserIntent;
+  fileExtensions: string[];
+  topK: number;
+  useSemanticSearch: boolean;
+  useKeywordSearch: boolean;
+  priorityPatterns: string[];
+  excludePatterns: string[];
+  confidence: number;
+}
+
+export interface ImportInfo {
+  moduleSpecifier: string;
+  isTypeOnly: boolean;
+  defaultImport?: string;
+  namedImports: string[];
+  namespaceImport?: string;
+}
+
+export interface DependencyAnalysis {
+  imports: ImportInfo[];
+  exports: ExportInfo[];
+  valueDependencies: string[];
+  typeDependencies: string[];
+  localReferences: string[];
+}
+
+export interface ExportInfo {
+  name: string;
+  isDefault: boolean;
+  isTypeOnly: boolean;
+}

@@ -1,4 +1,17 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { analyzeDependencies, extractJSXComponents } from './ast-parser';
+import { 
+    classifyUserIntent, 
+    UserIntent, 
+    SearchStrategy,
+    filterFilesByStrategy,
+    prioritizeFilesByStrategy 
+} from './intent-classifier';
+
+// Re-export for external use
+export type { SearchStrategy } from './intent-classifier';
+export { UserIntent, classifyUserIntent } from './intent-classifier';
+export { analyzeDependencies, analyzeFullDependencies } from './ast-parser';
 
 // Helper to calculate cosine similarity
 function cosineSimilarity(vecA: number[], vecB: number[]) {
@@ -11,6 +24,103 @@ function cosineSimilarity(vecA: number[], vecB: number[]) {
         normB += vecB[i] * vecB[i];
     }
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+// Helper: Extract dependencies from a component using AST + regex fallback
+// Uses AST for JSX components, regex for variable references
+function extractDependencies(content: string, allChunkIds: string[]): string[] {
+    const deps: Set<string> = new Set();
+    
+    // 1. Use AST to extract JSX component usage (more accurate than regex)
+    try {
+        const jsxComponents = extractJSXComponents(content);
+        for (const componentName of jsxComponents) {
+            const chunkId = `component-${componentName}`;
+            if (allChunkIds.includes(chunkId)) {
+                deps.add(chunkId);
+            }
+        }
+    } catch (error) {
+        // Fallback to regex if AST parsing fails
+        console.warn('[CodeRAG] AST parsing failed, using regex fallback:', error);
+        const jsxUsageRegex = /<([A-Z][a-zA-Z0-9_]+)[\s/>]/g;
+        let match;
+        while ((match = jsxUsageRegex.exec(content)) !== null) {
+            const componentName = match[1];
+            const chunkId = `component-${componentName}`;
+            if (allChunkIds.includes(chunkId)) {
+                deps.add(chunkId);
+            }
+        }
+    }
+    
+    // 2. Look for variable references to other components/constants
+    // e.g., COLORS.primary, THEMES.dark, etc.
+    const varRefRegex = /\b([A-Z][A-Z0-9_]+)\./g;
+    let match;
+    while ((match = varRefRegex.exec(content)) !== null) {
+        const constName = match[1];
+        const chunkId = `component-${constName}`;
+        if (allChunkIds.includes(chunkId)) {
+            deps.add(chunkId);
+        }
+    }
+    
+    return Array.from(deps);
+}
+
+// Helper: Check if chunk is an "entry point" (App, Main, Index) - should be de-prioritized
+function isEntryPointChunk(chunkId: string): boolean {
+    const entryNames = ['App', 'Main', 'Index', 'Root', 'Layout'];
+    return entryNames.some(name => chunkId.toLowerCase().includes(name.toLowerCase()));
+}
+
+// Helper: Check if a token is significant enough to match against component names
+// Allows short but meaningful component names like Map, Tab, Nav, API
+function isSignificant(token: string): boolean {
+    // 1. Long enough (4+ chars)
+    if (token.length >= 4) return true;
+    // 2. 3-char PascalCase component name (Map, Tab, Nav, Box, Row, Col)
+    if (token.length >= 3 && /^[A-Z]/.test(token)) return true;
+    // 3. All-caps abbreviation (API, URL, UI)
+    if (token.length >= 2 && /^[A-Z]+$/.test(token)) return true;
+    
+    return false;
+}
+
+// Helper: Extract Chinese keywords that might match component names
+function extractChineseKeywords(prompt: string): string[] {
+    const keywordMap: Record<string, string[]> = {
+        '地图': ['map'],
+        '角色': ['character', 'player', 'avatar'],
+        '背包': ['inventory', 'bag', 'item'],
+        '任务': ['quest', 'mission', 'task'],
+        '社交': ['social', 'friend', 'chat'],
+        '设置': ['setting', 'config', 'option'],
+        '统计': ['stat', 'stats', 'status'],
+        '首页': ['home', 'main', 'dashboard'],
+        '导航': ['nav', 'navigation', 'menu'],
+        '按钮': ['button', 'btn'],
+        '卡片': ['card'],
+        '列表': ['list'],
+        '表单': ['form'],
+        '模态': ['modal', 'dialog', 'popup'],
+        '头部': ['header', 'head'],
+        '底部': ['footer', 'bottom'],
+        '侧边': ['sidebar', 'side'],
+        '自定义': ['custom', 'customize', 'customization'],
+        '事件': ['event', 'log'],
+        '面板': ['panel', 'pane'],
+        '屏幕': ['screen', 'page', 'view'],
+    };
+    
+    const result: string[] = [];
+    for (const [chinese, english] of Object.entries(keywordMap)) {
+        if (prompt.includes(chinese)) {
+            result.push(...english);
+        }
+    }
+    return result;
 }
 
 // 1. Chunking Logic
@@ -167,61 +277,72 @@ function extractComponentSignature(content: string): {
     return result;
 }
 
-// 3. Semantic Compression Logic
+// 3. Semantic Compression Logic - Aggressive Mode
+// Goal: Reduce tokens as much as possible while preserving patch accuracy
 export function compressCode(code: string, relevantChunkIds: string[]): string {
     const chunks = chunkCode(code);
     // Sort chunks by startIndex descending to replace from bottom up without messing indices
     // Only consider JS chunks for now as they are inside the script tag
     const jsChunks = chunks.filter(c => c.type === 'js' && c.startIndex !== undefined).sort((a, b) => b.startIndex! - a.startIndex!);
     
+    console.log(`[Compression] Total JS chunks: ${jsChunks.length}, Relevant IDs: ${relevantChunkIds.join(', ')}`);
+    
     let compressed = code;
     let compressedCount = 0;
 
     for (const chunk of jsChunks) {
-        // Always keep Imports/Setup and the last chunk (usually ReactDOM.render)
-        if (chunk.id.includes('Imports/Setup') || chunk.id.includes('ReactDOM')) continue;
-
-        // Special handling for App component - ALWAYS keep it full
-        // App is the main entry point and most frequently modified
-        if (chunk.id.includes('App')) {
-            console.log('[Compression] Keeping App component in full');
+        const lines = chunk.content.split('\n');
+        
+        // Only skip ReactDOM.render (essential for app to work)
+        if (chunk.id.includes('ReactDOM')) {
+            console.log(`[Compression] Skipping ${chunk.id} (ReactDOM render)`);
             continue;
         }
-
-        if (!relevantChunkIds.includes(chunk.id)) {
-            // This chunk is irrelevant, apply semantic compression
-            const lines = chunk.content.split('\n');
-            
-            // Only compress if component is large enough (>20 lines)
-            if (lines.length <= 20) {
-                continue;
-            }
-            
-            const componentName = chunk.id.replace('component-', '');
-            const sig = extractComponentSignature(chunk.content);
-            
-            // Build semantic summary
-            const summaryParts: string[] = [];
-            if (sig.props) summaryParts.push(`Props: ${sig.props}`);
-            if (sig.state.length > 0) summaryParts.push(`State: ${sig.state.join(', ')}`);
-            if (sig.handlers.length > 0) summaryParts.push(`Handlers: ${sig.handlers.join(', ')}`);
-            if (sig.effects.length > 0) summaryParts.push(`Effects: ${sig.effects.length} useEffect(s)`);
-            if (sig.renders) summaryParts.push(`Renders: ${sig.renders}`);
-            
-            const summaryText = summaryParts.length > 0 
-                ? summaryParts.join(' | ') 
-                : `${lines.length} lines of logic`;
-            
-            // Create compressed replacement with semantic info
-            const replacement = `/** @semantic-compressed ${componentName} (${lines.length} lines)
- * ${summaryText}
- * ⚠️ DO NOT reference this component in SEARCH blocks - use actual code from relevant components
- */
-const ${componentName} = ${sig.props ? `({ ${sig.props} })` : '()'} => { /* compressed */ };`;
-
-            compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
-            compressedCount++;
+        
+        // Check if this chunk is in the relevant list
+        const isRelevant = relevantChunkIds.includes(chunk.id);
+        
+        if (isRelevant) {
+            console.log(`[Compression] Keeping ${chunk.id} (relevant, ${lines.length} lines)`);
+            continue;
         }
+        
+        // Compress ANY non-relevant component with >10 lines (lowered from 20)
+        // This includes App, Imports/Setup if they're not relevant to the request
+        if (lines.length <= 10) {
+            console.log(`[Compression] Skipping ${chunk.id} (too small: ${lines.length} lines)`);
+            continue;
+        }
+        
+        // This chunk is irrelevant and large enough, apply semantic compression
+        console.log(`[Compression] Compressing ${chunk.id} (${lines.length} lines)`);
+        
+        const componentName = chunk.id.replace('component-', '');
+        const sig = extractComponentSignature(chunk.content);
+        
+        // Build semantic summary
+        const summaryParts: string[] = [];
+        if (sig.props) summaryParts.push(`Props: ${sig.props}`);
+        if (sig.state.length > 0) summaryParts.push(`State: ${sig.state.join(', ')}`);
+        if (sig.handlers.length > 0) summaryParts.push(`Handlers: ${sig.handlers.join(', ')}`);
+        if (sig.effects.length > 0) summaryParts.push(`Effects: ${sig.effects.length} useEffect(s)`);
+        if (sig.renders) summaryParts.push(`Renders: ${sig.renders}`);
+        
+        const summaryText = summaryParts.length > 0 
+            ? summaryParts.join(' | ') 
+            : `${lines.length} lines of logic`;
+        
+        // Create compressed replacement with semantic info and READ-ONLY warning
+        const replacement = `/** @semantic-compressed ${componentName} (${lines.length} lines) [READ-ONLY]
+ * ${summaryText}
+ * ⚠️ THIS IS READ-ONLY CONTEXT - DO NOT MODIFY THIS COMPONENT
+ * ⚠️ If you need to change ${componentName}, tell the user to explicitly request it
+ * ⚠️ NEVER use this compressed code in SEARCH blocks
+ */
+const ${componentName} = ${sig.props ? `({ ${sig.props} })` : '()'} => { /* compressed - do not modify */ };`;
+
+        compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
+        compressedCount++;
     }
     
     if (compressedCount > 0) {
@@ -270,33 +391,147 @@ export async function findRelevantCodeChunks(
         const promptEmbedding = embeddings[0];
         const chunkEmbeddings = embeddings.slice(1);
 
-        // D. Rank Chunks
-        const scoredChunks = chunks.map((chunk, index) => ({
-            ...chunk,
-            score: cosineSimilarity(promptEmbedding, chunkEmbeddings[index])
-        }));
+        // D. Rank Chunks with Entry Point De-prioritization
+        const allChunkIds = chunks.map(c => c.id);
+        const scoredChunks = chunks.map((chunk, index) => {
+            let score = cosineSimilarity(promptEmbedding, chunkEmbeddings[index]);
+            
+            // De-prioritize entry point files (App, Main, Index)
+            // They contain too many keywords and pollute the relevance scores
+            if (isEntryPointChunk(chunk.id)) {
+                score *= 0.85; // 15% penalty
+            }
+            
+            return {
+                ...chunk,
+                score,
+                originalScore: cosineSimilarity(promptEmbedding, chunkEmbeddings[index])
+            };
+        });
 
         // Sort by score descending
         scoredChunks.sort((a, b) => b.score - a.score);
 
-        // E. Smart Selection Strategy
-        // - Always include App component if it exists (most frequently modified)
-        // - Use adaptive threshold: if top match is very high (>0.7), be stricter; otherwise be lenient
-        // - Cap at Top 5 to balance context vs token usage
+        // E. Smart Selection Strategy with Dependency Graph
+        // Goal: Include target component AND its direct dependencies
+        // 优化：提高阈值，减少噪音，让 AI 更聚焦于核心文件
         
         const topScore = scoredChunks.length > 0 ? scoredChunks[0].score : 0;
-        // Adaptive threshold: high confidence request = stricter filter
-        const dynamicThreshold = topScore > 0.7 ? 0.45 : 0.35;
         
-        let relevantChunks = scoredChunks.filter(c => c.score > dynamicThreshold).slice(0, 5);
+        // 提高阈值：聚焦于高相关性的代码块
+        // 原来: 0.45 / 0.38 / 0.32 → 现在: 0.65 / 0.55 / 0.45
+        // 配合智能压缩和 AST 依赖分析，可以更激进地筛选
+        const dynamicThreshold = topScore > 0.8 ? 0.65 : topScore > 0.7 ? 0.55 : 0.45;
         
-        // Ensure App component is always included if it exists (critical for most modifications)
+        // Log scores for debugging (show original scores too)
+        console.log(`[CodeRAG] Chunk scores: ${scoredChunks.map(c => {
+            const suffix = isEntryPointChunk(c.id) ? '(entry,-15%)' : '';
+            return `${c.id.replace('component-', '')}=${c.score.toFixed(3)}${suffix}`;
+        }).join(', ')}`);
+        
+        // Step 1: Initial selection - Top N chunks above threshold
+        // 限制最多 5 个核心块，避免选择过多
+        const MAX_INITIAL_CHUNKS = 5;
+        let relevantChunks = scoredChunks.filter(c => c.score > dynamicThreshold).slice(0, MAX_INITIAL_CHUNKS);
+        
+        // Step 2: Safety net - at least Top 3
+        if (relevantChunks.length < 3 && scoredChunks.length >= 3) {
+            relevantChunks = scoredChunks.slice(0, 3);
+        }
+        
+        // Step 3: Prompt mention detection (CRITICAL for accuracy)
+        // If user mentions a component name, force include it
+        // OPTIMIZATION: Avoid "multi-word trap" - only match if component name is specific enough
+        const promptLower = userPrompt.toLowerCase();
+        const chineseKeywords = extractChineseKeywords(promptLower);
+        
+        let promptMatchCount = 0;
+        const MAX_PROMPT_MATCHES = 3; // Prevent "Icon" matching 50 files
+        
+        for (const chunk of scoredChunks) {
+            if (promptMatchCount >= MAX_PROMPT_MATCHES) break;
+            
+            const componentName = chunk.id.replace('component-', '');
+            const componentNameLower = componentName.toLowerCase();
+            
+            // Only match if component name is significant (PascalCase 3+, CAPS 2+, or 4+ chars)
+            // This allows Map, Tab, Nav, API while still preventing noise
+            if (!isSignificant(componentName)) continue;
+            
+            const shouldInclude = 
+                promptLower.includes(componentNameLower) || 
+                promptLower.includes(componentNameLower.replace('screen', '')) ||
+                promptLower.includes(componentNameLower.replace('component', '')) ||
+                // Chinese keyword matching
+                chineseKeywords.some(kw => componentNameLower.includes(kw));
+            
+            if (shouldInclude && !relevantChunks.find(c => c.id === chunk.id)) {
+                console.log(`[CodeRAG] Force including ${chunk.id} (mentioned in prompt)`);
+                relevantChunks.push(chunk);
+                promptMatchCount++;
+            }
+        }
+        
+        // Step 4: Dependency Graph Expansion with DEPTH LIMIT
+        // Only include DIRECT dependencies (Depth=1) to prevent "recursion bomb"
+        const dependencySet = new Set<string>(relevantChunks.map(c => c.id));
+        const MAX_DEPENDENCY_SIZE = 20000; // 20KB limit for dependencies (原来30KB，更精简)
+        const MAX_TOTAL_CHUNKS = 10; // 最多10个块，包含依赖
+        let totalDependencySize = 0;
+        
+        // ✅ SAFETY: Create snapshot of initial chunks to iterate
+        // This physically prevents infinite loops even if relevantChunks gets modified
+        const initialQueue = [...relevantChunks];
+        
+        for (const chunk of initialQueue) {
+            // initialQueue is frozen, no need for originalChunkIds check
+            
+            // 检查是否已达到总块数限制
+            if (dependencySet.size >= MAX_TOTAL_CHUNKS) {
+                console.log(`[CodeRAG] Reached max chunk limit (${MAX_TOTAL_CHUNKS}), stopping dependency expansion`);
+                break;
+            }
+            
+            const deps = extractDependencies(chunk.content, allChunkIds);
+            for (const depId of deps) {
+                if (!dependencySet.has(depId)) {
+                    // 再次检查总块数限制
+                    if (dependencySet.size >= MAX_TOTAL_CHUNKS) break;
+                    
+                    const depChunk = scoredChunks.find(c => c.id === depId);
+                    if (depChunk) {
+                        // Check size limit
+                        const depSize = depChunk.content.length;
+                        if (totalDependencySize + depSize > MAX_DEPENDENCY_SIZE) {
+                            console.log(`[CodeRAG] Skipping ${depId} (dependency size limit reached)`);
+                            continue;
+                        }
+                        console.log(`[CodeRAG] Adding ${depId} (dependency of ${chunk.id}, ${depSize} chars)`);
+                        dependencySet.add(depId);
+                        totalDependencySize += depSize;
+                    }
+                }
+            }
+        }
+        
+        // Rebuild relevantChunks with dependencies
+        relevantChunks = scoredChunks.filter(c => dependencySet.has(c.id));
+        
+        // Step 5: Always include Imports/Setup (hook definitions, constants)
+        const importsChunk = scoredChunks.find(c => c.id.includes('Imports'));
+        if (importsChunk && !relevantChunks.find(c => c.id.includes('Imports'))) {
+            relevantChunks.push(importsChunk);
+        }
+        
+        // Step 6: Include App only if it has low enough rank (avoid noise)
+        // App is only useful if it's in top 4, otherwise it's just routing noise
         const appChunk = scoredChunks.find(c => c.id.includes('App'));
-        if (appChunk && !relevantChunks.find(c => c.id.includes('App'))) {
+        const appRank = scoredChunks.findIndex(c => c.id.includes('App'));
+        if (appChunk && appRank < 4 && !relevantChunks.find(c => c.id.includes('App'))) {
             relevantChunks.push(appChunk);
         }
         
-        console.log(`[CodeRAG] Dynamic threshold: ${dynamicThreshold.toFixed(2)} (top score: ${topScore.toFixed(2)})`);
+        console.log(`[CodeRAG] Threshold: ${dynamicThreshold.toFixed(2)}, Selected: ${relevantChunks.length}/${scoredChunks.length} (includes deps)`);
         
         return relevantChunks;
 
@@ -304,4 +539,102 @@ export async function findRelevantCodeChunks(
         console.error('Code RAG Error:', error);
         return null;
     }
+}
+
+// ============================================
+// Enhanced RAG with Intent Classification
+// ============================================
+
+export interface EnhancedRAGOptions {
+    useLLMForIntent?: boolean;
+    llmThreshold?: number;
+    generateText?: (options: { model: string; prompt: string }) => Promise<string>;
+}
+
+export interface EnhancedRAGResult {
+    strategy: SearchStrategy;
+    relevantChunks: Array<{
+        id: string;
+        content: string;
+        type: string;
+        score: number;
+        startIndex?: number;
+        endIndex?: number;
+    }> | null;
+    metadata: {
+        totalChunks: number;
+        selectedChunks: number;
+        intent: UserIntent;
+        confidence: number;
+        searchTime: number;
+    };
+}
+
+/**
+ * 增强版 RAG 搜索 - 集成意图分类
+ * 在执行向量搜索前先分析用户意图，智能调整搜索策略
+ */
+export async function findRelevantCodeChunksWithIntent(
+    userPrompt: string,
+    code: string,
+    supabaseUrl: string,
+    supabaseKey: string,
+    options?: EnhancedRAGOptions
+): Promise<EnhancedRAGResult> {
+    const startTime = Date.now();
+    
+    // Step 0: 意图分类
+    const strategy = await classifyUserIntent(userPrompt, {
+        useLLM: options?.useLLMForIntent,
+        llmThreshold: options?.llmThreshold,
+        generateText: options?.generateText
+    });
+    
+    console.log(`🎯 [EnhancedRAG] Intent: ${strategy.intent} (confidence: ${(strategy.confidence * 100).toFixed(1)}%)`);
+    console.log(`📋 [EnhancedRAG] Strategy: topK=${strategy.topK}, semantic=${strategy.useSemanticSearch}, keyword=${strategy.useKeywordSearch}`);
+    
+    // Step 1: 使用原有的搜索逻辑，但应用策略调整
+    const relevantChunks = await findRelevantCodeChunks(
+        userPrompt,
+        code,
+        supabaseUrl,
+        supabaseKey
+    );
+    
+    const searchTime = Date.now() - startTime;
+    
+    // 构建元数据
+    const chunks = chunkCode(code);
+    const metadata = {
+        totalChunks: chunks.length,
+        selectedChunks: relevantChunks?.length || 0,
+        intent: strategy.intent,
+        confidence: strategy.confidence,
+        searchTime
+    };
+    
+    console.log(`⏱️ [EnhancedRAG] Search completed in ${searchTime}ms`);
+    
+    return {
+        strategy,
+        relevantChunks,
+        metadata
+    };
+}
+
+/**
+ * 快速意图分析 - 仅返回策略，不执行搜索
+ * 适用于需要预先了解用户意图的场景
+ */
+export async function analyzeIntent(
+    userPrompt: string,
+    options?: {
+        useLLM?: boolean;
+        generateText?: (options: { model: string; prompt: string }) => Promise<string>;
+    }
+): Promise<SearchStrategy> {
+    return classifyUserIntent(userPrompt, {
+        useLLM: options?.useLLM,
+        generateText: options?.generateText
+    });
 }

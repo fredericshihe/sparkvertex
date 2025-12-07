@@ -2266,15 +2266,27 @@ These compressed components are NOT targets for modification - focus on the full
                 }
                 
                 // Success - consume stream to keep connection alive
+                // When user cancels, the abort signal will cause reader.read() to throw
                 try {
                     const reader = res.body?.getReader();
                     if (reader) {
                         while (true) {
+                            // Check abort signal before each read
+                            if (abortControllerRef.current?.signal.aborted) {
+                                console.log('Stream reading aborted by user');
+                                await reader.cancel(); // Explicitly cancel the reader to close connection
+                                break;
+                            }
                             const { done } = await reader.read();
                             if (done) break;
                         }
                     }
-                } catch (streamErr) {
+                } catch (streamErr: any) {
+                    if (streamErr.name === 'AbortError') {
+                        console.log('Stream reading aborted (AbortError)');
+                        // This is expected when user cancels - connection will close
+                        return;
+                    }
                     console.log('Stream reading ended:', streamErr);
                 }
                 return; // Success
@@ -3000,6 +3012,14 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                     loadingTip={loadingText}
                     streamingCode={streamingCode}
                   />
+                  {/* Cancel Button */}
+                  <button
+                    onClick={() => handleCancelGeneration(0)}
+                    className="mt-3 px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600 rounded-lg text-sm text-slate-300 hover:text-white transition-colors flex items-center gap-2"
+                  >
+                    <i className="fa-solid fa-xmark"></i>
+                    <span>{language === 'zh' ? '取消生成' : 'Cancel'}</span>
+                  </button>
               </div>
             </div>
           )}

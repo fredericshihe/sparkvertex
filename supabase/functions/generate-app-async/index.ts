@@ -263,7 +263,8 @@ serve(async (req) => {
                 let streamBuffer = ''; 
                 let lastUpdate = Date.now();
                 let lastBroadcastLength = fullContent.length;
-                let streamClosed = false; 
+                let clientDisconnected = false;  // 标记前端连接是否断开（但不影响后台生成）
+                let userCancelled = false; // 标记用户是否主动取消
                 
                 const taskChannel = supabaseAdmin.channel(`task-${taskId}`);
                 // Using httpSend() for REST delivery, no WebSocket subscription needed
@@ -271,17 +272,35 @@ serve(async (req) => {
                 if (reader) {
                   try {
                     while (true) {
-                      if (streamClosed) {
-                          console.log('客户端已断开连接，停止生成');
+                      // 只有用户主动取消才停止生成
+                      // 前端断开连接不应该中断后台生成
+                      if (userCancelled) {
+                          console.log('用户主动取消，停止生成');
                           console.log('用户取消，不扣除积分');
                           
                           // 更新任务状态为已取消
                           await supabaseAdmin
                               .from('generation_tasks')
-                              .update({ status: 'cancelled', error_message: 'User cancelled (Client disconnected)' })
+                              .update({ status: 'cancelled', error_message: 'User cancelled' })
                               .eq('id', taskId);
                               
                           break;
+                      }
+                      
+                      // 定期检查任务状态，如果用户已取消则停止
+                      // 每5秒检查一次数据库状态
+                      if (Date.now() - lastUpdate > 5000) {
+                          const { data: taskStatus } = await supabaseAdmin
+                              .from('generation_tasks')
+                              .select('status')
+                              .eq('id', taskId)
+                              .single();
+                          
+                          if (taskStatus?.status === 'cancelled') {
+                              console.log('检测到任务已被用户取消（数据库状态）');
+                              userCancelled = true;
+                              continue;
+                          }
                       }
 
                       const { done, value } = await reader.read();
@@ -336,8 +355,9 @@ serve(async (req) => {
                               taskId: taskId
                           };
 
+                          // 即使前端断开，也尝试通过 Realtime 广播
+                          // 这样如果用户刷新页面或重新连接，可以收到更新
                           try {
-                              // httpSend(event: string, payload: any, opts?: { timeout?: number })
                               await taskChannel.httpSend('chunk', payload);
                           } catch (rtError) {
                               console.warn('Realtime 发送失败:', rtError);
@@ -346,12 +366,16 @@ serve(async (req) => {
                           lastBroadcastLength = fullContent.length;
                           lastUpdate = Date.now();
                           
-                          try {
-                              controller.enqueue(encoder.encode(JSON.stringify({ status: 'processing', length: fullContent.length }) + '\n'));
-                          } catch (streamErr) {
-                              console.log('客户端已关闭流，停止更新');
-                              streamClosed = true;
-                              break; 
+                          // 只有在前端未断开时才尝试发送流响应
+                          if (!clientDisconnected) {
+                              try {
+                                  controller.enqueue(encoder.encode(JSON.stringify({ status: 'processing', length: fullContent.length }) + '\n'));
+                              } catch (streamErr) {
+                                  // 前端断开连接，但继续后台生成
+                                  console.log('客户端已关闭流，继续后台生成...');
+                                  clientDisconnected = true;
+                                  // 注意：不再 break，继续生成！
+                              }
                           }
                       }
                     }
@@ -528,24 +552,29 @@ serve(async (req) => {
                     console.log('频道清理警告:', e);
                 }
                 
-                // 仅在流仍打开时发送最终消息
-                if (!streamClosed) {
+                // 仅在客户端仍连接时发送最终消息
+                if (!clientDisconnected) {
                     try {
                         controller.enqueue(encoder.encode(JSON.stringify({ status: 'completed' }) + '\n'));
                     } catch (e) {
-                        console.log('流已关闭，跳过最终消息');
-                        streamClosed = true;
+                        console.log('客户端已断开，跳过最终消息');
+                        clientDisconnected = true;
                     }
                 }
                 
-                try {
-                    controller.close();
-                } catch (e: any) {
-                    // 忽略流关闭错误（Http: connection closed before message completed）
-                    if (e.name === 'Http' || e.message?.includes('connection closed')) {
-                        console.log('客户端已提前关闭连接（正常）');
-                    } else {
-                        console.warn('流关闭错误:', e);
+                // 只在客户端未断开时尝试关闭流
+                if (!clientDisconnected) {
+                    try {
+                        controller.close();
+                        clientDisconnected = true;
+                    } catch (e: any) {
+                        // 忽略流关闭错误（Http: connection closed before message completed）
+                        if (e.name === 'Http' || e.message?.includes('connection closed') || e.message?.includes('cannot close')) {
+                            console.log('客户端已提前关闭连接（正常，生成已完成保存）');
+                        } else {
+                            console.warn('流关闭错误:', e);
+                        }
+                        clientDisconnected = true;
                     }
                 }
             } catch (error: any) {
@@ -566,19 +595,25 @@ serve(async (req) => {
                     console.error('状态更新失败:', e);
                 }
                 
-                // 如果流仍打开，尝试发送错误消息
-                try {
-                    if (!controller.desiredSize || controller.desiredSize >= 0) {
+                // 如果客户端仍连接，尝试发送错误消息
+                if (!clientDisconnected) {
+                    try {
                         controller.enqueue(encoder.encode(JSON.stringify({ error: errorMessage }) + '\n'));
+                    } catch (e) {
+                        console.log('无法发送错误，客户端已断开');
+                        clientDisconnected = true;
                     }
-                } catch (e) {
-                    console.log('无法发送错误，流已关闭');
                 }
                 
-                try {
-                    controller.close();
-                } catch (e) {
-                    console.log('流已关闭');
+                // 只在客户端未断开时尝试关闭流
+                if (!clientDisconnected) {
+                    try {
+                        controller.close();
+                        clientDisconnected = true;
+                    } catch (e) {
+                        console.log('流已关闭');
+                        clientDisconnected = true;
+                    }
                 }
             }
         }

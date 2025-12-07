@@ -93,7 +93,16 @@ Your task is to modify the provided React code based on the user's request.
 1. **SEARCH Block**: Must match original code EXACTLY (whitespace/indentation). Include enough context for uniqueness.
 2. **REPLACE Block**: Output the FULL replacement code. No placeholders like \`// ... existing code\`.
 3. **No Imports**: Use global \`React\`, \`ReactDOM\`.
-4. **Style**: Maintain existing Tailwind theme.`;
+4. **Style**: Maintain existing Tailwind theme.
+
+### ⚠️ READ-ONLY Files (CRITICAL)
+Files marked with \`[READ-ONLY]\` are provided for **CONTEXT ONLY**. You **MUST NOT**:
+- Output any \`<<<<SEARCH\` blocks targeting READ-ONLY files
+- Suggest modifications to READ-ONLY components
+- Even if you see bugs in READ-ONLY files, **IGNORE THEM** - they are out of scope
+- Only modify the PRIMARY code file provided without the READ-ONLY marker
+
+If a user's request requires changes to a READ-ONLY file, respond with a note explaining which file needs to be edited and ask them to include it in a new request.`;
     }
 
     return `You are an expert React Developer.

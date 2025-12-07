@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getRAGContext } from '@/lib/rag';
 import { findRelevantCodeChunks, compressCode } from '@/lib/code-rag';
+import { logRAGRequest, detectQueryLanguage, type RAGLogEntry } from '@/lib/rag-logger';
+import { classifyUserIntent, UserIntent } from '@/lib/intent-classifier';
 
 // 使用 Node.js Runtime 以支持更长的超时设置
 export const runtime = 'nodejs';
@@ -87,13 +89,30 @@ export async function POST(request: Request) {
         }, { status: 500 });
     }
 
-    // 2. RAG Context Generation
+    // 2. RAG Context Generation with Intent Classification & Logging
     let ragContext = '';
     let codeContext = '';
     let compressedCode = '';
+    
+    // RAG 性能追踪
+    const ragStartTime = Date.now();
+    let intentResult: Awaited<ReturnType<typeof classifyUserIntent>> | null = null;
+    let intentLatencyMs = 0;
+    let ragLatencyMs = 0;
+    let compressionLatencyMs = 0;
+    let chunksTotal = 0;
+    let chunksSelected = 0;
 
     try {
-        // A. Reference RAG (Similar Apps)
+        // A. 意图分类（如果是修改请求）
+        if (body.type === 'modification' && body.user_prompt) {
+            const intentStartTime = Date.now();
+            intentResult = await classifyUserIntent(body.user_prompt);
+            intentLatencyMs = Date.now() - intentStartTime;
+            console.log(`[IntentClassifier] Intent: ${intentResult.intent} (confidence: ${intentResult.confidence}, source: ${intentResult.source}, ${intentLatencyMs}ms)`);
+        }
+
+        // B. Reference RAG (Similar Apps)
         // DISABLED: Reference RAG is currently disabled for all modes (Generation & Modification) to save tokens and reduce noise.
         /*
         if (body.type !== 'modification') {
@@ -107,8 +126,11 @@ export async function POST(request: Request) {
         */
        console.log('[RAG] Reference RAG skipped (Global Disable).');
 
-        // B. Codebase RAG (For Modifications)
+        // C. Codebase RAG (For Modifications)
         // If this is a modification request (type='modification') and we have the current code
+        console.log(`[CodeRAG] Check - type: ${body.type}, has current_code: ${!!body.current_code}, code length: ${body.current_code?.length || 0}`);
+        
+        const codeRagStartTime = Date.now();
         if (body.type === 'modification' && body.current_code) {
              console.log(`[CodeRAG] Analyzing code for modification... Length: ${body.current_code.length}`);
              const relevantChunks = await findRelevantCodeChunks(
@@ -117,6 +139,11 @@ export async function POST(request: Request) {
                  process.env.NEXT_PUBLIC_SUPABASE_URL!,
                  process.env.SUPABASE_SERVICE_ROLE_KEY!
              );
+             ragLatencyMs = Date.now() - codeRagStartTime;
+
+             // 记录 chunk 统计
+             chunksTotal = body.current_code.split(/\n(?=(?:const|function|class|export)\s)/).length;
+             chunksSelected = relevantChunks?.length || 0;
 
              if (relevantChunks && relevantChunks.length > 0) {
                  codeContext = `\n\n### RELEVANT CODE CONTEXT (RAG)\nThe following code sections are most relevant to the user's request. Focus your changes here if possible:\n\n`;
@@ -126,19 +153,16 @@ export async function POST(request: Request) {
                  const relevantIds = relevantChunks.map(c => c.id);
                  console.log(`[CodeRAG] Found ${relevantChunks.length} relevant chunks: ${relevantIds.join(', ')}`);
                  
-                 // C. Smart Context Compression
-                 // Skip compression for first edit on uploaded code (is_first_edit flag)
-                 // This improves patch success rate for unfamiliar code structures
-                 const isFirstEdit = body.is_first_edit === true;
-                 
-                 if (isFirstEdit) {
-                     console.log('[CodeRAG] First edit on uploaded code - skipping compression for better patch accuracy');
-                 } else if (body.current_code.length > 10000) {
+                 // D. Smart Context Compression
+                 // 对所有大于 10KB 的代码一视同仁地进行压缩
+                 if (body.current_code.length > 10000) {
                      // If code is large (> 10KB), compress it by collapsing irrelevant chunks
                      console.log('[CodeRAG] Code is large, applying Smart Compression...');
+                     const compressionStartTime = Date.now();
                      compressedCode = compressCode(body.current_code, relevantIds);
+                     compressionLatencyMs = Date.now() - compressionStartTime;
                      const compressionRate = ((1 - compressedCode.length / body.current_code.length) * 100).toFixed(1);
-                     console.log(`[CodeRAG] Compressed: ${body.current_code.length} → ${compressedCode.length} chars (${compressionRate}% reduction)`);
+                     console.log(`[CodeRAG] Compressed: ${body.current_code.length} → ${compressedCode.length} chars (${compressionRate}% reduction, ${compressionLatencyMs}ms)`);
                  }
              }
         }
@@ -146,6 +170,36 @@ export async function POST(request: Request) {
     } catch (ragError) {
         console.warn('[RAG] Failed to generate context:', ragError);
         // Non-blocking, continue without RAG
+    }
+    
+    // E. 异步记录 RAG 日志（fire-and-forget，不阻塞响应）
+    const totalLatencyMs = Date.now() - ragStartTime;
+    if (body.type === 'modification' && body.user_prompt) {
+        const logEntry: RAGLogEntry = {
+            userId: session.user.id,
+            userQuery: body.user_prompt,
+            queryLanguage: detectQueryLanguage(body.user_prompt),
+            detectedIntent: intentResult?.intent || UserIntent.UNKNOWN,
+            intentConfidence: intentResult?.confidence || 0,
+            intentSource: intentResult?.source || 'local',
+            intentLatencyMs,
+            ragLatencyMs,
+            compressionLatencyMs,
+            totalLatencyMs,
+            codeLength: body.current_code?.length || 0,
+            compressedLength: compressedCode?.length || 0,
+            compressionRatio: compressedCode && body.current_code 
+                ? compressedCode.length / body.current_code.length 
+                : 0,
+            chunksTotal,
+            chunksSelected,
+            model: body.model
+        };
+        
+        // Fire-and-forget: 不等待日志写入完成
+        logRAGRequest(logEntry).catch(err => {
+            console.warn('[RAG Logger] Async log failed:', err);
+        });
     }
     
     return NextResponse.json({ taskId: task.id, ragContext, codeContext, compressedCode });
