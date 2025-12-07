@@ -814,14 +814,14 @@ function CreateContent() {
 
   const handleTimeoutWait = () => {
       setShowTimeoutModal(false);
-      // Reset timeout timer for another 30 seconds
+      // Reset timeout timer for another 60 seconds (longer interval after user chose to wait)
       if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
       timeoutTimerRef.current = setTimeout(() => {
           // Only show again if we are still generating and still haven't received code
           if (isGenerating && !streamingCode) {
               setShowTimeoutModal(true);
           }
-      }, 30000);
+      }, 60000);
   };
 
   // --- Wizard Handlers ---
@@ -3313,8 +3313,8 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
             </div>
             <p className="text-slate-300 mb-6 leading-relaxed">
               {language === 'zh' 
-                ? 'AI 生成响应时间超过预期。这可能是由于服务器繁忙或任务较复杂。您可以选择继续等待，或者取消任务（积分将全额退还）。' 
-                : 'AI generation is taking longer than expected. This might be due to server load or task complexity. You can keep waiting or cancel (credits will be fully refunded).'}
+                ? 'AI 生成响应时间超过预期。这可能是由于服务器繁忙或任务较复杂。您可以选择继续等待，或者取消任务（取消不会扣除积分）。' 
+                : 'AI generation is taking longer than expected. This might be due to server load or task complexity. You can keep waiting or cancel (no credits will be charged).'}
             </p>
             <div className="flex gap-3">
               <button 
@@ -3322,7 +3322,7 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                 className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition border border-slate-700 flex flex-col items-center justify-center gap-0.5"
               >
                 <span className="font-bold text-sm">{language === 'zh' ? '取消任务' : 'Cancel Task'}</span>
-                <span className="text-[10px] text-slate-400 font-normal">{language === 'zh' ? '积分将全额退还' : 'Credits fully refunded'}</span>
+                <span className="text-[10px] text-slate-400 font-normal">{language === 'zh' ? '不扣除积分' : 'No credits charged'}</span>
               </button>
               <button 
                 onClick={handleTimeoutWait}
