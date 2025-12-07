@@ -1259,6 +1259,15 @@ function UploadContent() {
 
   const handleEditInCreator = () => {
     if (!fileContent) return;
+    
+    // Stop any ongoing analysis immediately
+    if (isAnalyzing) {
+      console.log('[Upload] User clicked Edit Code, stopping analysis...');
+      analysisSessionIdRef.current += 1; // Invalidate current session
+      setIsAnalyzing(false);
+      setAnalysisState({ status: 'idle' });
+    }
+    
     localStorage.setItem('spark_upload_import', fileContent);
     // Clear any existing creation session to ensure we start fresh with the uploaded code
     localStorage.removeItem('spark_create_session_v1');

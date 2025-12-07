@@ -25,14 +25,44 @@ serve(async (req) => {
       });
     }
 
-    const { input } = await req.json();
-    if (!input) throw new Error('Missing input text');
+    const { input, inputs } = await req.json();
+    if (!input && !inputs) throw new Error('Missing input text or inputs array');
 
     // Use Google Gemini for Embeddings
     const apiKey = Deno.env.get('GOOGLE_API_KEY');
     if (!apiKey) throw new Error('Missing GOOGLE_API_KEY');
 
-    // Using text-embedding-004 as it is the latest stable model
+    // Handle Batch Request (inputs array)
+    if (inputs && Array.isArray(inputs)) {
+        const batchResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey
+            },
+            body: JSON.stringify({
+                requests: inputs.map(text => ({
+                    model: 'models/text-embedding-004',
+                    content: { parts: [{ text }] },
+                    outputDimensionality: 768
+                }))
+            })
+        });
+
+        if (!batchResponse.ok) {
+            const error = await batchResponse.text();
+            throw new Error(`Google Batch API Error: ${error}`);
+        }
+
+        const batchData = await batchResponse.json();
+        const embeddings = batchData.embeddings.map((e: any) => e.values);
+
+        return new Response(JSON.stringify({ embeddings }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+    }
+
+    // Handle Single Request (Legacy support)
     const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent', {
       method: 'POST',
       headers: {

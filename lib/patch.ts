@@ -46,26 +46,104 @@ export function applyPatches(source: string, patchText: string): string {
         }
 
         if (looseMatches.length > 0) {
-             return applyPatchesInternal(source, looseMatches);
+             const result = applyPatchesInternal(source, looseMatches);
+             return validatePatchedCode(source, result);
         }
         return source;
     }
 
-    return applyPatchesInternal(source, matches);
+    const result = applyPatchesInternal(source, matches);
+    return validatePatchedCode(source, result);
+}
+
+/**
+ * Post-validation: Ensure the patched code is structurally valid.
+ * If validation fails, return the original source to prevent corruption.
+ */
+function validatePatchedCode(originalSource: string, patchedCode: string): string {
+    // Check 1: Basic HTML structure
+    const hasDoctype = patchedCode.includes('<!DOCTYPE') || patchedCode.includes('<!doctype');
+    const hasHtmlTag = /<html[\s>]/i.test(patchedCode);
+    const hasClosingHtml = /<\/html>/i.test(patchedCode);
+    
+    if (!hasDoctype && !hasHtmlTag) {
+        // Might be a partial result or corrupted
+        console.error('Validation failed: Missing basic HTML structure');
+        return originalSource;
+    }
+
+    // Check 2: Script tag balance (critical for React)
+    const scriptOpenCount = (patchedCode.match(/<script/gi) || []).length;
+    const scriptCloseCount = (patchedCode.match(/<\/script>/gi) || []).length;
+    
+    if (scriptOpenCount !== scriptCloseCount) {
+        console.error(`Validation failed: Unbalanced script tags (open: ${scriptOpenCount}, close: ${scriptCloseCount})`);
+        return originalSource;
+    }
+
+    // Check 3: Brace balance in script content (rough check)
+    const scriptMatch = patchedCode.match(/<script[^>]*>([\s\S]*?)<\/script>/gi);
+    if (scriptMatch) {
+        for (const script of scriptMatch) {
+            const content = script.replace(/<\/?script[^>]*>/gi, '');
+            const openBraces = (content.match(/\{/g) || []).length;
+            const closeBraces = (content.match(/\}/g) || []).length;
+            
+            // Allow small imbalance (comments, strings might have unmatched braces)
+            if (Math.abs(openBraces - closeBraces) > 5) {
+                console.error(`Validation failed: Severely unbalanced braces in script (open: ${openBraces}, close: ${closeBraces})`);
+                return originalSource;
+            }
+        }
+    }
+
+    // Check 4: Code length sanity check
+    // If patched code is less than 50% of original, something went very wrong
+    if (patchedCode.length < originalSource.length * 0.5) {
+        console.error(`Validation failed: Patched code is suspiciously short (${patchedCode.length} vs original ${originalSource.length})`);
+        return originalSource;
+    }
+
+    // Check 5: Code length growth check
+    // If patched code is more than 3x the original, AI might have duplicated content
+    if (patchedCode.length > originalSource.length * 3) {
+        console.error(`Validation failed: Patched code is suspiciously long (${patchedCode.length} vs original ${originalSource.length})`);
+        return originalSource;
+    }
+
+    return patchedCode;
 }
 
 function applyPatchesInternal(source: string, matches: RegExpMatchArray[]): string {
     let currentSource = source;
     let successCount = 0;
     let failCount = 0;
+    const failedBlocks: string[] = [];
 
     for (const match of matches) {
         const [_, searchBlock, replaceBlock] = match;
         
         // Filter noise from search block (like "/// SUMMARY:")
-        const cleanSearchBlock = searchBlock.split('\n')
+        let cleanSearchBlock = searchBlock.split('\n')
             .filter(l => !l.trim().startsWith('///') && !l.trim().match(/^summary:/i) && !l.trim().match(/^changes:/i))
             .join('\n');
+
+        // CRITICAL: Detect and reject compressed placeholders
+        // These patterns indicate the AI incorrectly used compression artifacts
+        const compressionPatterns = [
+            /\/\/\s*\[Component:.*?\]\s*-\s*Code omitted/i,
+            /\/\/\s*\.\.\.\s*\d+\s*lines?\s*omitted/i,
+            /\/\*\s*\.\.\.\s*code omitted/i,
+            /\/\/\s*\.\.\.\s*existing code/i
+        ];
+        
+        const hasCompressionArtifact = compressionPatterns.some(p => p.test(cleanSearchBlock));
+        if (hasCompressionArtifact) {
+            console.warn('Patch rejected: Contains compression artifacts that do not exist in source.');
+            failedBlocks.push(cleanSearchBlock.substring(0, 80) + '...');
+            failCount++;
+            continue; // Skip this patch
+        }
 
         const sourceTokens = tokenize(currentSource);
         const searchTokens = tokenize(cleanSearchBlock);
@@ -89,12 +167,16 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[]): stri
             console.log(`Patch applied successfully using Token+LCS matching.`);
         } else {
             console.warn(`Patch failed for block: ${cleanSearchBlock.substring(0, 50)}...`);
+            failedBlocks.push(cleanSearchBlock.substring(0, 80) + '...');
             failCount++;
         }
     }
     
     if (failCount > 0 && successCount === 0) {
-        throw new Error(`无法应用修改：找不到匹配的代码块 (${failCount} 处失败)`);
+        const hint = failedBlocks.length > 0 
+            ? `\n失败的代码块: ${failedBlocks[0]}` 
+            : '';
+        throw new Error(`无法应用修改：找不到匹配的代码块 (${failCount} 处失败)${hint}`);
     }
 
     return currentSource;

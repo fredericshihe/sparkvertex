@@ -1783,14 +1783,12 @@ Before outputting patches, verify:
 4. ✓ "Am I preserving the existing visual style?"
    - Check colors, fonts, spacing
 
-### Example 1: Button Color Change
+### Example (Button Color Change)
 \`\`\`
-/// ANALYSIS: Targeting the SubmitButton component's return statement
+/// ANALYSIS: Targeting SubmitButton component
 ///
-
-/// SUMMARY: Changed button color from blue to green and added hover effect
+/// SUMMARY: Changed button from blue to green with hover
 ///
-
 <<<<SEARCH
 const SubmitButton = ({ onClick, children }) => {
   return (
@@ -1816,58 +1814,7 @@ const SubmitButton = ({ onClick, children }) => {
 >>>>
 \`\`\`
 
-### Example 2: Adding State Variable
-\`\`\`
-/// ANALYSIS: Targeting App component start to add new state hook
-///
-
-/// SUMMARY: Added 'count' state variable for tracking clicks
-///
-
-<<<<SEARCH
-const App = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-====
-const App = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
->>>>
-\`\`\`
-
-### Example 3: Modifying Function Logic
-\`\`\`
-/// ANALYSIS: Targeting calculateTotal function to add tax calculation
-///
-
-/// SUMMARY: Updated calculateTotal to include 10% tax
-///
-
-<<<<SEARCH
-  const calculateTotal = (items) => {
-    const subtotal = items.reduce((acc, item) => acc + item.price, 0);
-    return subtotal;
-  };
-
-  const handleCheckout = () => {
-====
-  const calculateTotal = (items) => {
-    const subtotal = items.reduce((acc, item) => acc + item.price, 0);
-    const tax = subtotal * 0.1;
-    return subtotal + tax;
-  };
-
-  const handleCheckout = () => {
->>>>
+(More examples: adding state, modifying functions - follow same pattern)
 \`\`\`
 
 ### Technical Constraints
@@ -2056,21 +2003,10 @@ Before finalizing, verify:
 
 Remember: You're building for production. Code must be clean, performant, and error-free.`;
 
-      const TECHNICAL_CONSTRAINTS = `
-### Final Constraints Summary
-1. **Single File**: One complete HTML file only
-2. **No Imports**: Use global React, ReactDOM variables
-3. **Icons**: FontAwesome classes only
-4. **Images**: Absolute HTTPS URLs
-5. **Styling**: Tailwind CSS utilities
-6. **Fonts**: System fonts only (no Google Fonts)
-7. **Emoji**: Direct characters or ES6 format (\\u{XXXX})
-8. **String Escaping**: Escape backticks and quotes properly
-9. **React Hooks**: Correct dependency arrays
-10. **Error Boundary**: Always include for production safety
-`;
+      // TECHNICAL_CONSTRAINTS removed - already covered in SYSTEM_PROMPT
+      const TECHNICAL_CONSTRAINTS = '';
 
-      const finalUserPrompt = prompt;
+      let finalUserPrompt = prompt;
 
       const dbPrompt = isModification ? prompt : finalUserPrompt;
 
@@ -2087,7 +2023,8 @@ Remember: You're building for production. Code must be clean, performant, and er
             body: JSON.stringify({
             type: isModification ? 'modification' : 'generation',
             system_prompt: SYSTEM_PROMPT,
-            user_prompt: dbPrompt
+            user_prompt: dbPrompt,
+            current_code: isModification ? generatedCode : undefined // Send current code for RAG analysis
             }),
             signal: abortControllerRef.current.signal
         });
@@ -2109,9 +2046,45 @@ Remember: You're building for production. Code must be clean, performant, and er
           throw e;
       }
 
-      const { taskId } = await response.json();
+      const { taskId, ragContext, codeContext, compressedCode } = await response.json();
       setCurrentTaskId(taskId);
       
+      // Inject RAG Context if available
+      let finalSystemPrompt = SYSTEM_PROMPT;
+      
+      // Apply Smart Context Compression
+      if (compressedCode && isModification) {
+          console.log('Applying Smart Context Compression to User Prompt');
+          // Replace the full code in finalUserPrompt with compressed code
+          
+          const safeCompressedCode = compressedCode.replace(/\u0000/g, '');
+          const safeOriginalCode = generatedCode ? generatedCode.replace(/\u0000/g, '') : '';
+          
+          if (safeOriginalCode && finalUserPrompt.includes(safeOriginalCode)) {
+              finalUserPrompt = finalUserPrompt.replace(safeOriginalCode, safeCompressedCode);
+              
+              // Add explicit warning about compression artifacts
+              finalUserPrompt += `\n\n### ⚠️ COMPRESSED CODE WARNING
+Some code sections show "... X lines omitted ...". These comments are NOT in the actual file.
+**RULE**: Never include omitted comments in SEARCH blocks. Use component signatures or real code as anchors.`;
+
+              console.log('User Prompt compressed successfully.');
+          } else {
+              console.warn('Could not find original code in User Prompt to replace. Using full code.');
+          }
+      }
+
+      if (ragContext) {
+          console.log('Injecting RAG Context into System Prompt');
+          finalSystemPrompt += ragContext;
+      }
+      
+      // Inject Code RAG Context (Relevant Chunks)
+      if (codeContext) {
+          console.log('Injecting Code RAG Context into System Prompt');
+          finalSystemPrompt += codeContext;
+      }
+
       // 注意：积分扣除在后端Edge Function中进行，避免双重扣费
       // 前端不再进行乐观更新，等待后端扣费后通过checkAuth刷新积分余额
 
@@ -2146,7 +2119,7 @@ Remember: You're building for production. Code must be clean, performant, and er
                     },
                     body: JSON.stringify({ 
                         taskId, 
-                        system_prompt: SYSTEM_PROMPT, 
+                        system_prompt: finalSystemPrompt, 
                         user_prompt: finalUserPrompt, 
                         type: isModification ? 'modification' : 'generation'
                     }),

@@ -2,6 +2,8 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { getRAGContext } from '@/lib/rag';
+import { findRelevantCodeChunks, compressCode } from '@/lib/code-rag';
 
 // 使用 Node.js Runtime 以支持更长的超时设置
 export const runtime = 'nodejs';
@@ -85,17 +87,63 @@ export async function POST(request: Request) {
         }, { status: 500 });
     }
 
-    // 2. Trigger Async Edge Function (Fire and Forget-ish)
-    // We use fetch but don't await the full result, or we rely on the client to trigger it?
-    // Better: We trigger it here, but we set a very short timeout so we don't wait for completion.
-    // Actually, if we abort the request to Edge Function, does it stop?
-    // Deno Edge Functions usually stop if the client disconnects unless they use background tasks.
-    // BUT, we can use the "invoke" method from supabase-js which might handle auth better.
+    // 2. RAG Context Generation
+    let ragContext = '';
+    let codeContext = '';
+    let compressedCode = '';
+
+    try {
+        // A. Reference RAG (Similar Apps)
+        // DISABLED: Reference RAG is currently disabled for all modes (Generation & Modification) to save tokens and reduce noise.
+        /*
+        if (body.type !== 'modification') {
+            ragContext = await getRAGContext(adminSupabase, body.user_prompt);
+            if (ragContext) {
+                console.log(`[RAG] Reference Context generated for task ${task.id}`);
+            }
+        } else {
+            console.log(`[RAG] Skipping Reference RAG for modification task to save tokens.`);
+        }
+        */
+       console.log('[RAG] Reference RAG skipped (Global Disable).');
+
+        // B. Codebase RAG (For Modifications)
+        // If this is a modification request (type='modification') and we have the current code
+        if (body.type === 'modification' && body.current_code) {
+             console.log(`[CodeRAG] Analyzing code for modification... Length: ${body.current_code.length}`);
+             const relevantChunks = await findRelevantCodeChunks(
+                 body.user_prompt, 
+                 body.current_code,
+                 process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                 process.env.SUPABASE_SERVICE_ROLE_KEY!
+             );
+
+             if (relevantChunks && relevantChunks.length > 0) {
+                 codeContext = `\n\n### RELEVANT CODE CONTEXT (RAG)\nThe following code sections are most relevant to the user's request. Focus your changes here if possible:\n\n`;
+                 codeContext += relevantChunks.map(c => `// --- Section: ${c.id} ---\n${c.content}\n`).join('\n');
+                 
+                 // Log which chunks were found relevant (helps debug compression rates)
+                 const relevantIds = relevantChunks.map(c => c.id);
+                 console.log(`[CodeRAG] Found ${relevantChunks.length} relevant chunks: ${relevantIds.join(', ')}`);
+                 
+                 // C. Smart Context Compression
+                 // If code is large (> 10KB), compress it by collapsing irrelevant chunks
+                 // Note: Threshold lowered from 20KB to 10KB for more aggressive compression
+                 if (body.current_code.length > 10000) {
+                     console.log('[CodeRAG] Code is large, applying Smart Compression...');
+                     compressedCode = compressCode(body.current_code, relevantIds);
+                     const compressionRate = ((1 - compressedCode.length / body.current_code.length) * 100).toFixed(1);
+                     console.log(`[CodeRAG] Compressed: ${body.current_code.length} → ${compressedCode.length} chars (${compressionRate}% reduction)`);
+                 }
+             }
+        }
+
+    } catch (ragError) {
+        console.warn('[RAG] Failed to generate context:', ragError);
+        // Non-blocking, continue without RAG
+    }
     
-    // Let's try to just return the taskId to the client, and let the CLIENT trigger the heavy lifting.
-    // This avoids Vercel timeout issues completely.
-    
-    return NextResponse.json({ taskId: task.id });
+    return NextResponse.json({ taskId: task.id, ragContext, codeContext, compressedCode });
 
     /* 
     // Old Logic Removed
