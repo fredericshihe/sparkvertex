@@ -127,9 +127,14 @@ export async function POST(request: Request) {
                  console.log(`[CodeRAG] Found ${relevantChunks.length} relevant chunks: ${relevantIds.join(', ')}`);
                  
                  // C. Smart Context Compression
-                 // If code is large (> 10KB), compress it by collapsing irrelevant chunks
-                 // Note: Threshold lowered from 20KB to 10KB for more aggressive compression
-                 if (body.current_code.length > 10000) {
+                 // Skip compression for first edit on uploaded code (is_first_edit flag)
+                 // This improves patch success rate for unfamiliar code structures
+                 const isFirstEdit = body.is_first_edit === true;
+                 
+                 if (isFirstEdit) {
+                     console.log('[CodeRAG] First edit on uploaded code - skipping compression for better patch accuracy');
+                 } else if (body.current_code.length > 10000) {
+                     // If code is large (> 10KB), compress it by collapsing irrelevant chunks
                      console.log('[CodeRAG] Code is large, applying Smart Compression...');
                      compressedCode = compressCode(body.current_code, relevantIds);
                      const compressionRate = ((1 - compressedCode.length / body.current_code.length) * 100).toFixed(1);

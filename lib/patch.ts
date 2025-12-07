@@ -27,7 +27,12 @@ function tokenize(text: string): Token[] {
     return tokens;
 }
 
-export function applyPatches(source: string, patchText: string): string {
+export function applyPatches(source: string, patchText: string, relaxedMode: boolean = false): string {
+    // relaxedMode: Use relaxed matching for first edits on uploaded code
+    if (relaxedMode) {
+        console.log('[Patch] Using relaxed matching mode for uploaded code');
+    }
+    
     // 1. Parse Patches
     const matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*([\s\S]*?)\s*>>>>/g));
     
@@ -46,13 +51,13 @@ export function applyPatches(source: string, patchText: string): string {
         }
 
         if (looseMatches.length > 0) {
-             const result = applyPatchesInternal(source, looseMatches);
+             const result = applyPatchesInternal(source, looseMatches, relaxedMode);
              return validatePatchedCode(source, result);
         }
         return source;
     }
 
-    const result = applyPatchesInternal(source, matches);
+    const result = applyPatchesInternal(source, matches, relaxedMode);
     return validatePatchedCode(source, result);
 }
 
@@ -114,7 +119,7 @@ function validatePatchedCode(originalSource: string, patchedCode: string): strin
     return patchedCode;
 }
 
-function applyPatchesInternal(source: string, matches: RegExpMatchArray[]): string {
+function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relaxedMode: boolean = false): string {
     let currentSource = source;
     let successCount = 0;
     let failCount = 0;
@@ -134,12 +139,15 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[]): stri
             /\/\/\s*\[Component:.*?\]\s*-\s*Code omitted/i,
             /\/\/\s*\.\.\.\s*\d+\s*lines?\s*omitted/i,
             /\/\*\s*\.\.\.\s*code omitted/i,
-            /\/\/\s*\.\.\.\s*existing code/i
+            /\/\/\s*\.\.\.\s*existing code/i,
+            /\/\*\s*compressed\s*\*\//i,  // New: semantic compression marker
+            /@semantic-compressed/i,       // New: semantic compression JSDoc
+            /=>\s*\{\s*\/\*\s*compressed\s*\*\/\s*\}/i  // New: compressed function body
         ];
         
         const hasCompressionArtifact = compressionPatterns.some(p => p.test(cleanSearchBlock));
         if (hasCompressionArtifact) {
-            console.warn('Patch rejected: Contains compression artifacts that do not exist in source.');
+            console.warn('Patch rejected: Contains compression artifacts (semantic or line-based) that do not exist in source.');
             failedBlocks.push(cleanSearchBlock.substring(0, 80) + '...');
             failCount++;
             continue; // Skip this patch
@@ -153,7 +161,14 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[]): stri
              continue;
         }
 
-        const matchRange = findBestTokenMatch(sourceTokens, searchTokens);
+        // Use relaxed matching for uploaded code's first edit
+        let matchRange = findBestTokenMatch(sourceTokens, searchTokens);
+        
+        // If strict matching failed and we're in relaxed mode, try relaxed matching
+        if (!matchRange && relaxedMode) {
+            console.log('[Patch] Strict match failed, trying relaxed matching...');
+            matchRange = findBestTokenMatchRelaxed(sourceTokens, searchTokens);
+        }
 
         if (matchRange) {
             const startChar = sourceTokens[matchRange.start].start;
@@ -296,10 +311,53 @@ function findBestTokenMatch(sourceTokens: Token[], searchTokens: Token[]): { sta
         }
     }
 
-    // Threshold: 0.85 (Strict Mode)
-    // Previously 0.4, which allowed deleting ~50% of the code in the block.
-    // 0.85 ensures that we match at least ~85% of the tokens contiguously.
-    if (bestScore > 0.85) {
+    // Threshold: Dynamic based on context
+    // Default: 0.85 (Strict Mode) - ensures ~85% token match
+    // Relaxed: 0.70 (for first edit on uploaded code)
+    const threshold = 0.85;
+    if (bestScore > threshold) {
+        return bestRange;
+    }
+
+    return null;
+}
+
+// Relaxed version of findBestTokenMatch for first edits on uploaded code
+// Uses a lower threshold (0.70) to accommodate unfamiliar code structures
+export function findBestTokenMatchRelaxed(sourceTokens: Token[], searchTokens: Token[]): { start: number, end: number } | null {
+    const M = searchTokens.length;
+    const N = sourceTokens.length;
+    if (M === 0 || N < M) return null;
+
+    // First try exact match
+    const exactMatch = findExactTokenMatch(sourceTokens, searchTokens);
+    if (exactMatch) return exactMatch;
+
+    let bestScore = 0;
+    let bestRange = null;
+
+    // Scan with larger windows for relaxed matching
+    for (let i = 0; i <= N - M; i += 5) {
+        const windowEnd = Math.min(N, i + M + Math.max(20, M * 0.8));
+        const sourceWindow = sourceTokens.slice(i, windowEnd);
+        
+        const matchResult = findLCSMatch(sourceWindow, searchTokens);
+        
+        if (matchResult) {
+            const { start, end, length } = matchResult;
+            const spanLength = end - start + 1;
+            const score = (2 * length) / (M + spanLength);
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestRange = { start: i + start, end: i + end };
+            }
+        }
+    }
+
+    // Relaxed threshold: 0.70 (allows more flexibility for uploaded code)
+    if (bestScore > 0.70) {
+        console.log(`[Patch] Relaxed match found with score ${bestScore.toFixed(2)}`);
         return bestRange;
     }
 

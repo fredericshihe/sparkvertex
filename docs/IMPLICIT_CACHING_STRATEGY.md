@@ -272,6 +272,15 @@ if (data.usage_metadata) {
 
 ## 更新日志
 
+- **2025-01-XX**: 进一步优化 User Prompt 缓存结构
+  - 重新排序 User Prompt 内容，严格按稳定性递减排列：
+    1. EXISTING CODE（最稳定，连续修改时不变）
+    2. FIXED INSTRUCTIONS（固定模板）
+    3. CONVERSATION HISTORY（增量增长）
+    4. USER REQUEST（每次都变，放最后）
+  - 将任务说明模板化，合并到 TASK INSTRUCTIONS 部分
+  - 添加代码注释说明缓存优化策略
+
 - **2025-12-04**: 初始实现隐式缓存策略
   - 重构系统提示词为长格式（>2000 tokens）
   - 优化 User Prompt 结构（代码在前，请求在后）

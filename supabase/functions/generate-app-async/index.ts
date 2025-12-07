@@ -34,7 +34,7 @@ serve(async (req) => {
     // 2. Input
     const body = await req.json();
     taskId = body.taskId;
-    const { system_prompt, user_prompt, type, image_url } = body;
+    const { system_prompt, user_prompt, type, image_url, model: requestedModel, tokens_per_credit } = body;
     
     if (!taskId) throw new Error('Missing taskId');
 
@@ -90,22 +90,31 @@ serve(async (req) => {
     // 6. Call LLM
     const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
     
-    // 优化1: 模型路由（混合模型策略）
-    // 默认使用 Gemini 3Pro（创建场景，保证质量）
-    let modelName = 'gemini-3-pro-preview';
+    // 模型配置：支持用户选择的模型
+    // 不同模型的积分汇率:
+    // - gemini-2.5-flash: 1积分 = 5000 tokens (最便宜，速度快)
+    // - gemini-2.5-pro: 1积分 = 4000 tokens (均衡)
+    // - gemini-3-pro-preview: 1积分 = 3000 tokens (最强，最贵)
+    const VALID_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-pro-preview'];
+    const DEFAULT_TOKENS_PER_CREDIT: Record<string, number> = {
+        'gemini-2.5-flash': 5000,
+        'gemini-2.5-pro': 4000,
+        'gemini-3-pro-preview': 3000
+    };
     
-    // 修改场景：使用 Gemini 1.5 Flash
-    // 原因：
-    // 1. 速度快：Flash 比 Pro 快 5-10 倍，解决"等很久"的问题
-    // 2. 成本低：Flash 价格极低，即使没有缓存命中也无所谓
-    // 3. 上下文大：支持 1M tokens，可以直接吞下全量代码，不需要复杂的"代码切片"（Smart Context）逻辑，避免了切片出错的风险
-    if (type === 'modification' && !image_url) {
-        modelName = 'gemini-2.5-flash';
-    }
+    // 使用用户选择的模型，如果无效则使用默认
+    let modelName = VALID_MODELS.includes(requestedModel) ? requestedModel : 'gemini-2.5-flash';
     
+    // 确定积分汇率（使用前端传来的值或根据模型默认值）
+    const tokensPerCredit = tokens_per_credit || DEFAULT_TOKENS_PER_CREDIT[modelName] || 3000;
+    
+    console.log(`使用模型: ${modelName}, 积分汇率: 1积分=${tokensPerCredit}tokens`);
+    
+    // 环境变量可覆盖（仅用于调试）
     const envModel = Deno.env.get('GOOGLE_MODEL_NAME');
     if (envModel) {
         modelName = envModel;
+        console.log(`环境变量覆盖模型为: ${envModel}`);
     }
 
     if (!googleApiKey) {
@@ -384,13 +393,7 @@ serve(async (req) => {
                     return '\\u{' + p1.replace(/^0+/, '') + '}';
                 });
 
-                await supabaseAdmin
-                    .from('generation_tasks')
-                    .update({ result_code: sanitizedContent, status: 'completed' })
-                    .eq('id', taskId);
-                console.log('结果保存成功');
-                
-                // 生成成功，现在扣除积分
+                // 先计算 cost，以便在保存结果时一起保存
                 // 计算 Token 消耗
                 // 规则：中文=1 token, 英文=0.25 token (4 chars = 1 token)
                 const calculateTokens = (text: string) => {
@@ -404,11 +407,20 @@ serve(async (req) => {
                 const inputTokens = calculateTokens((system_prompt || '') + (userPromptStr || ''));
                 const outputTokens = calculateTokens(fullContent || '');
                 const totalTokens = inputTokens + outputTokens;
-                // 1 积分 = 3000 Tokens
-                const actualCost = Math.ceil(totalTokens / 3000);
+                // 根据用户选择的模型使用对应的积分汇率
+                // gemini-2.5-flash: 1积分=5000tokens, gemini-2.5-pro: 1积分=4000tokens, gemini-3-pro-preview: 1积分=3000tokens
+                const actualCost = Math.ceil(totalTokens / tokensPerCredit);
 
+                // 保存结果和 cost 到数据库（cost 用于退款时查询）
+                await supabaseAdmin
+                    .from('generation_tasks')
+                    .update({ result_code: sanitizedContent, status: 'completed', cost: actualCost })
+                    .eq('id', taskId);
+                console.log('结果保存成功');
+                
+                // 生成成功，现在扣除积分
                 console.log(`生成成功，Token统计: 输入=${inputTokens}, 输出=${outputTokens}, 总计=${totalTokens}`);
-                console.log(`扣除 ${actualCost} 积分 (汇率: 1积分=3000Tokens)...`);
+                console.log(`扣除 ${actualCost} 积分 (模型: ${modelName}, 汇率: 1积分=${tokensPerCredit}Tokens)...`);
 
                 const { data: finalProfile } = await supabaseAdmin
                     .from('profiles')

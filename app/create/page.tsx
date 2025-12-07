@@ -137,7 +137,34 @@ function CreateContent() {
     text: item.desc
   }));
 
+  // Model Configuration
+  type ModelType = 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'gemini-3-pro-preview';
+  const MODEL_CONFIG = {
+    'gemini-2.5-flash': { 
+      name: 'Gemini 2.5 Flash', 
+      tokensPerCredit: 5000, 
+      icon: '⚡', 
+      description: language === 'zh' ? '日常修改' : 'Daily edits',
+      subtitle: language === 'zh' ? '便宜快速，适合简单任务' : 'Fast & cheap for simple tasks'
+    },
+    'gemini-2.5-pro': { 
+      name: 'Gemini 2.5 Pro', 
+      tokensPerCredit: 4000, 
+      icon: '🚀', 
+      description: language === 'zh' ? '复杂任务' : 'Complex tasks',
+      subtitle: language === 'zh' ? '均衡性能，适合较复杂需求' : 'Balanced for moderate complexity'
+    },
+    'gemini-3-pro-preview': { 
+      name: 'Gemini 3 Pro', 
+      tokensPerCredit: 3000, 
+      icon: '🧠', 
+      description: language === 'zh' ? '高质量' : 'High quality',
+      subtitle: language === 'zh' ? '最强智能，复杂逻辑首选' : 'Most powerful for complex logic'
+    }
+  };
+
   // State: Generation
+  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-2.5-pro');
   const [generatedCode, setGeneratedCode] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [modificationCount, setModificationCount] = useState(0);
@@ -149,9 +176,9 @@ function CreateContent() {
   const [currentGenerationPrompt, setCurrentGenerationPrompt] = useState('');
   
   // State: History
-  const [codeHistory, setCodeHistory] = useState<{code: string, prompt: string, timestamp: number, type?: 'init' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback'}[]>([]);
+  const [codeHistory, setCodeHistory] = useState<{code: string, prompt: string, timestamp: number, type?: 'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback'}[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [lastOperationType, setLastOperationType] = useState<'init' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback'>('init');
+  const [lastOperationType, setLastOperationType] = useState<'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback'>('init');
 
   // State: Point-and-Click Edit
   const [isEditMode, setIsEditMode] = useState(false);
@@ -322,6 +349,7 @@ function CreateContent() {
     const fromUpload = searchParams.get('from') === 'upload';
     if (fromUpload) {
         const importedCode = localStorage.getItem('spark_upload_import');
+        const isFreshUpload = localStorage.getItem('spark_upload_fresh') === 'true';
         if (importedCode) {
             setGeneratedCode(importedCode);
             setStreamingCode(importedCode);
@@ -329,14 +357,16 @@ function CreateContent() {
             setWizardData(prev => ({ ...prev, description: 'Imported from Upload' }));
             
             // Initialize history with the imported code
+            // Mark as 'upload' type to enable first-edit optimizations
             setCodeHistory([{
                 code: importedCode,
                 prompt: 'Imported from Upload',
                 timestamp: Date.now(),
-                type: 'init'
+                type: isFreshUpload ? 'upload' : 'init'
             }]);
 
             localStorage.removeItem('spark_upload_import');
+            localStorage.removeItem('spark_upload_fresh');
             // Explicitly clear the old session key to prevent any mix-up
             localStorage.removeItem(STORAGE_KEY);
             setTimeout(() => toastSuccess(language === 'zh' ? '已加载上传的代码' : 'Loaded uploaded code'), 500);
@@ -408,11 +438,20 @@ function CreateContent() {
     }
   }, []);
 
+  // Helper to detect if current session is first edit on uploaded code
+  const isFirstEditOnUploadedCode = () => {
+    return codeHistory.length === 1 && codeHistory[0]?.type === 'upload';
+  };
+
   // Effect to resume monitoring if we have a task ID and are in generating state
   useEffect(() => {
     if (isGenerating && currentTaskId && !channelRef.current) {
         console.log('Resuming task monitoring for:', currentTaskId);
-        monitorTask(currentTaskId, false, false, promptLengthForLog);
+        const relaxedMode = isFirstEditOnUploadedCode();
+        if (relaxedMode) {
+            console.log('[Resume] Detected first edit on uploaded code - using relaxed mode');
+        }
+        monitorTask(currentTaskId, false, false, promptLengthForLog, '', relaxedMode);
     }
   }, [isGenerating, currentTaskId, promptLengthForLog]);
 
@@ -921,6 +960,13 @@ ${wizardData.description}`;
   };
 
   // --- Generation Logic ---
+  // 🔑 IMPLICIT CACHING OPTIMIZATION:
+  // Gemini caches request prefixes. We structure prompts so stable content comes FIRST:
+  // 1. EXISTING CODE (most stable - same across multiple edits)
+  // 2. FIXED INSTRUCTIONS (same structure every time)
+  // 3. CONVERSATION HISTORY (grows incrementally)
+  // 4. USER REQUEST (changes every time - put LAST)
+  
     const constructPrompt = (isModification = false, modificationRequest = '', forceFull = false, history: any[] = [], summary = '') => {
     const categoryLabel = t.categories[wizardData.category as keyof typeof t.categories] || 'App';
     const styleLabel = t.styles[wizardData.style as keyof typeof t.styles] || 'Modern';
@@ -940,7 +986,7 @@ ${wizardData.description}`;
       // Sanitize generatedCode to remove null bytes which Postgres hates
       const safeCode = generatedCode ? generatedCode.replace(/\u0000/g, '') : '';
 
-      // Format History
+      // Format History (placed BEFORE user request for caching)
       let historyContext = '';
       
       // Add Summary if exists
@@ -959,52 +1005,46 @@ ${wizardData.description}`;
       }
 
       if (forceFull) {
+        // 🔑 CACHE-OPTIMIZED ORDER: Code → Fixed Instructions → History → User Request
         return `# EXISTING CODE (for context)
 \`\`\`html
 ${safeCode}
 \`\`\`
 
-${historyContext ? `# CONVERSATION HISTORY\n${historyContext}\n` : ''}
-
-# USER REQUEST
-${modificationRequest}
-
-# TASK
+# TASK INSTRUCTIONS (Full Rewrite Mode)
 Based on the EXISTING CODE provided above, apply the user's request and output the COMPLETE updated HTML file.
 You MUST preserve all existing functionality and structure that is not related to the user's request.
 DO NOT start from scratch.
 
-# CONSTRAINTS
+## CONSTRAINTS
 - Maintain single-file structure
 - Use React 18 and Tailwind CSS
 - Preserve all existing features unless explicitly asked to remove them
 - Ensure the code is fully functional
 
-# OUTPUT FORMAT
+## OUTPUT FORMAT
 1. Start with: /// PLAN ///
 [Analyze the request and list the steps to rewrite the app in ${language === 'zh' ? 'Chinese' : 'English'}]
 ///
 2. Then output: /// STEP: ${language === 'zh' ? '重写应用' : 'Rewriting Application'} ///
 3. Then output the complete updated HTML file (no code blocks, no markdown)
 4. Finally: /// SUMMARY: [Brief summary in ${language === 'zh' ? 'Chinese' : 'English'}] ///
-`;
+
+${historyContext ? `# CONVERSATION HISTORY\n${historyContext}\n` : ''}
+# USER REQUEST
+${modificationRequest}`;
       }
 
-      // Diff模式：也将现有代码放在前面以利用缓存
+      // 🔑 CACHE-OPTIMIZED ORDER for Diff Mode: Code → Fixed Instructions → History → User Request
       return `# EXISTING CODE (for context)
 \`\`\`html
 ${safeCode}
 \`\`\`
 
-${historyContext ? `# CONVERSATION HISTORY\n${historyContext}\n` : ''}
-
-# USER REQUEST
-${modificationRequest}
-
-# TASK
+# TASK INSTRUCTIONS (Diff Mode)
 Modify the above code using the diff format specified in the system instructions.
 
-# OUTPUT REQUIREMENTS
+## OUTPUT FORMAT
 1. Start with: /// PLAN ///
 [Analyze the request and list the modification steps in ${language === 'zh' ? 'Chinese' : 'English'}]
 ///
@@ -1012,7 +1052,10 @@ Modify the above code using the diff format specified in the system instructions
 3. Then output one or more <<<<SEARCH...====...>>>> blocks
 4. Ensure SEARCH blocks match the original code EXACTLY (character-for-character, including all whitespace)
 5. Finally: /// SUMMARY: [Brief summary in ${language === 'zh' ? 'Chinese' : 'English'}] ///
-`;
+
+${historyContext ? `# CONVERSATION HISTORY\n${historyContext}\n` : ''}
+# USER REQUEST
+${modificationRequest}`;
     }
 
     const targetLang = language === 'zh' ? 'Chinese' : 'English';
@@ -1031,10 +1074,14 @@ ${description}
     `;
   };
 
-  const monitorTask = async (taskId: string, isModification = false, useDiffMode = false, fullPromptLength = 0, fullPromptText = '') => {
+  const monitorTask = async (taskId: string, isModification = false, useDiffMode = false, fullPromptLength = 0, fullPromptText = '', relaxedMode = false) => {
       let isFinished = false;
       let lastUpdateTimestamp = Date.now();
       let hasStartedStreaming = false;
+      
+      if (relaxedMode) {
+          console.log('[MonitorTask] Using relaxed patch matching mode');
+      }
 
       // Clear any existing intervals first
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
@@ -1230,7 +1277,7 @@ ${description}
                         console.log('AI Analysis:', analysisMatch[1].trim());
                     }
 
-                    const patched = applyPatches(generatedCode, rawCode);
+                    const patched = applyPatches(generatedCode, rawCode, relaxedMode);
                     
                     if (patched === generatedCode) {
                         console.warn('Patch applied but code is unchanged.');
@@ -1269,11 +1316,34 @@ ${description}
                 } catch (e: any) {
                     console.error('Patch failed:', e);
                     
-                    // Ask user for confirmation before full rewrite
-                    const cost = currentTaskCostRef.current || 0;
+                    // Helper to get cost - try ref first, then fetch from DB
+                    const getCost = async (): Promise<number> => {
+                        if (currentTaskCostRef.current && currentTaskCostRef.current > 0) {
+                            return currentTaskCostRef.current;
+                        }
+                        // Fallback: fetch from DB
+                        try {
+                            const { data: taskData } = await supabase
+                                .from('generation_tasks')
+                                .select('cost')
+                                .eq('id', taskId)
+                                .single();
+                            if (taskData?.cost && taskData.cost > 0) {
+                                console.log(`[Refund] Fetched cost from DB: ${taskData.cost}`);
+                                return taskData.cost;
+                            }
+                        } catch (err) {
+                            console.error('[Refund] Failed to fetch cost from DB:', err);
+                        }
+                        return 0;
+                    };
+                    
+                    const cost = await getCost();
+                    console.log(`[Patch Failed] Cost to refund: ${cost}`);
+                    
                     const confirmMessage = language === 'zh' 
-                        ? `智能修改遇到困难。是否尝试全量修复？\n\n注意：全量修复将消耗更多积分。\n无论您选择继续还是取消，本次修改消耗的 ${cost} 积分都将自动退回。`
-                        : `Smart edit encountered difficulties. Do you want to try a full repair?\n\nNote: Full repair will consume more credits.\nRegardless of your choice, the ${cost} credits consumed for this edit will be automatically refunded.`;
+                        ? `智能修改遇到困难。是否尝试全量修复？\n\n注意：全量修复将消耗更多积分。\n${cost > 0 ? `本次修改消耗的 ${cost} 积分将自动退回。` : ''}`
+                        : `Smart edit encountered difficulties. Do you want to try a full repair?\n\nNote: Full repair will consume more credits.\n${cost > 0 ? `The ${cost} credits consumed for this edit will be automatically refunded.` : ''}`;
                     
                     // Helper to process refund
                     const processRefund = async () => {
@@ -1504,7 +1574,7 @@ ${description}
       }, 3000);
   };
 
-  const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '', forceFull = false, explicitType?: 'init' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback') => {
+  const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '', forceFull = false, explicitType?: 'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback') => {
     // Reset cost ref for new task
     currentTaskCostRef.current = null;
 
@@ -1513,7 +1583,7 @@ ${description}
     const useDiffMode = isModification && !forceFull;
     
     // Determine operation type for the NEXT generation
-    let nextOperationType: 'init' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback' = 'init';
+    let nextOperationType: 'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback' = 'init';
     
     if (explicitType) {
         nextOperationType = explicitType;
@@ -2011,8 +2081,17 @@ Remember: You're building for production. Code must be clean, performant, and er
       const dbPrompt = isModification ? prompt : finalUserPrompt;
 
       console.log('Calling /api/generate with prompt length:', dbPrompt.length);
+      console.log('Selected model:', selectedModel);
 
       let response: Response;
+      
+      // Detect if this is the first edit on uploaded code (use helper)
+      const isFirstEditOnUpload = isModification && isFirstEditOnUploadedCode();
+      
+      if (isFirstEditOnUpload) {
+          console.log('[Create] First edit on uploaded code - will skip compression and use relaxed matching');
+      }
+      
       try {
         abortControllerRef.current = new AbortController();
         response = await fetch('/api/generate', {
@@ -2024,7 +2103,10 @@ Remember: You're building for production. Code must be clean, performant, and er
             type: isModification ? 'modification' : 'generation',
             system_prompt: SYSTEM_PROMPT,
             user_prompt: dbPrompt,
-            current_code: isModification ? generatedCode : undefined // Send current code for RAG analysis
+            current_code: isModification ? generatedCode : undefined, // Send current code for RAG analysis
+            is_first_edit: isFirstEditOnUpload, // Flag for first edit optimization
+            model: selectedModel, // User-selected model
+            tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit // Credit rate for selected model
             }),
             signal: abortControllerRef.current.signal
         });
@@ -2063,10 +2145,11 @@ Remember: You're building for production. Code must be clean, performant, and er
           if (safeOriginalCode && finalUserPrompt.includes(safeOriginalCode)) {
               finalUserPrompt = finalUserPrompt.replace(safeOriginalCode, safeCompressedCode);
               
-              // Add explicit warning about compression artifacts
-              finalUserPrompt += `\n\n### ⚠️ COMPRESSED CODE WARNING
-Some code sections show "... X lines omitted ...". These comments are NOT in the actual file.
-**RULE**: Never include omitted comments in SEARCH blocks. Use component signatures or real code as anchors.`;
+              // Add explicit warning about semantic compression
+              finalUserPrompt += `\n\n### ⚠️ SEMANTIC COMPRESSION NOTICE
+Some components are shown as \`@semantic-compressed\` with a summary of their Props/State/Handlers.
+These compressed components are NOT targets for modification - focus on the full components shown.
+**NEVER** include \`/* compressed */\` or \`@semantic-compressed\` in your SEARCH blocks.`;
 
               console.log('User Prompt compressed successfully.');
           } else {
@@ -2096,7 +2179,7 @@ Some code sections show "... X lines omitted ...". These comments are NOT in the
       setPromptLengthForLog(totalPromptLength);
 
       // Start monitoring immediately
-      monitorTask(taskId, isModification, useDiffMode, totalPromptLength, fullPromptText);
+      monitorTask(taskId, isModification, useDiffMode, totalPromptLength, fullPromptText, isFirstEditOnUpload);
 
       // Trigger Edge Function with Retry Logic
       const triggerGeneration = async () => {
@@ -2121,7 +2204,9 @@ Some code sections show "... X lines omitted ...". These comments are NOT in the
                         taskId, 
                         system_prompt: finalSystemPrompt, 
                         user_prompt: finalUserPrompt, 
-                        type: isModification ? 'modification' : 'generation'
+                        type: isModification ? 'modification' : 'generation',
+                        model: selectedModel,
+                        tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit
                     }),
                     signal: abortControllerRef.current?.signal
                 });
@@ -2920,7 +3005,31 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
 
         {/* Input Area */}
         <div className="p-3 lg:p-4 border-t border-slate-800 bg-slate-900 shrink-0 lg:mb-0">
-          <div className="flex justify-end mb-2">
+          {/* Model Selector & Full Repair Button Row */}
+          <div className="flex justify-between items-center mb-2 gap-2">
+            {/* Model Selector */}
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-slate-500 mr-1">{language === 'zh' ? '模型' : 'Model'}:</span>
+              <div className="flex gap-1">
+                {(Object.entries(MODEL_CONFIG) as [ModelType, typeof MODEL_CONFIG[ModelType]][]).map(([key, config]) => (
+                  <button
+                    key={key}
+                    onClick={() => setSelectedModel(key)}
+                    disabled={isGenerating}
+                    className={`text-xs px-2 py-1 rounded transition flex items-center gap-1 ${
+                      selectedModel === key
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+                    } disabled:opacity-50`}
+                    title={`${config.name}\n${config.subtitle}`}
+                  >
+                    <span>{config.icon}</span>
+                    <span className="hidden sm:inline">{config.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Full Repair Button */}
             <button
                 onClick={handleFullRepair}
                 disabled={isGenerating}

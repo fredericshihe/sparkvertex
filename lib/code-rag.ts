@@ -101,7 +101,73 @@ export function chunkCode(code: string): { id: string, content: string, type: st
     return chunks;
 }
 
-// 3. Compression Logic
+// Helper: Extract semantic signature from a component
+function extractComponentSignature(content: string): { 
+    props: string, 
+    state: string[], 
+    effects: string[],
+    handlers: string[],
+    renders: string 
+} {
+    const result: { props: string, state: string[], effects: string[], handlers: string[], renders: string } = {
+        props: '',
+        state: [],
+        effects: [],
+        handlers: [],
+        renders: ''
+    };
+    
+    // 1. Extract Props (from function parameters)
+    const propsMatch = content.match(/(?:const|function)\s+\w+\s*=?\s*\([\s\n]*\{?\s*([^)}]*?)\s*\}?[\s\n]*\)[\s\n]*(?:=>|{)/);
+    if (propsMatch && propsMatch[1].trim()) {
+        // Clean up: remove types, default values, keep just names
+        const propsRaw = propsMatch[1];
+        const propNames = propsRaw.split(',')
+            .map(p => p.split('=')[0].split(':')[0].trim())
+            .filter(p => p && !p.includes('{') && !p.includes('}'));
+        if (propNames.length > 0) {
+            result.props = propNames.join(', ');
+        }
+    }
+    
+    // 2. Extract State (useState calls) - limit to first 5
+    const stateMatches = Array.from(content.matchAll(/const\s+\[(\w+),\s*set(\w+)\]\s*=\s*useState(?:<[^>]+>)?\s*\(/g));
+    if (stateMatches.length > 0) {
+        result.state = stateMatches.slice(0, 5).map(m => m[1]);
+    }
+    
+    // 3. Extract Effects (useEffect patterns) - simplified
+    const effectMatches = Array.from(content.matchAll(/useEffect\s*\(\s*\(\)\s*=>\s*\{[\s\S]*?\},\s*\[([^\]]*)\]/g));
+    if (effectMatches.length > 0) {
+        result.effects = effectMatches.slice(0, 3).map(m => {
+            const deps = m[1].trim();
+            return deps ? `[${deps}]` : '[]';
+        });
+    }
+    
+    // 4. Extract Handler functions (const handleXxx = or function handleXxx)
+    const handlerMatches = Array.from(content.matchAll(/(?:const|function)\s+(handle\w+|on\w+)\s*=?\s*(?:\([^)]*\)|async\s*\([^)]*\))\s*(?:=>|{)/g));
+    if (handlerMatches.length > 0) {
+        result.handlers = handlerMatches.slice(0, 5).map(m => m[1]);
+    }
+    
+    // 5. Extract Root JSX element
+    const returnMatch = content.match(/return\s*\(\s*\n?\s*<(\w+)(?:\s+[^>]*)?>/);
+    if (returnMatch) {
+        // Try to get className for context
+        const classMatch = content.match(/return\s*\(\s*\n?\s*<\w+[^>]*className=["']([^"']+)["']/);
+        if (classMatch) {
+            const classes = classMatch[1].split(' ').slice(0, 3).join(' ');
+            result.renders = `<${returnMatch[1]} className="${classes}...">`;
+        } else {
+            result.renders = `<${returnMatch[1]}>`;
+        }
+    }
+    
+    return result;
+}
+
+// 3. Semantic Compression Logic
 export function compressCode(code: string, relevantChunkIds: string[]): string {
     const chunks = chunkCode(code);
     // Sort chunks by startIndex descending to replace from bottom up without messing indices
@@ -109,6 +175,7 @@ export function compressCode(code: string, relevantChunkIds: string[]): string {
     const jsChunks = chunks.filter(c => c.type === 'js' && c.startIndex !== undefined).sort((a, b) => b.startIndex! - a.startIndex!);
     
     let compressed = code;
+    let compressedCount = 0;
 
     for (const chunk of jsChunks) {
         // Always keep Imports/Setup and the last chunk (usually ReactDOM.render)
@@ -122,42 +189,43 @@ export function compressCode(code: string, relevantChunkIds: string[]): string {
         }
 
         if (!relevantChunkIds.includes(chunk.id)) {
-            // This chunk is irrelevant, compress it
+            // This chunk is irrelevant, apply semantic compression
             const lines = chunk.content.split('\n');
             
-            let replacement = '';
-            if (lines.length <= 15) {
-                // Small component: Keep full content (not worth compressing)
+            // Only compress if component is large enough (>20 lines)
+            if (lines.length <= 20) {
                 continue;
-            } else {
-                // Large component: Smart compression
-                // Keep: Header (first 5 lines) + Return statement region + Footer (last 3 lines)
-                const header = lines.slice(0, 5).join('\n');
-                const footer = lines.slice(-3).join('\n');
-                
-                // Find the return statement region (critical for UI modifications)
-                let returnRegion = '';
-                const returnIndex = lines.findIndex(l => /^\s*return\s*[\(\{]/.test(l) || /^\s*return\s*$/.test(l));
-                if (returnIndex !== -1 && returnIndex > 5 && returnIndex < lines.length - 5) {
-                    // Include 3 lines before and 5 lines after the return keyword
-                    const returnStart = Math.max(5, returnIndex - 2);
-                    const returnEnd = Math.min(lines.length - 3, returnIndex + 8);
-                    returnRegion = `\n  // ... middle code omitted ...\n${lines.slice(returnStart, returnEnd).join('\n')}`;
-                }
-                
-                const omittedCount = lines.length - 8 - (returnRegion ? 10 : 0);
-                if (omittedCount <= 5) {
-                    // Not enough to compress, keep full
-                    continue;
-                }
-                
-                replacement = `${header}${returnRegion}\n  // ... ${omittedCount} lines omitted (not relevant to current task) ...\n${footer}`;
             }
+            
+            const componentName = chunk.id.replace('component-', '');
+            const sig = extractComponentSignature(chunk.content);
+            
+            // Build semantic summary
+            const summaryParts: string[] = [];
+            if (sig.props) summaryParts.push(`Props: ${sig.props}`);
+            if (sig.state.length > 0) summaryParts.push(`State: ${sig.state.join(', ')}`);
+            if (sig.handlers.length > 0) summaryParts.push(`Handlers: ${sig.handlers.join(', ')}`);
+            if (sig.effects.length > 0) summaryParts.push(`Effects: ${sig.effects.length} useEffect(s)`);
+            if (sig.renders) summaryParts.push(`Renders: ${sig.renders}`);
+            
+            const summaryText = summaryParts.length > 0 
+                ? summaryParts.join(' | ') 
+                : `${lines.length} lines of logic`;
+            
+            // Create compressed replacement with semantic info
+            const replacement = `/** @semantic-compressed ${componentName} (${lines.length} lines)
+ * ${summaryText}
+ * ⚠️ DO NOT reference this component in SEARCH blocks - use actual code from relevant components
+ */
+const ${componentName} = ${sig.props ? `({ ${sig.props} })` : '()'} => { /* compressed */ };`;
 
-            // Perform replacement
-            // Since we are replacing in the original string, and we iterate backwards, indices are valid.
             compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
+            compressedCount++;
         }
+    }
+    
+    if (compressedCount > 0) {
+        console.log(`[Compression] Semantically compressed ${compressedCount} component(s)`);
     }
     
     return compressed;

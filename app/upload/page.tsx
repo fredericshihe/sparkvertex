@@ -1257,6 +1257,29 @@ function UploadContent() {
     }
   };
 
+  // Normalize uploaded code for better patch compatibility
+  const normalizeCode = (code: string): string => {
+    let normalized = code;
+    
+    // 1. Normalize line endings (CRLF -> LF)
+    normalized = normalized.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // 2. Trim trailing whitespace on each line (but preserve indentation)
+    normalized = normalized.split('\n').map(line => line.trimEnd()).join('\n');
+    
+    // 3. Ensure consistent indentation (convert tabs to 2 spaces)
+    normalized = normalized.replace(/\t/g, '  ');
+    
+    // 4. Remove excessive blank lines (max 2 consecutive)
+    normalized = normalized.replace(/\n{4,}/g, '\n\n\n');
+    
+    // 5. Ensure file ends with single newline
+    normalized = normalized.trimEnd() + '\n';
+    
+    console.log('[Upload] Code normalized for better patch compatibility');
+    return normalized;
+  };
+
   const handleEditInCreator = () => {
     if (!fileContent) return;
     
@@ -1268,7 +1291,11 @@ function UploadContent() {
       setAnalysisState({ status: 'idle' });
     }
     
-    localStorage.setItem('spark_upload_import', fileContent);
+    // Normalize the code before passing to creator
+    const normalizedCode = normalizeCode(fileContent);
+    localStorage.setItem('spark_upload_import', normalizedCode);
+    // Mark this as a fresh upload (for first-edit optimization)
+    localStorage.setItem('spark_upload_fresh', 'true');
     // Clear any existing creation session to ensure we start fresh with the uploaded code
     localStorage.removeItem('spark_create_session_v1');
     
