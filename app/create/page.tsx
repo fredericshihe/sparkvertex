@@ -1277,21 +1277,34 @@ ${description}
                     
                     // Helper to process refund
                     const processRefund = async () => {
+                        console.log('Processing refund. Cost:', cost);
                         if (cost > 0) {
                             try {
                                 toastSuccess(language === 'zh' ? '正在退回本次失败消耗的积分...' : 'Refunding credits for failed attempt...');
-                                await fetch('/api/refund', {
+                                const res = await fetch('/api/refund', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ taskId: taskId, amount: cost })
                                 });
-                                // Update local credits
+
+                                if (!res.ok) {
+                                    throw new Error(`Refund API failed: ${res.status}`);
+                                }
+
+                                // Update local credits immediately for UI feedback
                                 setCredits(prev => prev + cost);
                                 toastSuccess(language === 'zh' ? '积分已退回' : 'Credits refunded');
+                                
+                                // Sync with DB to ensure consistency (and fix potential race conditions)
+                                setTimeout(() => {
+                                    checkAuth();
+                                }, 1000);
                             } catch (err) {
                                 console.error('Refund failed', err);
                                 toastError(language === 'zh' ? '积分退回失败，请联系客服' : 'Refund failed, please contact support');
                             }
+                        } else {
+                            console.warn('Cost is 0 or null, skipping refund.');
                         }
                     };
 
@@ -1538,7 +1551,21 @@ ${description}
         return;
       }
 
-      if (credits < MIN_REQUIRED) {
+      // Fetch latest credits to ensure accuracy (especially after refund)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('credits')
+        .eq('id', session.user.id)
+        .single();
+      
+      const currentCredits = profile?.credits !== undefined ? Number(profile.credits) : credits;
+      
+      // Update local state if different
+      if (currentCredits !== credits) {
+          setCredits(currentCredits);
+      }
+
+      if (currentCredits < MIN_REQUIRED) {
         openCreditPurchaseModal();
         return;
       }
@@ -2382,6 +2409,20 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
     setRuntimeError(null);
   };
 
+  const handleFullRepair = () => {
+    if (isGenerating) return;
+    
+    const prompt = currentGenerationPrompt || wizardData.description || (language === 'zh' ? '修复应用' : 'Fix App');
+    
+    const confirmMsg = language === 'zh' 
+        ? '全量修复将基于您最后一次的描述重新生成整个应用代码。这将消耗更多积分，但能解决大部分代码结构问题。是否继续？'
+        : 'Full Repair will regenerate the entire app code based on your last description. This costs more credits but fixes most structural issues. Continue?';
+        
+    if (confirm(confirmMsg)) {
+        startGeneration(true, prompt, '', true, 'fix');
+    }
+  };
+
   const renderHistoryModal = () => {
     if (!showHistoryModal) return null;
     
@@ -2906,6 +2947,17 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
 
         {/* Input Area */}
         <div className="p-3 lg:p-4 border-t border-slate-800 bg-slate-900 shrink-0 lg:mb-0">
+          <div className="flex justify-end mb-2">
+            <button
+                onClick={handleFullRepair}
+                disabled={isGenerating}
+                className="text-xs flex items-center gap-1.5 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition border border-slate-700"
+                title={language === 'zh' ? '基于当前描述重新生成完整代码' : 'Regenerate full code based on current description'}
+            >
+                <i className="fa-solid fa-screwdriver-wrench"></i>
+                {language === 'zh' ? '全量修复' : 'Full Repair'}
+            </button>
+          </div>
           <div className="relative">
             <input
               type="text"

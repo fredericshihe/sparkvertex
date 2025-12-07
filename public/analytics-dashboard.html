@@ -429,6 +429,22 @@
             .nav-item { margin: 0 0.5rem; }
             .main-content { height: calc(100vh - 60px); }
         }
+
+        /* Activity Page Specific Styles */
+        .stat-icon.green { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .stat-icon.blue { background: rgba(59, 130, 246, 0.2); color: var(--info); }
+        .stat-icon.purple { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
+        .stat-icon.yellow { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .stat-icon.red { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        
+        .badge-green { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .badge-blue { background: rgba(59, 130, 246, 0.2); color: var(--info); }
+        .badge-yellow { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
     </style>
 </head>
 <body>
@@ -440,15 +456,15 @@
                 <span class="brand-name">SparkVertex</span>
             </div>
             <nav class="nav-menu">
-                <a href="#" class="nav-item active">
+                <a href="#" class="nav-item active" id="nav-overview" onclick="switchTab('overview'); return false;">
                     <i class="fa-solid fa-chart-line"></i>
                     <span>总览 Dashboard</span>
                 </a>
-                <a href="/analytics-activity.html" class="nav-item">
+                <a href="#" class="nav-item" id="nav-activity" onclick="switchTab('activity'); return false;">
                     <i class="fa-solid fa-fire"></i>
                     <span>活跃度追踪</span>
                 </a>
-                <a href="#" class="nav-item">
+                <a href="#" class="nav-item" id="nav-users" onclick="switchTab('users'); return false;">
                     <i class="fa-solid fa-users"></i>
                     <span>用户管理</span>
                 </a>
@@ -465,6 +481,7 @@
 
         <!-- Main Content -->
         <main class="main-content">
+            <div id="view-overview">
             <header class="top-header">
                 <h1 class="page-title">数据总览</h1>
                 <div class="header-actions">
@@ -689,6 +706,227 @@
                 </div>
 
             </div>
+            </div> <!-- End view-overview -->
+
+            <!-- Activity View -->
+            <div id="view-activity" style="display: none; padding: 2rem;">
+                <header class="top-header" style="margin-bottom: 2rem; background: transparent; border: none; padding: 0;">
+                    <h1 class="page-title">
+                        <i class="fa-solid fa-fire" style="color: var(--primary); margin-right: 0.5rem;"></i>
+                        用户活跃度追踪
+                    </h1>
+                    <div class="header-actions">
+                        <div class="realtime-indicator" style="display: flex; align-items: center; gap: 0.5rem; color: var(--success); font-size: 0.875rem;">
+                            <div class="pulse" style="width: 8px; height: 8px; background: var(--success); border-radius: 50%; animation: pulse 2s infinite;"></div>
+                            <span>实时监控中</span>
+                        </div>
+                        <span class="last-updated" id="activityLastUpdated">更新于: --:--:--</span>
+                        <button class="refresh-btn" onclick="loadActivityData()" id="activityRefreshBtn">
+                            <i class="fa-solid fa-rotate-right"></i> 刷新数据
+                        </button>
+                    </div>
+                </header>
+
+                <!-- Key Stats -->
+                <section class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+                        <div class="stat-value" id="activeUsers">0</div>
+                        <div class="stat-label">实时活跃用户 (30分钟)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <i class="fa-solid fa-fire"></i>
+                        </div>
+                        <div class="stat-value" id="todayActions">0</div>
+                        <div class="stat-label">今日总操作数</div>
+                        <div class="stat-trend" id="actionsTrend"></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">
+                            <i class="fa-solid fa-coins"></i>
+                        </div>
+                        <div class="stat-value" id="todayCredits">0</div>
+                        <div class="stat-label">今日积分消耗</div>
+                        <div class="stat-trend" id="creditsTrend"></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon yellow">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        </div>
+                        <div class="stat-value" id="todayCreates">0</div>
+                        <div class="stat-label">今日创建数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red">
+                            <i class="fa-solid fa-pencil"></i>
+                        </div>
+                        <div class="stat-value" id="todayModifies">0</div>
+                        <div class="stat-label">今日修改数</div>
+                    </div>
+                </section>
+
+                <!-- Charts -->
+                <section class="charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    <!-- Daily Activity Trend -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">📈 每日活跃度趋势 (30天)</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="dailyActivityChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Credits Consumption -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">💰 积分消耗速度 (7天)</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="creditsChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Hourly Distribution -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">🕐 小时活跃分布</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="hourlyChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Create vs Modify -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">⚡ 创建 vs 修改 (7天)</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="actionTypeChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Tables Grid -->
+                <div class="charts-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    <!-- Realtime Active Users -->
+                    <div class="table-card">
+                        <div class="table-header">
+                            <h3 class="table-title">🟢 实时活跃用户</h3>
+                            <span class="badge badge-green" id="activeCount">0 在线</span>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>用户</th>
+                                        <th>最后操作</th>
+                                        <th>时间</th>
+                                        <th>消耗积分</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="activeUsersTable">
+                                    <tr><td colspan="4" style="text-align:center; color: var(--text-muted);">加载中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Top Active Users -->
+                    <div class="table-card">
+                        <div class="table-header">
+                            <h3 class="table-title">🏆 活跃用户排行 (7天)</h3>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>用户</th>
+                                        <th>操作数</th>
+                                        <th>消耗积分</th>
+                                        <th>活跃天数</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="topUsersTableActivity">
+                                    <tr><td colspan="5" style="text-align:center; color: var(--text-muted);">加载中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Retention -->
+                <div class="table-card">
+                    <div class="table-header">
+                        <h3 class="table-title">📊 用户留存率分析</h3>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>注册日期</th>
+                                    <th>新增用户</th>
+                                    <th>次日留存</th>
+                                    <th>3日留存</th>
+                                    <th>7日留存</th>
+                                </tr>
+                            </thead>
+                            <tbody id="retentionTable">
+                                <tr><td colspan="5" style="text-align:center; color: var(--text-muted);">加载中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users View -->
+            <div id="view-users" style="display: none; padding: 2rem;">
+                <header class="top-header" style="margin-bottom: 2rem; background: transparent; border: none; padding: 0;">
+                    <h1 class="page-title">
+                        <i class="fa-solid fa-users" style="color: var(--primary); margin-right: 0.5rem;"></i>
+                        用户管理
+                    </h1>
+                    <div class="header-actions">
+                        <span class="last-updated" id="usersLastUpdated">更新于: --:--:--</span>
+                        <button class="refresh-btn" onclick="loadData()" id="usersRefreshBtn">
+                            <i class="fa-solid fa-rotate-right"></i> 刷新数据
+                        </button>
+                    </div>
+                </header>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">所有用户</h3>
+                        <div style="display: flex; gap: 1rem;">
+                            <input type="text" id="userSearch" placeholder="搜索用户..." onkeyup="filterUsers()" style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 0.375rem; font-size: 0.875rem; width: 250px;">
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="allUsersTable">
+                            <thead>
+                                <tr>
+                                    <th>头像</th>
+                                    <th>用户名</th>
+                                    <th>全名</th>
+                                    <th>邮箱</th>
+                                    <th>积分</th>
+                                    <th>注册时间</th>
+                                    <th>最后签到</th>
+                                    <th>ID</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="8" style="text-align:center; color: var(--text-muted);">加载中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -778,6 +1016,73 @@
             calculateMetrics(users, orders, healthData);
             renderCharts(users, orders);
             renderTables(users, orders);
+            renderAllUsersTable(users);
+        }
+
+        let allUsersCache = [];
+
+        function renderAllUsersTable(users) {
+            allUsersCache = users;
+            const tbody = document.querySelector('#allUsersTable tbody');
+            if (!users.length) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">暂无数据</td></tr>';
+                return;
+            }
+            
+            const html = users.map(u => `
+                <tr>
+                    <td>
+                        <img src="${u.avatar_url || 'https://via.placeholder.com/32'}" alt="Avatar" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;" onerror="this.src='https://via.placeholder.com/32'">
+                    </td>
+                    <td style="font-weight: 500;">${u.username || '-'}</td>
+                    <td>${u.full_name || '-'}</td>
+                    <td style="color: var(--text-muted);">${u.email || '-'}</td>
+                    <td style="font-weight: 600; color: var(--primary);">${parseFloat(u.credits || 0).toFixed(1)}</td>
+                    <td style="color: var(--text-muted);">${new Date(u.created_at).toLocaleString()}</td>
+                    <td style="color: var(--text-muted);">${u.last_daily_bonus_at ? new Date(u.last_daily_bonus_at).toLocaleDateString() : '-'}</td>
+                    <td style="font-family: monospace; font-size: 0.75rem; color: var(--text-muted);">${u.id}</td>
+                </tr>
+            `).join('');
+            
+            tbody.innerHTML = html;
+            
+            const lastUpdatedEl = document.getElementById('usersLastUpdated');
+            if (lastUpdatedEl) {
+                lastUpdatedEl.textContent = `更新于: ${new Date().toLocaleTimeString()}`;
+            }
+        }
+
+        function filterUsers() {
+            const query = document.getElementById('userSearch').value.toLowerCase();
+            const filtered = allUsersCache.filter(u => 
+                (u.username && u.username.toLowerCase().includes(query)) ||
+                (u.full_name && u.full_name.toLowerCase().includes(query)) ||
+                (u.email && u.email.toLowerCase().includes(query)) ||
+                (u.id && u.id.toLowerCase().includes(query))
+            );
+            
+            const tbody = document.querySelector('#allUsersTable tbody');
+            if (!filtered.length) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">未找到匹配用户</td></tr>';
+                return;
+            }
+            
+            const html = filtered.map(u => `
+                <tr>
+                    <td>
+                        <img src="${u.avatar_url || 'https://via.placeholder.com/32'}" alt="Avatar" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;" onerror="this.src='https://via.placeholder.com/32'">
+                    </td>
+                    <td style="font-weight: 500;">${u.username || '-'}</td>
+                    <td>${u.full_name || '-'}</td>
+                    <td style="color: var(--text-muted);">${u.email || '-'}</td>
+                    <td style="font-weight: 600; color: var(--primary);">${parseFloat(u.credits || 0).toFixed(1)}</td>
+                    <td style="color: var(--text-muted);">${new Date(u.created_at).toLocaleString()}</td>
+                    <td style="color: var(--text-muted);">${u.last_daily_bonus_at ? new Date(u.last_daily_bonus_at).toLocaleDateString() : '-'}</td>
+                    <td style="font-family: monospace; font-size: 0.75rem; color: var(--text-muted);">${u.id}</td>
+                </tr>
+            `).join('');
+            
+            tbody.innerHTML = html;
         }
 
         function calculateMetrics(users, orders, healthData) {
@@ -1047,6 +1352,378 @@
         // Init
         window.addEventListener('load', loadData);
         setInterval(loadData, 30000); // Auto refresh every 30s
+
+        // ==========================================
+        // Activity Tracking Logic
+        // ==========================================
+        
+        let activityCharts = {};
+        let rpcAvailable = true;
+
+        function switchTab(tabId) {
+            // Update Nav
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            
+            let navId = 'nav-overview';
+            if (tabId === 'activity') navId = 'nav-activity';
+            if (tabId === 'users') navId = 'nav-users';
+            
+            const navEl = document.getElementById(navId);
+            if (navEl) navEl.classList.add('active');
+
+            // Update View
+            document.getElementById('view-overview').style.display = tabId === 'overview' ? 'block' : 'none';
+            document.getElementById('view-activity').style.display = tabId === 'activity' ? 'block' : 'none';
+            document.getElementById('view-users').style.display = tabId === 'users' ? 'block' : 'none';
+
+            // Load data if needed
+            if (tabId === 'activity') {
+                loadActivityData();
+            } else if (tabId === 'users') {
+                loadData();
+            }
+        }
+
+        function showActivityLoading(show) {
+            const btn = document.getElementById('activityRefreshBtn');
+            if (btn) {
+                btn.disabled = show;
+                btn.innerHTML = show 
+                    ? '<i class="fa-solid fa-spinner fa-spin"></i> 加载中...'
+                    : '<i class="fa-solid fa-rotate-right"></i> 刷新数据';
+            }
+        }
+
+        function showSetupGuide() {
+            const view = document.getElementById('view-activity');
+            view.innerHTML = `
+                <div style="max-width: 800px; margin: 0 auto; padding: 2rem;">
+                    <div style="background: linear-gradient(135deg, #1e293b, #334155); border-radius: 16px; padding: 2rem; border: 1px solid #475569;">
+                        <h2 style="color: #fbbf24; margin-bottom: 1rem;">
+                            <i class="fa-solid fa-database"></i> 数据库设置指南
+                        </h2>
+                        <p style="color: #94a3b8; margin-bottom: 1.5rem;">
+                            用户活跃度追踪功能需要先在 Supabase 中执行数据库迁移脚本。请按以下步骤操作：
+                        </p>
+                        <div style="background: #0f172a; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                            <h3 style="color: #60a5fa; margin-bottom: 1rem;">
+                                <i class="fa-solid fa-list-ol"></i> 操作步骤
+                            </h3>
+                            <ol style="color: #e2e8f0; line-height: 2;">
+                                <li>登录到 <a href="https://supabase.com/dashboard" target="_blank" style="color: #22d3ee;">Supabase Dashboard</a></li>
+                                <li>选择你的项目</li>
+                                <li>进入 <strong>SQL Editor</strong></li>
+                                <li>点击 <strong>New Query</strong></li>
+                                <li>复制并粘贴 <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">supabase/migrations/20251207_add_analytics_tables.sql</code> 文件的内容</li>
+                                <li>点击 <strong>Run</strong> 执行 SQL</li>
+                                <li>刷新此页面</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getActionLabel(type) {
+            const labels = {
+                'create': '创建应用',
+                'modify': '修改应用',
+                'login': '登录',
+                'publish': '发布',
+                'purchase': '购买积分'
+            };
+            return labels[type] || type;
+        }
+
+        function formatTime(dateStr) {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = (now - date) / 1000;
+            
+            if (diff < 60) return '刚刚';
+            if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+            if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+            return date.toLocaleDateString();
+        }
+
+        async function loadActivityData() {
+            showActivityLoading(true);
+            try {
+                // Check RPC
+                const testResult = await supabase.rpc('get_daily_activity_trend', { p_days: 1 });
+                if (testResult.error && testResult.error.message.includes('function')) {
+                    rpcAvailable = false;
+                    showSetupGuide();
+                    showActivityLoading(false);
+                    return;
+                }
+
+                const [
+                    dailyTrend,
+                    hourlyDist,
+                    creditStats,
+                    activeUsers,
+                    userStats,
+                    retention
+                ] = await Promise.all([
+                    supabase.rpc('get_daily_activity_trend', { p_days: 30 }),
+                    supabase.rpc('get_hourly_activity_distribution'),
+                    supabase.rpc('get_credits_consumption_stats', { p_days: 7 }),
+                    supabase.rpc('get_realtime_active_users', { p_minutes: 30 }),
+                    supabase.rpc('get_user_activity_stats'),
+                    supabase.rpc('get_user_retention', { p_cohort_days: 14 })
+                ]);
+
+                const handleResult = (result) => result.error ? [] : (result.data || []);
+
+                const dailyData = handleResult(dailyTrend);
+                const hourlyData = handleResult(hourlyDist);
+                const creditsData = handleResult(creditStats);
+                const activeData = handleResult(activeUsers);
+                const statsData = handleResult(userStats);
+                const retentionData = handleResult(retention);
+
+                updateActivityStats(dailyData, creditsData, activeData);
+                renderDailyChart(dailyData);
+                renderHourlyChart(hourlyData);
+                renderCreditsChart(creditsData);
+                renderActionTypeChart(dailyData);
+                renderActiveUsersTable(activeData);
+                renderTopUsersTableActivity(statsData);
+                renderRetentionTable(retentionData);
+                
+                document.getElementById('activityLastUpdated').textContent = `更新于: ${new Date().toLocaleTimeString()}`;
+
+            } catch (error) {
+                console.error('Activity Load error:', error);
+                showError('加载活跃度数据失败: ' + error.message);
+            } finally {
+                showActivityLoading(false);
+            }
+        }
+
+        function updateActivityStats(dailyData, creditsData, activeData) {
+            document.getElementById('activeUsers').textContent = activeData.length;
+            document.getElementById('activeCount').textContent = `${activeData.length} 在线`;
+
+            const today = dailyData[dailyData.length - 1] || {};
+            const yesterday = dailyData[dailyData.length - 2] || {};
+
+            document.getElementById('todayActions').textContent = today.total_actions || 0;
+            document.getElementById('todayCreates').textContent = today.create_count || 0;
+            document.getElementById('todayModifies').textContent = today.modify_count || 0;
+
+            const todayCredits = creditsData[creditsData.length - 1] || {};
+            const yesterdayCredits = creditsData[creditsData.length - 2] || {};
+            document.getElementById('todayCredits').textContent = Number(todayCredits.total_consumed || 0).toFixed(1);
+
+            const actionChange = (today.total_actions || 0) - (yesterday.total_actions || 0);
+            const creditChange = (todayCredits.total_consumed || 0) - (yesterdayCredits.total_consumed || 0);
+
+            document.getElementById('actionsTrend').innerHTML = actionChange >= 0
+                ? `<i class="fa-solid fa-arrow-up"></i> <span class="trend-up">+${actionChange} 较昨日</span>`
+                : `<i class="fa-solid fa-arrow-down"></i> <span class="trend-down">${actionChange} 较昨日</span>`;
+
+            document.getElementById('creditsTrend').innerHTML = creditChange >= 0
+                ? `<i class="fa-solid fa-arrow-up"></i> <span class="trend-up">+${creditChange.toFixed(1)} 较昨日</span>`
+                : `<i class="fa-solid fa-arrow-down"></i> <span class="trend-down">${creditChange.toFixed(1)} 较昨日</span>`;
+        }
+
+        function renderDailyChart(data) {
+            const ctx = document.getElementById('dailyActivityChart');
+            if (activityCharts.daily) activityCharts.daily.destroy();
+
+            activityCharts.daily = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => new Date(d.activity_date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })),
+                    datasets: [
+                        {
+                            label: '活跃用户',
+                            data: data.map(d => d.unique_users),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: '新增用户',
+                            data: data.map(d => d.new_users),
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        function renderHourlyChart(data) {
+            const ctx = document.getElementById('hourlyChart');
+            if (activityCharts.hourly) activityCharts.hourly.destroy();
+
+            const hours = new Array(24).fill(0);
+            data.forEach(d => { hours[d.hour_of_day] = d.action_count; });
+
+            activityCharts.hourly = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: hours.map((_, i) => `${i}:00`),
+                    datasets: [{
+                        label: '操作数',
+                        data: hours,
+                        backgroundColor: '#8b5cf6',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        function renderCreditsChart(data) {
+            const ctx = document.getElementById('creditsChart');
+            if (activityCharts.credits) activityCharts.credits.destroy();
+
+            activityCharts.credits = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => new Date(d.stat_date).toLocaleDateString('zh-CN', { weekday: 'short' })),
+                    datasets: [
+                        {
+                            label: '创建消耗',
+                            data: data.map(d => d.create_consumed),
+                            backgroundColor: '#f59e0b',
+                            stack: 'total'
+                        },
+                        {
+                            label: '修改消耗',
+                            data: data.map(d => d.modify_consumed),
+                            backgroundColor: '#ef4444',
+                            stack: 'total'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
+                }
+            });
+        }
+
+        function renderActionTypeChart(data) {
+            const ctx = document.getElementById('actionTypeChart');
+            if (activityCharts.actionType) activityCharts.actionType.destroy();
+
+            const last7Days = data.slice(-7);
+            
+            activityCharts.actionType = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: last7Days.map(d => new Date(d.activity_date).toLocaleDateString('zh-CN', { weekday: 'short' })),
+                    datasets: [
+                        {
+                            label: '创建',
+                            data: last7Days.map(d => d.create_count),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: '修改',
+                            data: last7Days.map(d => d.modify_count),
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        function renderActiveUsersTable(data) {
+            const tbody = document.getElementById('activeUsersTable');
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color: var(--text-muted);">当前没有活跃用户</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.slice(0, 10).map(u => `
+                <tr>
+                    <td>
+                        <div style="font-weight: 500;">${u.username || '用户'}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${u.email || ''}</div>
+                    </td>
+                    <td><span class="badge badge-blue">${getActionLabel(u.last_action)}</span></td>
+                    <td style="color: var(--text-muted);">${formatTime(u.last_action_time)}</td>
+                    <td style="font-weight: 600; color: var(--warning);">${Number(u.credits_consumed_in_period || 0).toFixed(1)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function renderTopUsersTableActivity(data) {
+            const tbody = document.getElementById('topUsersTableActivity');
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">暂无数据</td></tr>';
+                return;
+            }
+            const activeUsers = data.filter(u => u.total_actions > 0).slice(0, 10);
+            if (!activeUsers.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">暂无活跃用户</td></tr>';
+                return;
+            }
+            tbody.innerHTML = activeUsers.map((u, i) => `
+                <tr>
+                    <td style="font-weight: 600; color: ${i < 3 ? 'var(--warning)' : 'var(--text-main)'};">
+                        ${i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1}
+                    </td>
+                    <td>
+                        <div style="font-weight: 500;">${u.username || '用户'}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">${u.email || ''}</div>
+                    </td>
+                    <td style="font-weight: 600;">${u.total_actions}</td>
+                    <td style="color: var(--warning);">${Number(u.total_credits_consumed || 0).toFixed(1)}</td>
+                    <td><span class="badge badge-green">${u.activity_days}天</span></td>
+                </tr>
+            `).join('');
+        }
+
+        function renderRetentionTable(data) {
+            const tbody = document.getElementById('retentionTable');
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-muted);">暂无数据</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.slice(0, 7).map(r => `
+                <tr>
+                    <td>${new Date(r.cohort_date).toLocaleDateString()}</td>
+                    <td style="font-weight: 600;">${r.cohort_size}</td>
+                    <td><span class="badge ${r.day_1_rate >= 30 ? 'badge-green' : 'badge-yellow'}">${r.day_1_rate || 0}%</span></td>
+                    <td><span class="badge ${r.day_3_rate >= 20 ? 'badge-green' : 'badge-yellow'}">${r.day_3_rate || 0}%</span></td>
+                    <td><span class="badge ${r.day_7_rate >= 10 ? 'badge-green' : 'badge-yellow'}">${r.day_7_rate || 0}%</span></td>
+                </tr>
+            `).join('');
+        }
 
     </script>
 </body>

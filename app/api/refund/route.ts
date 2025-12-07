@@ -62,10 +62,11 @@ export async function POST(request: Request) {
     }
 
     // 4. Refund Credits
-    // Note: We are trusting the client provided amount matches the task cost or logic.
-    // Ideally we should use task.cost, but the client might be refunding a partial amount or specific logic.
-    // For now, let's use the passed amount but verify it doesn't exceed task cost?
-    // Actually, let's just use the passed amount as the user requested "refund the deducted credits".
+    // Ensure amount is a number
+    const refundAmount = Number(amount);
+    if (isNaN(refundAmount) || refundAmount <= 0) {
+        return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+    }
     
     // Fetch current credits first to ensure atomic-like update (though not truly atomic without RPC)
     const { data: profile, error: profileError } = await adminSupabase
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const newCredits = (profile.credits || 0) + amount;
+    const newCredits = (Number(profile.credits) || 0) + refundAmount;
 
     const { error: updateError } = await adminSupabase
         .from('profiles')
