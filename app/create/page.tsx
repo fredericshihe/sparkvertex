@@ -789,16 +789,12 @@ function CreateContent() {
         }
     }
 
-    // 5. Refresh Credits (Backend will handle refund automatically)
-    // 注意：后端Edge Function会检测到客户端断开并自动退款
-    // 这里只需刷新积分余额即可
+    // 5. Refresh Credits (取消时还未扣费，无需退款)
+    // 后端Edge Function会检测到客户端断开，任务标记为cancelled，不扣积分
     checkAuth(); // 刷新积分余额
     
-    if (refundCost > 0) {
-        toastSuccess(language === 'zh' ? `已取消生成，积分将自动退还` : `Generation cancelled, credits will be refunded`);
-    } else {
-        toastSuccess(language === 'zh' ? '已取消生成' : 'Generation cancelled');
-    }
+    // 取消时还没扣费，所以不需要退款提示
+    toastSuccess(language === 'zh' ? '已取消生成' : 'Generation cancelled');
 
     // 6. Reset State
     setIsGenerating(false);
@@ -1494,6 +1490,10 @@ ${description}
                 friendlyError = language === 'zh' ? '生成超时 (504)，请尝试简化描述或稍后重试。' : 'Gateway Timeout (504), please simplify your request or try again later.';
             } else if (friendlyError.includes('429')) {
                 friendlyError = language === 'zh' ? '请求过于频繁 (429)，请稍作休息。' : 'Too Many Requests (429), please take a break.';
+            } else if (friendlyError.includes('响应不完整') || friendlyError.includes('incomplete')) {
+                friendlyError = language === 'zh' ? 'AI 响应不完整，可能是网络波动或服务繁忙。请重新发送您的请求。' : 'AI response was incomplete. Please try sending your request again.';
+            } else if (friendlyError.includes('格式不完整')) {
+                friendlyError = language === 'zh' ? 'AI 返回的修改格式不完整，请重新发送您的请求。' : 'AI returned incomplete modification format. Please try again.';
             }
 
             toastError(friendlyError);

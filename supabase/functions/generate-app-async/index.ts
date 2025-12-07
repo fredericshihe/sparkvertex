@@ -301,6 +301,17 @@ serve(async (req) => {
                                   const content = data.choices?.[0]?.delta?.content || '';
                                   fullContent += content;
                                   
+                                  // 检查 finish_reason 来判断是否正常结束
+                                  const finishReason = data.choices?.[0]?.finish_reason;
+                                  if (finishReason) {
+                                      console.log(`AI 完成原因: ${finishReason}`);
+                                      if (finishReason === 'length') {
+                                          console.warn('⚠️ AI 输出被截断 (达到 max_tokens 限制)');
+                                      } else if (finishReason === 'safety') {
+                                          console.warn('⚠️ AI 输出被安全过滤器截断');
+                                      }
+                                  }
+                                  
                                   // 隐式缓存监控：检查usage_metadata以追踪缓存命中情况
                                   // Gemini会在响应中返回cached_content_token_count
                                   if (data.usage_metadata) {
@@ -403,6 +414,44 @@ serve(async (req) => {
                 }
                 
                 console.log(`清洗后内容长度: ${cleanContent.length}`);
+                
+                // 检查响应是否完整
+                // 1. 如果只有PLAN没有代码，说明AI响应被截断
+                const hasPlan = cleanContent.includes('/// PLAN') || cleanContent.includes('PLAN:');
+                const hasPatchFormat = cleanContent.includes('<<<<SEARCH') || cleanContent.includes('<<<< SEARCH');
+                const hasHtmlFormat = cleanContent.includes('<!DOCTYPE') || cleanContent.includes('<html');
+                const hasValidCode = hasPatchFormat || hasHtmlFormat;
+                
+                // 2. 检查是否是不完整的响应（只有思维/计划，没有代码）
+                const isIncompleteResponse = (hasPlan && !hasValidCode && cleanContent.length < 2000) ||
+                                             (cleanContent.length < 500 && !hasValidCode);
+                
+                if (isIncompleteResponse) {
+                    console.error('❌ AI响应不完整');
+                    console.log('响应长度:', cleanContent.length);
+                    console.log('包含PLAN:', hasPlan);
+                    console.log('包含Patch格式:', hasPatchFormat);
+                    console.log('包含HTML格式:', hasHtmlFormat);
+                    console.log('原始内容预览:', fullContent.substring(0, 800));
+                    
+                    // 不保存不完整的结果，标记为失败，让前端显示友好错误
+                    throw new Error('AI 生成响应不完整（可能是网络中断或服务繁忙），请重试');
+                }
+                
+                // 3. 额外检查：Patch模式下确保有完整的SEARCH/REPLACE块
+                if (hasPatchFormat) {
+                    const searchCount = (cleanContent.match(/<<<<\s*SEARCH/g) || []).length;
+                    const replaceCount = (cleanContent.match(/>>>>\s*REPLACE/g) || []).length;
+                    
+                    if (searchCount === 0 || replaceCount === 0) {
+                        console.error('❌ Patch格式不完整: SEARCH=' + searchCount + ', REPLACE=' + replaceCount);
+                        throw new Error('AI 返回的修改格式不完整，请重试');
+                    }
+                    
+                    if (searchCount !== replaceCount) {
+                        console.warn('⚠️ Patch块数量不匹配: SEARCH=' + searchCount + ', REPLACE=' + replaceCount);
+                    }
+                }
 
                 // 安全修复：移除会导致 JS 崩溃的 Python 风格 Unicode 转义
                 const sanitizedContent = cleanContent.replace(/\\U([0-9a-fA-F]{8})/g, (match, p1) => {
