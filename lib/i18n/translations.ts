@@ -72,7 +72,7 @@ export const translations = {
       logout: '退出',
       credits: '当前积分',
       daily_bonus: '每日登录赠送 2 积分',
-      create_cost: '创建消耗 15 积分，修改消耗 5 积分',
+      create_cost: '按实际生成代码量动态计费',
       tabs: {
         works: '我的作品',
         purchased: '已购买',
@@ -108,32 +108,32 @@ export const translations = {
           badge: '入门首选',
           slogan: '一杯奶茶钱，体验全球最强 AI 编程',
           unit_price: '¥0.17 / 积分',
-          benefit_1: '可创建 8 个 完整应用',
-          benefit_2: '或进行 24 次 深度修改'
+          benefit_1: '轻松创建多个完整应用',
+          benefit_2: '每一分钱都花在刀刃上'
         },
         standard: { 
           name: '创作者包', 
           badge: '深度开发',
           slogan: '平均每个应用成本不到 5 元，打造你的专属 App 矩阵',
           unit_price: '¥0.14 / 积分',
-          benefit_1: '可创建 23 个 完整应用',
-          benefit_2: '或进行 70 次 深度修改'
+          benefit_1: '打造十多个应用矩阵',
+          benefit_2: '智能计费，精打细算'
         },
         premium: { 
           name: '重度包', 
           badge: '超值爆款',
-          slogan: '百元不到解锁百次迭代，性价比之王的绝对首选',
+          slogan: '百元不到解锁海量生成，性价比之王的绝对首选',
           unit_price: '¥0.12 / 积分',
-          benefit_1: '可创建 53 个 完整应用',
-          benefit_2: '或进行 160 次 深度修改'
+          benefit_1: '持续迭代数十个项目',
+          benefit_2: '创作自由，成本可控'
         },
         ultimate: { 
           name: '极客包', 
           badge: '专业生产力',
-          slogan: '单次修改仅需 0.5 元，专业开发者的最高性价比之选',
+          slogan: '单价最低，专业开发者的最高性价比之选',
           unit_price: '¥0.10 / 积分',
-          benefit_1: '可创建 133 个 完整应用',
-          benefit_2: '或进行 400 次 深度修改'
+          benefit_1: '无限创意尽情挥洒',
+          benefit_2: '放肆创作，按需买单'
         },
       },
       payment_title: '扫码支付',
@@ -673,7 +673,7 @@ export const translations = {
       view_code: '查看代码',
       regenerate: '重新生成',
       remaining_credits: '剩余积分',
-      modification_cost: '修改消耗 8 积分',
+      modification_cost: '按实际生成量计费',
       app_generated: '应用已生成！你可以在上方预览效果。如果需要调整，请直接告诉我。',
       chat_placeholder: '例如：把背景改成黑色...',
       
@@ -958,7 +958,7 @@ export const translations = {
       logout: 'Logout',
       credits: 'Credits',
       daily_bonus: 'Daily Login: +2 Credits',
-      create_cost: 'Create: 30 Credits, Edit: 8 Credits',
+      create_cost: 'Dynamic billing based on actual code generated',
       tabs: {
         works: 'Works',
         purchased: 'Library',
@@ -994,32 +994,32 @@ export const translations = {
           badge: 'Best for Starters',
           slogan: 'Price of a milk tea to experience the world\'s strongest AI programming',
           unit_price: '¥0.17 / Credit',
-          benefit_1: 'Create 8 Full Apps',
-          benefit_2: 'Or 24 Deep Edits'
+          benefit_1: 'Build multiple complete apps',
+          benefit_2: 'Pay only for what you use'
         },
         standard: { 
           name: 'Creator Pack', 
           badge: 'Deep Development',
           slogan: 'Avg cost < ¥5 per app, build your exclusive App matrix',
           unit_price: '¥0.14 / Credit',
-          benefit_1: 'Create 23 Full Apps',
-          benefit_2: 'Or 70 Deep Edits'
+          benefit_1: 'Create your app portfolio',
+          benefit_2: 'Pay only for what you use'
         },
         premium: { 
           name: 'Power Pack', 
           badge: 'Best Value',
-          slogan: 'Unlock 100 iterations for under ¥100, the absolute best value choice',
+          slogan: 'Unlock massive generation under ¥100, the absolute best value choice',
           unit_price: '¥0.12 / Credit',
-          benefit_1: 'Create 53 Full Apps',
-          benefit_2: 'Or 160 Deep Edits'
+          benefit_1: 'Iterate on dozens of projects',
+          benefit_2: 'Pay only for what you use'
         },
         ultimate: { 
           name: 'Geek Pack', 
           badge: 'Pro Productivity',
-          slogan: 'Edit for just ¥0.5, the highest cost-performance choice for pro developers',
+          slogan: 'Lowest unit price, the highest cost-performance choice for pro developers',
           unit_price: '¥0.10 / Credit',
-          benefit_1: 'Create 133 Full Apps',
-          benefit_2: 'Or 400 Deep Edits'
+          benefit_1: 'Unlimited creative freedom',
+          benefit_2: 'Pay only for what you use'
         },
       },
       payment_title: 'Scan to Pay',
@@ -1559,7 +1559,7 @@ export const translations = {
       view_code: 'Code',
       regenerate: 'Regenerate',
       remaining_credits: 'Credits',
-      modification_cost: 'Edit costs 8 credits',
+      modification_cost: 'Pay per actual usage',
       app_generated: 'App generated! Preview above. Tell me if you need changes.',
       chat_placeholder: 'e.g., Change background to black...',
       
