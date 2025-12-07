@@ -11,6 +11,7 @@ import { X, RefreshCw, MessageSquare, Eye, Wand2, Edit3, Play } from 'lucide-rea
 import { applyPatches } from '@/lib/patch';
 import { useLanguage } from '@/context/LanguageContext';
 import { QRCodeSVG } from 'qrcode.react';
+import { GenerationProgress } from '@/components/GenerationProgress';
 
 // --- Constants ---
 const CATEGORIES = [
@@ -99,57 +100,9 @@ const DEVICE_PROMPTS: Record<string, string> = {
   desktop: "Target Device: Desktop. Layout: Wide, multi-column, dashboard-style. Navigation: Top Horizontal Bar or Fixed Left Sidebar. UI Density: High information density. Interactions: Hover effects, tooltips, smaller buttons allowed. Typography: Clean, professional."
 };
 
-const LOADING_TIPS_DATA = {
-  zh: [
-    "你知道吗？赛博朋克风格通常使用高对比度的霓虹色。",
-    "正在为移动用户优化触摸目标...",
-    "正在生成适应不同屏幕尺寸的响应式布局...",
-    "正在为卡片应用玻璃拟态效果...",
-    "正在确保无障碍对比度...",
-    "正在构建组件层级结构...",
-    "正在添加交互式悬停状态...",
-    "正在打磨动画和过渡效果...",
-    "正在检查暗黑模式兼容性...",
-    "正在注入 React Hooks 进行状态管理..."
-  ],
-  en: [
-    "Did you know? Cyberpunk style often uses high-contrast neon colors.",
-    "Optimizing touch targets for mobile users...",
-    "Generating responsive layout for different screen sizes...",
-    "Applying glassmorphism effects to cards...",
-    "Ensuring accessibility contrast ratios...",
-    "Structuring component hierarchy...",
-    "Adding interactive hover states...",
-    "Polishing animations and transitions...",
-    "Checking for dark mode compatibility...",
-    "Injecting React hooks for state management..."
-  ]
-};
-
-
-
-const LOADING_MESSAGES_DATA = {
-  zh: [
-      '正在深度分析您的需求...',
-      'AI 正在构思最佳 UI 布局...',
-      '正在编写 React 组件逻辑...',
-      '正在优化移动端触控响应...',
-      '正在配置 Tailwind 美学样式...',
-      '正在进行代码安全性检查...',
-      '正在做最后的性能优化...',
-      '即将完成，准备预览...'
-  ],
-  en: [
-      'Deeply analyzing your requirements...',
-      'AI is conceptualizing the best UI layout...',
-      'Writing React component logic...',
-      'Optimizing touch response for mobile...',
-      'Configuring Tailwind aesthetic styles...',
-      'Performing code security checks...',
-      'Doing final performance optimizations...',
-      'Almost done, preparing preview...'
-  ]
-};
+// Removed fake loading messages and tips to ensure real status feedback
+// const LOADING_TIPS_DATA = ...
+// const LOADING_MESSAGES_DATA = ...
 
 function CreateContent() {
   const router = useRouter();
@@ -159,8 +112,6 @@ function CreateContent() {
   const { success: toastSuccess, error: toastError } = useToast();
   
   const isFromUpload = searchParams.get('from') === 'upload';
-  
-  const LOADING_TIPS = LOADING_TIPS_DATA[language === 'zh' ? 'zh' : 'en'];
   
   const stepNames = {
     category: language === 'zh' ? '分类' : 'Category',
@@ -189,15 +140,13 @@ function CreateContent() {
   // State: Generation
   const [generatedCode, setGeneratedCode] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [modificationCount, setModificationCount] = useState(0);
   const [chatInput, setChatInput] = useState('');
-  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string, type?: 'text' | 'error', errorDetails?: any}[]>([]);
+  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string, type?: 'text' | 'error', errorDetails?: any, plan?: string, cost?: number}[]>([]);
   const [loadingText, setLoadingText] = useState(t.create.analyzing);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('mobile');
   const [streamingCode, setStreamingCode] = useState('');
   const [currentGenerationPrompt, setCurrentGenerationPrompt] = useState('');
-  const [loadingTipIndex, setLoadingTipIndex] = useState(0);
   
   // State: History
   const [codeHistory, setCodeHistory] = useState<{code: string, prompt: string, timestamp: number, type?: 'init' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback'}[]>([]);
@@ -227,12 +176,29 @@ function CreateContent() {
   const [previewScale, setPreviewScale] = useState(1);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
+  const [promptLengthForLog, setPromptLengthForLog] = useState(0);
+  const [conversationSummary, setConversationSummary] = useState<string>('');
   
   const STORAGE_KEY = 'spark_create_session_v1';
 
   // State: Timeout Modal
   const [showTimeoutModal, setShowTimeoutModal] = useState(false);
   const [timeoutCost, setTimeoutCost] = useState(0);
+  const [aiPlan, setAiPlan] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState<string | null>(null);
+  
+  // State: Credit Animation
+  const [isCreditAnimating, setIsCreditAnimating] = useState(false);
+  const prevCreditsRef = useRef(credits);
+  const currentTaskCostRef = useRef<number | null>(null);
+
+  useEffect(() => {
+      if (credits < prevCreditsRef.current) {
+          setIsCreditAnimating(true);
+          setTimeout(() => setIsCreditAnimating(false), 1000);
+      }
+      prevCreditsRef.current = credits;
+  }, [credits]);
 
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -247,20 +213,10 @@ function CreateContent() {
 
   // Update loading text when language changes
   useEffect(() => {
-    if (isGenerating) {
-      setLoadingText(t.create.analyzing);
+    if (isGenerating && !aiPlan && !currentStep) {
+      setLoadingText(language === 'zh' ? '正在连接 AI 模型...' : 'Connecting to AI model...');
     }
-  }, [language, t]);
-
-  // Rotating Tips Effect
-  useEffect(() => {
-    if (step === 'generating') {
-      const interval = setInterval(() => {
-        setLoadingTipIndex(prev => (prev + 1) % LOADING_TIPS.length);
-      }, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [step]);
+  }, [language]);
 
   // Edit Guide Effect
   useEffect(() => {
@@ -423,6 +379,8 @@ function CreateContent() {
             if (parsed.currentGenerationPrompt) setCurrentGenerationPrompt(parsed.currentGenerationPrompt);
             if (parsed.previewMode) setPreviewMode(parsed.previewMode);
             if (parsed.currentTaskId) setCurrentTaskId(parsed.currentTaskId);
+            if (parsed.promptLengthForLog) setPromptLengthForLog(parsed.promptLengthForLog);
+            if (parsed.conversationSummary) setConversationSummary(parsed.conversationSummary);
             
             if ((parsed.step === 'preview' || parsed.step === 'generating') && parsed.generatedCode) {
                setStreamingCode(parsed.generatedCode);
@@ -434,7 +392,6 @@ function CreateContent() {
                    } else {
                        setStep('preview');
                        setIsGenerating(false);
-                       setProgress(100);
                    }
                }
             } else if (parsed.step === 'generating' && parsed.currentTaskId) {
@@ -455,9 +412,9 @@ function CreateContent() {
   useEffect(() => {
     if (isGenerating && currentTaskId && !channelRef.current) {
         console.log('Resuming task monitoring for:', currentTaskId);
-        monitorTask(currentTaskId);
+        monitorTask(currentTaskId, false, false, promptLengthForLog);
     }
-  }, [isGenerating, currentTaskId]);
+  }, [isGenerating, currentTaskId, promptLengthForLog]);
 
   useEffect(() => {
     if (step === 'category' && !wizardData.description && !generatedCode) return;
@@ -471,19 +428,48 @@ function CreateContent() {
       currentGenerationPrompt,
       previewMode,
       currentTaskId,
+      promptLengthForLog,
+      conversationSummary,
       timestamp: Date.now()
     };
     
     const timeoutId = setTimeout(() => {
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-        } catch (e) {
-          console.error('Failed to save session:', e);
+        } catch (e: any) {
+          // Handle QuotaExceededError by trimming history
+          if (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+             console.warn('LocalStorage quota exceeded, attempting to save slim session...');
+             try {
+                 // Strategy 1: Keep only last 3 code history items and last 20 chat messages
+                 const slimState = {
+                     ...stateToSave,
+                     codeHistory: codeHistory.slice(-3),
+                     chatHistory: chatHistory.slice(-20)
+                 };
+                 localStorage.setItem(STORAGE_KEY, JSON.stringify(slimState));
+             } catch (e2) {
+                 console.warn('Slim save failed, attempting minimal save...');
+                 try {
+                     // Strategy 2: Keep only current code and wizard data (no history)
+                     const minimalState = {
+                         ...stateToSave,
+                         codeHistory: [],
+                         chatHistory: chatHistory.slice(-5)
+                     };
+                     localStorage.setItem(STORAGE_KEY, JSON.stringify(minimalState));
+                 } catch (e3) {
+                     console.error('Failed to save session even with minimal data:', e3);
+                 }
+             }
+          } else {
+              console.error('Failed to save session:', e);
+          }
         }
     }, 1000);
 
     return () => clearTimeout(timeoutId);
-  }, [step, wizardData, generatedCode, chatHistory, codeHistory, currentGenerationPrompt, previewMode, currentTaskId]);
+  }, [step, wizardData, generatedCode, chatHistory, codeHistory, currentGenerationPrompt, previewMode, currentTaskId, promptLengthForLog, conversationSummary]);
 
   // Save immediately when page visibility changes (user switches tabs)
   useEffect(() => {
@@ -499,12 +485,64 @@ function CreateContent() {
             currentGenerationPrompt,
             previewMode,
             currentTaskId,
+            promptLengthForLog,
+            conversationSummary,
             timestamp: Date.now()
           };
           localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
           console.log('Session saved on tab hide');
-        } catch (e) {
-          console.error('Failed to save session on visibility change:', e);
+        } catch (e: any) {
+          if (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+             console.warn('LocalStorage quota exceeded on tab hide, attempting slim save...');
+             try {
+                 const stateToSave = {
+                    step,
+                    wizardData,
+                    generatedCode,
+                    chatHistory,
+                    codeHistory,
+                    currentGenerationPrompt,
+                    previewMode,
+                    currentTaskId,
+                    promptLengthForLog,
+                    conversationSummary,
+                    timestamp: Date.now()
+                 };
+                 const slimState = {
+                     ...stateToSave,
+                     codeHistory: codeHistory.slice(-3),
+                     chatHistory: chatHistory.slice(-20)
+                 };
+                 localStorage.setItem(STORAGE_KEY, JSON.stringify(slimState));
+             } catch (e2) {
+                 // If slim save fails, try minimal
+                 try {
+                     const stateToSave = {
+                        step,
+                        wizardData,
+                        generatedCode,
+                        chatHistory,
+                        codeHistory,
+                        currentGenerationPrompt,
+                        previewMode,
+                        currentTaskId,
+                        promptLengthForLog,
+                        conversationSummary,
+                        timestamp: Date.now()
+                     };
+                     const minimalState = {
+                         ...stateToSave,
+                         codeHistory: [],
+                         chatHistory: chatHistory.slice(-5)
+                     };
+                     localStorage.setItem(STORAGE_KEY, JSON.stringify(minimalState));
+                 } catch (e3) {
+                     console.error('Failed to save session on visibility change (minimal):', e3);
+                 }
+             }
+          } else {
+              console.error('Failed to save session on visibility change:', e);
+          }
         }
       }
     };
@@ -725,7 +763,6 @@ function CreateContent() {
 
     // 6. Reset State
     setIsGenerating(false);
-    setProgress(0);
     setLoadingText('');
     setCurrentTaskId(null);
     setShowTimeoutModal(false);
@@ -884,7 +921,7 @@ ${wizardData.description}`;
   };
 
   // --- Generation Logic ---
-    const constructPrompt = (isModification = false, modificationRequest = '', forceFull = false) => {
+    const constructPrompt = (isModification = false, modificationRequest = '', forceFull = false, history: any[] = [], summary = '') => {
     const categoryLabel = t.categories[wizardData.category as keyof typeof t.categories] || 'App';
     const styleLabel = t.styles[wizardData.style as keyof typeof t.styles] || 'Modern';
     const deviceLabel = t.devices[wizardData.device as keyof typeof t.devices] || 'Mobile';
@@ -903,19 +940,39 @@ ${wizardData.description}`;
       // Sanitize generatedCode to remove null bytes which Postgres hates
       const safeCode = generatedCode ? generatedCode.replace(/\u0000/g, '') : '';
 
-      // 隐式缓存优化：将现有代码作为上下文，这部分内容在多次修改中保持相对稳定
-      // Gemini会自动缓存重复出现的长内容（>1024 tokens）
+      // Format History
+      let historyContext = '';
+      
+      // Add Summary if exists
+      if (summary) {
+          historyContext += `### PREVIOUS ACTIONS SUMMARY\n${summary}\n\n`;
+      }
+
+      if (history && history.length > 0) {
+          // Sliding Window: Take last 6 messages (3 turns) to avoid token limits
+          const recentHistory = history.slice(-6);
+          historyContext += `### RECENT CONVERSATION\n` + recentHistory.map(msg => {
+              const role = msg.role === 'user' ? 'User' : 'AI';
+              // Skip error messages or system messages in context if needed, but usually good to keep
+              return `${role}: ${msg.content}`;
+          }).join('\n');
+      }
+
       if (forceFull) {
         return `# EXISTING CODE (for context)
 \`\`\`html
 ${safeCode}
 \`\`\`
 
+${historyContext ? `# CONVERSATION HISTORY\n${historyContext}\n` : ''}
+
 # USER REQUEST
 ${modificationRequest}
 
 # TASK
-Modify the above React app to fulfill the user's request. Output the COMPLETE updated HTML file.
+Based on the EXISTING CODE provided above, apply the user's request and output the COMPLETE updated HTML file.
+You MUST preserve all existing functionality and structure that is not related to the user's request.
+DO NOT start from scratch.
 
 # CONSTRAINTS
 - Maintain single-file structure
@@ -924,8 +981,12 @@ Modify the above React app to fulfill the user's request. Output the COMPLETE up
 - Ensure the code is fully functional
 
 # OUTPUT FORMAT
-1. Start with: /// SUMMARY: [Brief summary in ${language === 'zh' ? 'Chinese' : 'English'}] ///
-2. Then output the complete updated HTML file (no code blocks, no markdown)
+1. Start with: /// PLAN ///
+[Analyze the request and list the steps to rewrite the app in ${language === 'zh' ? 'Chinese' : 'English'}]
+///
+2. Then output: /// STEP: ${language === 'zh' ? '重写应用' : 'Rewriting Application'} ///
+3. Then output the complete updated HTML file (no code blocks, no markdown)
+4. Finally: /// SUMMARY: [Brief summary in ${language === 'zh' ? 'Chinese' : 'English'}] ///
 `;
       }
 
@@ -935,6 +996,8 @@ Modify the above React app to fulfill the user's request. Output the COMPLETE up
 ${safeCode}
 \`\`\`
 
+${historyContext ? `# CONVERSATION HISTORY\n${historyContext}\n` : ''}
+
 # USER REQUEST
 ${modificationRequest}
 
@@ -942,10 +1005,13 @@ ${modificationRequest}
 Modify the above code using the diff format specified in the system instructions.
 
 # OUTPUT REQUIREMENTS
-1. Start with: /// ANALYSIS: [Description of target code location] ///
-2. Then: /// SUMMARY: [Brief summary in ${language === 'zh' ? 'Chinese' : 'English'}] ///
+1. Start with: /// PLAN ///
+[Analyze the request and list the modification steps in ${language === 'zh' ? 'Chinese' : 'English'}]
+///
+2. Then output: /// STEP: ${language === 'zh' ? '应用修改' : 'Applying Changes'} ///
 3. Then output one or more <<<<SEARCH...====...>>>> blocks
 4. Ensure SEARCH blocks match the original code EXACTLY (character-for-character, including all whitespace)
+5. Finally: /// SUMMARY: [Brief summary in ${language === 'zh' ? 'Chinese' : 'English'}] ///
 `;
     }
 
@@ -965,7 +1031,7 @@ ${description}
     `;
   };
 
-  const monitorTask = async (taskId: string, isModification = false, useDiffMode = false) => {
+  const monitorTask = async (taskId: string, isModification = false, useDiffMode = false, fullPromptLength = 0, fullPromptText = '') => {
       let isFinished = false;
       let lastUpdateTimestamp = Date.now();
       let hasStartedStreaming = false;
@@ -984,42 +1050,127 @@ ${description}
           }
       }, 90000);
 
-      // Restart progress bar if needed (fake progress for visual feedback)
-      progressIntervalRef.current = setInterval(() => {
-        setProgress(prev => {
-            let increment = 0;
-            if (hasStartedStreaming) {
-                if (prev < 95) increment = Math.random() * 2 + 1;
-                else increment = 0.1;
-            } else {
-                // Slower progress if we are just waiting/resuming
-                if (prev < 85) increment = 0.5; 
-                else increment = 0.05;
-            }
-            return Math.min(prev + increment, 99);
-        });
-      }, 200);
+      // Add a "slow connection" hint after 8 seconds
+      const slowConnectionTimer = setTimeout(() => {
+          if (!hasStartedStreaming) {
+               setLoadingText(language === 'zh' ? '正在唤醒 AI 引擎 (冷启动可能需要 10-20 秒)...' : 'Waking up AI engine (Cold start may take 10-20s)...');
+          }
+      }, 8000);
 
-      const handleTaskUpdate = (newTask: any) => {
+      const handleTaskUpdate = async (newTask: any) => {
         if (isFinished) return;
+        
+        // Clear slow connection timer if we get any update
+        clearTimeout(slowConnectionTimer);
+
         lastUpdateTimestamp = Date.now();
 
         console.log('Task Update:', newTask.status, newTask.result_code?.length || 0, newTask.error_message);
 
         if (newTask.result_code && newTask.status === 'processing') {
-            setStreamingCode(newTask.result_code);
+            let content = newTask.result_code;
+            
+            // Extract Plan
+            const planMatch = content.match(/\/\/\/ PLAN \/\/\/([\s\S]*?)\/\/\//);
+            if (planMatch) {
+                setAiPlan(planMatch[1].trim());
+                content = content.replace(planMatch[0], '');
+                setLoadingText(language === 'zh' ? '正在分析需求并制定计划...' : 'Analyzing requirements and planning...');
+            }
+
+            // Extract Steps
+            const stepMatches = [...content.matchAll(/\/\/\/ STEP: (.*?) \/\/\//g)];
+            if (stepMatches.length > 0) {
+                const currentStepName = stepMatches[stepMatches.length - 1][1].trim();
+                setCurrentStep(currentStepName);
+                content = content.replace(/\/\/\/ STEP: .*? \/\/\//g, '');
+                setLoadingText(language === 'zh' ? `正在执行: ${currentStepName}...` : `Executing: ${currentStepName}...`);
+            }
+
+            setStreamingCode(content);
             hasStartedStreaming = true;
         }
         
         if (newTask.status === 'completed') {
             isFinished = true;
+            
+            // Capture cost from DB update if available (in case broadcast was missed)
+            if (newTask.cost !== undefined && newTask.cost !== null) {
+                console.log(`Task completed (via DB). Cost: ${newTask.cost} credits`);
+                currentTaskCostRef.current = newTask.cost;
+            } else {
+                // If cost is missing in the payload, fetch it explicitly
+                console.log('Cost missing in completion payload, fetching from DB...');
+                const { data: taskData } = await supabase
+                    .from('generation_tasks')
+                    .select('cost')
+                    .eq('id', taskId)
+                    .single();
+                
+                if (taskData?.cost) {
+                    console.log(`Fetched cost from DB: ${taskData.cost}`);
+                    currentTaskCostRef.current = taskData.cost;
+                }
+            }
+
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
             if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
-            if (channelRef.current) supabase.removeChannel(channelRef.current);
+            // Do NOT remove channel immediately, wait for broadcast to arrive with cost
+            // if (channelRef.current) supabase.removeChannel(channelRef.current);
 
             checkAuth();
             let rawCode = newTask.result_code || '';
+
+            // --- Token Usage Logging ---
+            const promptLength = fullPromptLength > 0 ? fullPromptLength : (currentGenerationPrompt ? currentGenerationPrompt.length : 0);
+            const responseLength = rawCode.length;
+            // Rough estimation: 1 token ≈ 4 chars for English, 1 char for Chinese. 
+            // Mixing them is complex, but let's use a simple heuristic: length / 3
+            const estimatedPromptTokens = Math.ceil(promptLength / 3);
+            const estimatedResponseTokens = Math.ceil(responseLength / 3);
+            
+            console.log(`[Token Usage] Prompt: ${promptLength} chars (~${estimatedPromptTokens} tokens) | Response: ${responseLength} chars (~${estimatedResponseTokens} tokens)`);
+            
+            // Fallback Cost Calculation (if Realtime broadcast missed)
+            // User requested to ONLY show backend returned cost, so we skip local calculation.
+            if (currentTaskCostRef.current === null) {
+                console.log('Cost not received from backend yet. Waiting for broadcast or checkAuth.');
+            }
+            // ---------------------------
+            
+            // Clean markers for final code
+            let extractedPlan = null;
+            const planMatch = rawCode.match(/\/\/\/ PLAN \/\/\/([\s\S]*?)\/\/\//);
+            if (planMatch) {
+                extractedPlan = planMatch[1].trim();
+                setAiPlan(extractedPlan);
+                rawCode = rawCode.replace(planMatch[0], '');
+            } else {
+                // Fallback: If regex failed but text starts with /// PLAN ///, try to strip it manually
+                // This handles cases where the closing /// is missing or malformed
+                if (rawCode.trim().startsWith('/// PLAN ///')) {
+                    const htmlStart = rawCode.indexOf('<!DOCTYPE html>');
+                    if (htmlStart !== -1) {
+                        const planText = rawCode.substring(0, htmlStart);
+                        // Try to extract plan text for display
+                        const planContent = planText.replace('/// PLAN ///', '').trim();
+                        extractedPlan = planContent;
+                        setAiPlan(planContent);
+                        rawCode = rawCode.substring(htmlStart);
+                    } else {
+                        const htmlTagStart = rawCode.indexOf('<html');
+                        if (htmlTagStart !== -1) {
+                             const planText = rawCode.substring(0, htmlTagStart);
+                             const planContent = planText.replace('/// PLAN ///', '').trim();
+                             extractedPlan = planContent;
+                             setAiPlan(planContent);
+                             rawCode = rawCode.substring(htmlTagStart);
+                        }
+                    }
+                }
+            }
+            rawCode = rawCode.replace(/\/\/\/ STEP: .*? \/\/\//g, '');
             
             // Helper function to clean code (remove unsafe/broken elements)
             const cleanTheCode = (code: string) => {
@@ -1061,6 +1212,18 @@ ${description}
                     const summaryMatch = rawCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
                     const summary = summaryMatch ? summaryMatch[1].trim() : null;
 
+                    if (summary) {
+                        // Append to conversation summary
+                        setConversationSummary(prev => {
+                            // Limit summary length to avoid infinite growth (keep last 10 actions)
+                            const prevLines = prev ? prev.split('\n') : [];
+                            const newEntry = `- ${summary}`;
+                            const allLines = [...prevLines, newEntry];
+                            const keptLines = allLines.slice(-10);
+                            return keptLines.join('\n');
+                        });
+                    }
+
                     // Extract Analysis
                     const analysisMatch = rawCode.match(/\/\/\/\s*ANALYSIS:\s*([\s\S]*?)\s*\/\/\//);
                     if (analysisMatch) {
@@ -1080,13 +1243,12 @@ ${description}
                                  toastSuccess(t.create.success_edit);
                                  
                                  if (summary) {
-                                     setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
+                                     setChatHistory(prev => [...prev, { role: 'ai', content: summary, cost: currentTaskCostRef.current || undefined }]);
                                  } else {
-                                     setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.' }]);
+                                     setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.', cost: currentTaskCostRef.current || undefined }]);
                                  }
                                  
                                  setIsGenerating(false);
-                                 setProgress(100);
                                  setCurrentTaskId(null); // Clear task ID
                                  return;
                              }
@@ -1102,49 +1264,52 @@ ${description}
                     setGeneratedCode(finalCode);
                     toastSuccess(t.create.success_edit);
                     
-                    if (summary) {
-                        setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
-                    } else {
-                        setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.' }]);
-                    }
+                    const finalContent = summary || (language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.');
+                    setChatHistory(prev => [...prev, { role: 'ai', content: finalContent, cost: currentTaskCostRef.current || undefined }]);
                 } catch (e: any) {
                     console.error('Patch failed:', e);
                     
-                    // Fallback to full generation
-                    console.warn('Patch failed, falling back to full generation...');
+                    // Ask user for confirmation before full rewrite
+                    const cost = currentTaskCostRef.current || 0;
+                    const confirmMessage = language === 'zh' 
+                        ? `智能修改遇到困难。是否尝试全量修复？\n\n注意：全量修复将消耗更多积分。\n无论您选择继续还是取消，本次修改消耗的 ${cost} 积分都将自动退回。`
+                        : `Smart edit encountered difficulties. Do you want to try a full repair?\n\nNote: Full repair will consume more credits.\nRegardless of your choice, the ${cost} credits consumed for this edit will be automatically refunded.`;
                     
-                    const confirmMsg = language === 'zh' 
-                        ? '智能修改遇到困难。是否花费 15 积分进行全量重写？全量重写能保证代码正确性。' 
-                        : 'Smart edit failed. Do you want to spend 15 credits for a full rewrite? This guarantees code correctness.';
-                    
-                    if (confirm(confirmMsg)) {
-                         toastSuccess(language === 'zh' ? '正在进行全量重写...' : 'Starting full rewrite...');
-                         startGeneration(true, currentGenerationPrompt, '', true, lastOperationType === 'init' ? 'regenerate' : lastOperationType);
+                    // Helper to process refund
+                    const processRefund = async () => {
+                        if (cost > 0) {
+                            try {
+                                toastSuccess(language === 'zh' ? '正在退回本次失败消耗的积分...' : 'Refunding credits for failed attempt...');
+                                await fetch('/api/refund', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ taskId: taskId, amount: cost })
+                                });
+                                // Update local credits
+                                setCredits(prev => prev + cost);
+                                toastSuccess(language === 'zh' ? '积分已退回' : 'Credits refunded');
+                            } catch (err) {
+                                console.error('Refund failed', err);
+                                toastError(language === 'zh' ? '积分退回失败，请联系客服' : 'Refund failed, please contact support');
+                            }
+                        }
+                    };
+
+                    if (confirm(confirmMessage)) {
+                        // Refund first
+                        await processRefund();
+
+                        toastSuccess(language === 'zh' ? '正在尝试全量修复...' : 'Attempting full repair...');
+                        // Retry with forceFull=true after a short delay to allow current task cleanup
+                        setTimeout(() => {
+                            startGeneration(true, currentGenerationPrompt, '', true, lastOperationType === 'init' ? 'regenerate' : lastOperationType);
+                        }, 100);
                     } else {
-                         // User cancelled - refund the 5 credits that were deducted for the failed smart edit
-                         toastError(language === 'zh' ? '修改已取消，正在退还积分...' : 'Modification cancelled, refunding credits...');
-                         
-                         // Refund credits in background
-                         (async () => {
-                             try {
-                                 const { data: { session } } = await supabase.auth.getSession();
-                                 if (session) {
-                                     const { error: refundError } = await supabase.rpc('add_credits', { 
-                                         user_id: session.user.id, 
-                                         amount: 5 
-                                     });
-                                     
-                                     if (!refundError) {
-                                         setCredits(prev => prev + 5);
-                                         toastSuccess(language === 'zh' ? '已退还 5 积分' : 'Refunded 5 credits');
-                                     } else {
-                                         console.error('Failed to refund credits:', refundError);
-                                     }
-                                 }
-                             } catch (refundErr) {
-                                 console.error('Refund error:', refundErr);
-                             }
-                         })();
+                        // User cancelled - Refund logic
+                        await processRefund();
+
+                        toastError(language === 'zh' ? '修改失败，请重试或尝试手动修改。' : 'Edit failed, please retry or try manual edit.');
+                        setIsGenerating(false);
                     }
                 }
             } else {
@@ -1171,19 +1336,29 @@ ${description}
                 
                 if (isModification) {
                     toastSuccess(t.create.success_edit);
-                    if (summary) {
-                        setChatHistory(prev => [...prev, { role: 'ai', content: summary }]);
-                    } else {
-                        setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已重新生成完整代码。' : 'Regenerated full code.' }]);
-                    }
+                    const finalContent = summary || (language === 'zh' ? '已重新生成完整代码。' : 'Regenerated full code.');
+                    setChatHistory(prev => [...prev, { role: 'ai', content: finalContent, cost: currentTaskCostRef.current || undefined }]);
                 } else {
                     setStep('preview');
                     setPreviewMode(wizardData.device as any);
+
+                    // Add initial conversation to history
+                    const userDesc = wizardData.description || (language === 'zh' ? '创建应用' : 'Create App');
+                    const aiSummary = extractedPlan || (language === 'zh' ? '应用已生成完毕！' : 'App generation complete!');
+                    
+                    setChatHistory(prev => {
+                        if (prev.length === 0) {
+                             return [
+                                { role: 'user', content: userDesc },
+                                { role: 'ai', content: aiSummary, cost: currentTaskCostRef.current || undefined }
+                            ];
+                        }
+                        return prev;
+                    });
                 }
             }
             
             setIsGenerating(false);
-            setProgress(100);
             setCurrentTaskId(null); // Clear task ID
         } else if (newTask.status === 'failed') {
             isFinished = true;
@@ -1214,7 +1389,6 @@ ${description}
             toastError(friendlyError);
             setLoadingText(`${t.common.error}: ${friendlyError}`);
             setIsGenerating(false);
-            setProgress(100);
             setCurrentTaskId(null); // Clear task ID
         }
       };
@@ -1227,9 +1401,59 @@ ${description}
           (payload) => {
              const { fullContent } = payload.payload;
              if (fullContent) {
-                 setStreamingCode(fullContent);
+                 let content = fullContent;
+                 
+                 // Extract Plan
+                 const planMatch = content.match(/\/\/\/ PLAN \/\/\/([\s\S]*?)\/\/\//);
+                 if (planMatch) {
+                     setAiPlan(planMatch[1].trim());
+                     content = content.replace(planMatch[0], '');
+                     setLoadingText(language === 'zh' ? '正在分析需求并制定计划...' : 'Analyzing requirements and planning...');
+                 }
+
+                 // Extract Steps
+                 const stepMatches = [...content.matchAll(/\/\/\/ STEP: (.*?) \/\/\//g)];
+                 if (stepMatches.length > 0) {
+                     const currentStepName = stepMatches[stepMatches.length - 1][1].trim();
+                     setCurrentStep(currentStepName);
+                     content = content.replace(/\/\/\/ STEP: .*? \/\/\//g, '');
+                     setLoadingText(language === 'zh' ? `正在执行: ${currentStepName}...` : `Executing: ${currentStepName}...`);
+                 }
+
+                 setStreamingCode(content);
                  hasStartedStreaming = true;
                  lastUpdateTimestamp = Date.now();
+             }
+          }
+        )
+        .on(
+          'broadcast',
+          { event: 'completed' },
+          (payload) => {
+             const { cost } = payload.payload;
+             if (cost !== undefined) {
+                 console.log(`Task completed. Cost: ${cost} credits`);
+                 currentTaskCostRef.current = cost;
+
+                 // Update local credits immediately
+                 setCredits(prev => Math.max(0, prev - cost));
+                 
+                 // Update chat history with cost
+                 setChatHistory(prev => {
+                     const newHistory = [...prev];
+                     if (newHistory.length > 0) {
+                         const lastMsg = newHistory[newHistory.length - 1];
+                         if (lastMsg.role === 'ai') {
+                             // Create a new object to ensure re-render
+                             newHistory[newHistory.length - 1] = { ...lastMsg, cost };
+                         }
+                     }
+                     return newHistory;
+                 });
+
+                 toastSuccess(language === 'zh' ? `生成完成，消耗 ${cost} 积分` : `Generation complete. Cost: ${cost} credits`);
+                 // Refresh profile to sync with server
+                 checkAuth();
              }
           }
         )
@@ -1268,6 +1492,9 @@ ${description}
   };
 
   const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '', forceFull = false, explicitType?: 'init' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback') => {
+    // Reset cost ref for new task
+    currentTaskCostRef.current = null;
+
     // Explicitly rely on the argument to determine if it's a modification or a new generation (regenerate)
     const isModification = isModificationArg;
     const useDiffMode = isModification && !forceFull;
@@ -1299,10 +1526,10 @@ ${description}
         stack: new Error().stack 
     });
 
-    // Cost: Modification = 5.0, New Generation / Regenerate = 15.0
-    // Full modification fallback costs more (15.0) but less than full gen
-    const COST = isModification ? (forceFull ? 15.0 : 5.0) : 15.0;
-    setTimeoutCost(COST);
+    // Cost: Based on Token usage (1 Credit = 3000 Tokens)
+    // Minimum required to start is 1 credit
+    const MIN_REQUIRED = 1;
+    setTimeoutCost(MIN_REQUIRED);
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -1311,7 +1538,7 @@ ${description}
         return;
       }
 
-      if (credits < COST) {
+      if (credits < MIN_REQUIRED) {
         openCreditPurchaseModal();
         return;
       }
@@ -1325,14 +1552,10 @@ ${description}
     if (!isModification) {
       setStep('generating');
     }
-    setProgress(0);
     setStreamingCode('');
+    setAiPlan(''); // Reset plan for new generation
+    setCurrentStep(''); // Reset step for new generation
     setRuntimeError(null); // Clear previous errors
-    
-    const loadingMessages = t.create.loading_steps || LOADING_MESSAGES_DATA[language === 'zh' ? 'zh' : 'en'];
-    
-    let messageIndex = 0;
-    setLoadingText(loadingMessages[0]);
     
     let hasStartedStreaming = false;
 
@@ -1341,38 +1564,17 @@ ${description}
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     if (channelRef.current) supabase.removeChannel(channelRef.current);
 
-    progressIntervalRef.current = setInterval(() => {
-      setProgress(prev => {
-        let increment = 0;
-        
-        if (hasStartedStreaming) {
-           if (prev < 95) increment = Math.random() * 2 + 1;
-           else increment = 0.1;
-        } else {
-           if (prev < 20) increment = Math.random() * 2 + 1;
-           else if (prev < 50) increment = Math.random() * 0.5 + 0.2;
-           else if (prev < 75) increment = 0.1;
-           else if (prev < 85) increment = 0.05;
-           else increment = 0;
-        }
-
-        const nextProgress = Math.min(prev + increment, 99);
-        
-        const totalMessages = loadingMessages.length;
-        const messageStage = Math.floor((nextProgress / 100) * totalMessages);
-        
-        if (messageStage > messageIndex && messageStage < totalMessages) {
-            messageIndex = messageStage;
-            setLoadingText(loadingMessages[messageIndex]);
-        }
-
-        return nextProgress;
-      });
-    }, 200);
+    // Initial loading text
+    if (isModification) {
+        setLoadingText(language === 'zh' ? '正在分析修改需求...' : 'Analyzing modification request...');
+    } else {
+        setLoadingText(language === 'zh' ? '正在连接 AI 模型...' : 'Connecting to AI model...');
+    }
 
 
     try {
-      const prompt = constructPrompt(isModification, overridePrompt || chatInput, forceFull);
+      // Pass chatHistory to provide context for the AI
+      const prompt = constructPrompt(isModification, overridePrompt || chatInput, forceFull, chatHistory, conversationSummary);
       
       let promptContent = '';
       if (isModification) {
@@ -1418,6 +1620,60 @@ ${description}
 
       const summaryLang = language === 'zh' ? 'Chinese' : 'English';
       
+      const processVizInstructions = language === 'zh' ? `
+### Process Visualization (CRITICAL)
+To improve user experience, you MUST output your thinking process and progress steps using specific markers.
+
+1. **Analysis Phase**: Before writing any code, output your analysis and plan in CHINESE (Simplified).
+   Format:
+   \`\`\`
+   /// PLAN ///
+   1. **核心概念**: [简要描述]
+   2. **关键功能**:
+      - [功能 1]
+      - [功能 2]
+   3. **技术方案**: [简要技术栈/逻辑]
+   4. **用户体验**: [UX 目标]
+   ///
+   \`\`\`
+
+2. **Progress Steps**: During code generation, output step markers before major sections in CHINESE.
+   Format: \`/// STEP: [Step Name] ///\`
+   
+   Required Steps:
+   - \`/// STEP: 环境搭建 ///\` (Before HTML structure)
+   - \`/// STEP: 布局设计 ///\` (Before CSS/Tailwind setup)
+   - \`/// STEP: 逻辑实现 ///\` (Before React components)
+   - \`/// STEP: 交互添加 ///\` (Before Event handlers/Effects)
+   - \`/// STEP: 收尾工作 ///\` (Before closing tags)
+` : `
+### Process Visualization (CRITICAL)
+To improve user experience, you MUST output your thinking process and progress steps using specific markers.
+
+1. **Analysis Phase**: Before writing any code, output your analysis and plan.
+   Format:
+   \`\`\`
+   /// PLAN ///
+   1. **Core Concept**: [Brief description]
+   2. **Key Features**:
+      - [Feature 1]
+      - [Feature 2]
+   3. **Technical Approach**: [Brief tech stack/logic]
+   4. **User Experience**: [UX goals]
+   ///
+   \`\`\`
+
+2. **Progress Steps**: During code generation, output step markers before major sections.
+   Format: \`/// STEP: [Step Name] ///\`
+   
+   Required Steps:
+   - \`/// STEP: Setting up Environment ///\` (Before HTML structure)
+   - \`/// STEP: Designing Layout ///\` (Before CSS/Tailwind setup)
+   - \`/// STEP: Implementing Logic ///\` (Before React components)
+   - \`/// STEP: Adding Interactivity ///\` (Before Event handlers/Effects)
+   - \`/// STEP: Finalizing ///\` (Before closing tags)
+`;
+
       // 系统提示词设计为足够长且稳定，以便Gemini自动缓存（隐式缓存要求>1024 tokens）
       const SYSTEM_PROMPT = useDiffMode ? `You are an expert Senior Software Engineer specializing in React code refactoring and incremental updates.
 Your mission is to modify existing React code based on user requests with surgical precision.
@@ -1606,6 +1862,8 @@ const App = () => {
 Remember: Your output will be automatically parsed and applied. Precision is critical.` : `You are an expert React Developer specializing in creating production-grade single-file HTML applications.
 
 Your mission: Build interactive web applications using React 18, Tailwind CSS, and modern JavaScript - all in a single HTML file.
+
+${processVizInstructions}
 
 ### Tech Stack (All via CDN)
 - **React 18 (UMD)**: Global \`React\`, \`ReactDOM\`
@@ -1832,8 +2090,13 @@ Remember: You're building for production. Code must be clean, performant, and er
 
       const { data: { session } } = await supabase.auth.getSession();
       
+      // Calculate total prompt length for logging
+      const totalPromptLength = SYSTEM_PROMPT.length + dbPrompt.length;
+      const fullPromptText = SYSTEM_PROMPT + dbPrompt;
+      setPromptLengthForLog(totalPromptLength);
+
       // Start monitoring immediately
-      monitorTask(taskId, isModification, useDiffMode);
+      monitorTask(taskId, isModification, useDiffMode, totalPromptLength, fullPromptText);
 
       // Trigger Edge Function with Retry Logic
       const triggerGeneration = async () => {
@@ -1872,6 +2135,11 @@ Remember: You're building for production. Code must be clean, performant, and er
                     }
                     const waitTime = Math.pow(2, triggerRetry) * 1000 + Math.random() * 1000;
                     console.warn(`Generation Trigger ${res.status}. Retrying in ${Math.round(waitTime)}ms...`);
+                    
+                    setLoadingText(language === 'zh' 
+                        ? `服务器繁忙 (${res.status})，正在重试 (${triggerRetry + 1}/${maxTriggerRetries})...` 
+                        : `Server busy (${res.status}), retrying (${triggerRetry + 1}/${maxTriggerRetries})...`);
+
                     await new Promise(resolve => setTimeout(resolve, waitTime));
                     triggerRetry++;
                     continue;
@@ -1909,6 +2177,11 @@ Remember: You're building for production. Code must be clean, performant, and er
                     return;
                 }
                 const waitTime = Math.pow(2, triggerRetry) * 1000;
+                
+                setLoadingText(language === 'zh' 
+                    ? `连接不稳定，正在重试 (${triggerRetry + 1}/${maxTriggerRetries})...` 
+                    : `Connection unstable, retrying (${triggerRetry + 1}/${maxTriggerRetries})...`);
+
                 await new Promise(resolve => setTimeout(resolve, waitTime));
                 triggerRetry++;
             }
@@ -1938,9 +2211,26 @@ Remember: You're building for production. Code must be clean, performant, and er
   };
 
   const handleUpload = () => {
-    // Removed confirmation dialog as per user request
+    if (!generatedCode || !generatedCode.trim()) {
+        toastError(language === 'zh' ? '代码为空，无法发布' : 'Code is empty, cannot publish');
+        return;
+    }
+
     try {
-      localStorage.setItem('spark_generated_code', generatedCode);
+      try {
+          localStorage.setItem('spark_generated_code', generatedCode);
+      } catch (e: any) {
+          // Handle QuotaExceededError
+          if (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+              console.warn('Storage full, attempting to clear old session data...');
+              // Try to remove the session backup to make space for the publish action
+              localStorage.removeItem(STORAGE_KEY);
+              localStorage.setItem('spark_generated_code', generatedCode);
+          } else {
+              throw e;
+          }
+      }
+
       localStorage.setItem('spark_generated_meta', JSON.stringify({
         title: `${t.categories[wizardData.category as keyof typeof t.categories] || 'App'}`,
         description: wizardData.description,
@@ -1955,7 +2245,7 @@ Remember: You're building for production. Code must be clean, performant, and er
       }
     } catch (e) {
       console.error('Failed to save to localStorage:', e);
-      toastError(t.common.error);
+      toastError(language === 'zh' ? '存储空间不足，无法发布。请尝试下载代码。' : 'Storage full, cannot publish. Please try downloading.');
     }
   };
 
@@ -2008,11 +2298,9 @@ Remember: You're building for production. Code must be clean, performant, and er
   const handleElementEditSubmit = () => {
     if (!selectedElement || !editRequest.trim()) return;
     
-    const confirmMsg = language === 'zh'
-      ? '点选编辑将消耗 5 积分，是否继续？'
-      : 'Visual editing will cost 5 credits. Continue?';
-    
-    if (!confirm(confirmMsg)) return;
+    // Removed confirmation dialog
+    // const confirmMsg = ...
+    // if (!confirm(confirmMsg)) return;
     
     const intentLabel = 
         editIntent === 'style' ? 'Visual/Style Update' :
@@ -2374,12 +2662,8 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                 </button>
                 <button
                   onClick={() => {
-                    const confirmMsg = language === 'zh'
-                      ? '创建应用将消耗 15 积分，是否继续？'
-                      : 'Creating this app will cost 15 credits. Continue?';
-                    if (confirm(confirmMsg)) {
-                      startGeneration(false, '', '', false, 'init');
-                    }
+                    // Removed confirmation dialog
+                    startGeneration(false, '', '', false, 'init');
                   }}
                   disabled={!wizardData.description}
                   className={`flex-1 bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
@@ -2421,83 +2705,16 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
               <i className="fa-solid fa-robot text-brand-400 text-lg animate-bounce"></i>
               <div className="absolute inset-0 rounded-full border-2 border-brand-500/50 animate-ping opacity-20"></div>
             </div>
-            <div className="bg-slate-800/80 border border-slate-700 text-slate-300 p-5 rounded-2xl rounded-tl-none shadow-lg max-w-[85%] relative w-full">
-              <div className="absolute -left-2 top-0 w-4 h-4 bg-slate-800 transform rotate-45 border-l border-t border-slate-700"></div>
-              
-              {/* Rotating Tips */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-brand-400 uppercase tracking-wider">{t.create.ai_thinking}</span>
-                    <div className="flex space-x-1">
-                    <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                    <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                    <div className="w-1.5 h-1.5 bg-brand-400 rounded-full animate-bounce"></div>
-                    </div>
-                </div>
-                <button 
-                    onClick={() => handleCancelGeneration()}
-                    className="text-xs text-slate-500 hover:text-red-400 transition flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-700/50"
-                >
-                    <X size={12} />
-                    {language === 'zh' ? '取消' : 'Cancel'}
-                </button>
-              </div>
-              
-              <div className="min-h-[3em] mb-4">
-                 <div className="flex justify-between items-center mb-2">
-                    <p className="text-sm text-slate-400 transition-all duration-500 animate-fade-in">
-                        {LOADING_TIPS[loadingTipIndex]}
-                    </p>
-                    <span className="text-xs font-bold font-mono transition-colors duration-300" style={{ color: `hsl(${progress * 1.2}, 85%, 60%)` }}>
-                        {Math.round(progress)}%
-                    </span>
-                 </div>
-                 <div className="h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
-                    <div 
-                        className="h-full transition-all duration-300 ease-out" 
-                        style={{ 
-                            width: `${progress}%`,
-                            backgroundColor: `hsl(${progress * 1.2}, 85%, 60%)`,
-                            boxShadow: `0 0 10px hsl(${progress * 1.2}, 85%, 50%)`
-                        }}
-                    ></div>
-                 </div>
-              </div>
-
-              {/* Skeleton Preview */}
-              {!streamingCode && (
-                  <div className="border border-slate-700 rounded-lg p-4 bg-slate-900/50 space-y-3 animate-pulse opacity-50">
-                      <div className="h-4 bg-slate-700 rounded w-3/4"></div>
-                      <div className="h-32 bg-slate-700 rounded w-full"></div>
-                      <div className="flex gap-2">
-                          <div className="h-8 bg-slate-700 rounded w-1/3"></div>
-                          <div className="h-8 bg-slate-700 rounded w-1/3"></div>
-                      </div>
-                  </div>
-              )}
-              
-              {/* Real-time Code Waterfall */}
-              {streamingCode && (
-                <div className="mt-4 bg-slate-950 rounded-xl border border-slate-800 overflow-hidden shadow-inner animate-fade-in">
-                  <div className="bg-slate-900 px-3 py-1.5 border-b border-slate-800 flex items-center justify-between">
-                    <div className="flex gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80"></div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-green-500/80"></div>
-                    </div>
-                    <span className="text-[10px] text-slate-500 font-mono">generating.tsx</span>
-                  </div>
-                  <div 
-                    ref={codeScrollRef}
-                    className="p-3 h-48 overflow-y-auto font-mono text-[10px] leading-relaxed text-green-400/90 custom-scrollbar"
-                  >
-                    <pre className="whitespace-pre-wrap break-all">
-                      {streamingCode}
-                      <span className="animate-pulse inline-block w-1.5 h-3 bg-green-500 ml-0.5 align-middle"></span>
-                    </pre>
-                  </div>
-                </div>
-              )}
+            <div className="w-full">
+                <GenerationProgress 
+                    plan={aiPlan} 
+                    currentStep={currentStep} 
+                    isGenerating={isGenerating} 
+                    language={language} 
+                    variant="centered"
+                    loadingTip={loadingText}
+                    streamingCode={streamingCode}
+                />
             </div>
           </div>
         </div>
@@ -2530,12 +2747,8 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                       toastError(language === 'zh' ? '上传的作品不支持重新生成，仅支持修改' : 'Uploaded works cannot be regenerated, only modified');
                       return;
                     }
-                    const confirmMsg = language === 'zh'
-                      ? '重新生成将消耗 15 积分，是否继续？'
-                      : 'Regenerating will cost 15 credits. Continue?';
-                    if (confirm(confirmMsg)) {
-                      startGeneration(false, currentGenerationPrompt, '', false, 'regenerate');
-                    }
+                    // Removed confirmation dialog
+                    startGeneration(false, currentGenerationPrompt, '', false, 'regenerate');
                   }}
                   className={`text-xs px-2 py-1 rounded flex items-center gap-1 transition border ${
                     isFromUpload 
@@ -2561,7 +2774,18 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                   </p>
                </div>
              </div>
-             <span className="text-[10px] lg:text-xs text-slate-500">{Number.isInteger(credits) ? credits : credits.toFixed(1)} {language === 'zh' ? '积分' : 'Credits'}</span>
+             <div className="relative group cursor-help">
+               <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 transition-all duration-300 ${isCreditAnimating ? 'scale-125 border-red-500 bg-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.6)]' : ''}`}>
+                 <i className={`fa-solid fa-coins text-xs transition-colors duration-300 ${isCreditAnimating ? 'text-red-500' : 'text-yellow-500'}`}></i>
+                 <span className={`text-xs font-bold tabular-nums transition-colors duration-300 ${isCreditAnimating ? 'text-red-500' : 'text-slate-200'}`}>
+                   {Number.isInteger(credits) ? credits : credits.toFixed(2)}
+                 </span>
+                 <span className="text-[10px] text-slate-500">{language === 'zh' ? '积分' : 'Credits'}</span>
+               </div>
+               <div className="absolute top-full right-0 mt-2 w-48 p-2 bg-slate-800 text-[10px] text-slate-300 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-slate-700 text-center">
+                  {language === 'zh' ? '积分根据实际输入输出代码字符数量动态计算' : 'Credits are calculated dynamically based on input and output code characters.'}
+               </div>
+             </div>
           </div>
         </div>
         
@@ -2605,7 +2829,28 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                         </button>
                     </div>
                 ) : (
-                    msg.content
+                    <>
+                        {msg.plan && (
+                            <div className="mb-3 pb-3 border-b border-white/10">
+                                <div className="flex items-center gap-2 text-xs text-slate-400 mb-1 uppercase tracking-wider font-semibold">
+                                    <i className="fa-solid fa-brain text-purple-400"></i>
+                                    {language === 'zh' ? '思考过程' : 'Thinking Process'}
+                                </div>
+                                <div className="text-xs text-slate-300 whitespace-pre-wrap bg-black/20 p-2 rounded font-mono max-h-32 overflow-y-auto custom-scrollbar">
+                                    {msg.plan}
+                                </div>
+                            </div>
+                        )}
+                        {msg.content}
+                        {msg.cost && (
+                            <div className="mt-2 pt-2 border-t border-white/5 flex justify-end">
+                                <span className="text-[10px] text-slate-500 flex items-center gap-1 opacity-70">
+                                    <i className="fa-solid fa-bolt text-yellow-500/50 text-[9px]"></i>
+                                    {language === 'zh' ? `消耗 ${msg.cost} 积分` : `Cost: ${msg.cost} credits`}
+                                </span>
+                            </div>
+                        )}
+                    </>
                 )}
               </div>
             </div>
@@ -2616,29 +2861,16 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
               <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 flex-shrink-0">
                 <i className="fa-solid fa-robot fa-bounce"></i>
               </div>
-              <div className="bg-slate-800 p-3 rounded-2xl rounded-tl-none text-sm text-slate-300 w-full border border-brand-500/30">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-brand-400">{t.create.ai_thinking}</span>
-                    <span className="text-xs text-slate-500">{Math.floor(progress)}%</span>
-                  </div>
-                  <button 
-                    onClick={() => handleCancelGeneration()}
-                    className="text-xs text-slate-500 hover:text-red-400 transition flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-700/50"
-                  >
-                    <X size={12} />
-                    {language === 'zh' ? '取消' : 'Cancel'}
-                  </button>
-                </div>
-                <p className="text-xs text-slate-400 mb-2">{loadingText}</p>
-                {streamingCode && (
-                  <div className="bg-slate-950 rounded p-2 font-mono text-[10px] text-green-400 h-24 overflow-hidden relative opacity-80">
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent pointer-events-none"></div>
-                    <pre className="whitespace-pre-wrap break-all">
-                      {streamingCode.slice(-300)}
-                    </pre>
-                  </div>
-                )}
+              <div className="flex-1 min-w-0">
+                  <GenerationProgress 
+                    plan={aiPlan}
+                    currentStep={currentStep}
+                    isGenerating={isGenerating}
+                    language={language}
+                    variant="chat"
+                    loadingTip={loadingText}
+                    streamingCode={streamingCode}
+                  />
               </div>
             </div>
           )}
@@ -2681,12 +2913,8 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !isGenerating && chatInput.trim()) {
-                  const confirmMsg = language === 'zh'
-                    ? '对话框修改将消耗 5 积分，是否继续？'
-                    : 'Chat modification will cost 5 credits. Continue?';
-                  if (confirm(confirmMsg)) {
-                    startGeneration(true, '', '', false, 'chat');
-                  }
+                  // Removed confirmation dialog
+                  startGeneration(true, '', '', false, 'chat');
                 }
               }}
               placeholder={t.create.chat_placeholder}
@@ -2696,12 +2924,8 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
             <button 
               onClick={() => {
                 if (!chatInput.trim() || isGenerating) return;
-                const confirmMsg = language === 'zh'
-                  ? '对话框修改将消耗 5 积分，是否继续？'
-                  : 'Chat modification will cost 5 credits. Continue?';
-                if (confirm(confirmMsg)) {
-                  startGeneration(true, '', '', false, 'chat');
-                }
+                // Removed confirmation dialog
+                startGeneration(true, '', '', false, 'chat');
               }}
               disabled={isGenerating || !chatInput.trim()}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-brand-600 hover:bg-brand-500 text-white rounded-lg flex items-center justify-center transition disabled:opacity-50 disabled:bg-slate-700"

@@ -593,7 +593,7 @@ function UploadContent() {
               } catch(e) {
                   window.parent.postMessage({ type: 'spark-app-error', error: { message: e.toString() } }, '*');
               }
-            }, 2000); // Wait 2 seconds for render
+            }, 5000); // Wait 5 seconds for render (increased from 2s to handle complex apps)
           });
         </script>
       `;

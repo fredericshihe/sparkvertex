@@ -57,7 +57,9 @@ serve(async (req) => {
     }
 
     // 5. Check Credits (不扣费，只检查余额)
-    const COST = type === 'modification' ? 5.0 : 15.0;
+    // const COST = type === 'modification' ? 5.0 : 15.0;
+    // 改为基于 Token 计费，最低预留 1 积分
+    const MIN_REQUIRED = 1;
     
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
@@ -71,13 +73,13 @@ serve(async (req) => {
     }
     
     const currentCredits = Number(profile.credits || 0);
-    console.log(`User ${user.id} has ${currentCredits} credits. Cost: ${COST}`);
+    console.log(`User ${user.id} has ${currentCredits} credits. Min required: ${MIN_REQUIRED}`);
 
-    if (currentCredits < COST) {
+    if (currentCredits < MIN_REQUIRED) {
        return new Response(JSON.stringify({ error: 'Insufficient credits' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
-    console.log(`余额充足，生成完成后将扣除 ${COST} 积分`);
+    console.log(`余额充足，生成完成后将根据实际 Token 扣除积分`);
 
     // Update status to processing
     await supabaseAdmin
@@ -89,12 +91,16 @@ serve(async (req) => {
     const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
     
     // 优化1: 模型路由（混合模型策略）
-    // 默认使用 Gemini 3 Pro Preview（创建场景）
-    // 修改场景且无图片时使用 Gemini 2.5 Pro
+    // 默认使用 Gemini 3Pro（创建场景，保证质量）
     let modelName = 'gemini-3-pro-preview';
     
+    // 修改场景：使用 Gemini 1.5 Flash
+    // 原因：
+    // 1. 速度快：Flash 比 Pro 快 5-10 倍，解决"等很久"的问题
+    // 2. 成本低：Flash 价格极低，即使没有缓存命中也无所谓
+    // 3. 上下文大：支持 1M tokens，可以直接吞下全量代码，不需要复杂的"代码切片"（Smart Context）逻辑，避免了切片出错的风险
     if (type === 'modification' && !image_url) {
-        modelName = 'gemini-2.5-pro';
+        modelName = 'gemini-2.5-flash';
     }
     
     const envModel = Deno.env.get('GOOGLE_MODEL_NAME');
@@ -117,11 +123,25 @@ serve(async (req) => {
         { role: 'system', content: finalSystemPrompt }
     ];
 
-    if (image_url) {
+    // 尝试拆分 user_prompt 以提高缓存命中率
+    // 如果 user_prompt 包含 "# EXISTING CODE"，则将其拆分为独立的消息
+    const existingCodeMarker = '# EXISTING CODE (for context)';
+    const userPromptStr = String(user_prompt);
+    
+    if (!image_url && userPromptStr.includes(existingCodeMarker)) {
+        // 这是一个修改请求，包含代码上下文
+        // 尝试找到代码块的结束位置，将代码块作为独立消息
+        // 注意：Gemini 缓存基于最长公共前缀。如果代码块在前面，且保持不变，则可以被缓存。
+        
+        // 简单策略：将整个 user_prompt 作为一条消息发送
+        // 因为在单文件修改模式下，代码本身就在变，拆分也无法利用跨轮缓存
+        // 但为了确保 System Prompt 被缓存，我们保持 System Prompt 独立
+        messages.push({ role: 'user', content: userPromptStr });
+    } else if (image_url) {
         messages.push({
             role: 'user',
             content: [
-                { type: 'text', text: String(user_prompt) },
+                { type: 'text', text: userPromptStr },
                 {
                     type: 'image_url',
                     image_url: {
@@ -131,7 +151,7 @@ serve(async (req) => {
             ]
         });
     } else {
-        messages.push({ role: 'user', content: String(user_prompt) });
+        messages.push({ role: 'user', content: userPromptStr });
     }
 
     // Create a stream to return to the client immediately
@@ -237,11 +257,7 @@ serve(async (req) => {
                 let streamClosed = false; 
                 
                 const taskChannel = supabaseAdmin.channel(`task-${taskId}`);
-                await taskChannel.subscribe((status) => {
-                    if (status !== 'SUBSCRIBED') { 
-                        console.log(`频道状态: ${status}`);
-                    }
-                });
+                // Using httpSend() for REST delivery, no WebSocket subscription needed
 
                 if (reader) {
                   try {
@@ -297,7 +313,7 @@ serve(async (req) => {
                           }
                       }
 
-                      // 优化3: Realtime 防抖
+                // 优化3: Realtime 防抖
                       // 累积约150字符或等待500ms后再广播
                       // 显著减少 WebSocket 消息数量
                       const contentDiff = fullContent.length - lastBroadcastLength;
@@ -305,18 +321,15 @@ serve(async (req) => {
                       if (contentDiff > 150 || (contentDiff > 0 && Date.now() - lastUpdate > 500)) {
                           const newChunk = fullContent.slice(lastBroadcastLength);
                           
-                          const msg = {
-                              type: 'broadcast',
-                              event: 'chunk',
-                              payload: { 
-                                  chunk: newChunk, 
-                                  fullContent: fullContent,
-                                  taskId: taskId
-                              }
+                          const payload = { 
+                              chunk: newChunk, 
+                              fullContent: fullContent,
+                              taskId: taskId
                           };
 
                           try {
-                              await taskChannel.send(msg, { httpSend: true });
+                              // httpSend(event: string, payload: any, opts?: { timeout?: number })
+                              await taskChannel.httpSend('chunk', payload);
                           } catch (rtError) {
                               console.warn('Realtime 发送失败:', rtError);
                           }
@@ -358,7 +371,25 @@ serve(async (req) => {
                 console.log('结果保存成功');
                 
                 // 生成成功，现在扣除积分
-                console.log(`生成成功，扣除 ${COST} 积分...`);
+                // 计算 Token 消耗
+                // 规则：中文=1 token, 英文=0.25 token (4 chars = 1 token)
+                const calculateTokens = (text: string) => {
+                    const chineseRegex = /[\u4e00-\u9fa5]/g;
+                    const chineseMatches = text.match(chineseRegex);
+                    const chineseCount = chineseMatches ? chineseMatches.length : 0;
+                    const otherCount = (text || '').length - chineseCount;
+                    return chineseCount + Math.ceil(otherCount / 4);
+                };
+
+                const inputTokens = calculateTokens((system_prompt || '') + (userPromptStr || ''));
+                const outputTokens = calculateTokens(fullContent || '');
+                const totalTokens = inputTokens + outputTokens;
+                // 1 积分 = 3000 Tokens
+                const actualCost = Math.ceil(totalTokens / 3000);
+
+                console.log(`生成成功，Token统计: 输入=${inputTokens}, 输出=${outputTokens}, 总计=${totalTokens}`);
+                console.log(`扣除 ${actualCost} 积分 (汇率: 1积分=3000Tokens)...`);
+
                 const { data: finalProfile } = await supabaseAdmin
                     .from('profiles')
                     .select('credits')
@@ -366,7 +397,7 @@ serve(async (req) => {
                     .single();
                     
                 if (finalProfile) {
-                    const newBalance = (Number(finalProfile.credits) || 0) - COST;
+                    const newBalance = (Number(finalProfile.credits) || 0) - actualCost;
                     await supabaseAdmin
                         .from('profiles')
                         .update({ credits: Math.max(0, newBalance) })
@@ -378,13 +409,8 @@ serve(async (req) => {
                 
                 // 通过 Realtime 广播完成状态
                 try {
-                    const completionMsg = {
-                        type: 'broadcast',
-                        event: 'completed',
-                        payload: { taskId, fullContent }
-                    };
-                    
-                    await taskChannel.send(completionMsg, { httpSend: true });
+                    // httpSend(event: string, payload: any, opts?: { timeout?: number })
+                    await taskChannel.httpSend('completed', { taskId, fullContent, cost: actualCost });
                 } catch (rtErr) {
                     console.log('Realtime 完成广播失败:', rtErr);
                 }

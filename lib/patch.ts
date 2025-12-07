@@ -32,8 +32,19 @@ export function applyPatches(source: string, patchText: string): string {
     const matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*([\s\S]*?)\s*>>>>/g));
     
     if (matches.length === 0) {
-        // Fallback for loose matches
-        const looseMatches = Array.from(patchText.matchAll(/<<<<SEARCH([\s\S]*?)====([\s\S]*?)>>>>/g));
+        // Fallback 1: Loose matches (no spaces or different spacing)
+        let looseMatches = Array.from(patchText.matchAll(/<<<<SEARCH([\s\S]*?)====([\s\S]*?)>>>>/g));
+        
+        // Fallback 2: Handle "==== REPLACE" variation
+        if (looseMatches.length === 0) {
+             looseMatches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*REPLACE\s*([\s\S]*?)\s*>>>>/g));
+        }
+
+        // Fallback 3: Handle missing closing >>>> (truncated response)
+        if (looseMatches.length === 0) {
+             looseMatches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*([\s\S]*?)$/g));
+        }
+
         if (looseMatches.length > 0) {
              return applyPatchesInternal(source, looseMatches);
         }

@@ -1,4 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
@@ -44,6 +45,19 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: '服务器配置错误 (Server Configuration Error)' }, { status: 500 });
     }
 
+    // Use Admin Client for DB operations to avoid potential client-side connection issues
+    const adminSupabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        {
+            auth: {
+                persistSession: false,
+                autoRefreshToken: false,
+                detectSessionInUrl: false
+            }
+        }
+    );
+
     // Note: Credit deduction is now handled entirely in the Edge Function to ensure atomicity and correct pricing based on model usage.
     
     // 1. Create Task in DB
@@ -53,7 +67,7 @@ export async function POST(request: Request) {
         ? body.user_prompt.substring(0, MAX_PROMPT_LENGTH) + '... (truncated)' 
         : body.user_prompt;
 
-    const { data: task, error: taskError } = await supabase
+    const { data: task, error: taskError } = await adminSupabase
       .from('generation_tasks')
       .insert({
         user_id: session.user.id,
