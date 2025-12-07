@@ -403,6 +403,20 @@ serve(async (req) => {
                 }
                 
                 console.log(`清洗后内容长度: ${cleanContent.length}`);
+                
+                // 检查响应是否完整 - 如果只有PLAN没有代码，说明AI响应被截断
+                const hasOnlyPlan = cleanContent.includes('/// PLAN') && 
+                                    !cleanContent.includes('<<<<SEARCH') && 
+                                    !cleanContent.includes('<!DOCTYPE') &&
+                                    !cleanContent.includes('<html') &&
+                                    cleanContent.length < 1000;
+                
+                if (hasOnlyPlan) {
+                    console.error('AI响应不完整：只有PLAN没有代码');
+                    console.log('原始内容预览:', fullContent.substring(0, 500));
+                    // 不保存不完整的结果，标记为失败
+                    throw new Error('AI 响应不完整，请重试');
+                }
 
                 // 安全修复：移除会导致 JS 崩溃的 Python 风格 Unicode 转义
                 const sanitizedContent = cleanContent.replace(/\\U([0-9a-fA-F]{8})/g, (match, p1) => {
