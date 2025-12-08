@@ -4150,7 +4150,7 @@ Please fix the code to make the app display properly.`;
                     <div className="relative flex flex-col md:flex-row gap-8 items-center md:items-start">
                         {/* Left: Visual Indicator */}
                         <div className="shrink-0 relative">
-                            <div className="w-20 h-20 rounded-2xl bg-slate-800 flex items-center justify-center border border-slate-700 shadow-inner overflow-hidden">
+                            <div className="w-20 h-20 rounded-2xl bg-slate-800 flex items-center justify-center border border-slate-700 overflow-hidden">
                                 <i className={`fa-solid ${wizardData.category ? (CATEGORIES.find(c => c.id === wizardData.category)?.icon || 'fa-cube') : 'fa-cube'} text-4xl text-brand-500/80`}></i>
                                 <div className="absolute inset-0 bg-gradient-to-t from-brand-500/20 to-transparent animate-pulse"></div>
                             </div>
@@ -4179,7 +4179,7 @@ Please fix the code to make the app display properly.`;
                                     currentStep={currentStep} 
                                     isGenerating={isGenerating} 
                                     language={language} 
-                                    variant="centered" // We might want to adjust this variant or create a new one for this layout
+                                    variant="embedded" 
                                     loadingTip={loadingText}
                                     // We don't pass streamingCode here because we show it in the waterfall
                                 />

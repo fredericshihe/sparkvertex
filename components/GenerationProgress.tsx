@@ -5,7 +5,7 @@ interface GenerationProgressProps {
   currentStep: string | null;
   isGenerating: boolean;
   language: 'zh' | 'en';
-  variant?: 'floating' | 'centered' | 'chat';
+  variant?: 'floating' | 'centered' | 'chat' | 'embedded';
   loadingTip?: string;
   streamingCode?: string;
 }
@@ -74,6 +74,9 @@ export const GenerationProgress: React.FC<GenerationProgressProps> = ({
       case 'chat':
           containerClasses = "w-full bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 text-white transition-all duration-300 animate-in fade-in";
           title = language === 'zh' ? 'AI 正在应用修改...' : 'AI is applying changes...';
+          break;
+      case 'embedded':
+          containerClasses = "w-full text-white transition-all duration-300 animate-in fade-in";
           break;
   }
 
