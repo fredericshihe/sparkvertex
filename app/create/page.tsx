@@ -1303,23 +1303,14 @@ ${description}
                 // SAFETY FIX: Remove Google Fonts & Preconnects (China Blocking Issue)
                 c = c.replace(/<link[^>]+fonts\.(googleapis|gstatic)\.com[^>]*>/gi, '');
                 
-                // OPTIMIZATION: Replace blocked CDNs with China-accessible mirrors
-                // cdnjs.cloudflare.com -> lib.baomitu.com (360 CDN)
-                c = c.replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/g, 'https://lib.baomitu.com/font-awesome');
-                // cdn.staticfile.org -> npm.elemecdn.com (Alibaba)
-                c = c.replace(/https:\/\/cdn\.staticfile\.org\/react\//g, 'https://npm.elemecdn.com/react@');
-                c = c.replace(/https:\/\/cdn\.staticfile\.org\/react-dom\//g, 'https://npm.elemecdn.com/react-dom@');
-                c = c.replace(/https:\/\/cdn\.staticfile\.org\/babel-standalone\//g, 'https://npm.elemecdn.com/@babel/standalone@');
-                c = c.replace(/https:\/\/cdn\.staticfile\.org\/font-awesome/g, 'https://lib.baomitu.com/font-awesome');
-                // jsdelivr.net -> npm.elemecdn.com
-                c = c.replace(/https:\/\/cdn\.jsdelivr\.net\/npm\//g, 'https://npm.elemecdn.com/');
-                // unpkg.com -> npm.elemecdn.com
-                c = c.replace(/https:\/\/unpkg\.com\//g, 'https://npm.elemecdn.com/');
-                // Replace images.unsplash.com with placeholder
-                c = c.replace(/https:\/\/images\.unsplash\.com\/[^"'\s)]+/g, 'https://placehold.co/400x300/202020/ffffff?text=Image');
+                // OPTIMIZATION: Replace cdnjs with cdn.staticfile.org for FontAwesome
+                c = c.replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/font-awesome/g, 'https://cdn.staticfile.org/font-awesome');
 
                 // SAFETY FIX: Remove Framer Motion (Broken CDN / 404)
                 c = c.replace(/<script.*src=".*framer-motion.*\.js".*><\/script>/g, '');
+
+                // SAFETY FIX: Replace broken QRCode CDN with staticfile
+                c = c.replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/qrcode@[\d\.]+\/build\/qrcode\.min\.js/g, 'https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js');
                 
                 // SAFETY FIX: Remove Mixkit MP3s (403 Forbidden)
                 c = c.replace(/src="[^"]*mixkit[^"]*\.mp3"/g, 'src=""');
@@ -2095,24 +2086,19 @@ ${processVizInstructions}
 
 ### Approved CDN Libraries (China-Accessible)
 Use these stable CDNs when features are needed:
-- **React**: \`https://npm.elemecdn.com/react@18.2.0/umd/react.production.min.js\`
-- **ReactDOM**: \`https://npm.elemecdn.com/react-dom@18.2.0/umd/react-dom.production.min.js\`
-- **Babel**: \`https://npm.elemecdn.com/@babel/standalone@7.23.5/babel.min.js\`
+- **React**: \`https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js\`
+- **ReactDOM**: \`https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js\`
+- **Babel**: \`https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js\`
 - **Tailwind**: \`https://cdn.tailwindcss.com\`
-- **FontAwesome**: \`https://lib.baomitu.com/font-awesome/6.4.0/css/all.min.css\`
-- **Lucide Icons**: \`https://npm.elemecdn.com/lucide@latest/dist/umd/lucide.js\` (Global: \`lucide\`)
-- **Charts (ECharts)**: \`https://npm.elemecdn.com/echarts@5.4.3/dist/echarts.min.js\` (Global: \`echarts\`)
-- **Markdown**: \`https://npm.elemecdn.com/marked/marked.min.js\` (Global: \`marked\`)
-- **Confetti**: \`https://npm.elemecdn.com/canvas-confetti@1.9.2/dist/confetti.browser.min.js\` (Global: \`confetti\`)
-- **Physics (Matter.js)**: \`https://npm.elemecdn.com/matter-js@0.19.0/build/matter.min.js\` (Global: \`Matter\`)
-- **Excel (XLSX)**: \`https://npm.elemecdn.com/xlsx@0.18.5/dist/xlsx.full.min.js\` (Global: \`XLSX\`)
-- **PDF Generation**: \`https://npm.elemecdn.com/jspdf@latest/dist/jspdf.umd.min.js\` (Global: \`jspdf\`)
-- **QRCode**: \`https://npm.elemecdn.com/qrcodejs@1.0.0/qrcode.min.js\` (Global: \`QRCode\`. Usage: \`new QRCode(el, "text")\`)
-
-### 🚫 FORBIDDEN Resources (Blocked in China)
-- \`unpkg.com\`, \`jsdelivr.net\`, \`cdnjs.cloudflare.com\` - Use npm.elemecdn.com instead
-- \`images.unsplash.com\`, \`picsum.photos\` - Use \`https://placehold.co/{w}x{h}/{bg}/{fg}?text={text}\`
-- \`fonts.googleapis.com\` - Use system fonts only
+- **FontAwesome**: \`https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css\`
+- **Lucide Icons**: \`https://unpkg.com/lucide@latest/dist/umd/lucide.js\` (Global: \`lucide\`)
+- **Charts (ECharts)**: \`https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js\` (Global: \`echarts\`)
+- **Markdown**: \`https://cdn.jsdelivr.net/npm/marked/marked.min.js\` (Global: \`marked\`)
+- **Confetti**: \`https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js\` (Global: \`confetti\`)
+- **Physics (Matter.js)**: \`https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js\` (Global: \`Matter\`)
+- **Excel (XLSX)**: \`https://cdn.staticfile.org/xlsx/0.18.5/xlsx.full.min.js\` (Global: \`XLSX\`)
+- **PDF Generation**: \`https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js\` (Global: \`jspdf\`)
+- **QRCode**: \`https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js\` (Global: \`QRCode\`. Usage: \`new QRCode(el, "text")\`)
 
 ### Strict Constraints
 1. **Output Format**: Raw HTML only. NO Markdown code blocks, NO explanations outside the HTML
@@ -2133,10 +2119,10 @@ ${deviceConstraint}
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>App Title</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://lib.baomitu.com/font-awesome/6.4.0/css/all.min.css">
-<script src="https://npm.elemecdn.com/react@18.2.0/umd/react.production.min.js"></script>
-<script src="https://npm.elemecdn.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://npm.elemecdn.com/@babel/standalone@7.23.5/babel.min.js"></script>
+<link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
 <style>body{margin:0;overflow:hidden}</style>
 </head>
 <body>

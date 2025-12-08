@@ -5,12 +5,11 @@ export const HTML_TEMPLATE = `<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>App</title>
-<script src="https://npm.elemecdn.com/tailwindcss@3.4.1/lib/index.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://lib.baomitu.com/font-awesome/6.4.0/css/all.min.css">
-<script src="https://npm.elemecdn.com/react@18.2.0/umd/react.production.min.js"></script>
-<script src="https://npm.elemecdn.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://npm.elemecdn.com/@babel/standalone@7.23.5/babel.min.js"></script>
+<link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
 <style>body{background:#1a1a1a;color:#fff;overflow:hidden}</style>
 </head>
 <body>
@@ -143,45 +142,21 @@ Build a production-grade, single-file HTML application.
 - Tailwind CSS (CDN)
 - FontAwesome 6 (CDN)
 
-## 🇨🇳 China Region Resource Constraints & Preferences
-You are generating code for users in Mainland China. You MUST strictly adhere to the following resource usage rules.
-
-### 🚫 FORBIDDEN RESOURCES (Do Not Use)
-- **Never use** \`unpkg.com\`, \`jsdelivr.net\`, \`cdnjs.cloudflare.com\` (Slow or Blocked)
-- **Never use** \`images.unsplash.com\`, \`picsum.photos\`, \`lorempixel.com\` (Blocked)
-- **Never use** \`fonts.googleapis.com\` (Blocked)
-- **Never use** \`cdn.staticfile.org\` for \`.map\` files (often missing)
-
-### ✅ PREFERRED CDNs (Use These Mirrors)
-**Priority 1: Alibaba (Elemecdn) - Mirror of unpkg**
-Format: \`https://npm.elemecdn.com/[package]@[version]/[file]\`
-- **React**: \`https://npm.elemecdn.com/react@18.2.0/umd/react.production.min.js\`
-- **ReactDOM**: \`https://npm.elemecdn.com/react-dom@18.2.0/umd/react-dom.production.min.js\`
-- **Babel**: \`https://npm.elemecdn.com/@babel/standalone@7.23.5/babel.min.js\`
-- **Tailwind**: \`https://cdn.tailwindcss.com\` (still works, keep as fallback)
-- **Axios**: \`https://npm.elemecdn.com/axios/dist/axios.min.js\`
-- **Lodash**: \`https://npm.elemecdn.com/lodash/lodash.min.js\`
-- **Confetti**: \`https://npm.elemecdn.com/canvas-confetti@1.9.2/dist/confetti.browser.min.js\` (Global: \`confetti\`)
-- **ECharts**: \`https://npm.elemecdn.com/echarts@5.4.3/dist/echarts.min.js\` (Global: \`echarts\`)
-- **Marked**: \`https://npm.elemecdn.com/marked/marked.min.js\` (Global: \`marked\`)
-- **Matter.js**: \`https://npm.elemecdn.com/matter-js@0.19.0/build/matter.min.js\` (Global: \`Matter\`)
-- **XLSX**: \`https://npm.elemecdn.com/xlsx@0.18.5/dist/xlsx.full.min.js\` (Global: \`XLSX\`)
-- **jsPDF**: \`https://npm.elemecdn.com/jspdf@latest/dist/jspdf.umd.min.js\` (Global: \`jspdf\`)
-- **QRCode**: \`https://npm.elemecdn.com/qrcodejs@1.0.0/qrcode.min.js\` (Global: \`QRCode\`)
-- **Lucide Icons**: \`https://npm.elemecdn.com/lucide@latest/dist/umd/lucide.js\` (Global: \`lucide\`)
-
-**Priority 2: 360 CDN (Baomitu)**
-- **FontAwesome**: \`https://lib.baomitu.com/font-awesome/6.4.0/css/all.min.css\`
-
-### 🖼️ IMAGE PLACEHOLDERS
-Since real image services are blocked, use **Placehold.co** or **Solid Colors**.
-- **URL Format:** \`https://placehold.co/{width}x{height}/{bg_hex}/{text_hex}?text={text}\`
-- **Example:** \`https://placehold.co/400x300/202020/ffffff?text=Image\`
-- **Alternative:** Use CSS \`background-color\` or \`linear-gradient\` instead of \`<img>\` tags when possible.
-
-### 🔤 FONTS
-- Use System Fonts: \`font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;\`
-- If web font is needed: \`https://fonts.font.im\` (Google Fonts Mirror)
+### Preferred Libraries (CDN)
+Use these stable, China-accessible CDNs when these features are needed:
+- **React**: \`https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js\`
+- **ReactDOM**: \`https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js\`
+- **Babel**: \`https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js\`
+- **Tailwind**: \`https://cdn.tailwindcss.com\`
+- **FontAwesome**: \`https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css\`
+- **Lucide Icons**: \`https://unpkg.com/lucide@latest/dist/umd/lucide.js\` (Global: \`lucide\`)
+- **Charts (ECharts)**: \`https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js\` (Global: \`echarts\`)
+- **Markdown**: \`https://cdn.jsdelivr.net/npm/marked/marked.min.js\` (Global: \`marked\`)
+- **Confetti**: \`https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js\` (Global: \`confetti\`)
+- **Math/Physics**: \`https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js\` (Global: \`Matter\`)
+- **Excel (XLSX)**: \`https://cdn.staticfile.org/xlsx/0.18.5/xlsx.full.min.js\` (Global: \`XLSX\`)
+- **PDF Generation**: \`https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js\` (Global: \`jspdf\`)
+- **QRCode**: \`https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js\` (Global: \`QRCode\`. Usage: \`new QRCode(document.getElementById("id"), "text")\`)
 
 ### Strict Constraints
 1. Output ONLY raw HTML. No Markdown blocks.
