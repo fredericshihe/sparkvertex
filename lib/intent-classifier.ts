@@ -321,11 +321,12 @@ Task: 分析用户请求，深入思考依赖关系，决定哪些文件需要�
 - DATA_OPERATION: 数据/配置变更
 - CONFIG_HELP / PERFORMANCE / REFACTOR / QA_EXPLANATION / UNKNOWN
 
-⚠️ STRICT OUTPUT RULES:
-- files_to_edit 和 files_to_read 数组中只能放**纯文件名/组件名**
-- 禁止在数组字符串中添加注释、描述、中文备注或括号说明
-- ❌ 错误: ["MapScreen（主文件）", "App组件"]
-- ✅ 正确: ["MapScreen", "App"]
+⚠️ IMPORTANT OUTPUT RULES:
+1. You must output **STRICT JSON ONLY**.
+2. Do NOT output "/// PLAN ///", "Here is the JSON", or any reasoning text outside the JSON object.
+3. If you want to explain, put it inside the "reasoning" field of the JSON.
+4. Start your response with \`{\` and end with \`}\`.
+5. files_to_edit 和 files_to_read 数组中只能放**纯文件名/组件名** (e.g. ["MapScreen", "App"])
 
 输出格式 (严格 JSON，直接以 { 开始):
 {
@@ -441,6 +442,10 @@ Task: 分析用户请求，深入思考依赖关系，决定哪些文件需要�
         // 降级处理：如果不是 JSON，尝试直接提取意图
         console.warn('[IntentClassifier] Failed to parse JSON, falling back to regex. Raw text:', result);
         intentStr = result.trim().toUpperCase().replace(/[^A-Z_]/g, '') as UserIntent;
+        
+        // 🚨 紧急兜底：如果 JSON 解析失败，且意图看起来是修改，
+        // 为了防止误杀，返回空数组，让上层逻辑决定是否启用保守模式
+        // (注意：这里返回空数组，但 intent 可能是 UNKNOWN 或被正则提取的意图)
     }
 
     const latencyMs = Date.now() - startTime;
@@ -454,6 +459,16 @@ Task: 分析用户请求，深入思考依赖关系，决定哪些文件需要�
 
     // 验证返回的意图是否有效
     if (Object.values(UserIntent).includes(intentStr)) {
+      // 🚨 最终防线：如果意图是修改类，但 files_to_edit 为空
+      // 这通常意味着 DeepSeek 抽风了，或者解析失败了。
+      // 我们不能让它返回空列表，否则会导致所有文件被骨架化。
+      if ((intentStr === UserIntent.UI_MODIFICATION || intentStr === UserIntent.LOGIC_FIX || intentStr === UserIntent.NEW_FEATURE) && targets.length === 0) {
+          console.warn("⚠️ [IntentClassifier] Modification intent detected but files_to_edit is empty! Activating FAIL-SAFE mode.");
+          // 在这里我们无法知道哪些文件是相关的，所以我们只能依赖上层 (CodeRAG) 来处理这种情况。
+          // 但我们可以标记一个特殊的 flag 或者在 reasoning 里说明。
+          if (!reasoning) reasoning = "FAIL-SAFE: Empty edit list detected.";
+      }
+
       return { intent: intentStr, confidence: 0.9, latencyMs, source: 'deepseek', targets, referenceTargets, reasoning };
     }
 

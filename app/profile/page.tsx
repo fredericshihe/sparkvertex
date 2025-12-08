@@ -15,12 +15,12 @@ export default function Profile() {
   const { openLoginModal, openDetailModal, openEditProfileModal, openPaymentQRModal, openManageOrdersModal, openCreditPurchaseModal } = useModal();
   const { success: toastSuccess } = useToast();
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'works' | 'purchased' | 'favorites'>('works');
+  const [activeTab, setActiveTab] = useState<'works' | 'drafts' | 'purchased' | 'favorites'>('works');
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [counts, setCounts] = useState({ works: 0, purchased: 0, favorites: 0 });
+  const [counts, setCounts] = useState({ works: 0, drafts: 0, purchased: 0, favorites: 0 });
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [filterVisibility, setFilterVisibility] = useState<'all' | 'public' | 'private'>('all');
 
@@ -137,6 +137,13 @@ export default function Profile() {
     if (!user) return;
 
     try {
+      // Fetch drafts count separately
+      const { count: draftsCount } = await supabase
+        .from('items')
+        .select('id', { count: 'exact', head: true })
+        .eq('author_id', user.id)
+        .eq('is_draft', true);
+
       // 使用存储过程一次性获取所有计数，减少延迟
       const { data, error } = await supabase.rpc('get_user_counts', { p_user_id: user.id });
       
@@ -144,13 +151,14 @@ export default function Profile() {
         console.error('Error calling get_user_counts:', error);
         // 降级到原有逻辑
         const [worksRes, purchasedRes, favoritesRes, pendingRes] = await Promise.all([
-          supabase.from('items').select('id', { count: 'exact', head: true }).eq('author_id', user.id),
+          supabase.from('items').select('id', { count: 'exact', head: true }).eq('author_id', user.id).neq('is_draft', true),
           supabase.from('orders').select('id', { count: 'exact', head: true }).eq('buyer_id', user.id),
           supabase.from('likes').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
           supabase.from('orders').select('id', { count: 'exact', head: true }).eq('seller_id', user.id).eq('status', 'paid')
         ]);
         setCounts({
           works: worksRes.count || 0,
+          drafts: draftsCount || 0,
           purchased: purchasedRes.count || 0,
           favorites: favoritesRes.count || 0
         });
@@ -158,6 +166,7 @@ export default function Profile() {
       } else if (data) {
         setCounts({
           works: data.works || 0,
+          drafts: draftsCount || 0,
           purchased: data.purchased || 0,
           favorites: data.favorites || 0
         });
@@ -191,6 +200,15 @@ export default function Profile() {
           .from('items')
           .select(selectQuery)
           .eq('author_id', user.id)
+          .neq('is_draft', true)
+          .order('created_at', { ascending: false });
+        setItems(data?.map(mapItemWithProfile) || []);
+      } else if (activeTab === 'drafts') {
+        const { data } = await supabase
+          .from('items')
+          .select(selectQuery)
+          .eq('author_id', user.id)
+          .eq('is_draft', true)
           .order('created_at', { ascending: false });
         setItems(data?.map(mapItemWithProfile) || []);
       } else if (activeTab === 'purchased') {
@@ -273,7 +291,11 @@ export default function Profile() {
   };
 
   const handleEditItem = (item: any) => {
-    router.push(`/upload?edit=${item.id}`);
+    if (item.is_draft) {
+      router.push(`/create?draftId=${item.id}`);
+    } else {
+      router.push(`/upload?edit=${item.id}`);
+    }
   };
 
   const handleDeleteItem = async (id: string) => {
@@ -413,7 +435,13 @@ export default function Profile() {
               {t.profile.tabs.works} <span className="ml-1 bg-brand-900/50 px-2 py-0.5 rounded-full text-xs">{counts.works}</span>
             </button>
             <button 
-              onClick={() => setActiveTab('purchased')} 
+              onClick={() => setActiveTab('drafts')} 
+              className={`px-4 py-3 font-bold text-sm transition whitespace-nowrap border-b-2 ${activeTab === 'drafts' ? 'text-brand-400 border-brand-500' : 'text-slate-400 border-transparent hover:text-white'}`}
+            >
+              {t.profile.tabs.drafts} <span className="ml-1 bg-slate-800 px-2 py-0.5 rounded-full text-xs">{counts.drafts}</span>
+            </button>
+            <button 
+              onClick={() => setActiveTab('purchased')}  
               className={`px-4 py-3 font-bold text-sm transition whitespace-nowrap border-b-2 ${activeTab === 'purchased' ? 'text-brand-400 border-brand-500' : 'text-slate-400 border-transparent hover:text-white'}`}
             >
               {t.profile.tabs.purchased} <span className="ml-1 bg-slate-800 px-2 py-0.5 rounded-full text-xs">{counts.purchased}</span>
@@ -474,7 +502,7 @@ export default function Profile() {
                     isLiked={false} // TODO: Implement like status check
                     onLike={() => {}} // TODO: Implement like handler
                     onClick={(id) => openDetailModal(id, item)}
-                    isOwner={activeTab === 'works'}
+                    isOwner={activeTab === 'works' || activeTab === 'drafts'}
                     onEdit={handleEditItem}
                     onDelete={handleDeleteItem}
                   />

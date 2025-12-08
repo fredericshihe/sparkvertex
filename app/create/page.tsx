@@ -174,6 +174,7 @@ function CreateContent() {
   const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string, type?: 'text' | 'error', errorDetails?: any, plan?: string, cost?: number, isBlankScreen?: boolean, canAutoFix?: boolean}[]>([]);
   const [loadingText, setLoadingText] = useState(t.create.analyzing);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('mobile');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [streamingCode, setStreamingCode] = useState('');
   const [currentGenerationPrompt, setCurrentGenerationPrompt] = useState('');
   
@@ -227,6 +228,111 @@ function CreateContent() {
   const [timeoutCost, setTimeoutCost] = useState(0);
   const [aiPlan, setAiPlan] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
+  
+  // State: Draft
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null); // Add user state for saving draft
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveDraft = async () => {
+    console.log('handleSaveDraft called');
+    if (isSaving) return;
+    
+    if (!userId) {
+      console.log('No userId, opening login modal');
+      openLoginModal();
+      return;
+    }
+
+    if (!generatedCode) {
+      console.log('No generatedCode');
+      toastError(language === 'zh' ? '没有可保存的内容' : 'Nothing to save');
+      return;
+    }
+
+    setIsSaving(true);
+    // Show loading toast
+    // toastSuccess(language === 'zh' ? '正在保存草稿...' : 'Saving draft...');
+
+    try {
+      console.log('Preparing draft data...');
+      const draftData = {
+        step,
+        wizardData,
+        generatedCode,
+        chatHistory,
+        codeHistory,
+        currentGenerationPrompt,
+        previewMode,
+        currentTaskId,
+        promptLengthForLog,
+        conversationSummary,
+        quickEditHistory,
+        quickEditHistoryIndex,
+        timestamp: Date.now()
+      };
+
+      const itemData = {
+        title: wizardData.description?.slice(0, 50) || 'Untitled Draft',
+        description: wizardData.description || '',
+        content: generatedCode,
+        prompt: currentGenerationPrompt,
+        // category: wizardData.category || 'tool', // Temporarily disabled due to schema cache error
+        is_draft: true,
+        draft_data: draftData,
+        author_id: userId,
+        // user_id: userId, // Temporarily disabled due to schema mismatch
+        is_public: false,
+        // updated_at: new Date().toISOString() // Temporarily disabled due to schema mismatch
+      };
+      
+      console.log('Sending to Supabase:', itemData);
+
+      let result;
+      if (draftId) {
+        console.log('Updating existing draft:', draftId);
+        result = await supabase
+          .from('items')
+          .update(itemData)
+          .eq('id', draftId)
+          .select()
+          .single();
+      } else {
+        console.log('Creating new draft');
+        result = await supabase
+          .from('items')
+          .insert(itemData)
+          .select()
+          .single();
+      }
+
+      console.log('Supabase result:', result);
+
+      if (result.error) throw result.error;
+
+      if (result.data) {
+        setDraftId(result.data.id);
+        // Update URL without reload
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('draftId', result.data.id);
+        window.history.replaceState({}, '', newUrl.toString());
+        
+        toastSuccess(language === 'zh' ? '草稿已保存' : 'Draft saved');
+        
+        // Redirect to profile page immediately
+        setTimeout(() => {
+          router.push('/profile');
+        }, 500);
+      } else {
+        setIsSaving(false);
+      }
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      toastError(language === 'zh' ? '保存失败' : 'Failed to save');
+      setIsSaving(false);
+    }
+  };
+
   
   // State: Generation Phase for Animation
   const [generationPhase, setGenerationPhase] = useState<'idle' | 'starting' | 'generating' | 'completing' | 'completed'>('idle');
@@ -438,6 +544,45 @@ function CreateContent() {
   }, [workflowStage, isGenerating]);
 
   useEffect(() => {
+    const draftIdParam = searchParams.get('draftId');
+    if (draftIdParam) {
+      setDraftId(draftIdParam);
+      // Fetch draft data
+      const fetchDraft = async () => {
+        const { data, error } = await supabase
+          .from('items')
+          .select('*')
+          .eq('id', draftIdParam)
+          .single();
+          
+        if (data && data.draft_data) {
+          const parsed = data.draft_data;
+          if (parsed.step) setStep(parsed.step);
+          if (parsed.wizardData) setWizardData(parsed.wizardData);
+          if (parsed.generatedCode) setGeneratedCode(parsed.generatedCode);
+          if (parsed.chatHistory) setChatHistory(parsed.chatHistory);
+          if (parsed.codeHistory) setCodeHistory(parsed.codeHistory);
+          if (parsed.currentGenerationPrompt) setCurrentGenerationPrompt(parsed.currentGenerationPrompt);
+          if (parsed.previewMode) setPreviewMode(parsed.previewMode);
+          if (parsed.currentTaskId) setCurrentTaskId(parsed.currentTaskId);
+          if (parsed.promptLengthForLog) setPromptLengthForLog(parsed.promptLengthForLog);
+          if (parsed.conversationSummary) setConversationSummary(parsed.conversationSummary);
+          if (parsed.quickEditHistory) setQuickEditHistory(parsed.quickEditHistory);
+          if (typeof parsed.quickEditHistoryIndex === 'number') setQuickEditHistoryIndex(parsed.quickEditHistoryIndex);
+          
+          if ((parsed.step === 'preview' || parsed.step === 'generating') && parsed.generatedCode) {
+             setStreamingCode(parsed.generatedCode);
+             setStep('preview');
+             setIsGenerating(false);
+          }
+          
+          setTimeout(() => toastSuccess(language === 'zh' ? '已加载草稿' : 'Draft loaded'), 500);
+        }
+      };
+      fetchDraft();
+      return;
+    }
+
     const fromUpload = searchParams.get('from') === 'upload';
     if (fromUpload) {
         const importedCode = localStorage.getItem('spark_upload_import');
@@ -849,6 +994,26 @@ function CreateContent() {
       router.push('/');
     }
   };
+
+  // Full Screen Toggle
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      previewContainerRef.current?.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   const handleCancelGeneration = async (refundCost = 0) => {
     // 1. Clear Intervals
@@ -2491,6 +2656,8 @@ Remember: You're building for production. Code must be clean, performant, and er
                                             }
                                         } else if (event.data?.stage === 'rag') {
                                             setWorkflowStage('compressing');
+                                        } else if (event.data?.stage === 'intent') {
+                                            setWorkflowStage('analyzing');
                                         }
                                         break;
                                     case 'result':
@@ -4343,15 +4510,39 @@ Please fix the code to make the app display properly.`;
               <i className="fa-solid fa-chevron-left"></i>
             </button>
             <span className="text-sm font-bold text-slate-400">{t.create.preview_mode}</span>
+            
+            {/* Full Screen Button */}
+            <button 
+              onClick={toggleFullScreen}
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
+              title={language === 'zh' ? (isFullscreen ? '退出全屏' : '全屏预览') : (isFullscreen ? 'Exit Full Screen' : 'Full Screen')}
+            >
+              <i className={`fa-solid ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i>
+            </button>
           </div>
           
-          <button 
-            onClick={handleUpload}
-            className="px-3 py-1.5 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-lg text-xs font-bold transition shadow-lg flex items-center gap-1.5"
-          >
-            <i className="fa-solid fa-rocket"></i> 
-            <span>{t.create.publish}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleSaveDraft}
+              disabled={isSaving}
+              className={`px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
+            >
+              {isSaving ? (
+                <i className="fa-solid fa-circle-notch fa-spin"></i>
+              ) : (
+                <i className="fa-solid fa-floppy-disk"></i>
+              )}
+              <span>{isSaving ? (language === 'zh' ? '保存中...' : 'Saving...') : (language === 'zh' ? '存草稿' : 'Save Draft')}</span>
+            </button>
+            
+            <button 
+              onClick={handleUpload}
+              className="px-3 py-1.5 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-lg text-xs font-bold transition shadow-lg flex items-center gap-1.5"
+            >
+              <i className="fa-solid fa-rocket"></i> 
+              <span>{t.create.publish}</span>
+            </button>
+          </div>
         </div>
         
         {/* Preview Container */}
@@ -4481,21 +4672,21 @@ Please fix the code to make the app display properly.`;
           )}
           <div 
             className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 origin-center
-              ${previewMode === 'mobile' 
+              ${(previewMode === 'mobile' && !isFullscreen)
                 ? 'w-[375px] h-[812px] rounded-[3rem] border-[8px] border-slate-800 ring-1 ring-slate-700/50' 
                 : ''}
-              ${previewMode === 'tablet' 
+              ${(previewMode === 'tablet' && !isFullscreen)
                 ? 'w-[768px] h-[1024px] rounded-[2rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50' 
                 : ''}
-              ${previewMode === 'desktop' 
+              ${(previewMode === 'desktop' || isFullscreen)
                 ? 'w-full h-full rounded-none border-0' 
                 : ''}
             `}
             style={{
-              transform: previewMode !== 'desktop' ? `scale(${previewScale})` : 'none'
+              transform: (previewMode !== 'desktop' && !isFullscreen) ? `scale(${previewScale})` : 'none'
             }}
           >
-             {previewMode === 'mobile' && (
+             {(previewMode === 'mobile' && !isFullscreen) && (
                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-slate-800 rounded-b-2xl z-20 pointer-events-none"></div>
              )}
              

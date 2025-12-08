@@ -75,6 +75,7 @@ export const translations = {
       create_cost: '按实际生成代码量动态计费',
       tabs: {
         works: '我的作品',
+        drafts: '我的草稿',
         purchased: '已购买',
         favorites: '我的喜欢',
       },
@@ -587,6 +588,7 @@ export const translations = {
       free: '免费',
       scan_now: '扫码即刻体验',
       mobile_fullscreen: '手机全屏模式运行',
+      draft: '草稿',
     },
     wechat_guard: {
       title: '请在浏览器中打开',
@@ -961,6 +963,7 @@ export const translations = {
       create_cost: 'Dynamic billing based on actual code generated',
       tabs: {
         works: 'Works',
+        drafts: 'Drafts',
         purchased: 'Library',
         favorites: 'Likes',
       },
@@ -1473,6 +1476,7 @@ export const translations = {
       free: 'Free',
       scan_now: 'Scan to Experience',
       mobile_fullscreen: 'Run in Full Screen on Mobile',
+      draft: 'Draft',
     },
     wechat_guard: {
       title: 'Open in Browser',

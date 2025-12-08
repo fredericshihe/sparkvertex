@@ -562,6 +562,46 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
              }
         }
 
+        // Fallback: Significant Anchor Matching
+        // If all else fails, try to match based on the first and last lines of the search block,
+        // provided they are "significant" (long enough and not just symbols).
+        if (!matchRange) {
+            const searchLines = cleanSearchBlock.split('\n').map(l => l.trim()).filter(l => l);
+            if (searchLines.length >= 2) {
+                const startLine = searchLines[0];
+                const endLine = searchLines[searchLines.length - 1];
+                
+                // Check significance (e.g. > 15 chars, avoids "};" or "return true;")
+                if (startLine.length > 15 && endLine.length > 15) {
+                     const sourceLines = currentSource.split('\n');
+                     let bestAnchorMatch = null;
+                     
+                     for (let i = 0; i < sourceLines.length; i++) {
+                         if (sourceLines[i].trim() === startLine) {
+                             for (let j = i + 1; j < Math.min(i + 500, sourceLines.length); j++) {
+                                 if (sourceLines[j].trim() === endLine) {
+                                     bestAnchorMatch = { startLine: i, endLine: j };
+                                     break;
+                                 }
+                             }
+                         }
+                         if (bestAnchorMatch) break;
+                     }
+
+                     if (bestAnchorMatch) {
+                         console.log(`[Patch] Significant Anchor match successful: lines ${bestAnchorMatch.startLine}-${bestAnchorMatch.endLine}`);
+                         const before = sourceLines.slice(0, bestAnchorMatch.startLine).join('\n');
+                         const after = sourceLines.slice(bestAnchorMatch.endLine + 1).join('\n');
+                         const newContent = (before ? before + '\n' : '') + replaceBlock + (after ? '\n' + after : '');
+                         const patchEndIndex = (before ? before.length + 1 : 0) + replaceBlock.length;
+                         currentSource = fixOverlapArtifacts(newContent, patchEndIndex);
+                         successCount++;
+                         continue;
+                     }
+                }
+            }
+        }
+
         if (matchRange) {
             const startChar = sourceTokens[matchRange.start].start;
             const endChar = sourceTokens[matchRange.end].end;

@@ -425,6 +425,19 @@ function skeletonizeCode(code: string, chunkId?: string): SkeletonResult {
         };
     }
 
+    // ⚡ Skip specific problematic components (Known Issues)
+    // Some constants or special files might fail AST parsing but are safe to keep as is
+    if (chunkId && chunkId.includes('CONTAINER_BASE_UNIT_FOR_LAUNCH')) {
+        console.log(`[AST] ⏭️ Skipping ${chunkId} (known parsing issue)`);
+        return {
+            code,
+            originalLines,
+            resultLines: originalLines,
+            functionsHidden: 0,
+            functionsKept: 0
+        };
+    }
+
     try {
         // 1. Parse code to AST
         const ast = parse(code, {
@@ -643,6 +656,25 @@ export function compressCode(
     if (referenceTargets.length > 0) {
         console.log(`[Compression] 📖 Reference targets (Skeleton): ${referenceTargets.join(', ')}`);
     }
+
+    // 🚨 FAIL-SAFE MODE:
+    // If intent is modification but explicitTargets is empty (DeepSeek failed to parse),
+    // we MUST NOT skeletonize everything. We fallback to treating relevantChunks as targets.
+    let failSafeMode = false;
+    const modificationIntents = [
+        UserIntent.UI_MODIFICATION, 
+        UserIntent.LOGIC_FIX, 
+        UserIntent.NEW_FEATURE,
+        UserIntent.PERFORMANCE,
+        UserIntent.REFACTOR,
+        UserIntent.DATA_OPERATION
+    ];
+    
+    if (explicitTargets.length === 0 && modificationIntents.includes(intent as UserIntent)) {
+        console.warn("⚠️ [Compression] Fail-Safe Mode Activated: Modification intent with empty target list.");
+        console.warn("⚠️ [Compression] Will preserve ALL relevant chunks to prevent accidental skeletonization.");
+        failSafeMode = true;
+    }
     
     let compressed = code;
     let compressedCount = 0;
@@ -680,8 +712,10 @@ export function compressCode(
             fuzzyMatch(t, componentName) || fuzzyMatch(t, chunk.id)
         );
 
-        if (isExplicitTarget) {
-            console.log(`[Compression] 📝 Full code: ${chunk.id} (Primary Target - will be edited)`);
+        // ✅ FAIL-SAFE LOGIC: If in fail-safe mode, treat relevant chunks as explicit targets
+        if (isExplicitTarget || (failSafeMode && isRelevant)) {
+            const reason = isExplicitTarget ? "Primary Target" : "Fail-Safe Preservation";
+            console.log(`[Compression] 📝 Full code: ${chunk.id} (${reason} - will be edited)`);
             continue;
         }
 

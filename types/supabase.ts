@@ -28,6 +28,8 @@ export interface Item {
   daily_rank?: number;
   analysis_reason?: string;
   analysis_reason_en?: string;
+  is_draft?: boolean;
+  draft_data?: any;
 }
 
 export interface Order {

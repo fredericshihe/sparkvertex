@@ -89,6 +89,24 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
   const [isExpanded, setIsExpanded] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevStageRef = useRef(stage);
+  
+  // 🆕 代码预览窗口的滚动控制
+  const codeViewportRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
+
+  const handleCodeScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    // 如果距离底部小于 50px，则允许自动滚动
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
+    shouldAutoScrollRef.current = isNearBottom;
+  };
+
+  // 代码自动滚动逻辑
+  useEffect(() => {
+    if (shouldAutoScrollRef.current && codeViewportRef.current) {
+      codeViewportRef.current.scrollTop = codeViewportRef.current.scrollHeight;
+    }
+  }, [details.streamingCode]);
 
   // 自动滚动到最新内容 (Smart Auto-scroll)
   useEffect(() => {
@@ -325,16 +343,19 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
 
                 {/* 代码预览 */}
                 {details.streamingCode && (
-                  <div className="mt-3 relative group overflow-hidden rounded-lg border border-white/5 bg-black/40">
-                    <div className="absolute top-0 right-0 px-2 py-1 bg-white/5 rounded-bl-lg text-[9px] text-slate-400 font-mono">
+                  <div className="mt-3 relative group rounded-lg border border-white/5 bg-black/40">
+                    <div className="absolute top-0 right-0 px-2 py-1 bg-white/5 rounded-bl-lg text-[9px] text-slate-400 font-mono z-10 backdrop-blur-sm">
                       {language === 'zh' ? '代码预览' : 'TSX'}
                     </div>
-                    <div className="p-3 h-24 overflow-hidden">
-                      <pre className="font-mono text-[10px] text-slate-300/80 leading-relaxed break-all opacity-70 blur-[0.5px] group-hover:blur-0 transition-all duration-300">
-                        {details.streamingCode.slice(-400)}
+                    <div 
+                        ref={codeViewportRef}
+                        onScroll={handleCodeScroll}
+                        className="p-3 h-32 overflow-y-auto custom-scrollbar scroll-smooth"
+                    >
+                      <pre className="font-mono text-[10px] text-slate-300/90 leading-relaxed break-all whitespace-pre-wrap">
+                        {details.streamingCode}
                       </pre>
                     </div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none"></div>
                   </div>
                 )}
               </div>

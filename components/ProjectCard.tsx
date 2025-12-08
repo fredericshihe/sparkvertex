@@ -160,7 +160,12 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
 
             {/* Badges */}
             <div className="absolute top-2 right-2 z-20 flex flex-col gap-1 items-end" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'translateZ(0)' }}>
-              {item.is_public === false && (
+              {item.is_draft && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1 shadow-lg">
+                  <i className="fa-solid fa-pencil text-[10px]"></i> {t.project_card?.draft || 'Draft'}
+                </span>
+              )}
+              {!item.is_draft && item.is_public === false && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-slate-900/80 text-slate-400 border border-slate-700 flex items-center gap-1 shadow-lg">
                   <i className="fa-solid fa-lock text-[10px]"></i> {t.project_card.private}
                 </span>
