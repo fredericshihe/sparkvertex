@@ -14,6 +14,35 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
   // ENHANCED: Also capture console.error to detect React errors
   const minimalErrorHandler = `<script>
     (function() {
+      // Mock localStorage and sessionStorage to prevent SecurityError in sandboxed iframes
+      try {
+        var storage = {};
+        var mockStorage = {
+          getItem: function(key) { return storage[key] || null; },
+          setItem: function(key, value) { storage[key] = String(value); },
+          removeItem: function(key) { delete storage[key]; },
+          clear: function() { storage = {}; },
+          key: function(i) { return Object.keys(storage)[i] || null; },
+          get length() { return Object.keys(storage).length; }
+        };
+        
+        try {
+          // Try to access to see if it throws
+          var test = window.localStorage;
+        } catch (e) {
+          // If it throws (SecurityError), define mock
+          Object.defineProperty(window, 'localStorage', { value: mockStorage });
+        }
+        
+        try {
+          var test = window.sessionStorage;
+        } catch (e) {
+          Object.defineProperty(window, 'sessionStorage', { value: mockStorage });
+        }
+      } catch (e) {
+        // Ignore if we can't mock
+      }
+
       var errorList = [];
       var hasRendered = false;
       var renderCheckTimeout = null;
