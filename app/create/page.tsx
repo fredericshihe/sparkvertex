@@ -4226,7 +4226,7 @@ Please fix the code to make the app display properly.`;
                ref={iframeRef}
                srcDoc={getPreviewContent(generatedCode, { raw: true })}
                className="w-full h-full bg-slate-900"
-               sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads allow-same-origin"
+               sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
              />
           </div>
           

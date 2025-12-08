@@ -1706,7 +1706,7 @@ function UploadContent() {
                 <iframe 
                   srcDoc={getPreviewContent(fileContent, { raw: true })} 
                   className="w-full h-full border-0 bg-slate-900" 
-                  sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads allow-same-origin"
+                  sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
                   allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; payment; fullscreen; picture-in-picture"
                 />
               </div>

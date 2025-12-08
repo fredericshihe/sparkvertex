@@ -43,6 +43,7 @@ import { ModalProvider } from '@/context/ModalContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { LanguageProvider } from '@/context/LanguageContext';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import ConsoleSilencer from '@/components/ConsoleSilencer';
 
 export default function RootLayout({
   children,
@@ -83,6 +84,8 @@ export default function RootLayout({
             </ModalProvider>
           </ToastProvider>
         </LanguageProvider>
+        <ServiceWorkerRegister />
+        <ConsoleSilencer />
       </body>
     </html>
   );
