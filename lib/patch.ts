@@ -204,10 +204,20 @@ function applyExplicitASTPatch(source: string, targetName: string, newContent: s
  * Detects if the new code defines variables that already exist in the source,
  * and performs a surgical replacement instead of relying on the SEARCH block.
  * Uses direct AST array access - no @babel/traverse
+ * 
+ * NOTE: This function is OPTIONAL and failing is OK - we fall back to text matching.
+ * The primary purpose is to enable "whole variable replacement" when the AI defines
+ * a complete variable/function that already exists in the source.
  */
 function applySmartASTPatch(source: string, replaceBlock: string): string | null {
+    // Quick bail-out: Only try AST patching for code that looks like a complete definition
+    // Skip fragments, JSX snippets, partial code, etc.
+    const looksLikeCompleteDefinition = /^\s*(const|let|var|function|export\s+(const|let|var|function)|class)\s+[A-Z]/.test(replaceBlock);
+    if (!looksLikeCompleteDefinition) {
+        return null; // Silent bail - this is expected for most patches
+    }
+
     try {
-        // 1. Analyze new code to find variable definitions
         const newAst = parse(replaceBlock, { 
             sourceType: 'module', 
             plugins: ['jsx', 'typescript'],
@@ -317,7 +327,11 @@ function applySmartASTPatch(source: string, replaceBlock: string): string | null
         }
 
     } catch (e) {
-        console.warn('[AST] Smart patch analysis failed, falling back to text patch:', e);
+        // Silent fail - AST patching is optional, text matching will handle it
+        // Only log in debug scenarios
+        if (typeof window !== 'undefined' && (window as any).__DEBUG_PATCH__) {
+            console.warn('[AST] Smart patch analysis failed, falling back to text patch:', e);
+        }
     }
     return null;
 }
@@ -529,6 +543,14 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
         if (!matchRange) {
              const functionMatch = tryFunctionMatch(currentSource, cleanSearchBlock);
              if (functionMatch) {
+                 // Validate replaceBlock syntax before applying
+                 if (!isValidBlockSyntax(replaceBlock)) {
+                     console.warn(`[Patch] AST Lite: Replace block for ${functionMatch.name} has invalid syntax (unbalanced braces), skipping.`);
+                     failedBlocks.push(cleanSearchBlock.substring(0, 80) + '... (Invalid Syntax)');
+                     failCount++;
+                     continue;
+                 }
+
                  console.log(`[Patch] AST Lite match successful for function: ${functionMatch.name}`);
                  const before = currentSource.substring(0, functionMatch.start);
                  const after = currentSource.substring(functionMatch.end);
@@ -930,6 +952,15 @@ function fixOverlapArtifacts(fullCode: string, patchEndIndex: number): string {
 }
 
 /**
+ * Checks if a code block has valid syntax (basic brace balance).
+ */
+function isValidBlockSyntax(code: string): boolean {
+    const openBraces = (code.match(/\{/g) || []).length;
+    const closeBraces = (code.match(/\}/g) || []).length;
+    return openBraces === closeBraces;
+}
+
+/**
  * Heuristic Stream Repair
  * Fixes broken strings (especially URLs) caused by line breaks during streaming or copy-paste.
  */
@@ -1103,8 +1134,16 @@ function pureAstDedupe(scriptContent: string): string {
         console.log(`[Safety/AST] Removed ${indicesToRemove.size} duplicate declaration(s)`);
         return output.code;
 
-    } catch (e) {
-        console.warn('[Safety] Pure AST dedupe failed:', e);
+    } catch (e: any) {
+        // AST dedupe failure is non-critical - the code might still be valid
+        // Only log a brief message, not the full error
+        if (e.loc) {
+            const lines = scriptContent.split('\n');
+            const errorLine = lines[e.loc.line - 1];
+            console.warn(`[Safety] AST dedupe skipped (parse error at line ${e.loc.line}): ${errorLine ? errorLine.substring(0, 50).trim() : 'unknown'}...`);
+        } else {
+            console.warn('[Safety] AST dedupe skipped (parse error)');
+        }
         return scriptContent; // Return original on error
     }
 }

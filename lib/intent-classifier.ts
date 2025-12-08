@@ -195,6 +195,57 @@ export function classifyIntentLocal(query: string): { intent: UserIntent; confid
 }
 
 /**
+ * 生成文件摘要，用于提示 LLM 文件之间的依赖关系
+ * 通用设计：适用于任何 JS/TS 项目
+ */
+export function generateFileSummary(filename: string, code: string): string {
+  const summaryParts: string[] = [];
+
+  // --- 1. 提取 Import 依赖 (最关键) ---
+  const importRegex = /(?:import\s+.*?from\s+|require\(\s*)['"]([^'"]+)['"]/g;
+  const imports = new Set<string>();
+  
+  // 只扫描前 3000 个字符 (通常 import 都在头部)
+  const headCode = code.slice(0, 3000);
+  let match;
+  
+  while ((match = importRegex.exec(headCode)) !== null) {
+    // 清理路径，只保留文件名关键部分
+    const cleanName = match[1].split('/').pop()?.replace(/\.(js|ts|tsx|jsx)$/, '');
+    if (cleanName && cleanName !== filename.split('.')[0] && !cleanName.startsWith('@')) {
+      imports.add(cleanName);
+    }
+  }
+  
+  // 只取前 5 个 import，避免 Prompt 太长
+  const importList = Array.from(imports).slice(0, 5);
+  if (importList.length > 0) {
+    summaryParts.push(`Imports:[${importList.join(',')}${imports.size > 5 ? '...' : ''}]`);
+  }
+
+  // --- 2. 猜测文件类型 ---
+  if (code.includes('return <') || code.includes('return (') && code.includes('<')) {
+    summaryParts.push("UI");
+  } else if (code.match(/export\s+(const|let)\s+[A-Z][A-Z0-9_]*\s*=\s*(\[|\{)/)) {
+    summaryParts.push("Data");
+  } else if (code.includes('navigation') || code.includes('Navigator') || code.includes('router')) {
+    summaryParts.push("Router");
+  } else if (code.includes('useEffect') || code.includes('useState') || code.includes('useMemo')) {
+    summaryParts.push("Hook");
+  }
+
+  // --- 3. 检测导出内容 ---
+  const exportMatch = code.match(/export\s+(?:default\s+)?(?:function|const|class)\s+(\w+)/);
+  if (exportMatch) {
+    summaryParts.push(`Exports:${exportMatch[1]}`);
+  }
+
+  // 格式: "MapScreen (UI|Imports:[BattleScene,BagScreen])"
+  const extraInfo = summaryParts.length > 0 ? ` (${summaryParts.join('|')})` : '';
+  return `${filename}${extraInfo}`;
+}
+
+/**
  * DeepSeek API 配置（通过 Supabase Edge Function 调用）
  */
 export interface DeepSeekConfig {
@@ -203,6 +254,7 @@ export interface DeepSeekConfig {
   authToken?: string;  // 用户的 auth token
   temperature?: number;
   timeoutMs?: number;  // 超时时间（毫秒），默认 5000ms
+  fileSummaries?: string[]; // 🆕 文件摘要列表，用于依赖提示
 }
 
 // 默认超时时间：15秒 (从 5秒 增加，避免复杂分析时超时)
@@ -214,55 +266,74 @@ const DEFAULT_DEEPSEEK_TIMEOUT = 15000;
  * API Key 存储在 Edge Function Secrets 中，前端不需要暴露
  * 
  * ⚠️ 超时降级：如果 DeepSeek 在 timeoutMs 内未响应，自动降级为 UNKNOWN
+ * 
+ * @param query 用户查询
+ * @param config DeepSeek 配置
+ * @param fileSummaries 可选：文件摘要列表（用于依赖提示）
  */
 export async function classifyIntentWithDeepSeek(
   query: string,
-  config?: DeepSeekConfig
-): Promise<{ intent: UserIntent; confidence: number; latencyMs: number; source: 'deepseek' | 'timeout_fallback'; targets: string[] }> {
+  config?: DeepSeekConfig,
+  fileSummariesArg?: string[]
+): Promise<{ intent: UserIntent; confidence: number; latencyMs: number; source: 'deepseek' | 'timeout_fallback'; targets: string[]; referenceTargets: string[]; reasoning?: string }> {
   const startTime = Date.now();
   const {
     supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL,
     supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     authToken,
     temperature = 0.3,
-    timeoutMs = DEFAULT_DEEPSEEK_TIMEOUT
+    timeoutMs = DEFAULT_DEEPSEEK_TIMEOUT,
+    fileSummaries: fileSummariesFromConfig
   } = config || {};
+
+  // 支持从参数或 config 中获取 fileSummaries
+  const fileSummaries = fileSummariesArg || fileSummariesFromConfig;
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error('[IntentClassifier] Missing Supabase config');
-    return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs: Date.now() - startTime, source: 'timeout_fallback', targets: [] };
+    return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs: Date.now() - startTime, source: 'timeout_fallback', targets: [], referenceTargets: [] };
   }
 
-  const systemPrompt = `你是一个代码助手路由器。分析用户的请求并将其分类，同时提取用户明确想要修改的目标组件或变量名。
+  // 构建文件列表部分（如果有摘要）
+  const fileListSection = fileSummaries && fileSummaries.length > 0
+    ? `\n\n可用文件 (带依赖关系):\n${fileSummaries.slice(0, 15).join('\n')}`
+    : '';
 
-请返回 JSON 格式：
+  // 🧠 增强版 Prompt：强制思维链 + 连带责任规则 + 偏向召回
+  const systemPrompt = `Role: Senior Software Architect
+Task: 分析用户请求，深入思考依赖关系，决定哪些文件需要修改。${fileListSection}
+
+⚠️ CRITICAL RULES (连带责任):
+1. Navigation Rule: 如果用户要"添加新页面/屏幕"，必须检查 App/Router/Navigator 文件是否需要修改
+2. Data Rule: 如果用户修改数值/平衡/配置，同时检查 Data 文件和使用它的 UI 文件
+3. Parent Rule: 如果修改子组件的 props，考虑父组件是否需要传递新参数
+4. Import Rule: 如果新增组件引用，检查是否需要添加 import 语句
+
+⚠️ PRIORITY: 召回率 > 精确率
+- 可以接受：把不需要改的文件放进 files_to_edit（只是多给 AI 看一些代码）
+- 绝不接受：把需要改的文件放进 files_to_read（AI 会看不到关键代码导致失败）
+- 当不确定时：选择 files_to_edit
+
+分类类别：
+- UI_MODIFICATION: 样式、颜色、布局、CSS
+- LOGIC_FIX: Bug修复、算法、业务逻辑
+- NEW_FEATURE: 新增页面、组件、功能
+- DATA_OPERATION: 数据/配置变更
+- CONFIG_HELP / PERFORMANCE / REFACTOR / QA_EXPLANATION / UNKNOWN
+
+⚠️ STRICT OUTPUT RULES:
+- files_to_edit 和 files_to_read 数组中只能放**纯文件名/组件名**
+- 禁止在数组字符串中添加注释、描述、中文备注或括号说明
+- ❌ 错误: ["MapScreen（主文件）", "App组件"]
+- ✅ 正确: ["MapScreen", "App"]
+
+输出格式 (严格 JSON，直接以 { 开始):
 {
-  "intent": "类别名称",
-  "targets": ["目标1", "目标2"]
-}
-
-类别说明：
-- UI_MODIFICATION: 修改颜色、样式、布局、CSS、组件外观、主题
-- LOGIC_FIX: 修复Bug、修改数据流、算法、业务逻辑、错误处理
-- CONFIG_HELP: 环境变量、package.json、构建设置、部署、安装
-- NEW_FEATURE: 添加全新的页面、组件或功能
-- QA_EXPLANATION: 询问代码如何工作、解释概念、文档
-- PERFORMANCE: 优化速度、减少渲染、缓存、内存管理
-- REFACTOR: 重构代码、提取组件、清理代码
-- DATA_OPERATION: 数据库查询、API调用、数据获取、数据变更
-- UNKNOWN: 无法确定意图
-
-targets 说明：
-- 提取用户明确提到的组件名、变量名、函数名（如 "MAP_GRID", "BattleScene"）
-- 如果没有明确目标，返回空数组 []
-- 自动转换为大写或驼峰形式以匹配代码习惯
-- 不要包含 "App" 或 "Main" 这种通用组件，除非用户明确指定
-
-IMPORTANT:
-1. You must output STRICT JSON format only.
-2. Do NOT output any "Thinking Process", "Plan", or Markdown code blocks.
-3. Start directly with "{".
-`;
+  "reasoning": "简短分析：用户想做X，涉及组件A和B，A需要改因为...，B只需参考因为...",
+  "intent": "类别",
+  "files_to_edit": ["ComponentA", "ComponentB"],
+  "files_to_read": ["DataFile"]
+}`;
 
   const userPrompt = `用户请求: "${query}"`;
 
@@ -305,7 +376,7 @@ IMPORTANT:
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[IntentClassifier] DeepSeek Edge Function error:', errorText);
-      return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs: Date.now() - startTime, source: 'timeout_fallback', targets: [] };
+      return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs: Date.now() - startTime, source: 'timeout_fallback', targets: [], referenceTargets: [] };
     }
 
     // 处理非流式响应
@@ -324,6 +395,8 @@ IMPORTANT:
     // 尝试解析 JSON
     let intentStr = UserIntent.UNKNOWN;
     let targets: string[] = [];
+    let referenceTargets: string[] = [];
+    let reasoning: string | undefined;
     
     let jsonString = result;
 
@@ -346,7 +419,24 @@ IMPORTANT:
     try {
         const parsed = JSON.parse(jsonString);
         intentStr = parsed.intent as UserIntent;
-        targets = Array.isArray(parsed.targets) ? parsed.targets : [];
+        // 支持新旧两种格式
+        const rawTargets = Array.isArray(parsed.files_to_edit) ? parsed.files_to_edit : (Array.isArray(parsed.targets) ? parsed.targets : []);
+        const rawReferenceTargets = Array.isArray(parsed.files_to_read) ? parsed.files_to_read : [];
+        
+        // 🧹 清洗文件名：移除中文备注、括号内容等
+        const cleanFileName = (name: string): string => {
+          return name
+            .replace(/[（(][^）)]*[）)]/g, '') // 移除中英文括号及其内容
+            .replace(/[\u4e00-\u9fa5]/g, '') // 移除所有中文字符
+            .replace(/\s+/g, '') // 移除空格
+            .trim();
+        };
+        
+        targets = rawTargets.map(cleanFileName).filter(Boolean);
+        referenceTargets = rawReferenceTargets.map(cleanFileName).filter(Boolean);
+        
+        // 提取 reasoning（思维链输出）
+        reasoning = parsed.reasoning;
     } catch (e) {
         // 降级处理：如果不是 JSON，尝试直接提取意图
         console.warn('[IntentClassifier] Failed to parse JSON, falling back to regex. Raw text:', result);
@@ -355,14 +445,19 @@ IMPORTANT:
 
     const latencyMs = Date.now() - startTime;
 
-    console.log(`🤖 [IntentClassifier] DeepSeek response: ${intentStr} (${latencyMs}ms), Targets: ${targets.join(', ')}`);
+    console.log(`🤖 [IntentClassifier] DeepSeek response: ${intentStr} (${latencyMs}ms)`);
+    if (reasoning) {
+      console.log(`   💭 Reasoning: ${reasoning.substring(0, 100)}${reasoning.length > 100 ? '...' : ''}`);
+    }
+    console.log(`   📝 files_to_edit: [${targets.join(', ')}]`);
+    console.log(`   📖 files_to_read: [${referenceTargets.join(', ')}]`);
 
     // 验证返回的意图是否有效
     if (Object.values(UserIntent).includes(intentStr)) {
-      return { intent: intentStr, confidence: 0.9, latencyMs, source: 'deepseek', targets };
+      return { intent: intentStr, confidence: 0.9, latencyMs, source: 'deepseek', targets, referenceTargets, reasoning };
     }
 
-    return { intent: UserIntent.UNKNOWN, confidence: 0.3, latencyMs, source: 'deepseek', targets: [] };
+    return { intent: UserIntent.UNKNOWN, confidence: 0.3, latencyMs, source: 'deepseek', targets: [], referenceTargets: [] };
   } catch (error: any) {
     // 清除超时定时器（以防异常发生在 fetch 之前）
     clearTimeout(timeoutId);
@@ -371,11 +466,11 @@ IMPORTANT:
     // 区分超时和其他错误
     if (error.name === 'AbortError') {
       console.warn(`[IntentClassifier] DeepSeek request aborted (timeout: ${timeoutMs}ms)`);
-      return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs, source: 'timeout_fallback', targets: [] };
+      return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs, source: 'timeout_fallback', targets: [], referenceTargets: [] };
     }
     
     console.error('[IntentClassifier] DeepSeek classification failed:', error);
-    return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs, source: 'timeout_fallback', targets: [] };
+    return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs, source: 'timeout_fallback', targets: [], referenceTargets: [] };
   }
 }
 
@@ -446,21 +541,25 @@ export async function classifyUserIntent(
     llmThreshold?: number;
     generateText?: (options: { model: string; prompt: string }) => Promise<string>;
     deepSeekConfig?: DeepSeekConfig;
+    fileSummaries?: string[]; // 🆕 文件摘要，用于依赖提示
   }
-): Promise<SearchStrategy & { source: 'local' | 'deepseek' | 'timeout_fallback'; latencyMs: number; targets?: string[] }> {
+): Promise<SearchStrategy & { source: 'local' | 'deepseek' | 'timeout_fallback'; latencyMs: number; targets?: string[]; referenceTargets?: string[]; reasoning?: string }> {
   const startTime = Date.now();
   const { 
     useLLM = false,
     useDeepSeek = true, // 默认启用 DeepSeek
     llmThreshold = 0.6,
     generateText,
-    deepSeekConfig
+    deepSeekConfig,
+    fileSummaries
   } = options || {};
 
   // Step 1: 先尝试本地分类
   let { intent, confidence } = classifyIntentLocal(query);
   let source: 'local' | 'deepseek' | 'timeout_fallback' = 'local';
   let targets: string[] = [];
+  let referenceTargets: string[] = [];
+  let reasoning: string | undefined;
 
   console.log(`🧠 [IntentClassifier] Local classification: ${intent} (confidence: ${(confidence * 100).toFixed(1)}%)`);
 
@@ -469,14 +568,21 @@ export async function classifyUserIntent(
     // 优先使用 DeepSeek（性价比高，中文理解好）
     if (useDeepSeek) {
       console.log(`🤖 [IntentClassifier] Low confidence, using DeepSeek API...`);
-      const deepSeekResult = await classifyIntentWithDeepSeek(query, deepSeekConfig);
+      // 合并 fileSummaries 到 deepSeekConfig
+      const mergedConfig: DeepSeekConfig = {
+        ...deepSeekConfig,
+        fileSummaries: fileSummaries || deepSeekConfig?.fileSummaries
+      };
+      const deepSeekResult = await classifyIntentWithDeepSeek(query, mergedConfig);
       
       if (deepSeekResult.confidence > confidence) {
         intent = deepSeekResult.intent;
         confidence = deepSeekResult.confidence;
         source = deepSeekResult.source;
         targets = deepSeekResult.targets;
-        console.log(`🎯 [IntentClassifier] DeepSeek override: ${intent} (confidence: ${(confidence * 100).toFixed(1)}%, source: ${source}, targets: ${targets.join(', ')})`);
+        referenceTargets = deepSeekResult.referenceTargets;
+        reasoning = deepSeekResult.reasoning; // 🆕 保存思考过程
+        console.log(`🎯 [IntentClassifier] DeepSeek override: ${intent} (confidence: ${(confidence * 100).toFixed(1)}%, source: ${source})`);
       }
     }
     // 备用：使用自定义 LLM
@@ -497,7 +603,7 @@ export async function classifyUserIntent(
 
   // Step 3: 根据意图构建搜索策略
   const strategy = buildSearchStrategy(intent, confidence);
-  return { ...strategy, source, latencyMs, targets };
+  return { ...strategy, source, latencyMs, targets, referenceTargets, reasoning };
 }
 
 /**

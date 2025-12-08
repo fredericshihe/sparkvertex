@@ -60,14 +60,14 @@ export default function ManageOrdersModal() {
 
   return (
     <div className="fixed inset-0 z-[120]">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeManageOrdersModal}></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl bg-slate-900 rounded-2xl border border-slate-700 p-8 shadow-2xl">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeManageOrdersModal}></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl bg-black/60 backdrop-blur-2xl rounded-3xl border border-white/10 p-8 shadow-[0_8px_32px_rgba(0,0,0,0.4)] animate-in zoom-in fade-in duration-300 ring-1 ring-white/5">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-white">
             <i className="fa-solid fa-list-check text-brand-500 mr-2"></i>
             {t.manage_orders.title}
           </h2>
-          <button onClick={closeManageOrdersModal} className="text-slate-400 hover:text-white">
+          <button onClick={closeManageOrdersModal} className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition">
             <i className="fa-solid fa-xmark text-xl"></i>
           </button>
         </div>
@@ -84,7 +84,7 @@ export default function ManageOrdersModal() {
         ) : (
           <div className="overflow-y-auto max-h-[60vh] custom-scrollbar space-y-4 p-1">
             {orders.map(order => (
-              <div key={order.id} className={`relative p-5 rounded-xl border transition-all duration-300 ${order.status === 'paid' ? 'bg-brand-900/10 border-brand-500/50 shadow-[0_0_20px_rgba(168,85,247,0.1)]' : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'}`}>
+              <div key={order.id} className={`relative p-5 rounded-xl border transition-all duration-300 ${order.status === 'paid' ? 'bg-brand-900/10 border-brand-500/50 shadow-[0_0_20px_rgba(168,85,247,0.1)]' : 'bg-black/20 border-white/10 hover:bg-white/5'}`}>
                 <div className="flex flex-col md:flex-row justify-between gap-4">
                   {/* Left: Info */}
                   <div className="flex-grow space-y-2">

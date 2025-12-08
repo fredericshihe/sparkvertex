@@ -560,18 +560,11 @@ function UploadContent() {
   }, [validationState.status, fileContent]);
 
   const getValidationContent = (content: string) => {
-      // Inject validation script
+      // Use preview.ts's error handling (which sends spark-app-error via postMessage)
+      // We only need to add the success/empty detection script
       const validationScript = `
         <script>
-          var capturedErrors = [];
-          window.onerror = function(msg, url, line, col, error) {
-            capturedErrors.push({ message: msg, line: line, column: col });
-          };
-          
-          window.addEventListener('unhandledrejection', function(event) {
-             capturedErrors.push({ message: 'Unhandled Promise Rejection: ' + event.reason });
-          });
-
+          // Listen for successful render - preview.ts already handles error detection
           window.addEventListener('load', function() {
             setTimeout(function() {
               try {
@@ -583,9 +576,9 @@ function UploadContent() {
                   if (hasContent) {
                     window.parent.postMessage({ type: 'spark-validation-success' }, '*');
                   } else {
-                    if (capturedErrors.length > 0) {
-                        // Report the first error that likely caused the blank screen
-                        window.parent.postMessage({ type: 'spark-app-error', error: capturedErrors[0] }, '*');
+                    // Check if errorList has errors (from preview.ts)
+                    if (typeof errorList !== 'undefined' && errorList.length > 0) {
+                        // Error already reported by preview.ts, do nothing
                     } else {
                         window.parent.postMessage({ type: 'spark-validation-empty' }, '*');
                     }
@@ -593,12 +586,12 @@ function UploadContent() {
               } catch(e) {
                   window.parent.postMessage({ type: 'spark-app-error', error: { message: e.toString() } }, '*');
               }
-            }, 5000); // Wait 5 seconds for render (increased from 2s to handle complex apps)
+            }, 5000); // Wait 5 seconds for render
           });
         </script>
       `;
       
-      // Use existing preview logic but append validation script
+      // Use existing preview logic (which includes error handling) and append validation script
       let previewHtml = getPreviewContent(content, { raw: true });
       if (previewHtml.includes('</body>')) {
           previewHtml = previewHtml.replace('</body>', validationScript + '</body>');
@@ -1649,12 +1642,12 @@ function UploadContent() {
                         <i className="fa-solid fa-bug text-4xl text-red-500"></i>
                     </div>
                     <h3 className="text-2xl font-bold text-white mb-2">{t.upload.validation_failed || 'Validation Failed'}</h3>
-                    <p className="text-slate-400 mb-6">
+                    <p className="text-slate-400 mb-4">
                         {t.upload.validation_failed_desc || 'The application cannot be uploaded because it has serious errors or renders a blank screen.'}
                     </p>
                     
-                    <div className="bg-black/30 rounded-lg p-4 text-left mb-8 border border-red-500/20 overflow-auto max-h-40">
-                        <div className="text-xs text-red-400 font-bold uppercase mb-1">Error Details</div>
+                    <div className="bg-black/30 rounded-lg p-4 text-left mb-6 border border-red-500/20 overflow-auto max-h-40">
+                        <div className="text-xs text-red-400 font-bold uppercase mb-1">{language === 'zh' ? '错误详情' : 'Error Details'}</div>
                         <code className="text-sm text-red-200 font-mono break-words">
                             {validationState.error}
                         </code>
@@ -1665,13 +1658,26 @@ function UploadContent() {
                         )}
                     </div>
 
+                    {/* AI Fix Hint */}
+                    <div className="bg-brand-500/10 border border-brand-500/30 rounded-lg p-3 mb-6 text-left">
+                        <div className="flex items-center gap-2 text-brand-400 text-sm">
+                            <i className="fa-solid fa-wand-magic-sparkles"></i>
+                            <span className="font-medium">{language === 'zh' ? '提示：' : 'Tip:'}</span>
+                        </div>
+                        <p className="text-slate-300 text-sm mt-1">
+                            {language === 'zh' 
+                                ? '前往创作页面，使用 AI 修复功能可以自动修复代码错误' 
+                                : 'Go to the creator page and use AI Fix to automatically repair code errors'}
+                        </p>
+                    </div>
+
                     <div className="flex gap-4">
                         <button 
                             onClick={handleEditInCreator}
-                            className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2"
+                            className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2"
                         >
-                            <i className="fa-solid fa-pen-to-square"></i>
-                            {t.upload.back_to_edit || 'Back to Editor'}
+                            <i className="fa-solid fa-wand-magic-sparkles"></i>
+                            {language === 'zh' ? '前往修复' : 'Go to Fix'}
                         </button>
                         <button 
                             onClick={handleReset}

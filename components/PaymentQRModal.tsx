@@ -78,8 +78,8 @@ export default function PaymentQRModal() {
 
   return (
     <div className="fixed inset-0 z-[110]">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closePaymentQRModal}></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-slate-900 rounded-2xl border border-slate-700 p-8 shadow-2xl text-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closePaymentQRModal}></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-black/60 backdrop-blur-2xl rounded-3xl border border-white/10 p-8 shadow-[0_8px_32px_rgba(0,0,0,0.4)] text-center animate-in zoom-in fade-in duration-300 ring-1 ring-white/5">
         <h2 className="text-xl font-bold mb-2 text-white">
           <i className="fa-solid fa-qrcode text-brand-500 mr-2"></i>
           {t.payment_qr_modal.title}
@@ -92,7 +92,7 @@ export default function PaymentQRModal() {
         
         <div 
           onClick={() => fileInputRef.current?.click()}
-          className="w-full aspect-square bg-white rounded-xl overflow-hidden flex items-center justify-center cursor-pointer border-4 border-slate-800 hover:border-brand-500 transition group relative"
+          className="w-full aspect-square bg-white rounded-xl overflow-hidden flex items-center justify-center cursor-pointer border-4 border-white/10 hover:border-brand-500 transition group relative"
         >
           {qrUrl ? (
             <img src={qrUrl} className="w-full h-full object-contain" alt="Payment QR" />

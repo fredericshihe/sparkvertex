@@ -55,8 +55,8 @@ export default function RewardModal() {
 
   return (
     <div className="fixed inset-0 z-[110]">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeRewardModal}></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-slate-900 rounded-2xl border border-slate-700 p-8 shadow-2xl animate-float-up">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeRewardModal}></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-black/60 backdrop-blur-2xl rounded-3xl border border-white/10 p-8 shadow-[0_8px_32px_rgba(0,0,0,0.4)] animate-in zoom-in fade-in duration-300 ring-1 ring-white/5">
         <div className="mb-4">
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
                 <i className="fa-solid fa-gift text-rose-500"></i>
@@ -70,7 +70,7 @@ export default function RewardModal() {
             {t.reward_modal.remark_hint}
         </p>
         
-        <div className="w-full aspect-square bg-white rounded-xl overflow-hidden flex items-center justify-center border-4 border-slate-800 mb-6">
+        <div className="w-full aspect-square bg-white rounded-xl overflow-hidden flex items-center justify-center border-4 border-white/10 mb-6">
           {loading ? (
             <i className="fa-solid fa-circle-notch fa-spin text-3xl text-slate-400"></i>
           ) : qrUrl ? (

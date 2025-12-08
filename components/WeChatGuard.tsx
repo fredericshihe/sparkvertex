@@ -23,8 +23,8 @@ export default function WeChatGuard() {
   if (!isWeChat) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
-      <div className="w-20 h-20 bg-slate-800 rounded-2xl flex items-center justify-center mb-6 shadow-xl border border-slate-700">
+    <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mb-6 shadow-xl border border-white/10 backdrop-blur-md">
         <i className="fa-brands fa-safari text-4xl text-brand-500"></i>
       </div>
       
@@ -33,19 +33,19 @@ export default function WeChatGuard() {
         {t.wechat_guard.description}
       </p>
       
-      <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 max-w-xs w-full">
+      <div className="bg-white/5 rounded-3xl p-6 border border-white/10 max-w-xs w-full backdrop-blur-md">
         <div className="flex items-center justify-center gap-4 mb-4">
           <div className="flex flex-col items-center gap-2">
-            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-white font-bold">1</div>
+            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white font-bold border border-white/5">1</div>
             <span className="text-xs text-slate-400">{t.wechat_guard.step1} <i className="fa-solid fa-ellipsis"></i></span>
           </div>
-          <div className="w-8 h-[1px] bg-slate-600"></div>
+          <div className="w-8 h-[1px] bg-white/10"></div>
           <div className="flex flex-col items-center gap-2">
-            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-white font-bold">2</div>
+            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white font-bold border border-white/5">2</div>
             <span className="text-xs text-slate-400">{t.wechat_guard.step2} <i className="fa-regular fa-compass"></i></span>
           </div>
         </div>
-        <div className="text-xs text-slate-500 border-t border-slate-700/50 pt-4 mt-2">
+        <div className="text-xs text-slate-500 border-t border-white/10 pt-4 mt-2">
           <p className="mb-2">{t.wechat_guard.how_to}</p>
           <div className="flex justify-center gap-2 text-xl text-slate-400">
             <i className="fa-brands fa-android"></i>

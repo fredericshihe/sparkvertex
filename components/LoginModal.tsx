@@ -207,8 +207,8 @@ export default function LoginModal() {
 
   return (
     <div className="fixed inset-0 z-[200]">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm touch-none" onClick={closeLoginModal}></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl animate-float-up overscroll-contain">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm touch-none" onClick={closeLoginModal}></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-black/60 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-[0_8px_32px_rgba(0,0,0,0.4)] animate-in zoom-in fade-in duration-300 ring-1 ring-white/5">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-white">
             {showEmailSent ? t.auth_modal.register_success : 
@@ -216,7 +216,7 @@ export default function LoginModal() {
              view === 'forgot_password' ? t.auth_modal.reset_password : 
              t.auth_modal.welcome_back}
           </h2>
-          <button onClick={closeLoginModal} className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 transition">
+          <button onClick={closeLoginModal} className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition">
             <i className="fa-solid fa-xmark"></i>
           </button>
         </div>
@@ -224,30 +224,30 @@ export default function LoginModal() {
         {showEmailSent ? renderEmailSent() : view === 'forgot_password' ? (
           <div className="space-y-4">
             <p className="text-slate-400 text-sm mb-4">{t.auth_modal.reset_desc}</p>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 outline-none" placeholder={t.auth_modal.email_placeholder} />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 focus:bg-black/40 outline-none transition-all placeholder-slate-500" placeholder={t.auth_modal.email_placeholder} />
             {message && <p className="text-sm text-center py-2 rounded border text-red-400 bg-red-500/10 border-red-500/20">{message}</p>}
-            <button onClick={handleResetPassword} disabled={loading} className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg transition disabled:opacity-50">{loading ? t.auth_modal.sending : t.auth_modal.send_reset}</button>
+            <button onClick={handleResetPassword} disabled={loading} className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-xl transition disabled:opacity-50 shadow-lg shadow-brand-500/20">{loading ? t.auth_modal.sending : t.auth_modal.send_reset}</button>
             <button onClick={() => { setView('login'); setMessage(''); }} className="w-full text-slate-400 hover:text-white text-sm py-2 transition">{t.auth_modal.back_login}</button>
           </div>
         ) : (
           <div className="space-y-4">
             <>
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">{t.auth_modal.email_label}</label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 outline-none" placeholder={t.auth_modal.email_placeholder} />
+                <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">{t.auth_modal.email_label}</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 focus:bg-black/40 outline-none transition-all placeholder-slate-500" placeholder={t.auth_modal.email_placeholder} />
               </div>
               <div>
-                <div className="flex justify-between items-center mb-1">
+                <div className="flex justify-between items-center mb-1 ml-1">
                   <label className="block text-sm font-medium text-slate-400">{t.auth_modal.password_label}</label>
-                  {view === 'login' && <button onClick={() => { setView('forgot_password'); setMessage(''); }} className="text-xs text-brand-500 hover:text-brand-400 transition">{t.auth_modal.forgot_password}</button>}
+                  {view === 'login' && <button onClick={() => { setView('forgot_password'); setMessage(''); }} className="text-xs text-brand-400 hover:text-brand-300 transition">{t.auth_modal.forgot_password}</button>}
                 </div>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-brand-500 outline-none" placeholder={view === 'register' ? t.auth_modal.password_hint : t.auth_modal.password_placeholder} />
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 focus:bg-black/40 outline-none transition-all placeholder-slate-500" placeholder={view === 'register' ? t.auth_modal.password_hint : t.auth_modal.password_placeholder} />
               </div>
-              {message && <p className="text-red-400 text-sm text-center bg-red-500/10 py-2 rounded border border-red-500/20">{message}</p>}
-              <button onClick={() => handleEmailAuth(view === 'register' ? 'register' : 'login')} disabled={loading} className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-brand-500/30 disabled:opacity-50">{loading ? (view === 'register' ? t.auth_modal.registering : t.auth_modal.logging_in) : (view === 'register' ? t.auth_modal.register_btn : t.auth_modal.login_btn)}</button>
+              {message && <p className="text-red-400 text-sm text-center bg-red-500/10 py-2 rounded-lg border border-red-500/20">{message}</p>}
+              <button onClick={() => handleEmailAuth(view === 'register' ? 'register' : 'login')} disabled={loading} className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-brand-500/20 disabled:opacity-50">{loading ? (view === 'register' ? t.auth_modal.registering : t.auth_modal.logging_in) : (view === 'register' ? t.auth_modal.register_btn : t.auth_modal.login_btn)}</button>
             </>
             
-            <div className="text-center mt-4">
+            <div className="text-center mt-6 pt-4 border-t border-white/5">
               <span className="text-slate-500 text-sm">{view === 'register' ? t.auth_modal.has_account : t.auth_modal.no_account}</span>
               <button 
                 onClick={() => { setView(view === 'register' ? 'login' : 'register'); setMessage(''); }}

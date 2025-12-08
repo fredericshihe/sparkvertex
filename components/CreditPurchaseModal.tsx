@@ -321,11 +321,11 @@ export default function CreditPurchaseModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
       {/* Confirmation Modal */}
       {showConfirm && selectedPackage && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md mx-4 shadow-2xl">
+          <div className="bg-black/80 backdrop-blur-xl border border-white/10 rounded-3xl p-6 max-w-md mx-4 shadow-2xl ring-1 ring-white/5">
             <h3 className="text-xl font-bold text-white mb-3">确认购买</h3>
             <p className="text-slate-300 mb-4">
               {isMobile ? (
@@ -343,7 +343,7 @@ export default function CreditPurchaseModal() {
             <div className="flex gap-3">
               <button
                 onClick={handleCancelPurchase}
-                className="flex-1 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-medium transition"
+                className="flex-1 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-white font-medium transition border border-white/10"
               >
                 取消
               </button>
@@ -358,12 +358,12 @@ export default function CreditPurchaseModal() {
         </div>
       )}
       
-      <div className="bg-[#0f172a] border border-slate-800 rounded-3xl w-full max-w-6xl shadow-2xl flex flex-col overflow-hidden relative max-h-[95vh]">
+      <div className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-3xl w-full max-w-6xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] flex flex-col overflow-hidden relative max-h-[95vh] ring-1 ring-white/5 animate-in zoom-in duration-300">
         
         {/* Close Button */}
         <button 
           onClick={closeCreditPurchaseModal}
-          className="absolute top-6 right-6 text-slate-400 hover:text-white transition z-20 bg-slate-800/50 p-2 rounded-full hover:bg-slate-700"
+          className="absolute top-6 right-6 text-slate-400 hover:text-white transition z-20 bg-white/5 p-2 rounded-full hover:bg-white/10"
         >
           <X size={20} />
         </button>
@@ -375,7 +375,7 @@ export default function CreditPurchaseModal() {
               <p className="text-slate-400 mb-6 text-center max-w-md">
                 已在新标签页打开支付页面，完成支付后将自动检测
               </p>
-              <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 max-w-md mb-6">
+              <div className="bg-black/20 border border-white/10 rounded-xl p-4 max-w-md mb-6">
                 <div className="flex items-start gap-3 mb-3">
                   <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-blue-400 text-sm">1</span>
@@ -421,7 +421,7 @@ export default function CreditPurchaseModal() {
                     setIsProcessing(false);
                     localStorage.removeItem('pending_payment_time');
                   }}
-                  className="px-6 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm transition"
+                  className="px-6 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm transition border border-white/10"
                 >
                   取消支付
                 </button>
@@ -442,7 +442,7 @@ export default function CreditPurchaseModal() {
         ) : (
         <>
         {/* Header Section */}
-        <div className="relative pt-10 pb-6 px-8 text-center bg-gradient-to-b from-slate-900 to-[#0f172a]">
+        <div className="relative pt-10 pb-6 px-8 text-center bg-transparent">
           <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
             <div className="absolute top-[-50%] left-[20%] w-96 h-96 bg-brand-500/10 rounded-full blur-3xl"></div>
             <div className="absolute top-[-20%] right-[20%] w-72 h-72 bg-purple-500/10 rounded-full blur-3xl"></div>
@@ -480,7 +480,7 @@ export default function CreditPurchaseModal() {
                   key={pkg.id}
                   onClick={() => !isDisabled && handleSelect(pkg)}
                   disabled={isDisabled}
-                  className={`group relative flex flex-col bg-slate-800/40 border border-slate-700/50 rounded-2xl p-0 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800 hover:border-slate-600 hover:-translate-y-1 hover:shadow-xl'} transition-all duration-300 text-left overflow-hidden h-full`}
+                  className={`group relative flex flex-col bg-black/20 border border-white/10 rounded-2xl p-0 ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/5 hover:border-white/20 hover:-translate-y-1 hover:shadow-xl'} transition-all duration-300 text-left overflow-hidden h-full`}
                 >
                   {/* Background Glow on Hover */}
                   <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${pkg.color} transition-opacity duration-500`}></div>
@@ -510,7 +510,7 @@ export default function CreditPurchaseModal() {
                   </div>
 
                   {/* Credits Highlight */}
-                  <div className="px-6 py-4 bg-slate-900/30 mx-4 rounded-xl border border-slate-700/30 mb-4 text-center">
+                  <div className="px-6 py-4 bg-black/20 mx-4 rounded-xl border border-white/5 mb-4 text-center">
                       <div className="text-2xl font-bold text-white">{pkg.credits} {t.credit_purchase.credits}</div>
                   </div>
 
@@ -531,7 +531,7 @@ export default function CreditPurchaseModal() {
                   </div>
 
                   {/* Slogan Footer */}
-                  <div className={`w-full px-6 py-4 ${pkg.footerBg} border-t border-slate-700/50 mt-auto min-h-[80px] flex items-center justify-center shrink-0`}>
+                  <div className={`w-full px-6 py-4 ${pkg.footerBg} border-t border-white/5 mt-auto min-h-[80px] flex items-center justify-center shrink-0`}>
                     <p className="text-xs text-slate-400 text-center italic leading-relaxed">
                         "{pkgData.slogan}"
                     </p>
@@ -539,7 +539,7 @@ export default function CreditPurchaseModal() {
                   
                   {/* Buy Button */}
                   {!isDisabled && (
-                  <div className="absolute bottom-0 left-0 w-full p-4 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 pointer-events-none group-hover:pointer-events-auto bg-slate-900/90 backdrop-blur-sm">
+                  <div className="absolute bottom-0 left-0 w-full p-4 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 pointer-events-none group-hover:pointer-events-auto bg-black/80 backdrop-blur-md">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

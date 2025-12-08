@@ -12,6 +12,8 @@ import { applyPatches } from '@/lib/patch';
 import { useLanguage } from '@/context/LanguageContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { GenerationProgress } from '@/components/GenerationProgress';
+import { AIWorkflowProgress, type WorkflowStage, type StageDetails } from '@/components/AIWorkflowProgress';
+import { CodeWaterfall } from '@/components/CodeWaterfall';
 
 // --- Constants ---
 const CATEGORIES = [
@@ -226,10 +228,18 @@ function CreateContent() {
   const [aiPlan, setAiPlan] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
   
+  // State: Generation Phase for Animation
+  const [generationPhase, setGenerationPhase] = useState<'idle' | 'starting' | 'generating' | 'completing' | 'completed'>('idle');
+
+  // 🆕 AI 工作流可视化状态
+  const [workflowStage, setWorkflowStage] = useState<WorkflowStage>('idle');
+  const [workflowDetails, setWorkflowDetails] = useState<StageDetails>({});
+  
   // State: Credit Animation
   const [isCreditAnimating, setIsCreditAnimating] = useState(false);
   const prevCreditsRef = useRef(credits);
   const currentTaskCostRef = useRef<number | null>(null);
+  const currentTaskReasoningRef = useRef<string | null>(null); // 🆕 存储 DeepSeek 思考过程
 
   useEffect(() => {
       if (credits < prevCreditsRef.current) {
@@ -405,6 +415,27 @@ function CreateContent() {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [chatHistory]);
+
+  // Effect: Handle Generation Phase Transitions
+  useEffect(() => {
+    if (generationPhase === 'completing') {
+      const timer = setTimeout(() => {
+        setGenerationPhase('completed');
+        setStep('preview');
+      }, 2000); // 2 seconds for success animation
+      return () => clearTimeout(timer);
+    }
+  }, [generationPhase]);
+
+  // Effect: Handle Workflow Stage Reset (for smooth transition in chat)
+  useEffect(() => {
+    if (workflowStage === 'completed' && !isGenerating) {
+      const timer = setTimeout(() => {
+        setWorkflowStage('idle');
+      }, 1000); // Keep visible for 1 second after completion
+      return () => clearTimeout(timer);
+    }
+  }, [workflowStage, isGenerating]);
 
   useEffect(() => {
     const fromUpload = searchParams.get('from') === 'upload';
@@ -1193,6 +1224,12 @@ ${description}
                 setAiPlan(planMatch[1].trim());
                 content = content.replace(planMatch[0], '');
                 setLoadingText(language === 'zh' ? '正在分析需求并制定计划...' : 'Analyzing requirements and planning...');
+                
+                // 🆕 更新工作流可视化 - Gemini 计划
+                setWorkflowDetails(prev => ({
+                    ...prev,
+                    plan: planMatch[1].trim()
+                }));
             }
 
             // Extract Steps
@@ -1205,9 +1242,31 @@ ${description}
                 // 简化显示：如果步骤名太长，只显示前20个字符
                 const displayStepName = currentStepName.length > 20 ? currentStepName.substring(0, 20) + '...' : currentStepName;
                 setLoadingText(language === 'zh' ? `正在执行: ${displayStepName}` : `Executing: ${displayStepName}`);
+                
+                // 🆕 更新工作流可视化 - 当前步骤和已完成步骤瀑布流
+                const allStepNames = stepMatches.map(m => m[1].trim());
+                const completedSteps = allStepNames.slice(0, -1); // 除最后一个外都是已完成的
+                
+                setWorkflowDetails(prev => ({
+                    ...prev,
+                    currentStep: currentStepName,
+                    completedSteps: completedSteps,
+                    stepsCompleted: stepMatches.length,
+                    totalSteps: Math.max(stepMatches.length + 1, prev.totalSteps || 0) // 估计总步骤
+                }));
             }
 
             setStreamingCode(content);
+            
+            // 🆕 更新工作流可视化 - 流式代码
+            setWorkflowDetails(prev => ({
+                ...prev,
+                streamingCode: content
+            }));
+            
+            if (!hasStartedStreaming) {
+                setGenerationPhase('generating');
+            }
             hasStartedStreaming = true;
         }
         
@@ -1399,6 +1458,7 @@ ${description}
                                  setGeneratedCode(finalCode);
                                  toastSuccess(t.create.success_edit);
                                  
+                                 // 最终结论消息不包含思考过程
                                  if (summary) {
                                      setChatHistory(prev => [...prev, { role: 'ai', content: summary, cost: currentTaskCostRef.current || undefined }]);
                                  } else {
@@ -1406,7 +1466,9 @@ ${description}
                                  }
                                  
                                  setIsGenerating(false);
+                                 setWorkflowStage('completed'); // 🆕 完成工作流
                                  setCurrentTaskId(null); // Clear task ID
+                                 currentTaskReasoningRef.current = null; // 🆕 清理 reasoning
                                  return;
                              }
 
@@ -1434,9 +1496,12 @@ ${description}
                                  const summaryMatch = rawCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)(?:\/\/\/|$)/);
                                  const summaryContent = summaryMatch ? summaryMatch[1].trim() : (language === 'zh' ? 'AI 认为当前代码已满足要求，无需修改。' : 'AI determined no changes are needed.');
                                  
+                                 // 最终结论消息不包含思考过程
                                  setChatHistory(prev => [...prev, { role: 'ai', content: summaryContent, cost: currentTaskCostRef.current || undefined }]);
                                  setIsGenerating(false);
+                                 setWorkflowStage('completed'); // 🆕 完成工作流
                                  setCurrentTaskId(null);
+                                 currentTaskReasoningRef.current = null; // 🆕 清理
                                  return;
                              }
 
@@ -1454,7 +1519,9 @@ ${description}
                     toastSuccess(t.create.success_edit);
                     
                     const finalContent = summary || (language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.');
+                    // 最终结论消息不包含思考过程
                     setChatHistory(prev => [...prev, { role: 'ai', content: finalContent, cost: currentTaskCostRef.current || undefined }]);
+                    currentTaskReasoningRef.current = null;
                 } catch (e: any) {
                     console.error('Patch failed:', e);
                     
@@ -1583,9 +1650,12 @@ ${description}
                 if (isModification) {
                     toastSuccess(t.create.success_edit);
                     const finalContent = summary || (language === 'zh' ? '已重新生成完整代码。' : 'Regenerated full code.');
+                    // 最终结论消息不包含思考过程
                     setChatHistory(prev => [...prev, { role: 'ai', content: finalContent, cost: currentTaskCostRef.current || undefined }]);
+                    currentTaskReasoningRef.current = null;
                 } else {
-                    setStep('preview');
+                    setGenerationPhase('completing');
+                    // setStep('preview'); // Handled by generationPhase effect
                     setPreviewMode(wizardData.device as any);
 
                     // Add initial conversation to history
@@ -1605,6 +1675,7 @@ ${description}
             }
             
             setIsGenerating(false);
+            setWorkflowStage('completed'); // 🆕 完成工作流
             setCurrentTaskId(null); // Clear task ID
         } else if (newTask.status === 'failed') {
             isFinished = true;
@@ -1635,6 +1706,7 @@ ${description}
             toastError(friendlyError);
             setLoadingText(`${t.common.error}: ${friendlyError}`);
             setIsGenerating(false);
+            setWorkflowStage('error'); // 🆕 标记工作流错误
             setCurrentTaskId(null); // Clear task ID
         }
       };
@@ -1655,6 +1727,12 @@ ${description}
                      setAiPlan(planMatch[1].trim());
                      content = content.replace(planMatch[0], '');
                      setLoadingText(language === 'zh' ? '正在分析需求并制定计划...' : 'Analyzing requirements and planning...');
+                     
+                     // 🆕 更新工作流可视化 - 计划
+                     setWorkflowDetails(prev => ({
+                         ...prev,
+                         plan: planMatch[1].trim()
+                     }));
                  }
 
                  // Extract Steps
@@ -1663,10 +1741,35 @@ ${description}
                      const currentStepName = stepMatches[stepMatches.length - 1][1].trim();
                      setCurrentStep(currentStepName);
                      content = content.replace(/\/\/\/ STEP: .*? \/\/\//g, '');
-                     setLoadingText(language === 'zh' ? `正在执行: ${currentStepName}...` : `Executing: ${currentStepName}...`);
+                     
+                     // 简化显示：如果步骤名太长，只显示前20个字符
+                     const displayStepName = currentStepName.length > 20 ? currentStepName.substring(0, 20) + '...' : currentStepName;
+                     setLoadingText(language === 'zh' ? `正在执行: ${displayStepName}` : `Executing: ${displayStepName}`);
+                     
+                     // 🆕 更新工作流可视化 - 当前步骤和已完成步骤瀑布流
+                     const allStepNames = stepMatches.map(m => m[1].trim());
+                     const completedSteps = allStepNames.slice(0, -1); // 除最后一个外都是已完成的
+                     
+                     setWorkflowDetails(prev => ({
+                         ...prev,
+                         currentStep: currentStepName,
+                         completedSteps: completedSteps,
+                         stepsCompleted: stepMatches.length,
+                         totalSteps: Math.max(stepMatches.length + 1, prev.totalSteps || 0)
+                     }));
                  }
 
                  setStreamingCode(content);
+                 
+                 // 🆕 更新工作流可视化 - 流式代码
+                 setWorkflowDetails(prev => ({
+                     ...prev,
+                     streamingCode: content
+                 }));
+                 
+                 if (!hasStartedStreaming) {
+                     setGenerationPhase('generating');
+                 }
                  hasStartedStreaming = true;
                  lastUpdateTimestamp = Date.now();
              }
@@ -1740,6 +1843,7 @@ ${description}
   const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '', forceFull = false, explicitType?: 'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback') => {
     // Reset cost ref for new task
     currentTaskCostRef.current = null;
+    currentTaskReasoningRef.current = null; // 🆕 重置 reasoning
 
     // Explicitly rely on the argument to determine if it's a modification or a new generation (regenerate)
     const isModification = isModificationArg;
@@ -1811,11 +1915,16 @@ ${description}
     setIsGenerating(true);
     if (!isModification) {
       setStep('generating');
+      setGenerationPhase('starting');
     }
     setStreamingCode('');
     setAiPlan(''); // Reset plan for new generation
     setCurrentStep(''); // Reset step for new generation
     setRuntimeError(null); // Clear previous errors
+    
+    // 🆕 重置工作流可视化状态
+    setWorkflowStage('analyzing');
+    setWorkflowDetails({});
     
     let hasStartedStreaming = false;
 
@@ -2284,21 +2393,30 @@ Remember: You're building for production. Code must be clean, performant, and er
           console.log('[Create] First edit on uploaded code - will skip compression and use relaxed matching');
       }
       
+      // 🆕 SSE 流式接收结果和思考过程
+      let taskId = '';
+      let ragContext = '';
+      let codeContext = '';
+      let compressedCode = '';
+      let ragSummary = '';
+      let targets: string[] = [];
+      
       try {
         abortControllerRef.current = new AbortController();
         response = await fetch('/api/generate', {
             method: 'POST',
             headers: { 
-            'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream' // 🆕 请求 SSE 流式响应
             },
             body: JSON.stringify({
-            type: isModification ? 'modification' : 'generation',
-            system_prompt: SYSTEM_PROMPT,
-            user_prompt: dbPrompt,
-            current_code: isModification ? generatedCode : undefined, // Send current code for RAG analysis
-            is_first_edit: isFirstEditOnUpload, // Flag for first edit optimization
-            model: selectedModel, // User-selected model
-            tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit // Credit rate for selected model
+                type: isModification ? 'modification' : 'generation',
+                system_prompt: SYSTEM_PROMPT,
+                user_prompt: dbPrompt,
+                current_code: isModification ? generatedCode : undefined,
+                is_first_edit: isFirstEditOnUpload,
+                model: selectedModel,
+                tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit
             }),
             signal: abortControllerRef.current.signal
         });
@@ -2308,6 +2426,109 @@ Remember: You're building for production. Code must be clean, performant, and er
             console.error('API Error Details:', errorData);
             throw new Error(errorData.error || `Generation failed: ${response.status}`);
         }
+        
+        // 🆕 处理 SSE 流式响应
+        const contentType = response.headers.get('Content-Type') || '';
+        if (contentType.includes('text/event-stream')) {
+            console.log('[SSE] Receiving streaming response...');
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+            
+            if (reader) {
+                let buffer = '';
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') continue;
+                            
+                            try {
+                                const event = JSON.parse(data);
+                                console.log('[SSE Event]', event.type, event.data);
+                                
+                                switch (event.type) {
+                                    case 'thinking':
+                                        // 🎯 实时显示思考过程！
+                                        if (event.data?.reasoning) {
+                                            currentTaskReasoningRef.current = event.data.reasoning;
+                                            // 🆕 直接更新 aiPlan 状态，让 GenerationProgress 组件实时显示
+                                            setAiPlan(event.data.reasoning);
+                                            
+                                            // 🆕 更新工作流可视化状态
+                                            setWorkflowStage('analyzing');
+                                            setWorkflowDetails(prev => ({
+                                                ...prev,
+                                                reasoning: event.data.reasoning,
+                                                intent: event.data.intent,
+                                                targets: event.data.targets
+                                            }));
+                                        }
+                                        break;
+                                    case 'progress':
+                                        // 更新进度
+                                        if (event.data?.message) {
+                                            setLoadingText(prev => {
+                                                const lines = prev.split('\n');
+                                                // 保留第一行，更新进度
+                                                return `${lines[0]}\n${event.data.message}`;
+                                            });
+                                        }
+                                        // 🆕 根据 stage 更新工作流可视化
+                                        if (event.data?.stage === 'compression') {
+                                            setWorkflowStage('compressing');
+                                            if (event.data.compressionStats) {
+                                                setWorkflowDetails(prev => ({
+                                                    ...prev,
+                                                    compressionStats: event.data.compressionStats
+                                                }));
+                                            }
+                                        } else if (event.data?.stage === 'rag') {
+                                            setWorkflowStage('compressing');
+                                        }
+                                        break;
+                                    case 'result':
+                                        // 最终结果
+                                        taskId = event.data.taskId;
+                                        ragContext = event.data.ragContext || '';
+                                        codeContext = event.data.codeContext || '';
+                                        compressedCode = event.data.compressedCode || '';
+                                        ragSummary = event.data.ragSummary || '';
+                                        targets = event.data.targets || [];
+                                        // 🆕 进入生成阶段
+                                        setWorkflowStage('generating');
+                                        break;
+                                    case 'error':
+                                        setWorkflowStage('error');
+                                        throw new Error(event.data?.error || 'Unknown SSE error');
+                                }
+                            } catch (parseErr) {
+                                console.warn('[SSE] Parse error:', parseErr);
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // 🔙 向后兼容：非 SSE 响应
+            const jsonData = await response.json();
+            taskId = jsonData.taskId;
+            ragContext = jsonData.ragContext || '';
+            codeContext = jsonData.codeContext || '';
+            compressedCode = jsonData.compressedCode || '';
+            ragSummary = jsonData.ragSummary || '';
+            targets = jsonData.targets || [];
+            currentTaskReasoningRef.current = jsonData.reasoning || null;
+            // 非 SSE 直接进入生成阶段
+            setWorkflowStage('generating');
+        }
+        
       } catch (e: any) {
           if (e.name === 'AbortError') {
               console.log('Fetch aborted');
@@ -2320,7 +2541,6 @@ Remember: You're building for production. Code must be clean, performant, and er
           throw e;
       }
 
-      const { taskId, ragContext, codeContext, compressedCode, ragSummary, targets } = await response.json();
       setCurrentTaskId(taskId);
       
       // Update loading text with RAG summary if available
@@ -3717,51 +3937,108 @@ Please fix the code to make the app display properly.`;
     </div>
   );
 
-  const renderGenerating = () => (
-    <div className="flex flex-col items-center justify-center min-h-[100dvh] pt-0 pb-8 px-4 w-full max-w-2xl mx-auto">
-      <div className="w-full bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl mb-8 relative overflow-hidden">
-        <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-brand-500 via-purple-500 to-brand-500 w-full animate-pulse"></div>
+  const renderGenerating = () => {
+    // Animation variants based on phase
+    const isStarting = generationPhase === 'starting';
+    const isCompleting = generationPhase === 'completing';
+    
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black"></div>
         
-        <div className="space-y-8">
-          {/* User Message Bubble */}
-          <div className="flex gap-4 flex-row-reverse animate-slide-up">
-            <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0 border-2 border-slate-600 shadow-lg">
-              <i className="fa-solid fa-user text-white text-lg"></i>
-            </div>
-            <div className="bg-gradient-to-br from-brand-600 to-brand-700 text-white p-5 rounded-2xl rounded-tr-none shadow-lg max-w-[85%] relative group">
-              <div className="absolute -right-2 top-0 w-4 h-4 bg-brand-700 transform rotate-45"></div>
-              <p className="text-xs font-bold text-brand-200 mb-2 uppercase tracking-wider">{t.create.my_request}</p>
-              <p className="text-sm leading-relaxed opacity-95 whitespace-pre-wrap">
-                {currentGenerationPrompt}
-              </p>
-            </div>
-          </div>
-
-          {/* AI Thinking Bubble & Skeleton */}
-          <div className="flex gap-4 animate-slide-up" style={{ animationDelay: '0.5s', animationFillMode: 'both' }}>
-            <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center flex-shrink-0 border-2 border-brand-500/30 relative shadow-lg shadow-brand-500/20">
-              <i className="fa-solid fa-robot text-brand-400 text-lg animate-bounce"></i>
-              <div className="absolute inset-0 rounded-full border-2 border-brand-500/50 animate-ping opacity-20"></div>
-            </div>
-            <div className="w-full">
-                <GenerationProgress 
-                    plan={aiPlan} 
-                    currentStep={currentStep} 
-                    isGenerating={isGenerating} 
-                    language={language} 
-                    variant="centered"
-                    loadingTip={loadingText}
-                    streamingCode={streamingCode}
-                />
-            </div>
-          </div>
+        {/* Code Waterfall - Always visible during generation but faded in/out */}
+        <div className={`absolute inset-0 transition-opacity duration-1000 ${generationPhase === 'generating' || generationPhase === 'completing' ? 'opacity-100' : 'opacity-0'}`}>
+            <CodeWaterfall code={streamingCode} isGenerating={generationPhase === 'generating'} />
         </div>
+
+        {/* Phase 1: Starting Animation */}
+        {isStarting && (
+            <div className="relative z-10 flex flex-col items-center animate-zoom-in">
+                <div className="w-24 h-24 relative mb-8">
+                    <div className="absolute inset-0 rounded-full border-4 border-brand-500/30 animate-ping"></div>
+                    <div className="absolute inset-0 rounded-full border-4 border-t-brand-500 border-r-transparent border-b-brand-500 border-l-transparent animate-spin"></div>
+                    <div className="absolute inset-4 rounded-full bg-brand-500/20 backdrop-blur-sm flex items-center justify-center">
+                        <i className="fa-solid fa-bolt text-3xl text-brand-400 animate-pulse"></i>
+                    </div>
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">
+                    {language === 'zh' ? '正在启动创造引擎...' : 'Igniting Creation Engine...'}
+                </h2>
+                <p className="text-slate-400 text-sm">
+                    {language === 'zh' ? '分析需求 • 构建上下文 • 准备环境' : 'Analyzing Requirements • Building Context • Preparing Environment'}
+                </p>
+            </div>
+        )}
+
+        {/* Phase 2: Generating (Center Content) */}
+        {(generationPhase === 'generating' || generationPhase === 'completing') && (
+            <div className={`relative z-10 w-full max-w-4xl px-6 transition-all duration-500 ${isCompleting ? 'scale-110 opacity-0' : 'scale-100 opacity-100'}`}>
+                
+                {/* Central Status Display */}
+                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700/50 rounded-3xl p-8 shadow-2xl relative overflow-hidden group">
+                    {/* Glowing Border Effect */}
+                    <div className="absolute -inset-[1px] bg-gradient-to-r from-transparent via-brand-500/50 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-1000 animate-gradient-x"></div>
+                    
+                    <div className="relative flex flex-col md:flex-row gap-8 items-center md:items-start">
+                        {/* Left: Visual Indicator */}
+                        <div className="shrink-0 relative">
+                            <div className="w-20 h-20 rounded-2xl bg-slate-800 flex items-center justify-center border border-slate-700 shadow-inner overflow-hidden">
+                                <i className={`fa-solid ${wizardData.category ? (CATEGORIES.find(c => c.id === wizardData.category)?.icon || 'fa-cube') : 'fa-cube'} text-4xl text-brand-500/80`}></i>
+                                <div className="absolute inset-0 bg-gradient-to-t from-brand-500/20 to-transparent animate-pulse"></div>
+                            </div>
+                            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-slate-900 rounded-full border border-slate-700 flex items-center justify-center">
+                                <i className="fa-solid fa-robot text-brand-400 text-xs animate-bounce"></i>
+                            </div>
+                        </div>
+
+                        {/* Right: Progress & Logs */}
+                        <div className="flex-1 w-full">
+                            <h3 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
+                                {language === 'zh' ? '正在构建您的应用' : 'Building Your Application'}
+                                <span className="flex h-2 w-2 relative">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
+                                </span>
+                            </h3>
+                            <p className="text-slate-400 text-sm mb-6 line-clamp-1">
+                                {currentGenerationPrompt}
+                            </p>
+
+                            {/* Progress Component Integration */}
+                            <div className="bg-black/30 rounded-xl border border-white/5 p-1">
+                                <GenerationProgress 
+                                    plan={aiPlan} 
+                                    currentStep={currentStep} 
+                                    isGenerating={isGenerating} 
+                                    language={language} 
+                                    variant="centered" // We might want to adjust this variant or create a new one for this layout
+                                    loadingTip={loadingText}
+                                    // We don't pass streamingCode here because we show it in the waterfall
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Phase 3: Completing / Success Flash */}
+        {isCompleting && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm animate-fade-in">
+                <div className="scale-150 transition-transform duration-500">
+                    <div className="w-32 h-32 bg-brand-500 rounded-full flex items-center justify-center shadow-[0_0_100px_rgba(59,130,246,0.6)] animate-ping-slow">
+                        <i className="fa-solid fa-check text-5xl text-white"></i>
+                    </div>
+                </div>
+            </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderPreview = () => (
-    <div className="flex flex-col lg:flex-row h-full pt-0 overflow-hidden relative">
+    <div className="flex flex-col lg:flex-row h-full pt-0 overflow-hidden relative animate-in fade-in duration-700">
       {/* Left (Desktop) / Bottom (Mobile): Chat & Controls */}
       <div className={`w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col 
           order-2 lg:order-1 
@@ -3837,17 +4114,27 @@ Please fix the code to make the app display properly.`;
               {t.create.app_generated}
             </div>
           </div>
-          {chatHistory.map((msg, i) => (
-            <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-slate-700 text-white' : (msg.type === 'error' ? 'bg-red-500/20 text-red-500' : 'bg-brand-500/20 text-brand-400')}`}>
+          {chatHistory.map((msg, i) => {
+            // Hide the last message if it's the summary and workflow is still transitioning
+            const isLastMessage = i === chatHistory.length - 1;
+            const isSummaryMessage = msg.role === 'ai' && workflowStage === 'completed' && !isGenerating;
+            const shouldHide = isLastMessage && isSummaryMessage;
+
+            return (
+            <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''} transition-all duration-1000 ${shouldHide ? 'opacity-0 max-h-0 overflow-hidden' : 'animate-in slide-in-from-bottom-2 fade-in duration-500 opacity-100 max-h-[1000px]'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg ${
+                  msg.role === 'user' 
+                    ? 'bg-brand-500/20 backdrop-blur-md border border-brand-500/30 text-brand-400' 
+                    : (msg.type === 'error' ? 'bg-red-500/20 text-red-500 border border-red-500/30' : 'bg-black/40 backdrop-blur-md border border-white/10 text-brand-400')
+              }`}>
                 <i className={`fa-solid ${msg.role === 'user' ? 'fa-user' : (msg.type === 'error' ? 'fa-triangle-exclamation' : 'fa-robot')}`}></i>
               </div>
-              <div className={`p-3 rounded-2xl text-sm max-w-[80%] select-text ${
+              <div className={`p-4 rounded-2xl text-sm max-w-[85%] select-text shadow-lg backdrop-blur-md border ${
                   msg.role === 'user' 
-                    ? 'bg-brand-600 text-white rounded-tr-none' 
+                    ? 'bg-brand-500/10 text-slate-200 rounded-tr-none border-brand-500/20' 
                     : (msg.type === 'error' 
-                        ? 'bg-red-900/30 border border-red-500/50 text-red-200 rounded-tl-none' 
-                        : 'bg-slate-800 text-slate-300 rounded-tl-none')
+                        ? 'bg-red-950/40 border-red-500/30 text-red-200 rounded-tl-none' 
+                        : 'bg-black/40 border-white/10 text-slate-200 rounded-tl-none')
               }`}>
                 {msg.type === 'error' ? (
                     <div className="flex flex-col gap-2">
@@ -3877,22 +4164,11 @@ Please fix the code to make the app display properly.`;
                     </div>
                 ) : (
                     <>
-                        {msg.plan && (
-                            <div className="mb-3 pb-3 border-b border-white/10">
-                                <div className="flex items-center gap-2 text-xs text-slate-400 mb-1 uppercase tracking-wider font-semibold">
-                                    <i className="fa-solid fa-brain text-purple-400"></i>
-                                    {language === 'zh' ? '思考过程' : 'Thinking Process'}
-                                </div>
-                                <div className="text-xs text-slate-300 whitespace-pre-wrap bg-black/20 p-2 rounded font-mono max-h-32 overflow-y-auto custom-scrollbar">
-                                    {msg.plan}
-                                </div>
-                            </div>
-                        )}
                         <div className="whitespace-pre-wrap">{msg.content}</div>
                         {msg.cost && (
                             <div className="mt-2 pt-2 border-t border-white/5 flex justify-end">
-                                <span className="text-[10px] text-slate-500 flex items-center gap-1 opacity-70">
-                                    <i className="fa-solid fa-bolt text-yellow-500/50 text-[9px]"></i>
+                                <span className="text-[10px] font-medium text-amber-500/80 flex items-center gap-1">
+                                    <i className="fa-solid fa-bolt text-amber-500 text-[9px]"></i>
                                     {language === 'zh' ? `消耗 ${msg.cost} 积分` : `Cost: ${msg.cost} credits`}
                                 </span>
                             </div>
@@ -3901,31 +4177,32 @@ Please fix the code to make the app display properly.`;
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
           
-          {isGenerating && (
-            <div className="flex gap-3 animate-fade-in">
+          {(isGenerating || workflowStage === 'completed') && (
+            <div className={`flex gap-3 transition-all duration-1000 ease-in-out ${workflowStage === 'completed' && !isGenerating ? 'opacity-0 max-h-0 overflow-hidden translate-y-4' : 'animate-fade-in max-h-[500px] opacity-100'}`}>
               <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 flex-shrink-0">
                 <i className="fa-solid fa-robot fa-bounce"></i>
               </div>
               <div className="flex-1 min-w-0">
-                  <GenerationProgress 
-                    plan={aiPlan}
-                    currentStep={currentStep}
+                  <AIWorkflowProgress 
+                    stage={workflowStage}
+                    details={workflowDetails}
                     isGenerating={isGenerating}
                     language={language}
                     variant="chat"
-                    loadingTip={loadingText}
-                    streamingCode={streamingCode}
                   />
                   {/* Cancel Button */}
-                  <button
-                    onClick={() => handleCancelGeneration(0)}
-                    className="mt-3 px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600 rounded-lg text-sm text-slate-300 hover:text-white transition-colors flex items-center gap-2"
-                  >
-                    <i className="fa-solid fa-xmark"></i>
-                    <span>{language === 'zh' ? '取消生成' : 'Cancel'}</span>
-                  </button>
+                  {isGenerating && (
+                    <button
+                        onClick={() => handleCancelGeneration(0)}
+                        className="mt-3 px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600 rounded-lg text-sm text-slate-300 hover:text-white transition-colors flex items-center gap-2"
+                    >
+                        <i className="fa-solid fa-xmark"></i>
+                        <span>{language === 'zh' ? '取消生成' : 'Cancel'}</span>
+                    </button>
+                  )}
               </div>
             </div>
           )}

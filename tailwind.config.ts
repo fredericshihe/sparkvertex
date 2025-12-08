@@ -28,6 +28,9 @@ const config: Config = {
         'slide-up': 'slideUp 0.5s ease-out forwards',
         'slide-down': 'slideDown 0.3s ease-out forwards',
         'fade-in': 'fadeIn 0.3s ease-out forwards',
+        'zoom-in': 'zoomIn 0.5s ease-out forwards',
+        'ping-slow': 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+        'gradient-x': 'gradient-x 3s ease infinite',
       },
       keyframes: {
         float: {
@@ -45,7 +48,21 @@ const config: Config = {
         fadeIn: {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
-        }
+        },
+        zoomIn: {
+          '0%': { opacity: '0', transform: 'scale(0.95)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        'gradient-x': {
+          '0%, 100%': {
+            'background-size': '200% 200%',
+            'background-position': 'left center'
+          },
+          '50%': {
+            'background-size': '200% 200%',
+            'background-position': 'right center'
+          },
+        },
       }
     },
   },

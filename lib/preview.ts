@@ -91,15 +91,14 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
           
           errorList.push(errorDetails);
           
+          // Only notify parent window - error display is handled by parent UI
           try {
             window.parent.postMessage({ type: 'spark-app-error', error: errorDetails }, '*');
           } catch(e) {}
-          
-          showErrorOverlay(msg, null);
         }
       };
       
-      // Minimal error overlay for debugging + notify parent for AI Fix
+      // Global error handler - notify parent for AI Fix
       window.onerror = function(msg, url, line, col, error) {
         if (msg === 'Script error.' || msg === 'Script error') return true;
         console.log('App Error captured:', msg, 'at line', line);
@@ -113,37 +112,13 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
         
         errorList.push(errorDetails);
         
-        // Notify parent window for AI Fix feature
+        // Only notify parent window - error display is handled by parent UI
         try {
           window.parent.postMessage({ type: 'spark-app-error', error: errorDetails }, '*');
         } catch(e) {}
         
-        // Show error overlay in the iframe
-        showErrorOverlay(String(msg), line);
         return false;
       };
-      
-      function showErrorOverlay(msg, line) {
-        // Remove existing overlays first
-        var existing = document.querySelectorAll('.__spark_error_overlay__');
-        for (var i = 0; i < existing.length; i++) {
-          existing[i].remove();
-        }
-        
-        var overlay = document.createElement('div');
-        overlay.className = '__spark_error_overlay__';
-        overlay.style.cssText = 'position:fixed;bottom:10px;right:10px;max-width:400px;background:rgba(220,38,38,0.95);color:white;padding:12px;border-radius:8px;font-family:monospace;font-size:12px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,0.3);cursor:pointer;';
-        overlay.innerHTML = '<strong>Error:</strong> ' + String(msg).substring(0, 200) + (line ? ' (line ' + line + ')' : '');
-        overlay.onclick = function() { overlay.remove(); };
-        if (document.body) {
-          document.body.appendChild(overlay);
-        } else {
-          document.addEventListener('DOMContentLoaded', function() {
-            document.body.appendChild(overlay);
-          });
-        }
-        setTimeout(function() { if (overlay.parentNode) overlay.remove(); }, 15000);
-      }
       
       // Handle unhandled promise rejections
       window.onunhandledrejection = function(event) {
@@ -163,11 +138,10 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
         
         errorList.push(errorDetails);
         
+        // Only notify parent window - error display is handled by parent UI
         try {
           window.parent.postMessage({ type: 'spark-app-error', error: errorDetails }, '*');
         } catch(e) {}
-        
-        showErrorOverlay(reason, null);
       };
       
       // Blank screen detection - check if React rendered anything

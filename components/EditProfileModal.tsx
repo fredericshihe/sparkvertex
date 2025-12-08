@@ -105,14 +105,14 @@ export default function EditProfileModal() {
 
   return (
     <div className="fixed inset-0 z-[110]">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm touch-none" onClick={closeEditProfileModal}></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-8 shadow-2xl animate-float-up overscroll-contain">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm touch-none" onClick={closeEditProfileModal}></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-black/60 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-[0_8px_32px_rgba(0,0,0,0.4)] animate-in zoom-in fade-in duration-300 ring-1 ring-white/5">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold flex items-center gap-2 text-white">
             <i className="fa-solid fa-user-pen text-brand-500"></i>
             {t.edit_profile.title}
           </h2>
-          <button onClick={closeEditProfileModal} className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 transition">
+          <button onClick={closeEditProfileModal} className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition">
             <i className="fa-solid fa-xmark"></i>
           </button>
         </div>
@@ -122,7 +122,7 @@ export default function EditProfileModal() {
           <div className="flex flex-col items-center mb-6">
             <div 
               onClick={() => fileInputRef.current?.click()}
-              className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-slate-600 cursor-pointer group"
+              className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-white/10 cursor-pointer group"
             >
               <img 
                 src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`} 
@@ -150,7 +150,7 @@ export default function EditProfileModal() {
               type="text" 
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-brand-500 outline-none text-sm"
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-brand-500/50 focus:bg-black/40 outline-none text-sm transition-all placeholder-slate-500"
               placeholder={t.edit_profile.nickname_placeholder}
             />
           </div>
@@ -162,7 +162,7 @@ export default function EditProfileModal() {
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               rows={3}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-brand-500 outline-none resize-none text-sm"
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-brand-500/50 focus:bg-black/40 outline-none resize-none text-sm transition-all placeholder-slate-500"
               placeholder={t.edit_profile.bio_placeholder}
             ></textarea>
           </div>
@@ -171,7 +171,7 @@ export default function EditProfileModal() {
           <button 
             onClick={handleSubmit}
             disabled={loading}
-            className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold transition shadow-lg shadow-brand-500/30 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+            className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
           >
             {loading ? <i className="fa-solid fa-circle-notch fa-spin mr-2"></i> : null}
             {t.edit_profile.save}

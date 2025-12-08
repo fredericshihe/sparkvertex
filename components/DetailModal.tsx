@@ -379,16 +379,16 @@ export default function DetailModal() {
 
   return (
     <div className="fixed inset-0 z-[100]">
-      <div className="absolute inset-0 bg-black/90 backdrop-blur-md touch-none" onClick={closeDetailModal}></div>
-      <div className="absolute inset-0 md:inset-10 bg-slate-900 md:rounded-2xl border-0 md:border border-slate-700 flex flex-col overflow-hidden shadow-2xl animate-float-up max-w-7xl mx-auto overscroll-contain">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm touch-none" onClick={closeDetailModal}></div>
+      <div className="absolute inset-0 md:inset-10 bg-black/60 backdrop-blur-2xl md:rounded-3xl border-0 md:border border-white/10 flex flex-col overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)] animate-in zoom-in fade-in duration-300 max-w-7xl mx-auto overscroll-contain ring-1 ring-white/5">
         
         {/* Header */}
-        <div className="h-16 border-b border-slate-800 flex items-center justify-between px-4 md:px-6 bg-slate-900/50 backdrop-blur-md z-30 relative flex-shrink-0">
+        <div className="h-16 border-b border-white/10 flex items-center justify-between px-4 md:px-6 bg-black/40 backdrop-blur-md z-30 relative flex-shrink-0">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-2 h-6 bg-brand-500 rounded-full flex-shrink-0"></div>
             <h2 className="text-lg font-bold text-white truncate">{loading ? t.common.loading : item?.title}</h2>
           </div>
-          <button onClick={viewMode === 'app' ? exitAppMode : closeDetailModal} className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition text-slate-400 hover:text-white flex-shrink-0">
+          <button onClick={viewMode === 'app' ? exitAppMode : closeDetailModal} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition text-slate-400 hover:text-white flex-shrink-0">
             <i className="fa-solid fa-xmark"></i>
           </button>
         </div>
@@ -397,13 +397,13 @@ export default function DetailModal() {
         <div className="flex-grow flex flex-col md:flex-row overflow-hidden relative">
           {/* Preview Area */}
           <div className={`
-            bg-slate-900 relative group flex flex-col transition-all duration-300
+            bg-black/20 relative group flex flex-col transition-all duration-300
             ${viewMode === 'app' ? 'absolute inset-0 z-50 w-full h-full' : 'h-[40vh] md:h-auto md:flex-grow'}
           `}>
             
             <div 
               ref={previewContainerRef}
-              className={`flex-grow relative bg-slate-900 overflow-hidden ${viewMode === 'app' ? 'w-full h-full' : 'flex justify-center items-center p-4 md:p-8'} bg-[url('/grid.svg')] bg-center`}
+              className={`flex-grow relative bg-transparent overflow-hidden ${viewMode === 'app' ? 'w-full h-full' : 'flex justify-center items-center p-4 md:p-8'} bg-[url('/grid.svg')] bg-center`}
             >
               {loading ? (
                 <i className="fa-solid fa-circle-notch fa-spin text-4xl text-brand-500"></i>
@@ -463,7 +463,7 @@ export default function DetailModal() {
 
           {/* Sidebar Info */}
           <div className={`
-            flex-1 md:w-96 md:flex-none bg-slate-900 border-t md:border-t-0 md:border-l border-slate-800 flex flex-col z-20 shadow-2xl overflow-hidden
+            flex-1 md:w-96 md:flex-none bg-black/40 border-t md:border-t-0 md:border-l border-white/10 flex flex-col z-20 shadow-2xl overflow-hidden
             ${viewMode === 'app' ? 'hidden' : 'flex'}
           `}>
             {loading ? (
@@ -623,9 +623,9 @@ export default function DetailModal() {
                 </div>
 
                 {/* Bottom Action Bar */}
-                <div className="p-6 border-t border-slate-800 bg-slate-900/95 backdrop-blur relative">
+                <div className="p-6 border-t border-white/10 bg-black/40 backdrop-blur relative">
                   {/* Price Tag */}
-                  <div className="absolute -top-5 right-6 bg-slate-900 border border-slate-700 px-4 py-1 rounded-full shadow-lg flex items-center gap-2">
+                  <div className="absolute -top-5 right-6 bg-black/80 border border-white/10 px-4 py-1 rounded-full shadow-lg flex items-center gap-2 backdrop-blur-md">
                     <span className="text-xs text-slate-400">{t.detail.price}</span>
                     <span className="font-bold text-lg text-white">{item?.price && item.price > 0 ? `¥${item.price}` : t.detail.free}</span>
                   </div>
@@ -633,7 +633,7 @@ export default function DetailModal() {
                   <div className="flex flex-wrap sm:flex-nowrap gap-3 mt-2">
                     <button 
                       onClick={handleLike}
-                      className={`w-12 h-12 rounded-xl border flex items-center justify-center transition group flex-shrink-0 ${isLiked ? 'bg-rose-500/10 text-rose-500 border-rose-500/50' : 'bg-slate-800 text-slate-400 hover:text-rose-500 border-slate-700 hover:bg-slate-700'}`}
+                      className={`w-12 h-12 rounded-xl border flex items-center justify-center transition group flex-shrink-0 ${isLiked ? 'bg-rose-500/10 text-rose-500 border-rose-500/50' : 'bg-white/5 text-slate-400 hover:text-rose-500 border-white/10 hover:bg-white/10'}`}
                     >
                       <i className={`fa-solid fa-heart text-lg group-hover:scale-110 transition-transform`}></i>
                     </button>
@@ -646,7 +646,7 @@ export default function DetailModal() {
                     </button>
                     <button 
                       onClick={handleDownload}
-                      className="flex-1 min-w-[140px] bg-slate-800 hover:bg-slate-700 text-white h-12 rounded-xl font-bold transition flex items-center justify-center gap-2 group border border-slate-700 whitespace-nowrap"
+                      className="flex-1 min-w-[140px] bg-white/5 hover:bg-white/10 text-white h-12 rounded-xl font-bold transition flex items-center justify-center gap-2 group border border-white/10 whitespace-nowrap"
                     >
                       <span>{t.detail.download_source}</span>
                       <i className="fa-solid fa-download group-hover:translate-y-1 transition-transform text-slate-400 group-hover:text-white"></i>
@@ -662,12 +662,12 @@ export default function DetailModal() {
       {/* Share Modal Overlay */}
       {showShareModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeShareModal}></div>
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeShareModal}></div>
             
-            <div className="relative z-10 bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full flex flex-col items-center animate-float-up shadow-2xl">
+            <div className="relative z-10 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 max-w-sm w-full flex flex-col items-center animate-in zoom-in fade-in duration-300 shadow-[0_8px_32px_rgba(0,0,0,0.4)] ring-1 ring-white/5">
                 <div className="flex justify-between items-center w-full mb-4">
                     <h3 className="text-lg font-bold text-white">{t.detail.share_modal_title}</h3>
-                    <button onClick={closeShareModal} className="text-slate-400 hover:text-white transition">
+                    <button onClick={closeShareModal} className="text-slate-400 hover:text-white transition w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10">
                         <i className="fa-solid fa-xmark text-xl"></i>
                     </button>
                 </div>
@@ -806,7 +806,7 @@ export default function DetailModal() {
                             link.click();
                         }}
                         disabled={!shareImageUrl}
-                        className="flex-1 min-w-[120px] bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap"
+                        className="flex-1 min-w-[120px] bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap border border-white/10"
                     >
                         <i className="fa-solid fa-download"></i> {t.detail.save_image}
                     </button>
@@ -817,7 +817,7 @@ export default function DetailModal() {
                                 copyToClipboard(url).then(() => alert(t.detail.link_copied));
                             }
                         }}
-                        className="flex-1 min-w-[120px] bg-brand-600 hover:bg-brand-500 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm whitespace-nowrap"
+                        className="flex-1 min-w-[120px] bg-brand-600 hover:bg-brand-500 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm whitespace-nowrap shadow-lg shadow-brand-500/20"
                     >
                         <i className="fa-regular fa-copy"></i> {t.detail.copy_link}
                     </button>

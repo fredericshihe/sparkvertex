@@ -34,10 +34,10 @@ export default function AddToHomeScreenGuide({ isActive = true }: AddToHomeScree
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-[10000] p-4 pointer-events-none flex justify-center pb-8">
-      <div className="bg-slate-900/90 backdrop-blur-md border border-brand-500/50 shadow-2xl shadow-brand-500/20 rounded-2xl p-4 max-w-sm w-full pointer-events-auto animate-bounce-in-up relative">
+      <div className="bg-black/80 backdrop-blur-xl border border-brand-500/50 shadow-[0_8px_32px_rgba(0,0,0,0.4)] rounded-3xl p-4 max-w-sm w-full pointer-events-auto animate-bounce-in-up relative ring-1 ring-white/5">
         <button 
           onClick={() => setShowGuide(false)}
-          className="absolute -top-2 -right-2 w-6 h-6 bg-slate-700 rounded-full text-white flex items-center justify-center text-xs shadow-lg"
+          className="absolute -top-2 -right-2 w-6 h-6 bg-white/10 rounded-full text-white flex items-center justify-center text-xs shadow-lg backdrop-blur-md border border-white/10"
         >
           <i className="fa-solid fa-xmark"></i>
         </button>
@@ -71,7 +71,7 @@ export default function AddToHomeScreenGuide({ isActive = true }: AddToHomeScree
         </div>
         
         {/* Pointing Arrow */}
-        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-slate-900/90 border-b border-r border-brand-500/50 rotate-45"></div>
+        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-black/80 border-b border-r border-brand-500/50 rotate-45 backdrop-blur-xl"></div>
       </div>
     </div>
   );

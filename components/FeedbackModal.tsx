@@ -71,14 +71,14 @@ export default function FeedbackModal() {
 
   return (
     <div className="fixed inset-0 z-[100]">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm touch-none" onClick={closeFeedbackModal}></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl animate-float-up overscroll-contain max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm touch-none" onClick={closeFeedbackModal}></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-black/60 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 shadow-[0_8px_32px_rgba(0,0,0,0.4)] animate-in zoom-in fade-in duration-300 ring-1 ring-white/5 max-h-[90vh] overflow-y-auto custom-scrollbar">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <i className="fa-solid fa-comment-dots text-brand-500"></i>
             {t.feedback_modal.title}
           </h2>
-          <button onClick={closeFeedbackModal} className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 transition">
+          <button onClick={closeFeedbackModal} className="text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition">
             <i className="fa-solid fa-xmark"></i>
           </button>
         </div>
@@ -88,13 +88,13 @@ export default function FeedbackModal() {
           <div className="flex gap-4">
             <button 
               onClick={() => setType('bug')}
-              className={`flex-1 py-2 rounded-lg border transition text-sm ${type === 'bug' ? 'bg-rose-500/20 border-rose-500 text-rose-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
+              className={`flex-1 py-2 rounded-xl border transition text-sm ${type === 'bug' ? 'bg-rose-500/20 border-rose-500 text-rose-400' : 'bg-black/20 border-white/10 text-slate-400 hover:bg-white/5'}`}
             >
               <i className="fa-solid fa-bug mr-2"></i>{t.feedback_modal.bug_report}
             </button>
             <button 
               onClick={() => setType('feature')}
-              className={`flex-1 py-2 rounded-lg border transition text-sm ${type === 'feature' ? 'bg-brand-500/20 border-brand-500 text-brand-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
+              className={`flex-1 py-2 rounded-xl border transition text-sm ${type === 'feature' ? 'bg-brand-500/20 border-brand-500 text-brand-400' : 'bg-black/20 border-white/10 text-slate-400 hover:bg-white/5'}`}
             >
               <i className="fa-solid fa-lightbulb mr-2"></i>{t.feedback_modal.feature_request}
             </button>
@@ -107,7 +107,7 @@ export default function FeedbackModal() {
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={4}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-brand-500 outline-none resize-none text-sm"
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-brand-500/50 focus:bg-black/40 outline-none resize-none text-sm transition-all placeholder-slate-500"
               placeholder={t.feedback_modal.details_placeholder}
             ></textarea>
           </div>
@@ -117,7 +117,7 @@ export default function FeedbackModal() {
             <label className="block text-sm font-medium text-slate-400 mb-1">{t.feedback_modal.screenshot_label}</label>
             <div 
               onClick={() => fileInputRef.current?.click()}
-              className="w-full h-32 bg-slate-800 border border-dashed border-slate-600 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-brand-500 transition overflow-hidden relative"
+              className="w-full h-32 bg-black/20 border border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-brand-500/50 hover:bg-black/40 transition overflow-hidden relative"
             >
               {screenshot ? (
                 <img src={screenshot} className="w-full h-full object-contain" alt="Screenshot" />
@@ -144,7 +144,7 @@ export default function FeedbackModal() {
               type="text" 
               value={contact}
               onChange={(e) => setContact(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-brand-500 outline-none text-sm"
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-brand-500/50 focus:bg-black/40 outline-none text-sm transition-all placeholder-slate-500"
               placeholder={t.feedback_modal.contact_placeholder}
             />
           </div>
@@ -153,7 +153,7 @@ export default function FeedbackModal() {
           <button 
             onClick={handleSubmit}
             disabled={loading}
-            className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold transition shadow-lg shadow-brand-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? <i className="fa-solid fa-circle-notch fa-spin"></i> : <i className="fa-solid fa-paper-plane"></i>}
             {t.feedback_modal.submit}

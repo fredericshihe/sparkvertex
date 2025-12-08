@@ -1,4 +1,8 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { parse } from '@babel/parser';
+import traverse from '@babel/traverse';
+import generate from '@babel/generator';
+import * as t from '@babel/types';
 import { analyzeDependencies, extractJSXComponents } from './ast-parser';
 import { 
     classifyUserIntent, 
@@ -387,13 +391,240 @@ const COMPRESSION_THRESHOLDS: Record<CompressionIntent, number> = {
     'UNKNOWN': 15,           // 默认 - 保守
 };
 
-// 3. Semantic Compression Logic - Aggressive Mode
+/**
+ * AST Skeletonization Function
+ * Parses code, removes function bodies, and returns the skeleton with stats.
+ * @param code - The code chunk to skeletonize
+ * @param chunkId - The chunk ID for logging
+ * @returns Object with skeletonized code and statistics
+ */
+interface SkeletonResult {
+    code: string;
+    originalLines: number;
+    resultLines: number;
+    functionsHidden: number;
+    functionsKept: number;
+}
+
+function skeletonizeCode(code: string, chunkId?: string): SkeletonResult {
+    const originalLines = code.split('\n').length;
+    let functionsHidden = 0;
+    let functionsKept = 0;
+
+    // ⚡ Minimum line threshold: Don't skeletonize small files
+    // For files < 25 lines, AST transformation + pretty print often INCREASES size
+    const MIN_LINES_THRESHOLD = 25;
+    if (originalLines < MIN_LINES_THRESHOLD) {
+        console.log(`[AST] ⏭️ Skipping ${chunkId || 'unknown'}: ${originalLines} lines (below ${MIN_LINES_THRESHOLD} threshold)`);
+        return {
+            code,
+            originalLines,
+            resultLines: originalLines,
+            functionsHidden: 0,
+            functionsKept: 0
+        };
+    }
+
+    try {
+        // 1. Parse code to AST
+        const ast = parse(code, {
+            sourceType: "module",
+            plugins: ["jsx", "typescript", "classProperties"],
+            errorRecovery: true
+        });
+
+        // 2. Traverse and modify AST
+        traverse(ast, {
+            // Match all function types
+            "FunctionDeclaration|ArrowFunctionExpression|FunctionExpression|ObjectMethod|ClassMethod"(path: any) {
+                const node = path.node;
+                // Skip if body is already empty or very short (<= 1 statement)
+                if (!node.body || (node.body.type === 'BlockStatement' && node.body.body.length <= 1)) {
+                    functionsKept++;
+                    return;
+                }
+
+                // Count statements in body to determine if worth hiding
+                const bodyStatements = node.body.type === 'BlockStatement' ? node.body.body.length : 1;
+                if (bodyStatements <= 2) {
+                    functionsKept++;
+                    return; // Keep very short functions
+                }
+
+                functionsHidden++;
+
+                // Create a comment node
+                const comment = t.addComment(
+                    t.blockStatement([]), // Empty block
+                    "inner",
+                    ` ... ${bodyStatements} statements hidden ... `
+                );
+                
+                // Replace body with the comment-only block
+                if (node.type === 'ArrowFunctionExpression' && node.body.type !== 'BlockStatement') {
+                     path.get("body").replaceWith(comment);
+                } else {
+                    path.get("body").replaceWith(comment);
+                }
+            }
+        });
+
+        // 3. Generate new code
+        const output = generate(ast, {
+            retainLines: false,
+            compact: false,
+            comments: true
+        }, code);
+
+        const resultLines = output.code.split('\n').length;
+
+        return {
+            code: output.code,
+            originalLines,
+            resultLines,
+            functionsHidden,
+            functionsKept
+        };
+
+    } catch (error) {
+        console.warn(`[AST] Skeletonization failed for ${chunkId || 'unknown'}:`, error);
+        return {
+            code,
+            originalLines,
+            resultLines: originalLines,
+            functionsHidden: 0,
+            functionsKept: 0
+        };
+    }
+}
+
+/**
+ * Sample Data Definition - Compress large data arrays/objects
+ * Shows structure + first few items to save tokens
+ * @param content - The data definition code
+ * @param chunkId - The chunk ID for logging
+ * @returns Sampled code or original if too small
+ */
+function sampleDataDefinition(content: string, chunkId: string): string {
+    const lines = content.split('\n');
+    
+    // If it's small enough, don't bother sampling
+    if (lines.length <= 20) {
+        return content;
+    }
+    
+    // Try to detect array or object structure
+    // Pattern: const NAME = [ ... ] or const NAME = { ... }
+    const arrayMatch = content.match(/^(const\s+[A-Z0-9_]+\s*=\s*)\[/);
+    const objectMatch = content.match(/^(const\s+[A-Z0-9_]+\s*=\s*)\{/);
+    
+    if (arrayMatch) {
+        // It's an array - sample first 3 items
+        // Find the first 3 complete items (objects or primitives)
+        const prefix = arrayMatch[1];
+        const arrayContent = content.slice(prefix.length);
+        
+        // Try to find item boundaries (look for },\n or ],\n patterns)
+        let bracketDepth = 0;
+        let itemCount = 0;
+        let sampleEnd = 0;
+        let inString = false;
+        
+        for (let i = 0; i < arrayContent.length && itemCount < 3; i++) {
+            const char = arrayContent[i];
+            const prevChar = i > 0 ? arrayContent[i-1] : '';
+            
+            // Track string state (simplified - doesn't handle all escape cases)
+            if ((char === '"' || char === "'") && prevChar !== '\\') {
+                inString = !inString;
+            }
+            
+            if (!inString) {
+                if (char === '[' || char === '{' || char === '(') {
+                    bracketDepth++;
+                } else if (char === ']' || char === '}' || char === ')') {
+                    bracketDepth--;
+                    // If we're back to depth 1 (inside the main array), we found an item
+                    if (bracketDepth === 1 || (bracketDepth === 0 && char === '}')) {
+                        // Look for comma after this
+                        const nextChars = arrayContent.slice(i, i + 5);
+                        if (nextChars.includes(',')) {
+                            itemCount++;
+                            sampleEnd = i + nextChars.indexOf(',') + 1;
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (itemCount >= 2 && sampleEnd > 0) {
+            const sampledArray = arrayContent.slice(0, sampleEnd);
+            const totalItems = (content.match(/\{[^{}]*\}/g) || []).length;
+            
+            return `${prefix}[
+${sampledArray}
+  // ... ${totalItems - itemCount} more items omitted (total: ${totalItems})
+];`;
+        }
+    }
+    
+    if (objectMatch) {
+        // It's an object - sample first 3 key-value pairs
+        const prefix = objectMatch[1];
+        
+        // Find first 3 top-level keys
+        let bracketDepth = 0;
+        let keyCount = 0;
+        let sampleEnd = 0;
+        let inString = false;
+        const objectContent = content.slice(prefix.length);
+        
+        for (let i = 0; i < objectContent.length && keyCount < 3; i++) {
+            const char = objectContent[i];
+            const prevChar = i > 0 ? objectContent[i-1] : '';
+            
+            if ((char === '"' || char === "'") && prevChar !== '\\') {
+                inString = !inString;
+            }
+            
+            if (!inString) {
+                if (char === '{' || char === '[' || char === '(') {
+                    bracketDepth++;
+                } else if (char === '}' || char === ']' || char === ')') {
+                    bracketDepth--;
+                }
+                
+                // At depth 1, look for commas (end of key-value pair)
+                if (bracketDepth === 1 && char === ',') {
+                    keyCount++;
+                    sampleEnd = i + 1;
+                }
+            }
+        }
+        
+        if (keyCount >= 2 && sampleEnd > 0) {
+            const sampledObject = objectContent.slice(0, sampleEnd);
+            const totalKeys = (content.match(/^\s*[a-zA-Z_]\w*\s*:/gm) || []).length;
+            
+            return `${prefix}{
+${sampledObject}
+  // ... ${totalKeys - keyCount} more keys omitted (total: ${totalKeys})
+};`;
+        }
+    }
+    
+    // Couldn't parse structure, return original
+    return content;
+}
+
+// 3. Semantic Compression Logic - Aggressive Mode with Primary/Reference Target Distinction
 // Goal: Reduce tokens as much as possible while preserving patch accuracy
 export function compressCode(
     code: string, 
     relevantChunkIds: string[], 
     explicitTargets: string[] = [],
-    intent?: string // Optional: UserIntent from intent-classifier
+    intent?: string, // Optional: UserIntent from intent-classifier
+    referenceTargets: string[] = [] // NEW: Targets that only need skeleton (interface only)
 ): string {
     const chunks = chunkCode(code);
     // Sort chunks by startIndex descending to replace from bottom up without messing indices
@@ -407,11 +638,15 @@ export function compressCode(
     console.log(`[Compression] Total JS chunks: ${jsChunks.length}, Relevant IDs: ${relevantChunkIds.join(', ')}`);
     console.log(`[Compression] Intent: ${intent || 'UNKNOWN'}, Threshold: ${compressionThreshold} lines`);
     if (explicitTargets.length > 0) {
-        console.log(`[Compression] Explicit targets (Force Expand): ${explicitTargets.join(', ')}`);
+        console.log(`[Compression] 📝 Primary targets (Full Code): ${explicitTargets.join(', ')}`);
+    }
+    if (referenceTargets.length > 0) {
+        console.log(`[Compression] 📖 Reference targets (Skeleton): ${referenceTargets.join(', ')}`);
     }
     
     let compressed = code;
     let compressedCount = 0;
+    let skeletonizedReferenceCount = 0;
 
     for (const chunk of jsChunks) {
         const lines = chunk.content.split('\n');
@@ -425,78 +660,115 @@ export function compressCode(
         // Check if this chunk is in the relevant list
         const isRelevant = relevantChunkIds.includes(chunk.id);
         
-        // Check if this chunk is an explicit target (Intent-Aware Decompression)
+        // Check if this chunk is an explicit PRIMARY target (must have full code for editing)
         const componentName = chunk.id.replace('component-', '');
+        
+        // 🔍 增强模糊匹配：支持双向包含 + 忽略大小写
+        const fuzzyMatch = (target: string, name: string): boolean => {
+            const t = target.toLowerCase().trim();
+            const n = name.toLowerCase().trim();
+            // 完全匹配
+            if (t === n) return true;
+            // target 包含 name（如 "MapScreen组件" 包含 "mapscreen"）
+            if (t.includes(n)) return true;
+            // name 包含 target（如 "mapscreen" 包含 "map"，但我们只在 target 较长时使用）
+            if (n.includes(t) && t.length >= 3) return true;
+            return false;
+        };
+        
         const isExplicitTarget = explicitTargets.some(t => 
-            t.toLowerCase() === componentName.toLowerCase() || 
-            chunk.id.toLowerCase().includes(t.toLowerCase())
+            fuzzyMatch(t, componentName) || fuzzyMatch(t, chunk.id)
         );
 
         if (isExplicitTarget) {
-            console.log(`[Compression] Force expanding ${chunk.id} (Explicit Target)`);
+            console.log(`[Compression] 📝 Full code: ${chunk.id} (Primary Target - will be edited)`);
             continue;
         }
 
-        // Intent-Driven Expansion: If intent is DATA/LOGIC, do NOT compress large arrays/objects
-        // These are often configuration data (MAP_GRID, MONSTERS) that need to be fully visible
-        const isDataOrLogicIntent = explicitTargets.length > 0; // If we have targets, it implies specific intent
-        // Or we can check if the chunk looks like a data definition (const X = [...])
+        // NEW: Check if this chunk is a REFERENCE target (needs skeleton only, not full code)
+        const isReferenceTarget = referenceTargets.some(t => 
+            fuzzyMatch(t, componentName) || fuzzyMatch(t, chunk.id)
+        );
+
+        if (isReferenceTarget && lines.length > 10) {
+            // Reference targets get AST skeletonization - keep interface, hide implementation
+            const skeleton = skeletonizeCode(chunk.content, chunk.id);
+            const reductionPercent = Math.round((1 - skeleton.resultLines / skeleton.originalLines) * 100);
+            console.log(`[AST] 📖 Reference skeleton: ${chunk.id}: ${skeleton.originalLines} → ${skeleton.resultLines} lines (${reductionPercent}% reduction)`);
+            
+            const replacement = `/** @reference-skeleton ${chunk.id} (${lines.length} lines) [INTERFACE ONLY]
+ * 📖 This is a REFERENCE component - showing interface/exports only
+ * 📖 Full implementation hidden to save tokens
+ */
+${skeleton.code}`;
+
+            compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
+            skeletonizedReferenceCount++;
+            continue;
+        }
+
+        // ========================================
+        // 🚨 NEW: "Allowlist or Skeleton" Strategy
+        // ========================================
+        // If a chunk is NOT in the explicit edit list, it gets skeletonized.
+        // This is the key change: we no longer preserve "relevant" chunks fully.
+        // RAG relevance only determines WHICH chunks to include, not HOW to compress them.
+        
+        // Data Definitions: Sample them instead of full expansion
         const isDataDefinition = /const\s+[A-Z0-9_]+\s*=\s*[\[\{]/.test(chunk.content);
         
-        if (isDataOrLogicIntent && isDataDefinition) {
-             console.log(`[Compression] Force expanding ${chunk.id} (Data Definition in Logic/Data Intent)`);
-             continue;
+        if (isDataDefinition) {
+            // Data definitions get sampled - show first few items + structure
+            const sampled = sampleDataDefinition(chunk.content, chunk.id);
+            if (sampled !== chunk.content) {
+                const originalLines = chunk.content.split('\n').length;
+                const sampledLines = sampled.split('\n').length;
+                const reductionPercent = Math.round((1 - sampledLines / originalLines) * 100);
+                console.log(`[Compression] 📊 Sampled data: ${chunk.id}: ${originalLines} → ${sampledLines} lines (${reductionPercent}% reduction)`);
+                
+                compressed = compressed.substring(0, chunk.startIndex!) + sampled + compressed.substring(chunk.endIndex!);
+                compressedCount++;
+                continue;
+            }
+            // If sampling didn't help (small data), keep it
+            console.log(`[Compression] Keeping ${chunk.id} (small data definition, ${lines.length} lines)`);
+            continue;
         }
 
+        // Everything else (including "relevant" chunks) gets skeletonized if large enough
+        // The only exception is explicitTargets which are handled above
+        if (lines.length <= 8) {
+            // Very small chunks - not worth skeletonizing
+            console.log(`[Compression] Keeping ${chunk.id} (too small: ${lines.length} lines)`);
+            continue;
+        }
+        
+        // Apply AST skeletonization to ALL remaining chunks (including "relevant" ones!)
+        const skeleton = skeletonizeCode(chunk.content, chunk.id);
+        
+        // Log detailed AST compression stats
+        const reductionPercent = Math.round((1 - skeleton.resultLines / skeleton.originalLines) * 100);
+        
+        // Different message based on whether it was "relevant" or not
         if (isRelevant) {
-            console.log(`[Compression] Keeping ${chunk.id} (relevant, ${lines.length} lines)`);
-            continue;
+            console.log(`[AST] 🔶 Relevant but skeletonized: ${chunk.id}: ${skeleton.originalLines} → ${skeleton.resultLines} lines (${reductionPercent}% reduction)`);
+        } else {
+            console.log(`[AST] Skeletonized ${chunk.id}: ${skeleton.originalLines} → ${skeleton.resultLines} lines (${reductionPercent}% reduction)`);
         }
-        
-        // Use dynamic compression threshold based on mode
-        if (lines.length <= compressionThreshold) {
-            console.log(`[Compression] Skipping ${chunk.id} (too small: ${lines.length} lines, threshold: ${compressionThreshold})`);
-            continue;
-        }
-        
-        // This chunk is irrelevant and large enough, apply semantic compression
-        console.log(`[Compression] Compressing ${chunk.id} (${lines.length} lines)`);
-        
-        const sig = extractComponentSignature(chunk.content);
-        
-        // Build semantic summary with more detail for better AI understanding
-        const summaryParts: string[] = [];
-        if (sig.props) summaryParts.push(`Props: ${sig.props}`);
-        if (sig.state.length > 0) summaryParts.push(`State: ${sig.state.join(', ')}`);
-        if (sig.handlers.length > 0) summaryParts.push(`Handlers: ${sig.handlers.slice(0, 3).join(', ')}${sig.handlers.length > 3 ? '...' : ''}`);
-        if (sig.effects.length > 0) summaryParts.push(`Effects: ${sig.effects.length}`);
-        if (sig.renders) summaryParts.push(`Renders: ${sig.renders}`);
-        
-        // Extract key JSX children for better context (up to 5)
-        const jsxChildren = extractJSXChildrenSummary(chunk.content);
-        if (jsxChildren.length > 0) {
-            summaryParts.push(`Children: ${jsxChildren.slice(0, 5).join(', ')}${jsxChildren.length > 5 ? '...' : ''}`);
-        }
-        
-        const summaryText = summaryParts.length > 0 
-            ? summaryParts.join(' | ') 
-            : `${lines.length} lines of logic`;
         
         // Create compressed replacement with semantic info and READ-ONLY warning
-        const replacement = `/** @semantic-compressed ${componentName} (${lines.length} lines) [READ-ONLY]
- * ${summaryText}
+        const replacement = `/** @semantic-compressed ${chunk.id} (${lines.length} lines) [READ-ONLY]
  * ⚠️ THIS IS READ-ONLY CONTEXT - DO NOT MODIFY THIS COMPONENT
- * ⚠️ If you need to change ${componentName}, tell the user to explicitly request it
- * ⚠️ NEVER use this compressed code in SEARCH blocks
+ * ⚠️ If you need to change ${chunk.id}, tell the user to explicitly request it
  */
-const ${componentName} = ${sig.props ? `({ ${sig.props} })` : '()'} => { /* compressed - do not modify */ };`;
+${skeleton.code}`;
 
         compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
         compressedCount++;
     }
     
-    if (compressedCount > 0) {
-        console.log(`[Compression] Semantically compressed ${compressedCount} component(s)`);
+    if (compressedCount > 0 || skeletonizedReferenceCount > 0) {
+        console.log(`[Compression] Summary: ${compressedCount} irrelevant compressed, ${skeletonizedReferenceCount} references skeletonized`);
     }
     
     return compressed;
