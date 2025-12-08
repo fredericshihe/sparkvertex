@@ -599,7 +599,7 @@ function UploadContent() {
       `;
       
       // Use existing preview logic but append validation script
-      let previewHtml = getPreviewContent(content);
+      let previewHtml = getPreviewContent(content, { raw: true });
       if (previewHtml.includes('</body>')) {
           previewHtml = previewHtml.replace('</body>', validationScript + '</body>');
       } else {
@@ -1704,7 +1704,7 @@ function UploadContent() {
                 }`}></div>
 
                 <iframe 
-                  srcDoc={getPreviewContent(fileContent)} 
+                  srcDoc={getPreviewContent(fileContent, { raw: true })} 
                   className="w-full h-full border-0 bg-slate-900" 
                   sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
                   allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; payment; fullscreen; picture-in-picture"

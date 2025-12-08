@@ -205,8 +205,8 @@ export interface DeepSeekConfig {
   timeoutMs?: number;  // 超时时间（毫秒），默认 5000ms
 }
 
-// 默认超时时间：5秒
-const DEFAULT_DEEPSEEK_TIMEOUT = 5000;
+// 默认超时时间：15秒 (从 5秒 增加，避免复杂分析时超时)
+const DEFAULT_DEEPSEEK_TIMEOUT = 15000;
 
 /**
  * 使用 DeepSeek API 进行意图分类（通过 Supabase Edge Function）
@@ -218,7 +218,7 @@ const DEFAULT_DEEPSEEK_TIMEOUT = 5000;
 export async function classifyIntentWithDeepSeek(
   query: string,
   config?: DeepSeekConfig
-): Promise<{ intent: UserIntent; confidence: number; latencyMs: number; source: 'deepseek' | 'timeout_fallback' }> {
+): Promise<{ intent: UserIntent; confidence: number; latencyMs: number; source: 'deepseek' | 'timeout_fallback'; targets: string[] }> {
   const startTime = Date.now();
   const {
     supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -230,10 +230,16 @@ export async function classifyIntentWithDeepSeek(
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error('[IntentClassifier] Missing Supabase config');
-    return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs: Date.now() - startTime, source: 'timeout_fallback' };
+    return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs: Date.now() - startTime, source: 'timeout_fallback', targets: [] };
   }
 
-  const systemPrompt = `你是一个代码助手路由器。分析用户的请求并将其分类到以下类别之一：
+  const systemPrompt = `你是一个代码助手路由器。分析用户的请求并将其分类，同时提取用户明确想要修改的目标组件或变量名。
+
+请返回 JSON 格式：
+{
+  "intent": "类别名称",
+  "targets": ["目标1", "目标2"]
+}
 
 类别说明：
 - UI_MODIFICATION: 修改颜色、样式、布局、CSS、组件外观、主题
@@ -246,11 +252,19 @@ export async function classifyIntentWithDeepSeek(
 - DATA_OPERATION: 数据库查询、API调用、数据获取、数据变更
 - UNKNOWN: 无法确定意图
 
-请仔细分析用户请求，只返回类别名称（如 "UI_MODIFICATION"），不要有其他内容。`;
+targets 说明：
+- 提取用户明确提到的组件名、变量名、函数名（如 "MAP_GRID", "BattleScene"）
+- 如果没有明确目标，返回空数组 []
+- 自动转换为大写或驼峰形式以匹配代码习惯
+- 不要包含 "App" 或 "Main" 这种通用组件，除非用户明确指定
 
-  const userPrompt = `用户请求: "${query}"
+IMPORTANT:
+1. You must output STRICT JSON format only.
+2. Do NOT output any "Thinking Process", "Plan", or Markdown code blocks.
+3. Start directly with "{".
+`;
 
-类别:`;
+  const userPrompt = `用户请求: "${query}"`;
 
   // 创建 AbortController 用于超时控制
   const controller = new AbortController();
@@ -291,7 +305,7 @@ export async function classifyIntentWithDeepSeek(
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[IntentClassifier] DeepSeek Edge Function error:', errorText);
-      return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs: Date.now() - startTime, source: 'timeout_fallback' };
+      return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs: Date.now() - startTime, source: 'timeout_fallback', targets: [] };
     }
 
     // 处理非流式响应
@@ -307,17 +321,48 @@ export async function classifyIntentWithDeepSeek(
       result = data;
     }
 
-    const intentStr = result.trim().toUpperCase().replace(/[^A-Z_]/g, '') as UserIntent;
+    // 尝试解析 JSON
+    let intentStr = UserIntent.UNKNOWN;
+    let targets: string[] = [];
+    
+    let jsonString = result;
+
+    // 1. 尝试提取 Markdown 代码块中的 JSON
+    const codeBlockMatch = result.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch) {
+        jsonString = codeBlockMatch[1];
+    } else {
+        // 2. 如果没有代码块，尝试寻找第一个 { 和最后一个 }
+        const firstBrace = result.indexOf('{');
+        const lastBrace = result.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+            jsonString = result.substring(firstBrace, lastBrace + 1);
+        }
+    }
+
+    // 3. 清理可能存在的注释 (// ...) 这是一个简单的正则，处理标准 JSON 不支持的注释
+    jsonString = jsonString.replace(/\/\/.*$/gm, ''); 
+
+    try {
+        const parsed = JSON.parse(jsonString);
+        intentStr = parsed.intent as UserIntent;
+        targets = Array.isArray(parsed.targets) ? parsed.targets : [];
+    } catch (e) {
+        // 降级处理：如果不是 JSON，尝试直接提取意图
+        console.warn('[IntentClassifier] Failed to parse JSON, falling back to regex. Raw text:', result);
+        intentStr = result.trim().toUpperCase().replace(/[^A-Z_]/g, '') as UserIntent;
+    }
+
     const latencyMs = Date.now() - startTime;
 
-    console.log(`🤖 [IntentClassifier] DeepSeek response: "${result}" → ${intentStr} (${latencyMs}ms)`);
+    console.log(`🤖 [IntentClassifier] DeepSeek response: ${intentStr} (${latencyMs}ms), Targets: ${targets.join(', ')}`);
 
     // 验证返回的意图是否有效
     if (Object.values(UserIntent).includes(intentStr)) {
-      return { intent: intentStr, confidence: 0.9, latencyMs, source: 'deepseek' };
+      return { intent: intentStr, confidence: 0.9, latencyMs, source: 'deepseek', targets };
     }
 
-    return { intent: UserIntent.UNKNOWN, confidence: 0.3, latencyMs, source: 'deepseek' };
+    return { intent: UserIntent.UNKNOWN, confidence: 0.3, latencyMs, source: 'deepseek', targets: [] };
   } catch (error: any) {
     // 清除超时定时器（以防异常发生在 fetch 之前）
     clearTimeout(timeoutId);
@@ -326,11 +371,11 @@ export async function classifyIntentWithDeepSeek(
     // 区分超时和其他错误
     if (error.name === 'AbortError') {
       console.warn(`[IntentClassifier] DeepSeek request aborted (timeout: ${timeoutMs}ms)`);
-      return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs, source: 'timeout_fallback' };
+      return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs, source: 'timeout_fallback', targets: [] };
     }
     
     console.error('[IntentClassifier] DeepSeek classification failed:', error);
-    return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs, source: 'timeout_fallback' };
+    return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs, source: 'timeout_fallback', targets: [] };
   }
 }
 
@@ -402,7 +447,7 @@ export async function classifyUserIntent(
     generateText?: (options: { model: string; prompt: string }) => Promise<string>;
     deepSeekConfig?: DeepSeekConfig;
   }
-): Promise<SearchStrategy & { source: 'local' | 'deepseek' | 'timeout_fallback'; latencyMs: number }> {
+): Promise<SearchStrategy & { source: 'local' | 'deepseek' | 'timeout_fallback'; latencyMs: number; targets?: string[] }> {
   const startTime = Date.now();
   const { 
     useLLM = false,
@@ -415,6 +460,7 @@ export async function classifyUserIntent(
   // Step 1: 先尝试本地分类
   let { intent, confidence } = classifyIntentLocal(query);
   let source: 'local' | 'deepseek' | 'timeout_fallback' = 'local';
+  let targets: string[] = [];
 
   console.log(`🧠 [IntentClassifier] Local classification: ${intent} (confidence: ${(confidence * 100).toFixed(1)}%)`);
 
@@ -429,7 +475,8 @@ export async function classifyUserIntent(
         intent = deepSeekResult.intent;
         confidence = deepSeekResult.confidence;
         source = deepSeekResult.source;
-        console.log(`🎯 [IntentClassifier] DeepSeek override: ${intent} (confidence: ${(confidence * 100).toFixed(1)}%, source: ${source})`);
+        targets = deepSeekResult.targets;
+        console.log(`🎯 [IntentClassifier] DeepSeek override: ${intent} (confidence: ${(confidence * 100).toFixed(1)}%, source: ${source}, targets: ${targets.join(', ')})`);
       }
     }
     // 备用：使用自定义 LLM
@@ -450,7 +497,7 @@ export async function classifyUserIntent(
 
   // Step 3: 根据意图构建搜索策略
   const strategy = buildSearchStrategy(intent, confidence);
-  return { ...strategy, source, latencyMs };
+  return { ...strategy, source, latencyMs, targets };
 }
 
 /**

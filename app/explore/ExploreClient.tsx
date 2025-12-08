@@ -487,7 +487,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
                        <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
                           {topItems[0]?.content ? (
                             <iframe 
-                                srcDoc={getPreviewContent(topItems[0]?.content)} 
+                                srcDoc={getPreviewContent(topItems[0]?.content, { raw: true })} 
                                 className="w-[200%] h-[200%] border-0 transform scale-50 origin-center pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity bg-slate-900" 
                                 tabIndex={-1}
                                 scrolling="no"

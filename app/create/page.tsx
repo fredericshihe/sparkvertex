@@ -169,7 +169,7 @@ function CreateContent() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [modificationCount, setModificationCount] = useState(0);
   const [chatInput, setChatInput] = useState('');
-  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string, type?: 'text' | 'error', errorDetails?: any, plan?: string, cost?: number}[]>([]);
+  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', content: string, type?: 'text' | 'error', errorDetails?: any, plan?: string, cost?: number, isBlankScreen?: boolean, canAutoFix?: boolean}[]>([]);
   const [loadingText, setLoadingText] = useState(t.create.analyzing);
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('mobile');
   const [streamingCode, setStreamingCode] = useState('');
@@ -187,6 +187,18 @@ function CreateContent() {
   const [editRequest, setEditRequest] = useState('');
   const [editIntent, setEditIntent] = useState<'auto' | 'style' | 'content' | 'logic'>('auto');
   const [hasSeenEditGuide, setHasSeenEditGuide] = useState(false);
+  
+  // State: Quick Edit (direct color/text modification without AI)
+  const [quickEditMode, setQuickEditMode] = useState<'none' | 'color' | 'text'>('none');
+  const [quickEditColor, setQuickEditColor] = useState('#3b82f6');
+  const [quickEditText, setQuickEditText] = useState('');
+  const [quickEditColorType, setQuickEditColorType] = useState<'bg' | 'text' | 'border' | 'all'>('all');
+  const [availableColorTypes, setAvailableColorTypes] = useState<('bg' | 'text' | 'border')[]>([]);
+  
+  // State: Quick Edit History (for undo/redo within quick edit session)
+  const [quickEditHistory, setQuickEditHistory] = useState<{ code: string; description: string }[]>([]);
+  const [quickEditHistoryIndex, setQuickEditHistoryIndex] = useState(-1);
+  const [isHistoryPanelOpen, setIsHistoryPanelOpen] = useState(true); // History panel expanded state
   
   // State: Mobile Preview
   const [showMobilePreview, setShowMobilePreview] = useState(false);
@@ -230,6 +242,7 @@ function CreateContent() {
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
+  const historyPanelRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const codeScrollRef = useRef<HTMLDivElement>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -237,6 +250,20 @@ function CreateContent() {
   const timeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const channelRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Click outside to close history panel
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isHistoryPanelOpen && historyPanelRef.current && !historyPanelRef.current.contains(event.target as Node)) {
+        setIsHistoryPanelOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isHistoryPanelOpen]);
 
   // Update loading text when language changes
   useEffect(() => {
@@ -306,15 +333,47 @@ function CreateContent() {
       if (event.data && event.data.type === 'spark-element-selected') {
         setSelectedElement(event.data.payload);
         setShowEditModal(true);
-        setIsEditMode(false);
-        if (iframeRef.current?.contentWindow) {
-            iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: false }, '*');
+        // Keep edit mode active - don't exit automatically
+        // User can continue clicking other elements after closing modal
+      }
+      
+      // Handle edit mode restore request after content update
+      if (event.data && event.data.type === 'spark-request-edit-mode-restore') {
+        // Re-send edit mode state to iframe immediately
+        if (isEditMode && iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: true }, '*');
         }
       }
+      
+      // Handle content updated confirmation - re-enable edit mode aggressively
+      if (event.data && event.data.type === 'spark-content-updated') {
+        console.log('iframe content updated');
+        // Re-send edit mode state multiple times to ensure it takes effect after React re-renders
+        if (isEditMode && iframeRef.current?.contentWindow) {
+          // Immediate
+          iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: true }, '*');
+          // After React might have rendered
+          setTimeout(() => {
+            if (iframeRef.current?.contentWindow) {
+              iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: true }, '*');
+            }
+          }, 50);
+          // Final check after animations
+          setTimeout(() => {
+            if (iframeRef.current?.contentWindow) {
+              iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: true }, '*');
+            }
+          }, 150);
+        }
+      }
+      
       if (event.data && event.data.type === 'spark-app-error') {
         const errorData = event.data.error;
         const errorMessage = typeof errorData === 'string' ? errorData : errorData.message;
-        console.warn('Runtime Error Caught:', errorMessage);
+        const isBlankScreen = errorData?.type === 'blank-screen';
+        const shouldAutoFix = event.data.autoFix === true;
+        
+        console.warn('Runtime Error Caught:', errorMessage, isBlankScreen ? '(blank screen)' : '');
         
         setRuntimeError(errorMessage);
 
@@ -329,7 +388,9 @@ function CreateContent() {
                 role: 'ai', 
                 content: errorMessage, 
                 type: 'error',
-                errorDetails: errorData
+                errorDetails: errorData,
+                isBlankScreen,
+                canAutoFix: shouldAutoFix || isBlankScreen  // Blank screen errors can be auto-fixed
             }];
         });
       }
@@ -337,7 +398,7 @@ function CreateContent() {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [isEditMode]);
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -411,6 +472,9 @@ function CreateContent() {
             if (parsed.currentTaskId) setCurrentTaskId(parsed.currentTaskId);
             if (parsed.promptLengthForLog) setPromptLengthForLog(parsed.promptLengthForLog);
             if (parsed.conversationSummary) setConversationSummary(parsed.conversationSummary);
+            // Restore quick edit history
+            if (parsed.quickEditHistory) setQuickEditHistory(parsed.quickEditHistory);
+            if (typeof parsed.quickEditHistoryIndex === 'number') setQuickEditHistoryIndex(parsed.quickEditHistoryIndex);
             
             if ((parsed.step === 'preview' || parsed.step === 'generating') && parsed.generatedCode) {
                setStreamingCode(parsed.generatedCode);
@@ -469,6 +533,8 @@ function CreateContent() {
       currentTaskId,
       promptLengthForLog,
       conversationSummary,
+      quickEditHistory,
+      quickEditHistoryIndex,
       timestamp: Date.now()
     };
     
@@ -484,7 +550,8 @@ function CreateContent() {
                  const slimState = {
                      ...stateToSave,
                      codeHistory: codeHistory.slice(-3),
-                     chatHistory: chatHistory.slice(-20)
+                     chatHistory: chatHistory.slice(-20),
+                     quickEditHistory: quickEditHistory.slice(-10) // Keep last 10 quick edit history items
                  };
                  localStorage.setItem(STORAGE_KEY, JSON.stringify(slimState));
              } catch (e2) {
@@ -494,7 +561,9 @@ function CreateContent() {
                      const minimalState = {
                          ...stateToSave,
                          codeHistory: [],
-                         chatHistory: chatHistory.slice(-5)
+                         chatHistory: chatHistory.slice(-5),
+                         quickEditHistory: [], // Clear quick edit history in minimal save
+                         quickEditHistoryIndex: -1
                      };
                      localStorage.setItem(STORAGE_KEY, JSON.stringify(minimalState));
                  } catch (e3) {
@@ -508,7 +577,7 @@ function CreateContent() {
     }, 1000);
 
     return () => clearTimeout(timeoutId);
-  }, [step, wizardData, generatedCode, chatHistory, codeHistory, currentGenerationPrompt, previewMode, currentTaskId, promptLengthForLog, conversationSummary]);
+  }, [step, wizardData, generatedCode, chatHistory, codeHistory, currentGenerationPrompt, previewMode, currentTaskId, promptLengthForLog, conversationSummary, quickEditHistory, quickEditHistoryIndex]);
 
   // Save immediately when page visibility changes (user switches tabs)
   useEffect(() => {
@@ -526,6 +595,8 @@ function CreateContent() {
             currentTaskId,
             promptLengthForLog,
             conversationSummary,
+            quickEditHistory,
+            quickEditHistoryIndex,
             timestamp: Date.now()
           };
           localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
@@ -545,6 +616,8 @@ function CreateContent() {
                     currentTaskId,
                     promptLengthForLog,
                     conversationSummary,
+                    quickEditHistory: quickEditHistory.slice(-10), // Keep last 10 history items
+                    quickEditHistoryIndex,
                     timestamp: Date.now()
                  };
                  const slimState = {
@@ -556,23 +629,20 @@ function CreateContent() {
              } catch (e2) {
                  // If slim save fails, try minimal
                  try {
-                     const stateToSave = {
+                     const minimalState = {
                         step,
                         wizardData,
                         generatedCode,
-                        chatHistory,
-                        codeHistory,
+                        chatHistory: chatHistory.slice(-5),
+                        codeHistory: [],
                         currentGenerationPrompt,
                         previewMode,
                         currentTaskId,
                         promptLengthForLog,
                         conversationSummary,
+                        quickEditHistory: [], // Clear in minimal save
+                        quickEditHistoryIndex: -1,
                         timestamp: Date.now()
-                     };
-                     const minimalState = {
-                         ...stateToSave,
-                         codeHistory: [],
-                         chatHistory: chatHistory.slice(-5)
                      };
                      localStorage.setItem(STORAGE_KEY, JSON.stringify(minimalState));
                  } catch (e3) {
@@ -591,7 +661,7 @@ function CreateContent() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [step, wizardData, generatedCode, chatHistory, codeHistory, currentGenerationPrompt, previewMode, currentTaskId]);
+  }, [step, wizardData, generatedCode, chatHistory, codeHistory, currentGenerationPrompt, previewMode, currentTaskId, quickEditHistory, quickEditHistoryIndex]);
 
   const checkAuth = async () => {
     try {
@@ -1070,13 +1140,17 @@ ${description}
     `;
   };
 
-  const monitorTask = async (taskId: string, isModification = false, useDiffMode = false, fullPromptLength = 0, fullPromptText = '', relaxedMode = false) => {
+  const monitorTask = async (taskId: string, isModification = false, useDiffMode = false, fullPromptLength = 0, fullPromptText = '', relaxedMode = false, targets: string[] = []) => {
       let isFinished = false;
       let lastUpdateTimestamp = Date.now();
       let hasStartedStreaming = false;
       
       if (relaxedMode) {
           console.log('[MonitorTask] Using relaxed patch matching mode');
+      }
+      
+      if (targets && targets.length > 0) {
+          console.log('[MonitorTask] Received explicit targets for patch safety:', targets);
       }
 
       // Clear any existing intervals first
@@ -1127,7 +1201,10 @@ ${description}
                 const currentStepName = stepMatches[stepMatches.length - 1][1].trim();
                 setCurrentStep(currentStepName);
                 content = content.replace(/\/\/\/ STEP: .*? \/\/\//g, '');
-                setLoadingText(language === 'zh' ? `正在执行: ${currentStepName}...` : `Executing: ${currentStepName}...`);
+                
+                // 简化显示：如果步骤名太长，只显示前20个字符
+                const displayStepName = currentStepName.length > 20 ? currentStepName.substring(0, 20) + '...' : currentStepName;
+                setLoadingText(language === 'zh' ? `正在执行: ${displayStepName}` : `Executing: ${displayStepName}`);
             }
 
             setStreamingCode(content);
@@ -1248,11 +1325,23 @@ ${description}
                 // If we clean the patch, we might remove lines from SEARCH blocks that exist in the original code.
                 setStreamingCode(rawCode);
                 
+                // Safety Net 3: Protocol Violation Check
+                // If AI returns a full file instead of patches, reject it to prevent truncation/corruption.
+                if (rawCode.includes('<!DOCTYPE html>') || (rawCode.includes('<html') && rawCode.includes('</html>'))) {
+                    console.error('Protocol Violation: AI returned full file in Diff Mode.');
+                    // We cannot recover from this easily without a retry loop.
+                    // For now, throw an error to stop processing and alert the user.
+                    throw new Error(language === 'zh' 
+                        ? 'AI 生成格式错误（返回了完整文件而非补丁），请重试。' 
+                        : 'AI Protocol Violation: Returned full file instead of patches. Please try again.');
+                }
+                
                 try {
                     console.log('Applying patches. Source length:', generatedCode.length, 'Patch length:', rawCode.length);
                     
                     // Extract Summary
-                    const summaryMatch = rawCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
+                    // 优化正则：支持 /// SUMMARY: ... /// 和 /// SUMMARY: ... (到结尾) 两种格式
+                    const summaryMatch = rawCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)(?:\/\/\/|$)/);
                     const summary = summaryMatch ? summaryMatch[1].trim() : null;
 
                     if (summary) {
@@ -1268,12 +1357,31 @@ ${description}
                     }
 
                     // Extract Analysis
-                    const analysisMatch = rawCode.match(/\/\/\/\s*ANALYSIS:\s*([\s\S]*?)\s*\/\/\//);
+                    // 优化正则：支持 /// ANALYSIS: ... /// 和 /// ANALYSIS: ... (到结尾) 两种格式
+                    const analysisMatch = rawCode.match(/\/\/\/\s*ANALYSIS:\s*([\s\S]*?)(?:\/\/\/|$)/);
                     if (analysisMatch) {
                         console.log('AI Analysis:', analysisMatch[1].trim());
                     }
 
-                    const patched = applyPatches(generatedCode, rawCode, relaxedMode);
+                    // 尝试应用补丁
+                    // 如果第一次失败，尝试开启 relaxedMode（宽松匹配）
+                    let patched;
+                    try {
+                        patched = applyPatches(generatedCode, rawCode, relaxedMode, targets);
+                    } catch (patchError: any) {
+                        console.warn('Standard patch failed, retrying with relaxed mode...', patchError.message);
+                        // 如果第一次不是 relaxedMode，则尝试开启 relaxedMode
+                        if (!relaxedMode) {
+                            try {
+                                patched = applyPatches(generatedCode, rawCode, true, targets);
+                                console.log('Relaxed patch succeeded!');
+                            } catch (retryError) {
+                                throw patchError; // 如果重试也失败，抛出原始错误
+                            }
+                        } else {
+                            throw patchError;
+                        }
+                    }
                     
                     if (patched === generatedCode) {
                         console.warn('Patch applied but code is unchanged.');
@@ -1311,6 +1419,27 @@ ${description}
                              if (hasOnlyPlan) {
                                  throw new Error(language === 'zh' ? 'AI 响应不完整（只有计划没有代码），请重试' : 'AI response incomplete (only plan, no code), please retry');
                              }
+                             
+                             // 如果 rawCode 为空，说明流式传输可能失败了，或者 Edge Function 返回了空内容
+                             if (!rawCode || rawCode.trim().length === 0) {
+                                 throw new Error(language === 'zh' ? 'AI 返回了空内容，请检查网络或重试' : 'AI returned empty content, please check network or retry');
+                             }
+
+                             // 特殊情况：AI 认为不需要修改代码
+                             // 如果 AI 返回了 ANALYSIS 和 SUMMARY，但没有代码块，且明确表示不需要修改
+                             if (rawCode.includes('/// ANALYSIS') && rawCode.includes('/// SUMMARY') && !rawCode.includes('<<<<SEARCH')) {
+                                 console.log('AI determined no changes are needed.');
+                                 
+                                 // 提取 Summary 作为回复
+                                 const summaryMatch = rawCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)(?:\/\/\/|$)/);
+                                 const summaryContent = summaryMatch ? summaryMatch[1].trim() : (language === 'zh' ? 'AI 认为当前代码已满足要求，无需修改。' : 'AI determined no changes are needed.');
+                                 
+                                 setChatHistory(prev => [...prev, { role: 'ai', content: summaryContent, cost: currentTaskCostRef.current || undefined }]);
+                                 setIsGenerating(false);
+                                 setCurrentTaskId(null);
+                                 return;
+                             }
+
                              throw new Error(language === 'zh' ? 'AI 未返回有效的修改代码块' : 'AI did not return valid modification blocks');
                         } else {
                              throw new Error(language === 'zh' ? '找到修改块但无法应用（上下文不匹配）' : 'Found modification blocks but could not apply them (context mismatch)');
@@ -1320,6 +1449,8 @@ ${description}
                     // Clean the RESULT of the patch
                     const finalCode = cleanTheCode(patched);
                     setGeneratedCode(finalCode);
+                    // Clear quick edit history when AI generates new content
+                    resetQuickEditHistory();
                     toastSuccess(t.create.success_edit);
                     
                     const finalContent = summary || (language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.');
@@ -1446,6 +1577,8 @@ ${description}
 
                 setStreamingCode(cleanCode);
                 setGeneratedCode(cleanCode);
+                // Clear quick edit history when AI generates new content
+                resetQuickEditHistory();
                 
                 if (isModification) {
                     toastSuccess(t.create.success_edit);
@@ -1872,6 +2005,12 @@ Your response MUST follow this exact structure:
 - **Keep Tailwind Classes**: When adding elements, use the same Tailwind utility patterns
 - **Preserve Layout**: Don't break existing responsive design or grid systems
 
+### Click-to-Edit Friendly Code
+When adding/modifying elements, structure code for easy visual editing:
+- **Text**: Use semantic tags (\`<h1>\`, \`<p>\`, \`<span>\`, \`<button>\`) with direct text content
+- **Colors**: Use Tailwind classes (\`bg-blue-500\`, \`text-white\`) instead of inline styles
+- **Keep it simple**: Avoid deeply nested text structures
+
 ### Pre-Flight Checklist (Run Mentally Before Generating)
 Before outputting patches, verify:
 1. ✓ "Is my SEARCH block unique in the file?"
@@ -2079,6 +2218,29 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 - **State Management**: Keep state close to where it's used, lift up when shared
 - **Side Effects**: All API calls, timers, subscriptions in \`useEffect\` with proper cleanup
 
+### Click-to-Edit Friendly Code (IMPORTANT)
+Our platform supports quick visual editing - users can click elements to change text/colors. Structure your code for easy editing:
+
+**Text Elements**:
+- Use semantic tags for editable text: \`<h1>\`, \`<h2>\`, \`<p>\`, \`<span>\`, \`<button>\`, \`<a>\`, \`<label>\`
+- Keep text content SHORT and DIRECT inside elements (avoid long nested structures)
+- ✅ GOOD: \`<h1 className="text-xl font-bold">Welcome</h1>\`
+- ❌ BAD: \`<h1><span><span>Welcome</span></span></h1>\`
+
+**Color Styling (Tailwind)**:
+- Use standard Tailwind color classes for easy detection and modification:
+  - Background: \`bg-{color}-{shade}\` (e.g., \`bg-blue-500\`, \`bg-red-600\`)
+  - Text: \`text-{color}-{shade}\` (e.g., \`text-white\`, \`text-gray-800\`)
+  - Border: \`border-{color}-{shade}\` (e.g., \`border-blue-400\`)
+- Avoid inline styles for colors when Tailwind classes work
+- ✅ GOOD: \`className="bg-blue-500 text-white"\`
+- ❌ BAD: \`style={{ backgroundColor: '#3b82f6', color: 'white' }}\`
+
+**Element Structure**:
+- Each visual component should have a clear, single-purpose className
+- Buttons, cards, headings should have identifiable structure
+- Keep JSX hierarchy shallow where possible
+
 ### Common Pitfalls to Avoid
 - ❌ Using \`import\` statements (breaks single-file constraint)
 - ❌ Google Fonts links (blocked in China)
@@ -2158,8 +2320,13 @@ Remember: You're building for production. Code must be clean, performant, and er
           throw e;
       }
 
-      const { taskId, ragContext, codeContext, compressedCode } = await response.json();
+      const { taskId, ragContext, codeContext, compressedCode, ragSummary, targets } = await response.json();
       setCurrentTaskId(taskId);
+      
+      // Update loading text with RAG summary if available
+      if (ragSummary) {
+          setLoadingText(prev => `${prev}\n${ragSummary}`);
+      }
       
       // Inject RAG Context if available
       let finalSystemPrompt = SYSTEM_PROMPT;
@@ -2209,7 +2376,7 @@ These compressed components are NOT targets for modification - focus on the full
       setPromptLengthForLog(totalPromptLength);
 
       // Start monitoring immediately
-      monitorTask(taskId, isModification, useDiffMode, totalPromptLength, fullPromptText, isFirstEditOnUpload);
+      monitorTask(taskId, isModification, useDiffMode, totalPromptLength, fullPromptText, isFirstEditOnUpload, targets);
 
       // Trigger Edge Function with Retry Logic
       const triggerGeneration = async () => {
@@ -2419,7 +2586,704 @@ These compressed components are NOT targets for modification - focus on the full
     }
     if (newMode) {
         toastSuccess(t.create.edit_hint);
+        // Don't reset history when entering edit mode - keep it persistent
     }
+  };
+
+  // Quick Edit: Detect if element can be quickly edited (color/text)
+  // Now always allows color editing for any element
+  const detectQuickEditType = (element: typeof selectedElement): 'color' | 'text' | 'both' | 'none' => {
+    if (!element) return 'none';
+    
+    // Check if it's a simple text element (button, span, p, h1-h6, a, label)
+    const textTags = ['BUTTON', 'SPAN', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'A', 'LABEL', 'LI', 'TD', 'TH', 'DIV'];
+    const isTextElement = textTags.includes(element.tagName.toUpperCase());
+    const hasSimpleText = element.innerText && element.innerText.length > 0 && element.innerText.length < 100 && !element.innerText.includes('\n');
+    
+    // Always allow color editing for any element
+    if (isTextElement && hasSimpleText) {
+      return 'both'; // Both text and color editing available
+    }
+    
+    // Any element can have color edited
+    return 'color';
+  };
+
+  // Quick Edit: Detect available color types in an element (including inline styles)
+  const detectAvailableColorTypes = (className: string, element?: typeof selectedElement): ('bg' | 'text' | 'border')[] => {
+    const types: ('bg' | 'text' | 'border')[] = [];
+    // Match Tailwind color classes: bg-red-500, text-blue-100, border-slate-900, etc.
+    // Also match simple colors: bg-white, text-black, border-transparent
+    const colorNames = 'red|blue|green|yellow|purple|pink|indigo|gray|slate|zinc|neutral|stone|orange|amber|lime|emerald|teal|cyan|sky|violet|fuchsia|rose|white|black|transparent';
+    
+    // Check for Tailwind bg-* colors
+    if (new RegExp(`bg-(${colorNames})(?:-\\d{2,3})?(?:\\s|$|")`).test(className)) {
+      types.push('bg');
+    }
+    // Check for Tailwind gradient colors (from-*, to-*, via-*)
+    if (new RegExp(`(from|to|via)-(${colorNames})(?:-\\d{2,3})?(?:\\s|$|")`).test(className)) {
+      if (!types.includes('bg')) types.push('bg');
+    }
+    // Check for Tailwind text-* colors  
+    if (new RegExp(`text-(${colorNames})(?:-\\d{2,3})?(?:\\s|$|")`).test(className)) {
+      types.push('text');
+    }
+    // Check for Tailwind border-* colors
+    if (new RegExp(`border-(${colorNames})(?:-\\d{2,3})?(?:\\s|$|")`).test(className)) {
+      types.push('border');
+    }
+    
+    // Also check for inline styles in the code
+    if (element && generatedCode) {
+      const tagName = element.tagName.toLowerCase();
+      const innerText = element.innerText?.substring(0, 20)?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      
+      // Color value patterns: hex, rgb, rgba, hsl, hsla, named colors, css variables
+      const colorValuePattern = `(?:#[0-9a-fA-F]{3,8}|rgb\\([^)]+\\)|rgba\\([^)]+\\)|hsl\\([^)]+\\)|hsla\\([^)]+\\)|var\\(--[^)]+\\)|[a-zA-Z]+)`;
+      
+      // Try to find the element in code and check for inline styles
+      const bgPatterns = [
+        // backgroundColor: '#xxx' or 'rgb()' or 'var(--xxx)'
+        `backgroundColor\\s*:\\s*['"\`]?${colorValuePattern}`,
+        // background: '#xxx' (not background-image or background-size etc)
+        `(?<!-)background\\s*:\\s*['"\`]?${colorValuePattern}`,
+        // linear-gradient, radial-gradient
+        `background\\s*:\\s*['"\`]?(?:linear|radial)-gradient`,
+      ];
+      
+      for (const pattern of bgPatterns) {
+        const regex = innerText 
+          ? new RegExp(`<${tagName}[^>]*style\\s*=\\s*\\{\\{[^}]*${pattern}[^}]*\\}\\}[^>]*>\\s*${innerText}`, 'i')
+          : new RegExp(`<${tagName}[^>]*style\\s*=\\s*\\{\\{[^}]*${pattern}`, 'i');
+        if (regex.test(generatedCode) && !types.includes('bg')) {
+          types.push('bg');
+          break;
+        }
+      }
+      
+      // Check for inline text color (avoid matching backgroundColor)
+      const textColorPattern = `(?<!background)color\\s*:\\s*['"\`]?${colorValuePattern}`;
+      const textColorRegex = innerText
+        ? new RegExp(`<${tagName}[^>]*style\\s*=\\s*\\{\\{[^}]*${textColorPattern}[^}]*\\}\\}[^>]*>\\s*${innerText}`, 'i')
+        : new RegExp(`<${tagName}[^>]*style\\s*=\\s*\\{\\{[^}]*${textColorPattern}`, 'i');
+      
+      if (textColorRegex.test(generatedCode) && !types.includes('text')) {
+        types.push('text');
+      }
+      
+      // Check for inline border color
+      const borderColorPattern = `borderColor\\s*:\\s*['"\`]?${colorValuePattern}`;
+      const borderRegex = innerText
+        ? new RegExp(`<${tagName}[^>]*style\\s*=\\s*\\{\\{[^}]*${borderColorPattern}[^}]*\\}\\}[^>]*>\\s*${innerText}`, 'i')
+        : new RegExp(`<${tagName}[^>]*style\\s*=\\s*\\{\\{[^}]*${borderColorPattern}`, 'i');
+      
+      if (borderRegex.test(generatedCode) && !types.includes('border')) {
+        types.push('border');
+      }
+      
+      // Check for CSS variables used for colors (e.g., style={{ '--primary': '#xxx' }})
+      const cssVarColorPattern = `--[a-zA-Z-]+\\s*:\\s*['"\`]?${colorValuePattern}`;
+      const cssVarRegex = new RegExp(`<${tagName}[^>]*style\\s*=\\s*\\{\\{[^}]*${cssVarColorPattern}`, 'i');
+      if (cssVarRegex.test(generatedCode)) {
+        // CSS variables could be any type, add all if none found
+        if (types.length === 0) {
+          types.push('bg', 'text', 'border');
+        }
+      }
+    }
+    
+    // If no color types found, return all possible types so user can add new color
+    if (types.length === 0) {
+      return ['bg', 'text', 'border'];
+    }
+    return types;
+  };
+
+  // Quick Edit: Apply color change directly to code
+  const applyQuickColorEdit = (newColor: string) => {
+    if (!selectedElement || !generatedCode) return;
+    
+    // Convert hex to Tailwind color (approximate)
+    const hexToTailwind = (hex: string): string => {
+      const colors: Record<string, string> = {
+        '#ef4444': 'red-500', '#f97316': 'orange-500', '#eab308': 'yellow-500',
+        '#22c55e': 'green-500', '#14b8a6': 'teal-500', '#06b6d4': 'cyan-500',
+        '#3b82f6': 'blue-500', '#8b5cf6': 'violet-500', '#ec4899': 'pink-500',
+        '#64748b': 'slate-500', '#ffffff': 'white', '#000000': 'black',
+        '#1e293b': 'slate-800', '#0f172a': 'slate-900', '#f8fafc': 'slate-50',
+        '#6366f1': 'indigo-500', '#a855f7': 'purple-500', '#d946ef': 'fuchsia-500',
+        '#f43f5e': 'rose-500', '#f1f5f9': 'slate-100', '#e2e8f0': 'slate-200',
+        '#cbd5e1': 'slate-300', '#94a3b8': 'slate-400', '#475569': 'slate-600',
+        '#334155': 'slate-700',
+      };
+      return colors[hex.toLowerCase()] || 'blue-500';
+    };
+    
+    const tailwindColor = hexToTailwind(newColor);
+    const oldClassName = selectedElement.className || '';
+    
+    // Build regex pattern based on selected color type
+    const colorNames = 'red|blue|green|yellow|purple|pink|indigo|gray|slate|zinc|neutral|stone|orange|amber|lime|emerald|teal|cyan|sky|violet|fuchsia|rose|white|black|transparent';
+    const prefixPattern = quickEditColorType === 'all' 
+      ? '(?:bg-|text-|border-)' 
+      : `${quickEditColorType}-`;
+    const colorRegex = new RegExp(
+      `${prefixPattern}(${colorNames})(?:-\\d{2,3})?(?=\\s|$)`,
+      'g'
+    );
+    
+    // For gradient colors
+    const gradientColorRegex = new RegExp(
+      `(from|to|via)-(${colorNames})(?:-\\d{2,3})?(?=\\s|$)`,
+      'g'
+    );
+    
+    let newClassName = oldClassName;
+    let hasReplacement = false;
+    let updatedCode = generatedCode;
+    
+    // Strategy 1: Try to replace existing Tailwind color class
+    const testMatch = oldClassName.match(colorRegex);
+    if (testMatch && testMatch.length > 0) {
+      newClassName = oldClassName.replace(
+        colorRegex,
+        (match) => {
+          const prefix = match.match(/^(bg-|text-|border-)/)?.[0] || 'bg-';
+          hasReplacement = true;
+          return `${prefix}${tailwindColor}`;
+        }
+      );
+      
+      if (hasReplacement && oldClassName) {
+        updatedCode = generatedCode.replace(
+          new RegExp(`className="${oldClassName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g'),
+          `className="${newClassName}"`
+        );
+      }
+    }
+    
+    // Strategy 1.5: Try to replace Tailwind gradient colors (from-*, to-*, via-*)
+    if (updatedCode === generatedCode && quickEditColorType === 'bg') {
+      const gradientMatch = oldClassName.match(gradientColorRegex);
+      if (gradientMatch && gradientMatch.length > 0) {
+        newClassName = oldClassName.replace(
+          gradientColorRegex,
+          (match) => {
+            const prefix = match.match(/^(from-|to-|via-)/)?.[0] || 'from-';
+            hasReplacement = true;
+            return `${prefix}${tailwindColor}`;
+          }
+        );
+        
+        if (hasReplacement && oldClassName) {
+          updatedCode = generatedCode.replace(
+            new RegExp(`className="${oldClassName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g'),
+            `className="${newClassName}"`
+          );
+        }
+      }
+    }
+    
+    // Strategy 2: Try to modify inline styles (background-color, color, border-color)
+    // Supports: hex, rgb, rgba, hsl, hsla, named colors, CSS variables
+    if (updatedCode === generatedCode) {
+      const tagName = selectedElement.tagName.toLowerCase();
+      const innerText = selectedElement.innerText?.substring(0, 20)?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      
+      // Determine which CSS property to modify based on quickEditColorType
+      const cssProperty = quickEditColorType === 'text' ? 'color' 
+        : quickEditColorType === 'border' ? 'border-color|borderColor' 
+        : 'background-color|backgroundColor|background';
+      
+      // Comprehensive color value pattern to match any color format
+      const colorValuePattern = `(?:#[0-9a-fA-F]{3,8}|rgba?\\([^)]+\\)|hsla?\\([^)]+\\)|var\\(--[^)]+\\)|[a-zA-Z]+(?![a-zA-Z-]))`;
+      
+      // Pattern to find inline style with the target property
+      // Match: style={{ backgroundColor: '...' }} or style={{ background: '...' }}
+      const inlineStylePatterns = [
+        // JSX style object: style={{ backgroundColor: '#xxx' }} or 'rgb(...)' or 'var(--xxx)'
+        new RegExp(`(style\\s*=\\s*\\{\\{[^}]*)(${cssProperty})\\s*:\\s*['"\`]?${colorValuePattern}['"\`]?([^}]*\\}\\})`, 'gi'),
+        // JSX style object with variable: style={{ backgroundColor: someVar }}
+        new RegExp(`(style\\s*=\\s*\\{\\{[^}]*)(${cssProperty})\\s*:\\s*[\\w.]+([^}]*\\}\\})`, 'gi'),
+      ];
+      
+      for (const pattern of inlineStylePatterns) {
+        if (pattern.test(generatedCode)) {
+          const propName = quickEditColorType === 'text' ? 'color' 
+            : quickEditColorType === 'border' ? 'borderColor' 
+            : 'backgroundColor';
+          
+          // Find elements that might match our target
+          const elementPattern = innerText 
+            ? new RegExp(`(<${tagName}[^>]*)(style\\s*=\\s*\\{\\{[^}]*)(?:${cssProperty})\\s*:\\s*['"\`]?${colorValuePattern}['"\`]?([^}]*\\}\\}[^>]*>\\s*${innerText})`, 'gi')
+            : new RegExp(`(<${tagName}[^>]*)(style\\s*=\\s*\\{\\{[^}]*)(?:${cssProperty})\\s*:\\s*['"\`]?${colorValuePattern}['"\`]?([^}]*\\}\\})`, 'gi');
+          
+          if (elementPattern.test(generatedCode)) {
+            updatedCode = generatedCode.replace(elementPattern, `$1$2${propName}: '${newColor}'$3`);
+            hasReplacement = true;
+            break;
+          }
+        }
+      }
+    }
+    
+    // Strategy 2.5: Try to modify CSS variable definitions
+    if (updatedCode === generatedCode) {
+      const tagName = selectedElement.tagName.toLowerCase();
+      const innerText = selectedElement.innerText?.substring(0, 20)?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      
+      // Match CSS variable definitions: '--primary': '#xxx' or '--bg-color': 'rgb(...)'
+      const cssVarPattern = /(style\s*=\s*\{\{[^}]*)(--[\w-]+)\s*:\s*['"`]?(?:#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\)|[a-zA-Z]+)['"`]?([^}]*\}\})/gi;
+      
+      if (cssVarPattern.test(generatedCode)) {
+        // Find element and replace CSS variable value
+        const searchPattern = innerText
+          ? new RegExp(`(<${tagName}[^>]*style\\s*=\\s*\\{\\{[^}]*)(--[\\w-]+)\\s*:\\s*['"\`]?(?:#[0-9a-fA-F]{3,8}|rgba?\\([^)]+\\)|hsla?\\([^)]+\\)|[a-zA-Z]+)['"\`]?([^}]*\\}\\}[^>]*>\\s*${innerText})`, 'gi')
+          : cssVarPattern;
+        
+        if (searchPattern.test(generatedCode)) {
+          updatedCode = generatedCode.replace(searchPattern, `$1$2: '${newColor}'$3`);
+          hasReplacement = true;
+        }
+      }
+    }
+    
+    // Strategy 2.6: Try to modify gradient colors in inline styles
+    if (updatedCode === generatedCode && quickEditColorType === 'bg') {
+      const tagName = selectedElement.tagName.toLowerCase();
+      const innerText = selectedElement.innerText?.substring(0, 20)?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      
+      // Match linear-gradient or radial-gradient
+      const gradientPattern = innerText
+        ? new RegExp(`(<${tagName}[^>]*style\\s*=\\s*\\{\\{[^}]*background\\s*:\\s*['"\`]?)((?:linear|radial)-gradient\\([^)]*\\))(['"\`]?[^}]*\\}\\}[^>]*>\\s*${innerText})`, 'gi')
+        : new RegExp(`(style\\s*=\\s*\\{\\{[^}]*background\\s*:\\s*['"\`]?)((?:linear|radial)-gradient\\([^)]*\\))(['"\`]?[^}]*\\}\\})`, 'gi');
+      
+      if (gradientPattern.test(generatedCode)) {
+        // For gradients, replace with solid color
+        updatedCode = generatedCode.replace(gradientPattern, `$1${newColor}$3`);
+        hasReplacement = true;
+      }
+    }
+    
+    // Strategy 3: If no existing color, add new color class
+    if (updatedCode === generatedCode && oldClassName) {
+      const colorType = quickEditColorType === 'all' ? 'bg' : quickEditColorType;
+      const newColorClass = `${colorType}-${tailwindColor}`;
+      newClassName = `${oldClassName} ${newColorClass}`;
+      
+      updatedCode = generatedCode.replace(
+        new RegExp(`className="${oldClassName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g'),
+        `className="${newClassName}"`
+      );
+    }
+    
+    // Strategy 4: Element has no className - try to add one
+    if (updatedCode === generatedCode) {
+      const tagName = selectedElement.tagName.toLowerCase();
+      const innerText = selectedElement.innerText?.substring(0, 30);
+      const colorType = quickEditColorType === 'all' ? 'bg' : quickEditColorType;
+      const newColorClass = `${colorType}-${tailwindColor}`;
+      
+      if (innerText) {
+        const escapedText = innerText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Pattern: <tag ...>text  -> <tag className="..." ...>text
+        const addClassPattern = new RegExp(`(<${tagName})(\\s*[^>]*>\\s*${escapedText})`, 'i');
+        if (addClassPattern.test(generatedCode)) {
+          updatedCode = generatedCode.replace(addClassPattern, `$1 className="${newColorClass}"$2`);
+        }
+      }
+    }
+    
+    // Strategy 5: Try to add/modify inline style if className approach failed
+    if (updatedCode === generatedCode) {
+      const tagName = selectedElement.tagName.toLowerCase();
+      const innerText = selectedElement.innerText?.substring(0, 20)?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const propName = quickEditColorType === 'text' ? 'color' 
+        : quickEditColorType === 'border' ? 'borderColor' 
+        : 'backgroundColor';
+      
+      if (innerText) {
+        // Try to find the element and add style
+        const elementWithStylePattern = new RegExp(`(<${tagName}[^>]*)(style\\s*=\\s*\\{\\{)([^}]*)(\\}\\}[^>]*>\\s*${innerText})`, 'i');
+        const elementNoStylePattern = new RegExp(`(<${tagName})([^>]*>\\s*${innerText})`, 'i');
+        
+        if (elementWithStylePattern.test(generatedCode)) {
+          // Element has style, add our property
+          updatedCode = generatedCode.replace(elementWithStylePattern, `$1$2${propName}: '${newColor}', $3$4`);
+        } else if (elementNoStylePattern.test(generatedCode)) {
+          // Element has no style, add style attribute
+          updatedCode = generatedCode.replace(elementNoStylePattern, `$1 style={{ ${propName}: '${newColor}' }}$2`);
+        }
+      }
+    }
+    
+    if (updatedCode === generatedCode) {
+      // Show a more prominent alert dialog
+      const errorMsg = language === 'zh' 
+        ? `⚠️ 无法应用颜色修改\n\n可能的原因：\n• 代码中找不到该元素\n• 元素结构复杂，无法自动定位\n\n建议：\n• 尝试使用 AI 修改功能\n• 选择其他相似的元素`
+        : `⚠️ Cannot apply color change\n\nPossible reasons:\n• Element not found in code\n• Element structure is complex\n\nSuggestion:\n• Try using AI modification\n• Select a similar element`;
+      alert(errorMsg);
+      return;
+    }
+    
+    // Save to main code history
+    setCodeHistory(prev => [...prev, { 
+      code: generatedCode, 
+      prompt: `Quick color change: ${tailwindColor}`, 
+      timestamp: Date.now(),
+      type: 'click'
+    }]);
+    
+    // Save to quick edit history for undo/redo within session
+    const description = language === 'zh' ? `颜色: ${tailwindColor}` : `Color: ${tailwindColor}`;
+    const isFirstEdit = quickEditHistory.length === 0;
+    const currentLength = quickEditHistory.length;
+    const effectiveIndex = quickEditHistoryIndex;
+    
+    if (isFirstEdit) {
+      // First edit: save initial + new state
+      setQuickEditHistory([
+        { code: generatedCode, description: language === 'zh' ? '初始状态' : 'Initial state' },
+        { code: updatedCode, description }
+      ]);
+      setQuickEditHistoryIndex(1);
+    } else {
+      // Subsequent edits
+      setQuickEditHistory(prev => {
+        // If we're not at the end, truncate future history
+        const newHistory = effectiveIndex >= 0 && effectiveIndex < prev.length - 1
+          ? prev.slice(0, effectiveIndex + 1) 
+          : prev;
+        return [...newHistory, { code: updatedCode, description }];
+      });
+      // Calculate new index based on whether we truncated
+      const willTruncate = effectiveIndex >= 0 && effectiveIndex < currentLength - 1;
+      const newLength = willTruncate ? effectiveIndex + 2 : currentLength + 1;
+      setQuickEditHistoryIndex(newLength - 1);
+    }
+    
+    setGeneratedCode(updatedCode);
+    setStreamingCode(updatedCode);
+    // Close modal after applying, but keep edit mode active for next selection
+    setShowEditModal(false);
+    setQuickEditMode('none');
+    setSelectedElement(null);
+    
+    // Update iframe content in-place without reload
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ 
+        type: 'spark-update-content', 
+        html: updatedCode,
+        shouldRestoreEditMode: false
+      }, '*');
+      
+      // Automatically exit edit mode after applying changes
+      setIsEditMode(false);
+      iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: false }, '*');
+    }
+    
+    toastSuccess(language === 'zh' ? `颜色已改为 ${tailwindColor}` : `Color changed to ${tailwindColor}`);
+  };
+
+  // Quick Edit: Apply text change directly to code
+  const applyQuickTextEdit = (newText: string) => {
+    if (!selectedElement || !generatedCode || !newText.trim()) return;
+    
+    const oldText = selectedElement.innerText.trim();
+    if (!oldText) {
+      toastError(language === 'zh' ? '原文本为空' : 'Original text is empty');
+      return;
+    }
+    
+    // Find and replace the text in the code
+    const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedOldText = escapeRegex(oldText);
+    
+    let updatedCode = generatedCode;
+    let replaced = false;
+    
+    // Try multiple patterns to find and replace the text
+    // Pattern 1: Direct text content between tags: >Old Text<
+    const directPattern = new RegExp(`(>\\s*)${escapedOldText}(\\s*<)`, 'g');
+    if (directPattern.test(updatedCode)) {
+      updatedCode = generatedCode.replace(directPattern, `$1${newText}$2`);
+      replaced = true;
+    }
+    
+    // Pattern 2: Text in JSX expressions: {"Old Text"} or {'Old Text'} or {`Old Text`}
+    if (!replaced) {
+      const jsxPattern = new RegExp(`([{]["'\`])${escapedOldText}(["'\`]})`, 'g');
+      if (jsxPattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(jsxPattern, `$1${newText}$2`);
+        replaced = true;
+      }
+    }
+    
+    // Pattern 2.5: Text in template literals: `${...}Old Text${...}` or just `Old Text`
+    if (!replaced) {
+      const templateLiteralPattern = new RegExp(`(\`)([^$]*?)${escapedOldText}([^$]*?)(\`)`, 'g');
+      if (templateLiteralPattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(templateLiteralPattern, `$1$2${newText}$3$4`);
+        replaced = true;
+      }
+    }
+    
+    // Pattern 3: Text in variable assignments: const title = "Old Text" or let text = 'Old Text'
+    if (!replaced) {
+      const varAssignPattern = new RegExp(`((?:const|let|var)\\s+\\w+\\s*=\\s*["'\`])${escapedOldText}(["'\`])`, 'g');
+      if (varAssignPattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(varAssignPattern, `$1${newText}$2`);
+        replaced = true;
+      }
+    }
+    
+    // Pattern 4: Text in object properties: { title: "Old Text" } or { text: 'Old Text' }
+    if (!replaced) {
+      const objectPropPattern = new RegExp(`(\\w+\\s*:\\s*["'\`])${escapedOldText}(["'\`])`, 'g');
+      if (objectPropPattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(objectPropPattern, `$1${newText}$2`);
+        replaced = true;
+      }
+    }
+    
+    // Pattern 5: Text in array items: ["Old Text", "Other"] or items.map(...)
+    if (!replaced) {
+      const arrayItemPattern = new RegExp(`(\\[\\s*["'\`][^\\]]*["'\`]\\s*,\\s*)?["'\`]${escapedOldText}["'\`](\\s*,\\s*["'\`][^\\]]*["'\`]\\s*\\])?`, 'g');
+      if (arrayItemPattern.test(generatedCode) && generatedCode.includes(oldText)) {
+        // Direct replace in array context
+        const simpleArrayPattern = new RegExp(`(["'\`])${escapedOldText}(["'\`])`, 'g');
+        if (simpleArrayPattern.test(generatedCode)) {
+          updatedCode = generatedCode.replace(simpleArrayPattern, `$1${newText}$2`);
+          replaced = true;
+        }
+      }
+    }
+    
+    // Pattern 6: Text in ternary expressions: condition ? "Old Text" : "Other"
+    if (!replaced) {
+      const ternaryPattern = new RegExp(`(\\?\\s*["'\`])${escapedOldText}(["'\`]\\s*:)`, 'g');
+      const ternaryElsePattern = new RegExp(`(:\\s*["'\`])${escapedOldText}(["'\`])`, 'g');
+      if (ternaryPattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(ternaryPattern, `$1${newText}$2`);
+        replaced = true;
+      } else if (ternaryElsePattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(ternaryElsePattern, `$1${newText}$2`);
+        replaced = true;
+      }
+    }
+    
+    // Pattern 7: Text in function arguments: someFunc("Old Text") or label="Old Text"
+    if (!replaced) {
+      const funcArgPattern = new RegExp(`(\\(["'\`])${escapedOldText}(["'\`]\\))`, 'g');
+      const attrPattern = new RegExp(`(\\w+\\s*=\\s*["'\`])${escapedOldText}(["'\`])`, 'g');
+      if (funcArgPattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(funcArgPattern, `$1${newText}$2`);
+        replaced = true;
+      } else if (attrPattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(attrPattern, `$1${newText}$2`);
+        replaced = true;
+      }
+    }
+    
+    // Pattern 8: Simple string replacement in JSX context (more aggressive)
+    if (!replaced) {
+      // Only replace if it looks like it's in JSX context (near < or > or {)
+      const contextPattern = new RegExp(`([>{"'\`])${escapedOldText}([<}"'\`])`, 'g');
+      if (contextPattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(contextPattern, `$1${newText}$2`);
+        replaced = true;
+      }
+    }
+    
+    // Pattern 9: Direct string replacement (very last resort, be careful)
+    if (!replaced && generatedCode.includes(oldText)) {
+      // Count occurrences to be safe
+      const count = (generatedCode.match(new RegExp(escapedOldText, 'g')) || []).length;
+      if (count === 1) {
+        // Only one occurrence, safe to replace
+        updatedCode = generatedCode.replace(oldText, newText);
+        replaced = true;
+      } else if (count > 1) {
+        // Multiple occurrences, try to find the one in JSX
+        // Look for the pattern with className nearby (likely our target)
+        const elementClass = selectedElement.className.split(' ')[0];
+        if (elementClass) {
+          const nearClassPattern = new RegExp(`(${escapeRegex(elementClass)}[^>]*>\\s*)${escapedOldText}`, 'g');
+          if (nearClassPattern.test(generatedCode)) {
+            updatedCode = generatedCode.replace(nearClassPattern, `$1${newText}`);
+            replaced = true;
+          }
+        }
+        
+        // Pattern 9.5: Try to find by element tag and context
+        if (!replaced) {
+          const tagName = selectedElement.tagName.toLowerCase();
+          const tagContextPattern = new RegExp(`(<${tagName}[^>]*>\\s*)${escapedOldText}(\\s*<\\/${tagName}>)`, 'gi');
+          if (tagContextPattern.test(generatedCode)) {
+            // Replace first match only to be safe
+            updatedCode = generatedCode.replace(tagContextPattern, `$1${newText}$2`);
+            replaced = true;
+          }
+        }
+      }
+    }
+    
+    if (!replaced) {
+      const errorMsg = language === 'zh' 
+        ? `⚠️ 无法应用文字修改\n\n可能的原因：\n• 代码中找不到该文本\n• 文本可能是动态生成的\n• 文本包含特殊字符\n\n建议：\n• 尝试使用 AI 修改功能`
+        : `⚠️ Cannot apply text change\n\nPossible reasons:\n• Text not found in code\n• Text may be dynamically generated\n• Text contains special characters\n\nSuggestion:\n• Try using AI modification`;
+      alert(errorMsg);
+      return;
+    }
+    
+    // Verify the code actually changed
+    if (updatedCode === generatedCode) {
+      const errorMsg = language === 'zh' 
+        ? `⚠️ 替换失败\n\n新文本可能与原文本相同，或替换未生效。\n\n建议：\n• 尝试使用 AI 修改功能`
+        : `⚠️ Replacement failed\n\nNew text may be same as old, or replacement did not take effect.\n\nSuggestion:\n• Try using AI modification`;
+      alert(errorMsg);
+      return;
+    }
+    
+    // Save to main code history
+    setCodeHistory(prev => [...prev, { 
+      code: generatedCode, 
+      prompt: `Quick text change: "${oldText}" → "${newText}"`, 
+      timestamp: Date.now(),
+      type: 'click'
+    }]);
+    
+    // Save to quick edit history for undo/redo within session
+    const shortOldText = oldText.length > 15 ? oldText.substring(0, 15) + '...' : oldText;
+    const shortNewText = newText.length > 15 ? newText.substring(0, 15) + '...' : newText;
+    const description = language === 'zh' ? `文字: "${shortOldText}" → "${shortNewText}"` : `Text: "${shortOldText}" → "${shortNewText}"`;
+    const isFirstEdit = quickEditHistory.length === 0;
+    const currentLength = quickEditHistory.length;
+    const effectiveIndex = quickEditHistoryIndex;
+    
+    if (isFirstEdit) {
+      // First edit: save initial + new state
+      setQuickEditHistory([
+        { code: generatedCode, description: language === 'zh' ? '初始状态' : 'Initial state' },
+        { code: updatedCode, description }
+      ]);
+      setQuickEditHistoryIndex(1);
+    } else {
+      // Subsequent edits
+      setQuickEditHistory(prev => {
+        // If we're not at the end, truncate future history
+        const newHistory = effectiveIndex >= 0 && effectiveIndex < prev.length - 1
+          ? prev.slice(0, effectiveIndex + 1) 
+          : prev;
+        return [...newHistory, { code: updatedCode, description }];
+      });
+      // Calculate new index based on whether we truncated
+      const willTruncate = effectiveIndex >= 0 && effectiveIndex < currentLength - 1;
+      const newLength = willTruncate ? effectiveIndex + 2 : currentLength + 1;
+      setQuickEditHistoryIndex(newLength - 1);
+    }
+    
+    setGeneratedCode(updatedCode);
+    setStreamingCode(updatedCode);
+    // Close modal after applying, but keep edit mode active for next selection
+    setShowEditModal(false);
+    setQuickEditMode('none');
+    setSelectedElement(null);
+    setQuickEditText('');
+    
+    // Update iframe content in-place without reload
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ 
+        type: 'spark-update-content', 
+        html: updatedCode,
+        shouldRestoreEditMode: false
+      }, '*');
+      
+      // Automatically exit edit mode after applying changes
+      setIsEditMode(false);
+      iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: false }, '*');
+    }
+    
+    toastSuccess(language === 'zh' ? '文本已更新' : 'Text updated');
+  };
+
+  // Quick Edit: Undo last change
+  const quickEditUndo = () => {
+    if (quickEditHistoryIndex <= 0 || quickEditHistory.length === 0) {
+      toastError(language === 'zh' ? '没有可撤销的操作' : 'Nothing to undo');
+      return;
+    }
+    
+    // Get the previous state
+    const prevIndex = quickEditHistoryIndex - 1;
+    const prevState = quickEditHistory[prevIndex];
+    if (prevState) {
+      setGeneratedCode(prevState.code);
+      setStreamingCode(prevState.code);
+      setQuickEditHistoryIndex(prevIndex);
+      
+      // Update iframe
+      if (iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage({ 
+          type: 'spark-update-content', 
+          html: prevState.code 
+        }, '*');
+        
+        // Re-enable edit mode after content update
+        setTimeout(() => {
+          if (isEditMode && iframeRef.current?.contentWindow) {
+            iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: true }, '*');
+          }
+        }, 100);
+      }
+      
+      const undoDesc = quickEditHistory[quickEditHistoryIndex]?.description || '';
+      toastSuccess(language === 'zh' ? `已撤销: ${undoDesc}` : `Undone: ${undoDesc}`);
+    }
+  };
+
+  // Quick Edit: Redo last undone change
+  const quickEditRedo = () => {
+    if (quickEditHistoryIndex >= quickEditHistory.length - 1) {
+      toastError(language === 'zh' ? '没有可重做的操作' : 'Nothing to redo');
+      return;
+    }
+    
+    const nextIndex = quickEditHistoryIndex + 1;
+    const nextState = quickEditHistory[nextIndex];
+    
+    if (nextState) {
+      setGeneratedCode(nextState.code);
+      setStreamingCode(nextState.code);
+      setQuickEditHistoryIndex(nextIndex);
+      
+      // Update iframe
+      if (iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage({ 
+          type: 'spark-update-content', 
+          html: nextState.code 
+        }, '*');
+        
+        // Re-enable edit mode after content update
+        setTimeout(() => {
+          if (isEditMode && iframeRef.current?.contentWindow) {
+            iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: true }, '*');
+          }
+        }, 100);
+      }
+      
+      toastSuccess(language === 'zh' ? `已重做: ${nextState.description}` : `Redone: ${nextState.description}`);
+    }
+  };
+
+  // Check if undo/redo is available
+  const canQuickEditUndo = quickEditHistoryIndex > 0 && quickEditHistory.length > 1;
+  const canQuickEditRedo = quickEditHistoryIndex < quickEditHistory.length - 1;
+
+  // Reset quick edit history when exiting edit mode
+  const resetQuickEditHistory = () => {
+    setQuickEditHistory([]);
+    setQuickEditHistoryIndex(-1);
   };
 
   const handleElementEditSubmit = () => {
@@ -2457,12 +3321,23 @@ ${editIntent === 'content' ? '4. **Content**: Update the text or child component
 ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state logic associated with this element.' : ''}
     `.trim();
 
+    // Create a display message that shows both the selected element and user's request
+    const elementDescription = selectedElement.innerText 
+      ? `<${selectedElement.tagName}> "${selectedElement.innerText.substring(0, 30)}${selectedElement.innerText.length > 30 ? '...' : ''}"`
+      : `<${selectedElement.tagName} class="${selectedElement.className.substring(0, 30)}${selectedElement.className.length > 30 ? '...' : ''}">`;
+    
+    const displayMessage = language === 'zh'
+      ? `🎯 点选元素: ${elementDescription}\n📝 修改要求: ${editRequest}`
+      : `🎯 Selected: ${elementDescription}\n📝 Request: ${editRequest}`;
+
     setShowEditModal(false);
     setEditRequest('');
     setSelectedElement(null);
     setEditIntent('auto');
+    // Keep edit mode active - user can continue clicking after AI finishes
+    // setIsEditMode stays true so user can keep editing
     
-    startGeneration(true, prompt, editRequest, false, 'click');
+    startGeneration(true, prompt, displayMessage, false, 'click');
   };
 
   const handleMobilePreview = async () => {
@@ -2506,6 +3381,28 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
     }
       
     startGeneration(true, prompt, '', false, 'fix');
+    setRuntimeError(null);
+  };
+
+  // Handle blank screen fix - called when user clicks fix button for blank screen
+  const handleBlankScreenFix = () => {
+    const blankScreenPrompt = language === 'zh'
+      ? `应用出现白屏，无法渲染任何内容。请检查以下可能的问题并修复：
+1. React 组件是否正确导出和渲染
+2. ReactDOM.render/createRoot 是否正确调用
+3. 是否有语法错误导致 JSX 解析失败
+4. 是否有未定义的变量或组件
+
+请修复代码使应用能够正常显示。`
+      : `The app is showing a blank screen and not rendering any content. Please check and fix these potential issues:
+1. Are React components properly exported and rendered?
+2. Is ReactDOM.render/createRoot called correctly?
+3. Are there syntax errors causing JSX parsing failure?
+4. Are there undefined variables or components?
+
+Please fix the code to make the app display properly.`;
+    
+    startGeneration(true, blankScreenPrompt, '', false, 'fix');
     setRuntimeError(null);
   };
 
@@ -2955,14 +3852,23 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                 {msg.type === 'error' ? (
                     <div className="flex flex-col gap-2">
                         <div className="font-bold text-xs uppercase tracking-wider opacity-70 flex items-center gap-2">
-                            {language === 'zh' ? '运行时错误' : 'Runtime Error'}
+                            {msg.isBlankScreen 
+                                ? (language === 'zh' ? '白屏检测' : 'Blank Screen Detected')
+                                : (language === 'zh' ? '运行时错误' : 'Runtime Error')
+                            }
                             {msg.errorDetails?.line && <span className="bg-red-500/20 px-1.5 rounded text-[10px]">Line {msg.errorDetails.line}</span>}
                         </div>
                         <div className="font-mono text-xs break-words bg-black/20 p-2 rounded border border-red-500/20">
                             {msg.content}
                         </div>
+                        {msg.isBlankScreen && msg.errorDetails?.hint && (
+                            <div className="text-[10px] text-yellow-300/70 bg-yellow-500/10 px-2 py-1 rounded">
+                                <i className="fa-solid fa-lightbulb mr-1"></i>
+                                {msg.errorDetails.hint}
+                            </div>
+                        )}
                         <button 
-                            onClick={() => handleFixError(msg.content, msg.errorDetails)}
+                            onClick={() => msg.isBlankScreen ? handleBlankScreenFix() : handleFixError(msg.content, msg.errorDetails)}
                             className="mt-1 bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg"
                         >
                             <i className="fa-solid fa-wand-magic-sparkles"></i>
@@ -2982,7 +3888,7 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                                 </div>
                             </div>
                         )}
-                        {msg.content}
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
                         {msg.cost && (
                             <div className="mt-2 pt-2 border-t border-white/5 flex justify-end">
                                 <span className="text-[10px] text-slate-500 flex items-center gap-1 opacity-70">
@@ -3176,6 +4082,126 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
           ref={previewContainerRef}
           className="flex-1 relative overflow-hidden flex items-center justify-center bg-[url('/grid.svg')] bg-center pb-16 lg:pb-0"
         >
+          {/* Quick Edit History Panel - Right side of preview (persistent, collapsible) */}
+          {quickEditHistory.length > 0 && (
+            <div 
+              ref={historyPanelRef}
+              className={`absolute right-2 top-2 z-20 transition-all duration-300 ${isHistoryPanelOpen ? 'bottom-20 lg:bottom-2' : ''}`}
+            >
+              {isHistoryPanelOpen ? (
+                <div className="w-44 h-full bg-slate-900/95 backdrop-blur-md border border-slate-700/70 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+                  {/* Header */}
+                  <div className="px-2 py-2 border-b border-slate-700/50 flex items-center justify-between shrink-0">
+                    <div className="text-[10px] text-slate-300 font-bold flex items-center gap-1.5">
+                      <i className="fa-solid fa-clock-rotate-left text-brand-400"></i>
+                      {language === 'zh' ? `历史` : `History`}
+                      <span className="text-slate-500">({quickEditHistory.length})</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={quickEditUndo}
+                        disabled={!canQuickEditUndo}
+                        className={`w-5 h-5 rounded flex items-center justify-center transition text-[10px] ${
+                          canQuickEditUndo 
+                            ? 'text-slate-300 hover:bg-slate-700 hover:text-white' 
+                            : 'text-slate-600 cursor-not-allowed'
+                        }`}
+                        title={language === 'zh' ? '撤销' : 'Undo'}
+                      >
+                        <i className="fa-solid fa-rotate-left"></i>
+                      </button>
+                      <button
+                        onClick={quickEditRedo}
+                        disabled={!canQuickEditRedo}
+                        className={`w-5 h-5 rounded flex items-center justify-center transition text-[10px] ${
+                          canQuickEditRedo 
+                            ? 'text-slate-300 hover:bg-slate-700 hover:text-white' 
+                            : 'text-slate-600 cursor-not-allowed'
+                        }`}
+                        title={language === 'zh' ? '重做' : 'Redo'}
+                      >
+                        <i className="fa-solid fa-rotate-right"></i>
+                      </button>
+                      <button
+                        onClick={() => setIsHistoryPanelOpen(false)}
+                        className="w-5 h-5 rounded flex items-center justify-center transition text-[10px] text-slate-400 hover:bg-slate-700 hover:text-white ml-1"
+                        title={language === 'zh' ? '收起' : 'Collapse'}
+                      >
+                        <i className="fa-solid fa-chevron-right"></i>
+                      </button>
+                    </div>
+                  </div>
+                  {/* History List - Vertical */}
+                  <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin">
+                    {quickEditHistory.map((item, idx) => {
+                      const isCurrent = idx === quickEditHistoryIndex;
+                      const isPast = idx < quickEditHistoryIndex;
+                      return (
+                        <div 
+                          key={idx}
+                          className={`text-[10px] px-2 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all ${
+                            isCurrent 
+                              ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm' 
+                              : isPast 
+                                ? 'text-slate-400 bg-slate-800/60 hover:bg-slate-800' 
+                                : 'text-slate-500 hover:bg-slate-800/40'
+                          }`}
+                          onClick={() => {
+                            // Jump to this history state
+                            if (idx !== quickEditHistoryIndex) {
+                              setGeneratedCode(item.code);
+                              setStreamingCode(item.code);
+                              setQuickEditHistoryIndex(idx);
+                              
+                              // Update iframe
+                              if (iframeRef.current?.contentWindow) {
+                                iframeRef.current.contentWindow.postMessage({ 
+                                  type: 'spark-update-content', 
+                                  html: item.code 
+                                }, '*');
+                                
+                                // Re-enable edit mode after content update
+                                setTimeout(() => {
+                                  if (isEditMode && iframeRef.current?.contentWindow) {
+                                    iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: true }, '*');
+                                  }
+                                }, 100);
+                              }
+                            }
+                          }}
+                          title={item.description}
+                        >
+                          <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] shrink-0 ${
+                            isCurrent ? 'bg-brand-500 text-white' : 'bg-slate-700'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          <span className="truncate flex-1">{item.description}</span>
+                          {isCurrent && (
+                            <i className="fa-solid fa-circle text-[4px] text-brand-400 animate-pulse"></i>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                /* Collapsed state - small button to expand */
+                <button
+                  onClick={() => setIsHistoryPanelOpen(true)}
+                  className="w-10 h-10 bg-slate-900/95 backdrop-blur-md border border-slate-700/70 rounded-xl shadow-2xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  title={language === 'zh' ? `展开历史 (${quickEditHistory.length})` : `Expand History (${quickEditHistory.length})`}
+                >
+                  <div className="relative">
+                    <i className="fa-solid fa-clock-rotate-left text-sm"></i>
+                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-brand-500 rounded-full text-[8px] text-white flex items-center justify-center font-bold">
+                      {quickEditHistory.length}
+                    </span>
+                  </div>
+                </button>
+              )}
+            </div>
+          )}
           <div 
             className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 origin-center
               ${previewMode === 'mobile' 
@@ -3198,7 +4224,7 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
              
              <iframe
                ref={iframeRef}
-               srcDoc={getPreviewContent(generatedCode)}
+               srcDoc={getPreviewContent(generatedCode, { raw: true })}
                className="w-full h-full bg-slate-900"
                sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads allow-same-origin"
              />
@@ -3261,6 +4287,37 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                 </div>
                 <span className="text-sm whitespace-nowrap">{isEditMode ? t.create.finish_edit : t.create.edit_mode}</span>
             </button>
+
+            {/* Quick Edit Undo/Redo Buttons - Only show when in edit mode and has history */}
+            {isEditMode && quickEditHistory.length > 0 && (
+              <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-full px-2 py-1 shadow-xl">
+                <button
+                  onClick={quickEditUndo}
+                  disabled={!canQuickEditUndo}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition ${
+                    canQuickEditUndo 
+                      ? 'text-slate-300 hover:text-white hover:bg-slate-700' 
+                      : 'text-slate-600 cursor-not-allowed'
+                  }`}
+                  title={language === 'zh' ? `撤销 (${quickEditHistoryIndex + 1})` : `Undo (${quickEditHistoryIndex + 1})`}
+                >
+                  <i className="fa-solid fa-rotate-left text-sm"></i>
+                </button>
+                <span className="text-xs text-slate-500 px-1">{quickEditHistoryIndex + 1}/{quickEditHistory.length}</span>
+                <button
+                  onClick={quickEditRedo}
+                  disabled={!canQuickEditRedo}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition ${
+                    canQuickEditRedo 
+                      ? 'text-slate-300 hover:text-white hover:bg-slate-700' 
+                      : 'text-slate-600 cursor-not-allowed'
+                  }`}
+                  title={language === 'zh' ? '重做' : 'Redo'}
+                >
+                  <i className="fa-solid fa-rotate-right text-sm"></i>
+                </button>
+              </div>
+            )}
           </div>
 
           {isGenerating && (
@@ -3359,64 +4416,278 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
       )}
 
       {showEditModal && selectedElement && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-brand-500/20 flex items-center justify-center text-brand-400">
-                    <i className="fa-solid fa-pen-to-square"></i>
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 backdrop-blur-sm p-2 pt-8 overflow-y-auto animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden my-auto">
+            {/* Header - More compact */}
+            <div className="px-3 py-2 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-brand-500/20 flex items-center justify-center text-brand-400">
+                    <i className="fa-solid fa-pen-to-square text-xs"></i>
                 </div>
                 {t.create.edit_element_title}
               </h3>
-              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-white transition w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800">
-                <X size={18} />
+              <button onClick={() => { setShowEditModal(false); setQuickEditMode('none'); }} className="text-slate-400 hover:text-white transition w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-800">
+                <X size={16} />
               </button>
             </div>
             
-            <div className="p-6 space-y-6">
-                {/* Context Card */}
-                <div className="bg-slate-950 rounded-xl p-4 border border-slate-800 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-2 opacity-50 group-hover:opacity-100 transition">
-                     <span className="text-[10px] font-mono text-slate-500 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+            <div className="p-3 space-y-3 max-h-[70vh] overflow-y-auto">
+                {/* Context Card - More compact */}
+                <div className="bg-slate-950 rounded-lg p-3 border border-slate-800 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-1.5 opacity-50 group-hover:opacity-100 transition">
+                     <span className="text-[9px] font-mono text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
                         {selectedElement.tagName.toLowerCase()}
                      </span>
                   </div>
                   
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                       <div>
-                        <div className="text-xs text-slate-500 uppercase tracking-wider font-bold mb-1.5 flex items-center gap-2">
-                            <i className="fa-solid fa-crosshairs"></i> {t.create.edit_element_selected}
+                        <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-1 flex items-center gap-1.5">
+                            <i className="fa-solid fa-crosshairs text-[8px]"></i> {t.create.edit_element_selected}
                         </div>
-                        <div className="font-mono text-sm text-brand-300 break-all">
+                        <div className="font-mono text-xs text-brand-300 break-all">
                             &lt;{selectedElement.tagName.toLowerCase()} className="..."&gt;
                         </div>
                       </div>
                       
                       {selectedElement.innerText && (
-                          <div className="pl-3 border-l-2 border-slate-800">
-                            <div className="text-xs text-slate-500 mb-1">Content Preview</div>
-                            <div className="text-sm text-slate-300 italic line-clamp-2">
-                                "{selectedElement.innerText.substring(0, 100)}"
+                          <div className="pl-2 border-l-2 border-slate-800">
+                            <div className="text-[10px] text-slate-500 mb-0.5">Content</div>
+                            <div className="text-xs text-slate-300 italic line-clamp-1">
+                                "{selectedElement.innerText.substring(0, 60)}{selectedElement.innerText.length > 60 ? '...' : ''}"
                             </div>
                           </div>
                       )}
 
                       {selectedElement.parentTagName && (
-                          <div className="flex items-center gap-2 text-xs text-slate-500 pt-2 border-t border-slate-800/50">
-                             <i className="fa-solid fa-level-up-alt fa-rotate-90"></i>
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 pt-1.5 border-t border-slate-800/50">
+                             <i className="fa-solid fa-level-up-alt fa-rotate-90 text-[8px]"></i>
                              <span>Inside &lt;{selectedElement.parentTagName}&gt;</span>
                           </div>
                       )}
                   </div>
                 </div>
 
+                {/* Quick Edit Buttons - Show when applicable */}
+                {(detectQuickEditType(selectedElement) !== 'none') && quickEditMode === 'none' && (
+                  <div className="bg-emerald-950/30 border border-emerald-800/50 rounded-lg p-2.5">
+                    <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <i className="fa-solid fa-bolt text-[8px]"></i>
+                      {language === 'zh' ? '快速编辑' : 'Quick Edit'}
+                    </div>
+                    <div className="flex gap-2">
+                      {(detectQuickEditType(selectedElement) === 'text' || detectQuickEditType(selectedElement) === 'both') && (
+                        <button
+                          onClick={() => {
+                            setQuickEditMode('text');
+                            setQuickEditText(selectedElement.innerText || '');
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition"
+                        >
+                          <i className="fa-solid fa-font text-[10px]"></i>
+                          {language === 'zh' ? '改文字' : 'Text'}
+                        </button>
+                      )}
+                      {(detectQuickEditType(selectedElement) === 'color' || detectQuickEditType(selectedElement) === 'both') && (
+                        <button
+                          onClick={() => {
+                            const types = detectAvailableColorTypes(selectedElement.className, selectedElement);
+                            setAvailableColorTypes(types);
+                            setQuickEditColorType(types.length === 1 ? types[0] : 'all');
+                            setQuickEditMode('color');
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition"
+                        >
+                          <i className="fa-solid fa-palette text-[10px]"></i>
+                          {language === 'zh' ? '改颜色' : 'Color'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick Edit: Color Picker */}
+                {quickEditMode === 'color' && (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        {language === 'zh' ? '选择颜色' : 'Select Color'}
+                      </label>
+                      <button 
+                        onClick={() => setQuickEditMode('none')}
+                        className="text-[10px] text-slate-500 hover:text-slate-300"
+                      >
+                        {language === 'zh' ? '用AI改' : 'Use AI'}
+                      </button>
+                    </div>
+                    
+                    {/* Color Type Selector - More compact */}
+                    {availableColorTypes.length > 0 && (
+                      <div className="space-y-1.5">
+                        <div className="text-[10px] text-slate-500">{language === 'zh' ? '颜色类型：' : 'Type:'}</div>
+                        <div className="flex gap-1 p-0.5 bg-slate-950 rounded-lg">
+                          {availableColorTypes.length > 1 && (
+                            <button
+                              onClick={() => setQuickEditColorType('all')}
+                              className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium transition ${quickEditColorType === 'all' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                            >
+                              {language === 'zh' ? '全部' : 'All'}
+                            </button>
+                          )}
+                          {availableColorTypes.includes('bg') && (
+                            <button
+                              onClick={() => setQuickEditColorType('bg')}
+                              className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium transition flex items-center justify-center gap-0.5 ${quickEditColorType === 'bg' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                            >
+                              <i className="fa-solid fa-fill-drip text-[8px]"></i>
+                              {language === 'zh' ? '背景' : 'BG'}
+                            </button>
+                          )}
+                          {availableColorTypes.includes('text') && (
+                            <button
+                              onClick={() => setQuickEditColorType('text')}
+                              className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium transition flex items-center justify-center gap-0.5 ${quickEditColorType === 'text' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                            >
+                              <i className="fa-solid fa-font text-[8px]"></i>
+                              {language === 'zh' ? '文字' : 'Text'}
+                            </button>
+                          )}
+                          {availableColorTypes.includes('border') && (
+                            <button
+                              onClick={() => setQuickEditColorType('border')}
+                              className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium transition flex items-center justify-center gap-0.5 ${quickEditColorType === 'border' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                            >
+                              <i className="fa-solid fa-border-all text-[8px]"></i>
+                              {language === 'zh' ? '边框' : 'Border'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="space-y-2">
+                      {/* Color picker - More compact */}
+                      <div className="flex gap-2 items-start">
+                        <div className="flex flex-col items-center gap-1">
+                          <input
+                            type="color"
+                            value={quickEditColor}
+                            onChange={(e) => setQuickEditColor(e.target.value)}
+                            className="w-10 h-10 rounded-lg border-2 border-slate-700 cursor-pointer bg-transparent"
+                          />
+                          <span className="text-[8px] text-slate-500 font-mono">{quickEditColor}</span>
+                        </div>
+                        <div className="flex-1">
+                          {/* Quick presets - Common colors */}
+                          <div className="text-[9px] text-slate-500 mb-1">{language === 'zh' ? '常用' : 'Common'}</div>
+                          <div className="grid grid-cols-8 gap-1 mb-1.5">
+                            {['#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1',
+                              '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#64748b', '#ffffff', '#000000'].map(color => (
+                              <button
+                                key={color}
+                                onClick={() => setQuickEditColor(color)}
+                                className={`w-5 h-5 rounded border transition ${quickEditColor === color ? 'border-white ring-1 ring-brand-500 scale-110' : 'border-slate-600 hover:border-slate-400'}`}
+                                style={{ backgroundColor: color }}
+                                title={color}
+                              />
+                            ))}
+                          </div>
+                          {/* Grayscale */}
+                          <div className="text-[9px] text-slate-500 mb-1">{language === 'zh' ? '灰度' : 'Gray'}</div>
+                          <div className="grid grid-cols-10 gap-1">
+                            {['#f8fafc', '#f1f5f9', '#e2e8f0', '#cbd5e1', '#94a3b8', '#64748b', '#475569', '#334155',
+                              '#1e293b', '#0f172a'].map(color => (
+                              <button
+                                key={color}
+                                onClick={() => setQuickEditColor(color)}
+                                className={`w-5 h-5 rounded border transition ${quickEditColor === color ? 'border-white ring-1 ring-brand-500 scale-110' : 'border-slate-600 hover:border-slate-400'}`}
+                                style={{ backgroundColor: color }}
+                                title={color}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      {/* Custom hex input */}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={quickEditColor}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val.match(/^#[0-9A-Fa-f]{0,6}$/)) {
+                              setQuickEditColor(val);
+                            }
+                          }}
+                          placeholder="#3b82f6"
+                          className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => applyQuickColorEdit(quickEditColor)}
+                      disabled={!quickEditColor.match(/^#[0-9A-Fa-f]{6}$/)}
+                      className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition flex items-center justify-center gap-1"
+                    >
+                      <i className="fa-solid fa-check text-[10px]"></i>
+                      {language === 'zh' ? '应用' : 'Apply'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Quick Edit: Text Input */}
+                {quickEditMode === 'text' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        {language === 'zh' ? '编辑文字' : 'Edit Text'}
+                      </label>
+                      <button 
+                        onClick={() => setQuickEditMode('none')}
+                        className="text-[10px] text-slate-500 hover:text-slate-300"
+                      >
+                        {language === 'zh' ? 'AI修改' : 'Use AI'}
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={quickEditText}
+                      onChange={(e) => setQuickEditText(e.target.value)}
+                      placeholder={language === 'zh' ? '输入新文字...' : 'Enter new text...'}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => applyQuickTextEdit(quickEditText)}
+                      disabled={!quickEditText.trim()}
+                      className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition flex items-center justify-center gap-1"
+                    >
+                      <i className="fa-solid fa-check text-[10px]"></i>
+                      {language === 'zh' ? '应用' : 'Apply'}
+                    </button>
+                  </div>
+                )}
+
+                {/* AI Edit Section - Only show when not in quick edit mode */}
+                {quickEditMode === 'none' && (
+                  <>
+                    {/* Divider if quick edit was available */}
+                    {detectQuickEditType(selectedElement) !== 'none' && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-px bg-slate-800"></div>
+                        <span className="text-[10px] text-slate-600 font-medium">
+                          {language === 'zh' ? '或用AI' : 'Or AI'}
+                        </span>
+                        <div className="flex-1 h-px bg-slate-800"></div>
+                      </div>
+                    )}
+
                 {/* Intent Selector */}
                 <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                        {language === 'zh' ? '修改类型' : 'Modification Type'}
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                        {language === 'zh' ? '修改类型' : 'Type'}
                     </label>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-4 gap-1">
                         {[
                             { id: 'auto', icon: 'fa-wand-magic-sparkles', label: language === 'zh' ? '自动' : 'Auto' },
                             { id: 'style', icon: 'fa-palette', label: language === 'zh' ? '样式' : 'Style' },
@@ -3426,14 +4697,14 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                             <button
                                 key={type.id}
                                 onClick={() => setEditIntent(type.id as any)}
-                                className={`flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-lg border transition-all ${
+                                className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded border transition-all ${
                                     editIntent === type.id 
                                     ? 'bg-brand-600 border-brand-500 text-white shadow-lg shadow-brand-900/20' 
                                     : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
                                 }`}
                             >
-                                <i className={`fa-solid ${type.icon} text-sm`}></i>
-                                <span className="text-[10px] font-bold">{type.label}</span>
+                                <i className={`fa-solid ${type.icon} text-[10px]`}></i>
+                                <span className="text-[8px] font-bold">{type.label}</span>
                             </button>
                         ))}
                     </div>
@@ -3441,7 +4712,7 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                 
                 {/* Input */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
                     {t.create.edit_element_label}
                   </label>
                   <div className="relative">
@@ -3454,33 +4725,36 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
                             editIntent === 'logic' ? (language === 'zh' ? '例如：点击后弹出一个提示框...' : 'E.g. Show an alert on click...') :
                             t.create.edit_element_placeholder
                         }
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-white placeholder-slate-600 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 min-h-[120px] resize-none text-sm leading-relaxed"
-                        autoFocus
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white placeholder-slate-600 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 min-h-[60px] resize-none text-xs leading-relaxed"
                       />
-                      <div className="absolute bottom-3 right-3 text-[10px] text-slate-600">
-                        {editRequest.length} chars
+                      <div className="absolute bottom-1.5 right-2 text-[8px] text-slate-600">
+                        {editRequest.length}
                       </div>
                   </div>
                 </div>
+                  </>
+                )}
             </div>
             
-            {/* Footer */}
-            <div className="p-4 border-t border-slate-800 bg-slate-900/50 flex gap-3">
+            {/* Footer - Only show for AI edit */}
+            {quickEditMode === 'none' && (
+              <div className="px-3 py-2 border-t border-slate-800 bg-slate-900/50 flex gap-2">
               <button
                 onClick={() => setShowEditModal(false)}
-                className="flex-1 px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm transition-colors border border-slate-700"
+                className="flex-1 px-2 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors border border-slate-700"
               >
                 {t.common.cancel}
               </button>
               <button
                 onClick={handleElementEditSubmit}
                 disabled={!editRequest.trim()}
-                className="flex-[2] px-4 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm transition-all shadow-lg shadow-brand-900/20 flex items-center justify-center gap-2"
+                className="flex-[2] px-2 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition-all shadow-lg shadow-brand-900/20 flex items-center justify-center gap-1"
               >
-                <i className="fa-solid fa-wand-magic-sparkles"></i>
+                <i className="fa-solid fa-wand-magic-sparkles text-[10px]"></i>
                 {t.create.btn_generate_edit}
               </button>
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}

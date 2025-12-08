@@ -55,11 +55,16 @@ function extractDependencies(content: string, allChunkIds: string[]): string[] {
     }
     
     // 2. Look for variable references to other components/constants
-    // e.g., COLORS.primary, THEMES.dark, etc.
-    const varRefRegex = /\b([A-Z][A-Z0-9_]+)\./g;
+    // e.g., COLORS.primary, THEMES.dark, MAP_GRID, etc.
+    // Improved regex: matches CONSTANT.prop OR just CONSTANT (if length > 3)
+    // This ensures we catch constants passed as props like <Map data={MAP_GRID} />
+    const varRefRegex = /\b([A-Z][A-Z0-9_]{2,})\b/g;
     let match;
     while ((match = varRefRegex.exec(content)) !== null) {
         const constName = match[1];
+        // Filter out common keywords to reduce noise
+        if (['React', 'JSON', 'Math', 'Date', 'Array', 'Object', 'console', 'window', 'document'].includes(constName)) continue;
+        
         const chunkId = `component-${constName}`;
         if (allChunkIds.includes(chunkId)) {
             deps.add(chunkId);
@@ -91,27 +96,97 @@ function isSignificant(token: string): boolean {
 // Helper: Extract Chinese keywords that might match component names
 function extractChineseKeywords(prompt: string): string[] {
     const keywordMap: Record<string, string[]> = {
-        '地图': ['map'],
-        '角色': ['character', 'player', 'avatar'],
-        '背包': ['inventory', 'bag', 'item'],
-        '任务': ['quest', 'mission', 'task'],
-        '社交': ['social', 'friend', 'chat'],
-        '设置': ['setting', 'config', 'option'],
-        '统计': ['stat', 'stats', 'status'],
-        '首页': ['home', 'main', 'dashboard'],
-        '导航': ['nav', 'navigation', 'menu'],
-        '按钮': ['button', 'btn'],
-        '卡片': ['card'],
-        '列表': ['list'],
-        '表单': ['form'],
-        '模态': ['modal', 'dialog', 'popup'],
-        '头部': ['header', 'head'],
-        '底部': ['footer', 'bottom'],
-        '侧边': ['sidebar', 'side'],
-        '自定义': ['custom', 'customize', 'customization'],
-        '事件': ['event', 'log'],
-        '面板': ['panel', 'pane'],
-        '屏幕': ['screen', 'page', 'view'],
+        // 休闲游戏
+        '地图': ['map', 'grid', 'maze', 'level', 'world'],
+        '迷宫': ['maze', 'grid', 'map'],
+        '关卡': ['level', 'stage', 'mission'],
+        '角色': ['character', 'player', 'avatar', 'hero'],
+        '怪兽': ['monster', 'enemy', 'boss', 'mob'],
+        '敌人': ['monster', 'enemy', 'boss'],
+        '战斗': ['battle', 'fight', 'combat', 'attack'],
+        '技能': ['skill', 'ability', 'move', 'magic'],
+        '道具': ['item', 'inventory', 'bag', 'loot'],
+        '背包': ['bag', 'inventory', 'storage'],
+        '商店': ['shop', 'store', 'market', 'merchant'],
+        '任务': ['quest', 'task', 'mission'],
+        '成就': ['achievement', 'trophy', 'badge'],
+        '排行榜': ['leaderboard', 'rank', 'score'],
+        '分数': ['score', 'point', 'stat'],
+        '血量': ['hp', 'health', 'life'],
+        '蓝量': ['mp', 'mana', 'energy'],
+        '经验': ['exp', 'level', 'growth'],
+        '等级': ['level', 'rank', 'grade'],
+        '金币': ['gold', 'coin', 'money', 'currency'],
+        '钻石': ['diamond', 'gem', 'premium'],
+        
+        // 益智/解谜
+        '拼图': ['puzzle', 'piece', 'board'],
+        '棋盘': ['board', 'grid', 'cell', 'tile'],
+        '方块': ['block', 'cube', 'tile', 'brick'],
+        '卡牌': ['card', 'deck', 'hand'],
+        '消除': ['match', 'clear', 'crush'],
+        '数独': ['sudoku', 'grid', 'number'],
+        '填字': ['crossword', 'word', 'grid'],
+        
+        // 实用工具
+        '计算': ['calc', 'math', 'compute'],
+        '转换': ['convert', 'transform', 'change'],
+        '查询': ['search', 'query', 'find'],
+        '天气': ['weather', 'forecast', 'climate'],
+        '日历': ['calendar', 'date', 'schedule'],
+        '时钟': ['clock', 'time', 'timer', 'watch'],
+        '待办': ['todo', 'task', 'list'],
+        '笔记': ['note', 'memo', 'editor'],
+        '翻译': ['translate', 'lang', 'i18n'],
+        
+        // 教育学习
+        '课程': ['course', 'lesson', 'class'],
+        '题目': ['question', 'quiz', 'exam', 'test'],
+        '答案': ['answer', 'solution', 'key'],
+        '科普': ['wiki', 'info', 'guide'],
+        '单词': ['word', 'vocab', 'dict'],
+        
+        // 创意设计
+        '画板': ['canvas', 'draw', 'paint'],
+        '色彩': ['color', 'palette', 'theme'],
+        '排版': ['layout', 'grid', 'flex'],
+        '图标': ['icon', 'svg', 'image'],
+        '动画': ['anim', 'motion', 'transition'],
+        
+        // 开发者工具
+        '代码': ['code', 'editor', 'syntax'],
+        '调试': ['debug', 'log', 'console'],
+        '生成': ['generate', 'create', 'build'],
+        '配置': ['config', 'setting', 'option'],
+        
+        // 数据可视化
+        '图表': ['chart', 'graph', 'plot'],
+        '分析': ['analyze', 'stat', 'report'],
+        '展示': ['display', 'show', 'view'],
+        
+        // 影音娱乐
+        '音乐': ['music', 'audio', 'sound', 'song'],
+        '视频': ['video', 'player', 'movie'],
+        '播放': ['play', 'media', 'stream'],
+        
+        // 生活便利
+        '健康': ['health', 'fit', 'body'],
+        '记账': ['finance', 'money', 'bill'],
+        '日常': ['daily', 'life', 'habit'],
+        
+        // 通用 UI
+        '按钮': ['button', 'btn', 'action'],
+        '输入': ['input', 'form', 'field'],
+        '列表': ['list', 'table', 'grid'],
+        '弹窗': ['modal', 'dialog', 'popup'],
+        '导航': ['nav', 'menu', 'tab', 'bar'],
+        '侧边栏': ['sidebar', 'drawer', 'panel'],
+        '页脚': ['footer', 'bottom', 'end'],
+        '页头': ['header', 'top', 'start'],
+        '卡片': ['card', 'box', 'container'],
+        '图片': ['image', 'img', 'pic', 'photo'],
+        '链接': ['link', 'url', 'href'],
+        '文本': ['text', 'label', 'title', 'desc']
     };
     
     const result: string[] = [];
@@ -277,15 +352,63 @@ function extractComponentSignature(content: string): {
     return result;
 }
 
+// Helper: Extract JSX children component names for compression summary
+function extractJSXChildrenSummary(content: string): string[] {
+    const children: Set<string> = new Set();
+    
+    // Match JSX component usage (PascalCase tags)
+    const jsxTagRegex = /<([A-Z][a-zA-Z0-9_]+)[\s/>]/g;
+    let match;
+    while ((match = jsxTagRegex.exec(content)) !== null) {
+        children.add(match[1]);
+    }
+    
+    // Remove self (if component renders itself recursively)
+    const selfNameMatch = content.match(/(?:const|function)\s+([A-Z][a-zA-Z0-9_]*)/);
+    if (selfNameMatch) {
+        children.delete(selfNameMatch[1]);
+    }
+    
+    return Array.from(children);
+}
+
+// Intent-based compression thresholds
+// Lower threshold = more aggressive compression (fewer lines needed to trigger compression)
+// UI changes need less context, logic changes need more
+type CompressionIntent = 'UI_MODIFICATION' | 'LOGIC_FIX' | 'NEW_FEATURE' | 'DATA_OPERATION' | 'REFACTOR' | 'PERFORMANCE' | 'UNKNOWN';
+
+const COMPRESSION_THRESHOLDS: Record<CompressionIntent, number> = {
+    'UI_MODIFICATION': 8,    // 颜色、样式、布局 - 非常激进，只需要目标组件
+    'LOGIC_FIX': 12,         // 修复 Bug - 中等，可能需要相关代码
+    'NEW_FEATURE': 15,       // 新功能 - 保守，需要理解更多上下文
+    'DATA_OPERATION': 12,    // 数据操作 - 中等
+    'REFACTOR': 10,          // 重构 - 中等偏激进
+    'PERFORMANCE': 12,       // 性能优化 - 中等
+    'UNKNOWN': 15,           // 默认 - 保守
+};
+
 // 3. Semantic Compression Logic - Aggressive Mode
 // Goal: Reduce tokens as much as possible while preserving patch accuracy
-export function compressCode(code: string, relevantChunkIds: string[]): string {
+export function compressCode(
+    code: string, 
+    relevantChunkIds: string[], 
+    explicitTargets: string[] = [],
+    intent?: string // Optional: UserIntent from intent-classifier
+): string {
     const chunks = chunkCode(code);
     // Sort chunks by startIndex descending to replace from bottom up without messing indices
     // Only consider JS chunks for now as they are inside the script tag
     const jsChunks = chunks.filter(c => c.type === 'js' && c.startIndex !== undefined).sort((a, b) => b.startIndex! - a.startIndex!);
     
+    // Dynamic compression threshold based on intent
+    const intentKey = (intent as CompressionIntent) || 'UNKNOWN';
+    const compressionThreshold = COMPRESSION_THRESHOLDS[intentKey] || 15;
+    
     console.log(`[Compression] Total JS chunks: ${jsChunks.length}, Relevant IDs: ${relevantChunkIds.join(', ')}`);
+    console.log(`[Compression] Intent: ${intent || 'UNKNOWN'}, Threshold: ${compressionThreshold} lines`);
+    if (explicitTargets.length > 0) {
+        console.log(`[Compression] Explicit targets (Force Expand): ${explicitTargets.join(', ')}`);
+    }
     
     let compressed = code;
     let compressedCount = 0;
@@ -302,31 +425,58 @@ export function compressCode(code: string, relevantChunkIds: string[]): string {
         // Check if this chunk is in the relevant list
         const isRelevant = relevantChunkIds.includes(chunk.id);
         
+        // Check if this chunk is an explicit target (Intent-Aware Decompression)
+        const componentName = chunk.id.replace('component-', '');
+        const isExplicitTarget = explicitTargets.some(t => 
+            t.toLowerCase() === componentName.toLowerCase() || 
+            chunk.id.toLowerCase().includes(t.toLowerCase())
+        );
+
+        if (isExplicitTarget) {
+            console.log(`[Compression] Force expanding ${chunk.id} (Explicit Target)`);
+            continue;
+        }
+
+        // Intent-Driven Expansion: If intent is DATA/LOGIC, do NOT compress large arrays/objects
+        // These are often configuration data (MAP_GRID, MONSTERS) that need to be fully visible
+        const isDataOrLogicIntent = explicitTargets.length > 0; // If we have targets, it implies specific intent
+        // Or we can check if the chunk looks like a data definition (const X = [...])
+        const isDataDefinition = /const\s+[A-Z0-9_]+\s*=\s*[\[\{]/.test(chunk.content);
+        
+        if (isDataOrLogicIntent && isDataDefinition) {
+             console.log(`[Compression] Force expanding ${chunk.id} (Data Definition in Logic/Data Intent)`);
+             continue;
+        }
+
         if (isRelevant) {
             console.log(`[Compression] Keeping ${chunk.id} (relevant, ${lines.length} lines)`);
             continue;
         }
         
-        // Compress ANY non-relevant component with >10 lines (lowered from 20)
-        // This includes App, Imports/Setup if they're not relevant to the request
-        if (lines.length <= 10) {
-            console.log(`[Compression] Skipping ${chunk.id} (too small: ${lines.length} lines)`);
+        // Use dynamic compression threshold based on mode
+        if (lines.length <= compressionThreshold) {
+            console.log(`[Compression] Skipping ${chunk.id} (too small: ${lines.length} lines, threshold: ${compressionThreshold})`);
             continue;
         }
         
         // This chunk is irrelevant and large enough, apply semantic compression
         console.log(`[Compression] Compressing ${chunk.id} (${lines.length} lines)`);
         
-        const componentName = chunk.id.replace('component-', '');
         const sig = extractComponentSignature(chunk.content);
         
-        // Build semantic summary
+        // Build semantic summary with more detail for better AI understanding
         const summaryParts: string[] = [];
         if (sig.props) summaryParts.push(`Props: ${sig.props}`);
         if (sig.state.length > 0) summaryParts.push(`State: ${sig.state.join(', ')}`);
-        if (sig.handlers.length > 0) summaryParts.push(`Handlers: ${sig.handlers.join(', ')}`);
-        if (sig.effects.length > 0) summaryParts.push(`Effects: ${sig.effects.length} useEffect(s)`);
+        if (sig.handlers.length > 0) summaryParts.push(`Handlers: ${sig.handlers.slice(0, 3).join(', ')}${sig.handlers.length > 3 ? '...' : ''}`);
+        if (sig.effects.length > 0) summaryParts.push(`Effects: ${sig.effects.length}`);
         if (sig.renders) summaryParts.push(`Renders: ${sig.renders}`);
+        
+        // Extract key JSX children for better context (up to 5)
+        const jsxChildren = extractJSXChildrenSummary(chunk.content);
+        if (jsxChildren.length > 0) {
+            summaryParts.push(`Children: ${jsxChildren.slice(0, 5).join(', ')}${jsxChildren.length > 5 ? '...' : ''}`);
+        }
         
         const summaryText = summaryParts.length > 0 
             ? summaryParts.join(' | ') 
@@ -430,8 +580,8 @@ export async function findRelevantCodeChunks(
         }).join(', ')}`);
         
         // Step 1: Initial selection - Top N chunks above threshold
-        // 限制最多 5 个核心块，避免选择过多
-        const MAX_INITIAL_CHUNKS = 5;
+        // 限制最多 6 个核心块，平衡精度和效率
+        const MAX_INITIAL_CHUNKS = 6;
         let relevantChunks = scoredChunks.filter(c => c.score > dynamicThreshold).slice(0, MAX_INITIAL_CHUNKS);
         
         // Step 2: Safety net - at least Top 3
@@ -446,7 +596,7 @@ export async function findRelevantCodeChunks(
         const chineseKeywords = extractChineseKeywords(promptLower);
         
         let promptMatchCount = 0;
-        const MAX_PROMPT_MATCHES = 3; // Prevent "Icon" matching 50 files
+        const MAX_PROMPT_MATCHES = 5; // Increased from 3 to 5 to catch more relevant components (e.g. Map, Grid, Screen)
         
         for (const chunk of scoredChunks) {
             if (promptMatchCount >= MAX_PROMPT_MATCHES) break;
@@ -465,6 +615,18 @@ export async function findRelevantCodeChunks(
                 // Chinese keyword matching
                 chineseKeywords.some(kw => componentNameLower.includes(kw));
             
+            // Boost score for data definitions (MAP_GRID, etc.) if they are somewhat relevant
+            // This helps them survive the threshold cut even if semantic similarity is slightly lower
+            // Data definitions are critical for game/app logic, use lower threshold (0.50)
+            const isDataDefinition = /const\s+[A-Z0-9_]+\s*=\s*[\[\{]/.test(chunk.content);
+            if (isDataDefinition && chunk.score > 0.50) { // Lower threshold for data
+                 if (!relevantChunks.find(c => c.id === chunk.id)) {
+                    console.log(`[CodeRAG] Boosting data definition ${chunk.id} (score=${chunk.score.toFixed(3)})`);
+                    relevantChunks.push(chunk);
+                    continue;
+                 }
+            }
+
             if (shouldInclude && !relevantChunks.find(c => c.id === chunk.id)) {
                 console.log(`[CodeRAG] Force including ${chunk.id} (mentioned in prompt)`);
                 relevantChunks.push(chunk);

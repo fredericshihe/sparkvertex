@@ -1,407 +1,231 @@
 /**
- * Centralized logic for injecting mobile adaptation styles and meta tags into HTML content.
- * This ensures consistent behavior across Upload Preview, Detail Modal, and Standalone PWA views.
+ * Centralized logic for injecting iframe safety scripts and point-and-click edit support.
+ * Minimal modifications for maximum fidelity to double-click open behavior.
+ * 
+ * @param content - The HTML content to process
+ * @param options - Configuration options (kept for backward compatibility, currently ignored)
  */
-export const getPreviewContent = (content: string | null) => {
+export const getPreviewContent = (content: string | null, options?: { raw?: boolean }): string => {
   if (!content) return '';
 
-  // --- HOT PATCH: Fix Legacy Apps (White Screen Issue) ---
-  // Replace unstable/broken CDN links in existing database records with stable ones.
-  let patchedContent = content;
-
-  // 1. Fix React & ReactDOM (Use cdnjs for stability)
-  patchedContent = patchedContent.replace(
-    /<script.*src=".*react(\.development|\.production\.min)\.js".*><\/script>/g,
-    ''
-  ).replace(
-    /<script.*src=".*react-dom(\.development|\.production\.min)\.js".*><\/script>/g,
-    ''
-  );
-
-  // 2. Fix Lucide React (Use specific stable version 0.263.1 from jsdelivr)
-  patchedContent = patchedContent.replace(
-    /<script.*src=".*lucide-react.*\.js".*><\/script>/g,
-    ''
-  );
-
-  // 3. Fix Babel (Use cdnjs)
-  patchedContent = patchedContent.replace(
-    /<script.*src=".*babel.*\.js".*><\/script>/g,
-    ''
-  );
-
-  // 3.1 Fix Framer Motion (Broken CDN link -> Remove or Replace)
-  // The user reported a 404 for cdnjs/framer-motion. We should remove it to prevent errors.
-  // If the code relies on it, it might break, but a 404 breaks it anyway.
-  // We can try to replace it with a working ESM link if we really wanted, but for now, stripping it is safer
-  // as we are moving to Tailwind/CSS animations.
-  patchedContent = patchedContent.replace(
-    /<script.*src=".*framer-motion.*\.js".*><\/script>/g,
-    ''
-  );
-
-  // 3.2 Fix QRCode (Broken jsdelivr link -> Use staticfile)
-  patchedContent = patchedContent.replace(
-    /https:\/\/cdn\.jsdelivr\.net\/npm\/qrcode@[\d\.]+\/build\/qrcode\.min\.js/g,
-    'https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js'
-  );
-
-  // 3.3 Fix Mixkit Audio (403 Forbidden -> Remove)
-  patchedContent = patchedContent.replace(
-    /src="[^"]*mixkit[^"]*\.mp3"/g, 
-    'src=""'
-  );
-  patchedContent = patchedContent.replace(
-    /new Audio\("[^"]*mixkit[^"]*\.mp3"\)/g, 
-    'null'
-  );
-
-  // 3.4 Fix Google Fonts (Use loli.net mirror for China)
-  patchedContent = patchedContent.replace(
-    /fonts\.googleapis\.com/g, 
-    'fonts.loli.net'
-  );
-  patchedContent = patchedContent.replace(
-    /fonts\.gstatic\.com/g, 
-    'gstatic.loli.net'
-  );
-
-  // 3.5 Fix Tailwind Grid Image (404 -> Data URI)
-  patchedContent = patchedContent.replace(
-    /https:\/\/cdn\.tailwindcss\.com\/img\/grid-slate-900\.svg/g, 
-    'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" fill="none" stroke="rgb(15 23 42 / 0.1)"%3E%3Cpath d="M0 .5H31.5V32"/%3E%3C/svg%3E'
-  );
-
-  // 4. Fix Broken Unsplash URLs (AI sometimes outputs just the ID)
-  // Example: src="photo-123..." -> src="https://images.unsplash.com/photo-123..."
-  patchedContent = patchedContent.replace(
-    /src=["'](photo-[^"']+)["']/g, 
-    'src="https://images.unsplash.com/$1?auto=format&fit=crop&w=800&q=80"'
-  );
-  // Handle unquoted src (e.g. src=photo-123)
-  patchedContent = patchedContent.replace(
-    /src=(photo-[^"'\s>]+)/g, 
-    'src="https://images.unsplash.com/$1?auto=format&fit=crop&w=800&q=80"'
-  );
-  patchedContent = patchedContent.replace(
-    /url\(['"]?(photo-[^'"\)]+)['"]?\)/g, 
-    'url("https://images.unsplash.com/$1?auto=format&fit=crop&w=800&q=80")'
-  );
-
-  // 6. Fix Common Three.js/React Cleanup Crash
-  // Pattern: mountRef.current.removeChild(renderer.domElement);
-  patchedContent = patchedContent.replace(
-    /mountRef\.current\.removeChild\(([^)]+)\);?/g,
-    'if (mountRef.current && $1) { try { mountRef.current.removeChild($1); } catch(e){} }'
-  );
-  
-  // Pattern: containerRef.current.removeChild(renderer.domElement);
-  patchedContent = patchedContent.replace(
-    /containerRef\.current\.removeChild\(([^)]+)\);?/g,
-    'if (containerRef.current && $1) { try { containerRef.current.removeChild($1); } catch(e){} }'
-  );
-
-  // 5. Re-inject stable scripts at the beginning of head
-  // We inject them before any other scripts to ensure they are available.
-  // Using cdn.staticfile.org (Seven Niu Cloud) for maximum stability in China, and jsdelivr for others.
-  
-  // Check if the content uses ESM React imports to avoid dual-loading
-  const hasESMReact = patchedContent.includes('esm.sh/react');
-  
-  const stableScripts = `
-    ${!hasESMReact ? '<script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js"></script>' : ''}
-    ${!hasESMReact ? '<script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js"></script>' : ''}
-    <script src="https://cdn.staticfile.org/prop-types/15.8.1/prop-types.min.js"></script>
-    ${!hasESMReact ? '<script src="https://cdn.jsdelivr.net/npm/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>' : ''}
-    <script src="https://cdn.staticfile.org/recharts/2.12.0/Recharts.min.js"></script>
-    <script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
-    <script>
-      // Polyfill for legacy code expecting global lucideReact
-      // The UMD build exports as 'lucide' (lowercase) in newer versions, or 'LucideReact' in older ones.
-      // We check all possibilities.
-      const source = window.lucide || window.LucideReact || window.lucideReact || {};
-      
-      window.lucideReact = new Proxy(source, {
-        get: function(target, prop) {
-          if (prop in target) {
-            return target[prop];
-          }
-          // If the icon is missing, return a dummy component to prevent crash
-          return function() { return null; };
-        }
-      });
-
-      // Polyfill for Recharts
-      // Ensure window.Recharts is available and proxied to prevent crashes if a component is missing
-      const rechartsSource = window.Recharts || {};
-      window.Recharts = new Proxy(rechartsSource, {
-        get: function(target, prop) {
-          if (prop in target) {
-            return target[prop];
-          }
-          console.warn('Missing Recharts component:', prop);
-          return function() { return null; };
-        }
-      });
-    </script>
-  `;
-
-  if (patchedContent.includes('<head>')) {
-    patchedContent = patchedContent.replace('<head>', `<head>${stableScripts}`);
-  } else {
-    patchedContent = `<head>${stableScripts}</head>${patchedContent}`;
-  }
-  // -------------------------------------------------------
-  
-  // Inject viewport for mobile adaptation and disable selection/callout
-  // viewport-fit=cover is important for notches
-  const viewportMeta = '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">';
-  
-  // Script to prevent crashes on iOS/Safari when accessing localStorage/sessionStorage in data: URI
-  // AND Security: Namespace storage to prevent collision/overwriting parent data
-  const safetyScript = `<script>
+  // Minimal error handler to catch and display errors
+  // IMPORTANT: Must include postMessage to parent for AI Fix feature to work
+  // NEW: Also detect blank screen (render failure) and trigger auto-fix
+  // ENHANCED: Also capture console.error to detect React errors
+  const minimalErrorHandler = `<script>
     (function() {
-      var mockStorage = {
-        _data: {},
-        getItem: function(k) { return this._data[k] || null; },
-        setItem: function(k, v) { this._data[k] = String(v); },
-        removeItem: function(k) { delete this._data[k]; },
-        clear: function() { this._data = {}; },
-        length: 0,
-        key: function(i) { return Object.keys(this._data)[i] || null; }
-      };
-
-      function patchStoragePrototype() {
-         try {
-             // If we can't replace the global object, we patch the prototype to use memory storage
-             // This affects all Storage instances (localStorage and sessionStorage)
-             var memoryStore = {}; // Shared store for fallback
-             
-             Storage.prototype.setItem = function(k, v) { memoryStore[k] = String(v); };
-             Storage.prototype.getItem = function(k) { return memoryStore[k] || null; };
-             Storage.prototype.removeItem = function(k) { delete memoryStore[k]; };
-             Storage.prototype.clear = function() { memoryStore = {}; };
-             Storage.prototype.key = function(i) { return Object.keys(memoryStore)[i] || null; };
-             console.warn('Patched Storage.prototype to use memory store');
-         } catch(e) {
-             console.error('Failed to patch Storage prototype', e);
-         }
-      }
-
-      try {
-        // 0. Test Storage Access
-        // This will throw SecurityError in restricted iframes (e.g. Safari) immediately
-        window.localStorage.setItem('__test__', '1');
-        window.localStorage.removeItem('__test__');
-
-        // 1. Storage Protection & Namespacing (If storage works)
-        // We wrap localStorage to prefix keys, preventing the app from accidentally overwriting parent site data.
-        
-        var originalSetItem = Storage.prototype.setItem;
-        var originalGetItem = Storage.prototype.getItem;
-        var originalRemoveItem = Storage.prototype.removeItem;
-        var originalClear = Storage.prototype.clear;
-        var originalKey = Storage.prototype.key;
-        
-        var PREFIX = 'app_data_'; 
-        
-        Storage.prototype.setItem = function(key, value) {
-            if (key.startsWith(PREFIX)) {
-                return originalSetItem.call(this, key, value);
-            }
-            return originalSetItem.call(this, PREFIX + key, value);
-        };
-        
-        Storage.prototype.getItem = function(key) {
-            if (key.startsWith(PREFIX)) {
-                return originalGetItem.call(this, key);
-            }
-            return originalGetItem.call(this, PREFIX + key);
-        };
-
-        Storage.prototype.removeItem = function(key) {
-            if (key.startsWith(PREFIX)) {
-                return originalRemoveItem.call(this, key);
-            }
-            return originalRemoveItem.call(this, PREFIX + key);
-        };
-        
-        Storage.prototype.clear = function() {
-            var keysToRemove = [];
-            for (var i = 0; i < this.length; i++) {
-                var key = originalKey.call(this, i);
-                if (key && key.startsWith(PREFIX)) {
-                    keysToRemove.push(key);
-                }
-            }
-            keysToRemove.forEach(function(k) {
-                originalRemoveItem.call(this, k);
-            }.bind(this));
-        };
-
-      } catch (e) {
-        // Fallback for restricted environments
-        // console.log('Storage access restricted, switching to memory storage');
-        
-        try {
-          // Try to replace the global properties
-          Object.defineProperty(window, 'localStorage', { value: mockStorage, configurable: true, writable: true });
-          Object.defineProperty(window, 'sessionStorage', { value: mockStorage, configurable: true, writable: true });
-        } catch(e2) {
-            console.warn("Failed to replace global storage objects, attempting prototype patch", e2);
-            patchStoragePrototype();
-        }
-      }
+      var errorList = [];
+      var hasRendered = false;
+      var renderCheckTimeout = null;
       
-      // 2. Security: Block Top Navigation
-      // Prevent the iframe from redirecting the main window
-      window.onbeforeunload = function() {
-        return null; // Prevent navigation if possible
-      };
-      
-      try {
-          // Attempt to freeze parent access (Soft protection)
-          if (window.parent !== window) {
-             // We cannot truly block window.parent access with allow-same-origin
-             // But we can try to hide it from casual scripts
-             // Object.defineProperty(window, 'parent', { value: null, writable: false }); // This often throws
+      // Override console.error to capture React and other framework errors
+      var originalConsoleError = console.error;
+      console.error = function() {
+        // Call original
+        originalConsoleError.apply(console, arguments);
+        
+        // Convert arguments to string
+        var msg = Array.prototype.slice.call(arguments).map(function(arg) {
+          if (arg instanceof Error) {
+            return arg.message + (arg.stack ? '\\n' + arg.stack : '');
           }
-      } catch(e) {}
-
-      // Suppress specific Three.js warnings
-      var originalWarn = console.warn;
-      console.warn = function() {
-        var args = Array.prototype.slice.call(arguments);
-        var msg = args.join(' ');
-        if (msg.includes("THREE.MeshLambertMaterial: 'flatShading' is not a property")) {
-            return;
+          return String(arg);
+        }).join(' ');
+        
+        // Skip known non-critical messages
+        if (msg.includes('Download the React DevTools') || 
+            msg.includes('Consider adding an error boundary') ||
+            msg.includes('Warning:') ||
+            msg.includes('validateDOMNesting')) {
+          return;
         }
-        originalWarn.apply(console, args);
+        
+        // Check if it looks like a real error
+        var isError = msg.includes('Error') || 
+                      msg.includes('error') || 
+                      msg.includes('Uncaught') ||
+                      msg.includes('undefined') ||
+                      msg.includes('null') ||
+                      msg.includes('is not defined') ||
+                      msg.includes('is not a function') ||
+                      msg.includes('Cannot read') ||
+                      msg.includes('Failed to');
+        
+        if (isError) {
+          var errorDetails = {
+            message: msg.substring(0, 500),
+            line: null,
+            column: null,
+            stack: null,
+            source: 'console.error'
+          };
+          
+          errorList.push(errorDetails);
+          
+          try {
+            window.parent.postMessage({ type: 'spark-app-error', error: errorDetails }, '*');
+          } catch(e) {}
+          
+          showErrorOverlay(msg, null);
+        }
       };
-
-      // Error handling
+      
+      // Minimal error overlay for debugging + notify parent for AI Fix
       window.onerror = function(msg, url, line, col, error) {
-        // Suppress "Script error." which is common in cross-origin iframes and provides no value
-        if (msg === 'Script error.' || msg === 'Script error') {
-            return true;
+        if (msg === 'Script error.' || msg === 'Script error') return true;
+        console.log('App Error captured:', msg, 'at line', line);
+        
+        var errorDetails = {
+          message: String(msg),
+          line: line,
+          column: col,
+          stack: error ? error.stack : null
+        };
+        
+        errorList.push(errorDetails);
+        
+        // Notify parent window for AI Fix feature
+        try {
+          window.parent.postMessage({ type: 'spark-app-error', error: errorDetails }, '*');
+        } catch(e) {}
+        
+        // Show error overlay in the iframe
+        showErrorOverlay(String(msg), line);
+        return false;
+      };
+      
+      function showErrorOverlay(msg, line) {
+        // Remove existing overlays first
+        var existing = document.querySelectorAll('.__spark_error_overlay__');
+        for (var i = 0; i < existing.length; i++) {
+          existing[i].remove();
         }
-        // Suppress "SecurityError: The operation is insecure." which happens when accessing storage in restricted iframes
-        if (String(msg).includes('SecurityError') || String(msg).includes('The operation is insecure')) {
-            console.warn('Suppressed SecurityError:', msg);
-            return true;
+        
+        var overlay = document.createElement('div');
+        overlay.className = '__spark_error_overlay__';
+        overlay.style.cssText = 'position:fixed;bottom:10px;right:10px;max-width:400px;background:rgba(220,38,38,0.95);color:white;padding:12px;border-radius:8px;font-family:monospace;font-size:12px;z-index:99999;box-shadow:0 4px 12px rgba(0,0,0,0.3);cursor:pointer;';
+        overlay.innerHTML = '<strong>Error:</strong> ' + String(msg).substring(0, 200) + (line ? ' (line ' + line + ')' : '');
+        overlay.onclick = function() { overlay.remove(); };
+        if (document.body) {
+          document.body.appendChild(overlay);
+        } else {
+          document.addEventListener('DOMContentLoaded', function() {
+            document.body.appendChild(overlay);
+          });
+        }
+        setTimeout(function() { if (overlay.parentNode) overlay.remove(); }, 15000);
+      }
+      
+      // Handle unhandled promise rejections
+      window.onunhandledrejection = function(event) {
+        var reason = String(event.reason);
+        // Suppress known non-critical errors
+        if (reason.includes('SecurityError') || reason.includes('NotAllowedError')) {
+          event.preventDefault();
+          return;
         }
         
         var errorDetails = {
-            message: String(msg),
-            line: line,
-            column: col,
-            stack: error ? error.stack : null
+          message: 'Unhandled Promise Rejection: ' + reason,
+          line: null,
+          column: null,
+          stack: event.reason && event.reason.stack ? event.reason.stack : null
         };
         
-        console.log('App Error:', errorDetails);
+        errorList.push(errorDetails);
         
-        // Show error overlay in the iframe
-        var overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(127,29,29,0.95);color:white;z-index:99999;padding:20px;overflow:auto;font-family:monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;backdrop-filter:blur(10px);';
-        overlay.innerHTML = '<div style="max-w-4xl w-full bg-black/50 p-6 rounded-xl border border-red-500/30 shadow-2xl"><div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;color:#f87171;border-bottom:1px solid rgba(239,68,68,0.3);padding-bottom:16px;"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg><h2 style="font-size:20px;font-weight:bold;margin:0;">Application Runtime Error</h2></div><div style="text-align:left;color:#fca5a5;margin-bottom:16px;font-weight:bold;word-break:break-word;">' + String(msg) + '</div>' + (error && error.stack ? '<pre style="text-align:left;background:rgba(0,0,0,0.3);padding:12px;border-radius:4px;border:1px solid rgba(255,255,255,0.1);overflow:auto;font-size:12px;color:#cbd5e1;white-space:pre-wrap;word-break:break-all;">' + error.stack + '</pre>' : '') + '<div style="margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.1);color:#94a3b8;font-size:14px;">Use the "AI Fix" button in the editor to resolve this issue.</div></div>';
-        document.body.appendChild(overlay);
-
-        // Notify parent about the error
         try {
-            window.parent.postMessage({ type: 'spark-app-error', error: errorDetails }, '*');
+          window.parent.postMessage({ type: 'spark-app-error', error: errorDetails }, '*');
         } catch(e) {}
-        return false;
+        
+        showErrorOverlay(reason, null);
       };
-
-      // Global Promise Rejection Handler for SecurityError
-      window.onunhandledrejection = function(event) {
-        const reason = String(event.reason);
-        if (reason.includes('SecurityError') || reason.includes('The operation is insecure')) {
-            console.warn('Suppressed Unhandled SecurityError:', event.reason);
-            event.preventDefault();
+      
+      // Blank screen detection - check if React rendered anything
+      function checkForBlankScreen() {
+        if (hasRendered) return;
+        
+        // Check if there's meaningful content in root or body
+        var root = document.getElementById('root');
+        var hasContent = false;
+        
+        if (root && root.children.length > 0 && root.innerHTML.trim() !== '') {
+          hasContent = true;
+        } else if (document.body && document.body.children.length > 1) {
+          // More than just our injected scripts
+          hasContent = true;
         }
-        // Suppress Audio Autoplay errors (NotAllowedError: play() failed)
-        if (reason.includes('NotAllowedError') || reason.includes('play failed')) {
-             console.warn('Suppressed Autoplay Error:', event.reason);
-             event.preventDefault();
+        
+        if (!hasContent) {
+          console.warn('Blank screen detected - app may have failed to render');
+          var blankError = {
+            message: 'App failed to render - blank screen detected',
+            type: 'blank-screen',
+            line: null,
+            column: null,
+            stack: null
+          };
+          try {
+            window.parent.postMessage({ type: 'spark-app-error', error: blankError, autoFix: true }, '*');
+          } catch(e) {}
+        } else {
+          hasRendered = true;
         }
+      }
+      
+      // Check for blank screen after a delay (give React time to render)
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+          renderCheckTimeout = setTimeout(checkForBlankScreen, 2000);
+        });
+      } else {
+        renderCheckTimeout = setTimeout(checkForBlankScreen, 2000);
+      }
+      
+      // Cancel blank screen check if we see any render activity
+      var origCreateElement = document.createElement;
+      document.createElement = function() {
+        hasRendered = true;
+        if (renderCheckTimeout) {
+          clearTimeout(renderCheckTimeout);
+          renderCheckTimeout = null;
+        }
+        return origCreateElement.apply(document, arguments);
       };
-
-      // Mobile Audio Unlocker
-      document.addEventListener('click', function() {
-        var AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) {
-          var ctx = new AudioContext();
-          if (ctx.state === 'suspended') {
-            ctx.resume();
-          }
-        }
-      }, { once: true });
-      document.addEventListener('touchstart', function() {
-        var AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (AudioContext) {
-          var ctx = new AudioContext();
-          if (ctx.state === 'suspended') {
-            ctx.resume();
-          }
-        }
-      }, { once: true });
     })();
   </script>`;
 
-  const injectedStyle = `<style>
-    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-    html { width: 100%; height: 100%; overflow: hidden; }
-    body { 
-      margin: 0; 
-      padding: 0; 
-      width: 100%; 
-      height: 100%; 
-      overflow-x: hidden; 
-      overflow-y: auto;
-      user-select: none; 
-      -webkit-user-select: none; 
-      -webkit-touch-callout: none; 
-      background-color: #0f172a;
-      color: #ffffff;
-      /* Safe area handling */
-      padding-top: env(safe-area-inset-top);
-      padding-bottom: env(safe-area-inset-bottom);
-      padding-left: env(safe-area-inset-left);
-      padding-right: env(safe-area-inset-right);
+  // Highlight style for point-and-click editing (inject in head to survive body replacement)
+  const highlightStyle = `<style id="spark-highlight-style">
+    .__spark_highlight__ {
+      outline: 2px dashed #3b82f6 !important;
+      background-color: rgba(59, 130, 246, 0.1) !important;
+      cursor: crosshair !important;
+      transition: all 0.1s ease;
+      position: relative;
+      z-index: 9999;
     }
-    ::-webkit-scrollbar { width: 0px; background: transparent; }
-    body { -ms-overflow-style: none; scrollbar-width: none; }
-    #root { width: 100%; height: 100%; }
   </style>`;
-  
+
+  // Probe script for point-and-click editing
   const probeScript = `
-    <style>
-      .__spark_highlight__ {
-        outline: 2px dashed #3b82f6 !important;
-        background-color: rgba(59, 130, 246, 0.1) !important;
-        cursor: crosshair !important;
-        transition: all 0.1s ease;
-        position: relative;
-        z-index: 9999;
-      }
-    </style>
-    <script>
+    <script data-spark-injected="true">
       (function() {
-        let isEditMode = false;
-        let hoveredElement = null;
-        const originalRAF = window.requestAnimationFrame;
+        var isEditMode = false;
+        var hoveredElement = null;
+        var originalRAF = window.requestAnimationFrame;
+        var listenersAttached = false;
 
         function getElementPath(element) {
-            const path = [];
+            var path = [];
             while (element && element.nodeType === Node.ELEMENT_NODE) {
-                let selector = element.nodeName.toLowerCase();
+                var selector = element.nodeName.toLowerCase();
                 if (element.id) {
                     selector += '#' + element.id;
                     path.unshift(selector);
                     break;
                 } else {
-                    let sib = element, nth = 1;
+                    var sib = element, nth = 1;
                     while (sib = sib.previousElementSibling) {
                         if (sib.nodeName.toLowerCase() == selector)
                            nth++;
@@ -438,74 +262,234 @@ export const getPreviewContent = (content: string | null) => {
           if (!isEditMode) return;
           e.preventDefault();
           e.stopPropagation();
+          e.stopImmediatePropagation();
           
-          const el = e.target;
-          const parent = el.parentElement;
-          const info = {
+          var el = e.target;
+          var parent = el.parentElement;
+          var info = {
             tagName: el.tagName.toLowerCase(),
-            className: el.className.replace('__spark_highlight__', '').trim(),
+            className: el.className.replace ? el.className.replace('__spark_highlight__', '').trim() : '',
             innerText: el.innerText ? el.innerText.substring(0, 50) : '',
             path: getElementPath(el),
             parentTagName: parent ? parent.tagName.toLowerCase() : null,
-            parentClassName: parent ? parent.className.replace('__spark_highlight__', '').trim() : null
+            parentClassName: parent && parent.className && parent.className.replace ? parent.className.replace('__spark_highlight__', '').trim() : null
           };
           
           window.parent.postMessage({ type: 'spark-element-selected', payload: info }, '*');
+          return false;
         }
 
-        window.addEventListener('message', (event) => {
+        // Block all interactive events in edit mode
+        function blockEvent(e) {
+          if (!isEditMode) return;
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          return false;
+        }
+        
+        function attachListeners() {
+          if (listenersAttached) return;
+          document.addEventListener('mouseover', handleMouseOver, true);
+          document.addEventListener('mouseout', handleMouseOut, true);
+          document.addEventListener('click', handleClick, true);
+          document.addEventListener('mousedown', blockEvent, true);
+          document.addEventListener('mouseup', blockEvent, true);
+          document.addEventListener('touchstart', blockEvent, true);
+          document.addEventListener('touchend', blockEvent, true);
+          document.addEventListener('keydown', blockEvent, true);
+          document.addEventListener('keyup', blockEvent, true);
+          document.addEventListener('submit', blockEvent, true);
+          listenersAttached = true;
+        }
+        
+        function detachListeners() {
+          document.removeEventListener('mouseover', handleMouseOver, true);
+          document.removeEventListener('mouseout', handleMouseOut, true);
+          document.removeEventListener('click', handleClick, true);
+          document.removeEventListener('mousedown', blockEvent, true);
+          document.removeEventListener('mouseup', blockEvent, true);
+          document.removeEventListener('touchstart', blockEvent, true);
+          document.removeEventListener('touchend', blockEvent, true);
+          document.removeEventListener('keydown', blockEvent, true);
+          document.removeEventListener('keyup', blockEvent, true);
+          document.removeEventListener('submit', blockEvent, true);
+          listenersAttached = false;
+        }
+
+        window.addEventListener('message', function(event) {
           if (event.data && event.data.type === 'toggle-edit-mode') {
-            isEditMode = event.data.enabled;
-            if (isEditMode) {
-              document.body.addEventListener('mouseover', handleMouseOver, true);
-              document.body.addEventListener('mouseout', handleMouseOut, true);
-              document.body.addEventListener('click', handleClick, true);
+            var shouldEnable = event.data.enabled;
+            
+            if (shouldEnable) {
+              isEditMode = true;
+              attachListeners();
+              
+              // Ensure highlight style exists (may have been lost during content update)
+              if (!document.getElementById('spark-highlight-style')) {
+                var highlightStyle = document.createElement('style');
+                highlightStyle.id = 'spark-highlight-style';
+                highlightStyle.innerHTML = '.__spark_highlight__ { outline: 2px dashed #3b82f6 !important; background-color: rgba(59, 130, 246, 0.1) !important; cursor: crosshair !important; transition: all 0.1s ease; position: relative; z-index: 9999; }';
+                document.head.appendChild(highlightStyle);
+              }
               
               // Pause animations for easier selection
-              const style = document.createElement('style');
-              style.id = 'spark-pause-animations';
-              style.innerHTML = '* { animation-play-state: paused !important; transition: none !important; }';
-              document.head.appendChild(style);
+              if (!document.getElementById('spark-pause-animations')) {
+                var style = document.createElement('style');
+                style.id = 'spark-pause-animations';
+                // Removed pointer-events: auto !important to prevent overlays from blocking clicks
+                style.innerHTML = '* { animation-play-state: paused !important; transition: none !important; cursor: crosshair !important; }';
+                document.head.appendChild(style);
+              }
 
               // Freeze JS animations (RAF)
               window.requestAnimationFrame = function() { return -1; };
             } else {
-              document.body.removeEventListener('mouseover', handleMouseOver, true);
-              document.body.removeEventListener('mouseout', handleMouseOut, true);
-              document.body.removeEventListener('click', handleClick, true);
+              isEditMode = false;
+              detachListeners();
+              
               if (hoveredElement) {
                 hoveredElement.classList.remove('__spark_highlight__');
                 hoveredElement = null;
               }
               
               // Resume animations
-              const style = document.getElementById('spark-pause-animations');
+              var style = document.getElementById('spark-pause-animations');
               if (style) style.remove();
 
               // Restore RAF
               window.requestAnimationFrame = originalRAF;
             }
           }
+          
+          // Handle live content updates (for quick edits)
+          if (event.data && event.data.type === 'spark-update-content') {
+            // For React apps, we need to re-render the entire app
+            var parser = new DOMParser();
+            var newDoc = parser.parseFromString(event.data.html, 'text/html');
+            
+            // Save edit mode state
+            // If shouldRestoreEditMode is explicitly false, we don't restore
+            var shouldRestore = event.data.shouldRestoreEditMode !== false;
+            var wasEditMode = isEditMode && shouldRestore;
+            
+            // Clear any highlight
+            if (hoveredElement) {
+              hoveredElement.classList.remove('__spark_highlight__');
+              hoveredElement = null;
+            }
+            
+            // DO NOT detach listeners - keep them active on document
+            // This ensures we don't lose event capture during DOM replacement
+            // if (listenersAttached) {
+            //   detachListeners();
+            // }
+            
+            // Strategy: Replace document content and re-execute scripts
+            var newBody = newDoc.body;
+            
+            if (newBody) {
+              // Find and clear the React root
+              var root = document.getElementById('root');
+              if (root) {
+                root.innerHTML = '';
+              }
+              
+              // Remove old user scripts (type="text/babel")
+              var oldScripts = document.querySelectorAll('script[type="text/babel"]');
+              for (var i = 0; i < oldScripts.length; i++) {
+                oldScripts[i].remove();
+              }
+              
+              // Replace entire body innerHTML
+              document.body.innerHTML = newBody.innerHTML;
+              
+              // Re-inject highlight style (it was removed with body innerHTML)
+              if (!document.getElementById('spark-highlight-style')) {
+                var highlightStyle = document.createElement('style');
+                highlightStyle.id = 'spark-highlight-style';
+                highlightStyle.innerHTML = '.__spark_highlight__ { outline: 2px dashed #3b82f6 !important; background-color: rgba(59, 130, 246, 0.1) !important; cursor: crosshair !important; transition: all 0.1s ease; position: relative; z-index: 9999; }';
+                document.head.appendChild(highlightStyle);
+              }
+              
+              // Find and re-execute the main babel script
+              var babelScripts = newDoc.querySelectorAll('script[type="text/babel"]');
+              for (var j = 0; j < babelScripts.length; j++) {
+                var script = babelScripts[j];
+                var newScript = document.createElement('script');
+                newScript.type = 'text/babel';
+                newScript.textContent = script.textContent;
+                document.body.appendChild(newScript);
+              }
+              
+              // Re-trigger Babel transformation
+              if (window.Babel && window.Babel.transformScriptTags) {
+                try {
+                  window.Babel.transformScriptTags();
+                } catch (e) {
+                  console.warn('Babel re-transform failed:', e);
+                }
+              }
+              
+              // Restore edit mode state after React re-renders
+              // Use setTimeout to wait for React to finish rendering
+              if (wasEditMode) {
+                var restoreEditMode = function() {
+                  isEditMode = true;
+                  
+                  // Ensure highlight style exists (in case it was lost)
+                  if (!document.getElementById('spark-highlight-style')) {
+                    var highlightStyle = document.createElement('style');
+                    highlightStyle.id = 'spark-highlight-style';
+                    highlightStyle.innerHTML = '.__spark_highlight__ { outline: 2px dashed #3b82f6 !important; background-color: rgba(59, 130, 246, 0.1) !important; cursor: crosshair !important; transition: all 0.1s ease; position: relative; z-index: 9999; }';
+                    document.head.appendChild(highlightStyle);
+                  }
+                  
+                  // Re-inject animation pause style
+                  if (!document.getElementById('spark-pause-animations')) {
+                    var pauseStyle = document.createElement('style');
+                    pauseStyle.id = 'spark-pause-animations';
+                    // Removed pointer-events: auto !important to prevent overlays from blocking clicks
+                    pauseStyle.innerHTML = '* { animation-play-state: paused !important; transition: none !important; cursor: crosshair !important; }';
+                    document.head.appendChild(pauseStyle);
+                  }
+                  
+                  // Freeze RAF again
+                  window.requestAnimationFrame = function() { return -1; };
+                  
+                  // Force refresh listeners to ensure they bind to current document state
+                  detachListeners();
+                  attachListeners();
+                };
+                
+                // Restore immediately and after delays to catch React re-renders
+                restoreEditMode();
+                setTimeout(restoreEditMode, 50);
+                setTimeout(restoreEditMode, 150);
+                setTimeout(restoreEditMode, 500);
+              }
+            }
+            
+            window.parent.postMessage({ type: 'spark-content-updated' }, '*');
+          }
         });
       })();
     </script>
   `;
 
-  let newContent = patchedContent;
-  if (newContent.includes('<head>')) {
-      newContent = newContent.replace('<head>', `<head>${viewportMeta}${safetyScript}${injectedStyle}`);
-  } else if (newContent.includes('<html>')) {
-      newContent = newContent.replace('<html>', `<html><head>${viewportMeta}${safetyScript}${injectedStyle}</head>`);
-  } else {
-      newContent = `<head>${viewportMeta}${safetyScript}${injectedStyle}</head>${newContent}`;
-  }
+  // Inject error handler AND highlight style AND probe script into head
+  // This ensures they persist even if body.innerHTML is replaced
+  let result = content;
+  const scriptsToInject = minimalErrorHandler + highlightStyle + probeScript;
   
-  // Inject probe script before body end
-  if (newContent.includes('</body>')) {
-      newContent = newContent.replace('</body>', `${probeScript}</body>`);
+  if (result.includes('</head>')) {
+    result = result.replace('</head>', `${scriptsToInject}</head>`);
+  } else if (result.includes('<body>')) {
+    // Fallback if no head
+    result = result.replace('<body>', `${scriptsToInject}<body>`);
   } else {
-      newContent += probeScript;
+    result = scriptsToInject + result;
   }
 
-  return newContent;
+  return result;
 };

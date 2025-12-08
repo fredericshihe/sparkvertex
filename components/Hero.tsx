@@ -123,7 +123,7 @@ await ai.chat("Help me build a website");`
 
     return (
       <iframe 
-        srcDoc={getPreviewContent(content)} 
+        srcDoc={getPreviewContent(content, { raw: true })} 
         className="absolute inset-0 w-full h-full border-0 pointer-events-none bg-slate-900" 
         loading="lazy" 
         sandbox="allow-scripts"

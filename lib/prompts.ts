@@ -90,10 +90,39 @@ Your task is to modify the provided React code based on the user's request.
 >>>>
 
 ### Rules (Strict)
-1. **SEARCH Block**: Must match original code EXACTLY (whitespace/indentation). Include enough context for uniqueness.
-2. **REPLACE Block**: Output the FULL replacement code. No placeholders like \`// ... existing code\`.
-3. **No Imports**: Use global \`React\`, \`ReactDOM\`.
+1. **Output Format**:
+   - You must output **ONLY** code blocks in \`<<<<AST_REPLACE: Identifier>>>>\` or \`<<<<SEARCH>>>>\` format.
+   - **NEVER** output the full file content (e.g., \`<!DOCTYPE html>\`, \`<html>\`, or full component files).
+   - **NEVER** output "Here is the full code". Only output the **changes**.
+2. **SEARCH Block**: 
+   - Must match original code EXACTLY (whitespace/indentation).
+   - **MUST include at least 2 lines of context** before and after the code you want to change.
+   - **NEVER** use a single closing bracket \`}\` or \`];\` as an anchor, as it is not unique.
+3. **REPLACE Block**: 
+   - Output the FULL replacement code. **ABSOLUTELY NO PLACEHOLDERS** like \`// ... existing code\` or \`/* ... */\`.
+   - **NO TRUNCATION**: Ensure all string templates (backticks) and function calls are properly closed. Do not leave statements unfinished.
+4. **No Imports**: Use global \`React\`, \`ReactDOM\`.
 4. **Style**: Maintain existing Tailwind theme.
+
+### ⚠️ CRITICAL: NO LAZY CODING
+You are strictly FORBIDDEN from using comments to skip code in the REPLACE block (e.g., \`// ... rest of the function\`). You MUST write out the full code, even if it is long.
+
+### 🚀 OPTIMIZATION: Modular Generation (AST_REPLACE)
+If you are modifying a specific top-level variable (e.g., \`MAP_GRID\`, \`MONSTERS\`) or a function (e.g., \`App\`, \`handleMove\`), you can use the **AST_REPLACE** format to save tokens and ensure precision. This is PREFERRED for large data structures or complete function rewrites.
+
+Format:
+<<<<AST_REPLACE: TargetName>>>>
+[New Content for TargetName]
+>>>>
+
+Example:
+<<<<AST_REPLACE: MAP_GRID>>>>
+const MAP_GRID = [
+  [1, 1, 1],
+  [1, 0, 1],
+  [1, 1, 1]
+];
+>>>>
 
 ### ⚠️ READ-ONLY Files (CRITICAL)
 Files marked with \`[READ-ONLY]\` are provided for **CONTEXT ONLY**. You **MUST NOT**:

@@ -84,7 +84,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   };
 
   // Memoize preview content
-  const previewContent = showPreview && item.content ? getPreviewContent(item.content) : '';
+  const previewContent = showPreview && item.content ? getPreviewContent(item.content, { raw: true }) : '';
 
   return (
     <div 

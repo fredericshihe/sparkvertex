@@ -64,22 +64,38 @@ export async function POST(request: Request) {
 
     // Note: Credit deduction is now handled entirely in the Edge Function to ensure atomicity and correct pricing based on model usage.
     
-    // 1. Create Task in DB
+    // 1. Create Task in DB (with Retry)
     // Truncate prompt to avoid huge payload issues in DB (Postgres text limit is high, but network/timeout might be an issue)
     const MAX_PROMPT_LENGTH = 50000; // 50KB limit for DB storage
     const storedPrompt = body.user_prompt && body.user_prompt.length > MAX_PROMPT_LENGTH 
         ? body.user_prompt.substring(0, MAX_PROMPT_LENGTH) + '... (truncated)' 
         : body.user_prompt;
 
-    const { data: task, error: taskError } = await adminSupabase
-      .from('generation_tasks')
-      .insert({
-        user_id: session.user.id,
-        prompt: storedPrompt,
-        status: 'pending'
-      })
-      .select()
-      .single();
+    let task = null;
+    let taskError = null;
+    
+    // Retry logic for unstable connections (e.g. ECONNRESET)
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        const result = await adminSupabase
+          .from('generation_tasks')
+          .insert({
+            user_id: session.user.id,
+            prompt: storedPrompt,
+            status: 'pending'
+          })
+          .select()
+          .single();
+          
+        if (!result.error && result.data) {
+            task = result.data;
+            taskError = null;
+            break;
+        }
+        
+        taskError = result.error;
+        console.warn(`[Task Creation] Attempt ${attempt} failed:`, result.error?.message);
+        if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 1000));
+    }
 
     if (taskError || !task) {
         console.error('Task Creation Error:', taskError);
@@ -104,44 +120,41 @@ export async function POST(request: Request) {
     let chunksSelected = 0;
 
     try {
-        // A. 意图分类（如果是修改请求）
-        if (body.type === 'modification' && body.user_prompt) {
-            const intentStartTime = Date.now();
-            intentResult = await classifyUserIntent(body.user_prompt);
-            intentLatencyMs = Date.now() - intentStartTime;
-            console.log(`[IntentClassifier] Intent: ${intentResult.intent} (confidence: ${intentResult.confidence}, source: ${intentResult.source}, ${intentLatencyMs}ms)`);
-        }
-
-        // B. Reference RAG (Similar Apps)
-        // DISABLED: Reference RAG is currently disabled for all modes (Generation & Modification) to save tokens and reduce noise.
-        /*
-        if (body.type !== 'modification') {
-            ragContext = await getRAGContext(adminSupabase, body.user_prompt);
-            if (ragContext) {
-                console.log(`[RAG] Reference Context generated for task ${task.id}`);
-            }
-        } else {
-            console.log(`[RAG] Skipping Reference RAG for modification task to save tokens.`);
-        }
-        */
-       console.log('[RAG] Reference RAG skipped (Global Disable).');
-
-        // C. Codebase RAG (For Modifications)
-        // If this is a modification request (type='modification') and we have the current code
-        console.log(`[CodeRAG] Check - type: ${body.type}, has current_code: ${!!body.current_code}, code length: ${body.current_code?.length || 0}`);
-        
-        const codeRagStartTime = Date.now();
-        if (body.type === 'modification' && body.current_code) {
-             console.log(`[CodeRAG] Analyzing code for modification... Length: ${body.current_code.length}`);
-             const relevantChunks = await findRelevantCodeChunks(
+        // Parallel Execution: Intent Classification & Code RAG
+        // This significantly reduces latency by running independent tasks concurrently.
+        if (body.type === 'modification' && body.user_prompt && body.current_code) {
+            console.log('[Parallel] Starting Intent Classification and Code RAG...');
+            
+            const intentPromise = classifyUserIntent(body.user_prompt);
+            
+            const ragPromise = findRelevantCodeChunks(
                  body.user_prompt, 
                  body.current_code,
                  process.env.NEXT_PUBLIC_SUPABASE_URL!,
                  process.env.SUPABASE_SERVICE_ROLE_KEY!
-             );
-             ragLatencyMs = Date.now() - codeRagStartTime;
+            );
 
-             // 记录 chunk 统计
+            // Wait for both to complete
+            const [intentRes, relevantChunks] = await Promise.all([intentPromise, ragPromise]);
+            
+            // Update results
+            intentResult = intentRes;
+            intentLatencyMs = intentResult.latencyMs;
+            ragLatencyMs = Date.now() - ragStartTime - intentLatencyMs; // Approximate
+
+            console.log(`[IntentClassifier] Intent: ${intentResult.intent} (confidence: ${intentResult.confidence}, source: ${intentResult.source}, ${intentLatencyMs}ms)`);
+            
+            // Scheme 2: Modular Generation Hint
+            // If we have explicit targets, encourage the AI to use AST_REPLACE
+            if (intentResult.targets && intentResult.targets.length > 0) {
+                const targetHint = `\n\n### 🚀 OPTIMIZATION HINT\nI have detected that you likely need to modify these specific components: ${intentResult.targets.join(', ')}.\nPlease consider using the \`<<<<AST_REPLACE: TargetName>>>>\` format for these to ensure precision and avoid truncation.`;
+                // Append to user prompt effectively (or prepend to code context)
+                // We'll append it to the codeContext later or just modify the prompt passed to LLM?
+                // Let's append it to codeContext for visibility
+                codeContext += targetHint;
+            }
+
+            // Process RAG Results
              chunksTotal = body.current_code.split(/\n(?=(?:const|function|class|export)\s)/).length;
              chunksSelected = relevantChunks?.length || 0;
 
@@ -149,23 +162,32 @@ export async function POST(request: Request) {
                  codeContext = `\n\n### RELEVANT CODE CONTEXT (RAG)\nThe following code sections are most relevant to the user's request. Focus your changes here if possible:\n\n`;
                  codeContext += relevantChunks.map(c => `// --- Section: ${c.id} ---\n${c.content}\n`).join('\n');
                  
-                 // Log which chunks were found relevant (helps debug compression rates)
                  const relevantIds = relevantChunks.map(c => c.id);
                  console.log(`[CodeRAG] Found ${relevantChunks.length} relevant chunks: ${relevantIds.join(', ')}`);
                  
-                 // D. Smart Context Compression
-                 // 对所有大于 10KB 的代码一视同仁地进行压缩
+                 // D. Smart Context Compression (Intent-Aware)
                  if (body.current_code.length > 10000) {
-                     // If code is large (> 10KB), compress it by collapsing irrelevant chunks
                      console.log('[CodeRAG] Code is large, applying Smart Compression...');
                      const compressionStartTime = Date.now();
-                     compressedCode = compressCode(body.current_code, relevantIds);
+                     
+                     // Pass explicit targets from intent classification to force expansion
+                     const explicitTargets = intentResult?.targets || [];
+                     
+                     // Pass intent to compressCode for dynamic threshold adjustment
+                     const detectedIntent = intentResult?.intent || UserIntent.UNKNOWN;
+                     compressedCode = compressCode(body.current_code, relevantIds, explicitTargets, detectedIntent);
+                     
                      compressionLatencyMs = Date.now() - compressionStartTime;
                      const compressionRate = ((1 - compressedCode.length / body.current_code.length) * 100).toFixed(1);
                      console.log(`[CodeRAG] Compressed: ${body.current_code.length} → ${compressedCode.length} chars (${compressionRate}% reduction, ${compressionLatencyMs}ms)`);
                  }
              }
+        } else if (body.type === 'modification' && body.user_prompt) {
+            // Fallback for cases without current_code (shouldn't happen in normal flow)
+            intentResult = await classifyUserIntent(body.user_prompt);
         }
+
+        console.log('[RAG] Reference RAG skipped (Global Disable).');
 
     } catch (ragError) {
         console.warn('[RAG] Failed to generate context:', ragError);
@@ -202,7 +224,37 @@ export async function POST(request: Request) {
         });
     }
     
-    return NextResponse.json({ taskId: task.id, ragContext, codeContext, compressedCode });
+    // Construct RAG Summary for UI
+    let ragSummary = '';
+    if (body.type === 'modification') {
+        const intentMap: Record<string, string> = {
+            'UI_MODIFICATION': '界面调整',
+            'LOGIC_MODIFICATION': '逻辑修改',
+            'BUG_FIX': '问题修复',
+            'NEW_FEATURE': '新功能开发',
+            'PERFORMANCE': '性能优化',
+            'REFACTOR': '代码重构',
+            'UNKNOWN': '通用修改'
+        };
+
+        const intent = intentResult?.intent || 'UNKNOWN';
+        const intentCn = intentMap[intent] || '通用修改';
+        
+        const compressionRate = compressedCode && body.current_code 
+            ? ((1 - compressedCode.length / body.current_code.length) * 100).toFixed(0)
+            : '0';
+        
+        ragSummary = `识别意图：${intentCn}\n分析结果：已定位 ${chunksSelected} 个核心模块，上下文优化 ${compressionRate}%`;
+    }
+
+    return NextResponse.json({ 
+        taskId: task.id, 
+        ragContext, 
+        codeContext, 
+        compressedCode, 
+        ragSummary,
+        targets: intentResult?.targets || [] // Return targets for client-side patch safety
+    });
 
     /* 
     // Old Logic Removed
