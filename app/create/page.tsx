@@ -3534,7 +3534,7 @@ Please fix the code to make the app display properly.`;
                 <h2 className="text-3xl font-bold text-white">{t.create.category_title}</h2>
                 <p className="text-slate-400">{t.create.category_subtitle}</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto pt-2">
                 {CATEGORIES.map(cat => (
                   <button
                     key={cat.id}
