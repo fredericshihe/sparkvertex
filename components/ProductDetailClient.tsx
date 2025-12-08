@@ -431,7 +431,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
               <iframe 
                 srcDoc={getPreviewContent(item.content || '', { raw: true })}
                 className="w-full h-full border-0 bg-white" 
-                sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups"
+                sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads allow-same-origin"
                 allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; fullscreen; picture-in-picture; display-capture; screen-wake-lock"
                 style={{ touchAction: 'manipulation' }}
               />
