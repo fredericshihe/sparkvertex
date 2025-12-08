@@ -42,6 +42,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   const [showShareModal, setShowShareModal] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [shareImageUrl, setShareImageUrl] = useState<string>('');
 
   const [qrIconDataUrl, setQrIconDataUrl] = useState<string>('');
@@ -410,6 +411,34 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
             </button>
           )}
 
+          {/* Action Buttons (Print/Export) */}
+          <div className={`absolute top-4 right-4 z-[70] flex gap-2 ${viewMode === 'app' ? 'opacity-0 hover:opacity-100 transition-opacity' : ''}`}>
+             <button 
+               onClick={() => {
+                 iframeRef.current?.contentWindow?.print();
+               }}
+               className="w-10 h-10 rounded-full bg-slate-900/50 backdrop-blur text-white border border-white/10 flex items-center justify-center hover:bg-slate-800 transition touch-manipulation active:scale-90"
+               title={language === 'zh' ? '打印' : 'Print'}
+             >
+               <i className="fa-solid fa-print"></i>
+             </button>
+             <button 
+               onClick={() => {
+                 const blob = new Blob([item.content || ''], { type: 'text/html' });
+                 const url = URL.createObjectURL(blob);
+                 const a = document.createElement('a');
+                 a.href = url;
+                 a.download = `${item.title || 'export'}.html`;
+                 a.click();
+                 URL.revokeObjectURL(url);
+               }}
+               className="w-10 h-10 rounded-full bg-slate-900/50 backdrop-blur text-white border border-white/10 flex items-center justify-center hover:bg-slate-800 transition touch-manipulation active:scale-90"
+               title={language === 'zh' ? '导出 HTML' : 'Export HTML'}
+             >
+               <i className="fa-solid fa-file-export"></i>
+             </button>
+          </div>
+
           <div className={`flex-grow relative bg-slate-900 overflow-hidden ${viewMode === 'app' ? 'w-full h-full' : 'flex justify-center items-center'}`}>
             <div 
               className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 ${
@@ -429,6 +458,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
               }`}></div>
 
               <iframe 
+                ref={iframeRef}
                 srcDoc={getPreviewContent(item.content || '', { raw: true })}
                 className="w-full h-full border-0 bg-white" 
                 sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups"

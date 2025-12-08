@@ -4068,13 +4068,39 @@ Please fix the code to make the app display properly.`;
             <span className="text-sm font-bold text-slate-400">{t.create.preview_mode}</span>
           </div>
           
-          <button 
-            onClick={handleUpload}
-            className="px-3 py-1.5 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-lg text-xs font-bold transition shadow-lg flex items-center gap-1.5"
-          >
-            <i className="fa-solid fa-rocket"></i> 
-            <span>{t.create.publish}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => iframeRef.current?.contentWindow?.print()}
+              className="w-8 h-8 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg flex items-center justify-center transition"
+              title={language === 'zh' ? '打印' : 'Print'}
+            >
+              <i className="fa-solid fa-print"></i>
+            </button>
+            
+            <button 
+              onClick={() => {
+                const blob = new Blob([generatedCode], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'index.html';
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="w-8 h-8 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg flex items-center justify-center transition"
+              title={language === 'zh' ? '导出 HTML' : 'Export HTML'}
+            >
+              <i className="fa-solid fa-file-export"></i>
+            </button>
+
+            <button 
+              onClick={handleUpload}
+              className="px-3 py-1.5 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-lg text-xs font-bold transition shadow-lg flex items-center gap-1.5"
+            >
+              <i className="fa-solid fa-rocket"></i> 
+              <span>{t.create.publish}</span>
+            </button>
+          </div>
         </div>
         
         {/* Preview Container */}
