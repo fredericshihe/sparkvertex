@@ -5,7 +5,7 @@
  * @param content - The HTML content to process
  * @param options - Configuration options (kept for backward compatibility, currently ignored)
  */
-export const getPreviewContent = (content: string | null, options?: { raw?: boolean }): string => {
+export const getPreviewContent = (content: string | null, options?: { raw?: boolean; appId?: string }): string => {
   if (!content) return '';
 
   // Minimal error handler to catch and display errors

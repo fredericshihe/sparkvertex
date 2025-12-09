@@ -36,6 +36,7 @@ import PaymentModal from '@/components/PaymentModal';
 import RewardModal from '@/components/RewardModal';
 import ManageOrdersModal from '@/components/ManageOrdersModal';
 import CreditPurchaseModal from '@/components/CreditPurchaseModal';
+import ConfirmModal from '@/components/ConfirmModal';
 import CityBackground from '@/components/CityBackground';
 import WeChatGuard from '@/components/WeChatGuard';
 import StorageManager from '@/components/StorageManager';
@@ -81,6 +82,7 @@ export default function RootLayout({
               <RewardModal />
               <ManageOrdersModal />
               <CreditPurchaseModal />
+              <ConfirmModal />
             </ModalProvider>
           </ToastProvider>
         </LanguageProvider>

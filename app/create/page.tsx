@@ -112,7 +112,7 @@ function CreateContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t, language } = useLanguage();
-  const { openLoginModal, openCreditPurchaseModal } = useModal();
+  const { openLoginModal, openCreditPurchaseModal, openConfirmModal } = useModal();
   const { success: toastSuccess, error: toastError } = useToast();
   
   const isFromUpload = searchParams.get('from') === 'upload';
@@ -1120,10 +1120,15 @@ function CreateContent() {
       router.push('/');
       return;
     }
-    if (confirm(t.create.confirm_exit)) {
-      localStorage.removeItem(STORAGE_KEY);
-      router.push('/');
-    }
+    openConfirmModal({
+      title: language === 'zh' ? '确认退出' : 'Confirm Exit',
+      message: t.create.confirm_exit,
+      confirmText: language === 'zh' ? '退出' : 'Exit',
+      onConfirm: () => {
+        localStorage.removeItem(STORAGE_KEY);
+        router.push('/');
+      }
+    });
   };
 
   // Full Screen Toggle
@@ -1272,28 +1277,27 @@ function CreateContent() {
         ? `AI 将优化您的提示词，使其更加详细和专业。此操作将消耗 ${OPTIMIZE_COST} 积分，是否继续？`
         : `AI will optimize your prompt to make it more detailed and professional. This will cost ${OPTIMIZE_COST} credits. Continue?`;
 
-      if (!confirm(confirmMsg)) return;
+      const executeOptimization = async () => {
+        setIsOptimizingPrompt(true);
 
-      setIsOptimizingPrompt(true);
+        // Deduct credits first
+        const { error: deductError } = await supabase.rpc('deduct_credits', { amount: OPTIMIZE_COST });
+        if (deductError) {
+          console.error('Failed to deduct credits:', deductError);
+          toastError(language === 'zh' ? '积分扣除失败' : 'Failed to deduct credits');
+          setIsOptimizingPrompt(false);
+          return;
+        }
 
-      // Deduct credits first
-      const { error: deductError } = await supabase.rpc('deduct_credits', { amount: OPTIMIZE_COST });
-      if (deductError) {
-        console.error('Failed to deduct credits:', deductError);
-        toastError(language === 'zh' ? '积分扣除失败' : 'Failed to deduct credits');
-        setIsOptimizingPrompt(false);
-        return;
-      }
+        // Update local credits optimistically
+        setCredits(prev => Math.max(0, prev - OPTIMIZE_COST));
 
-      // Update local credits optimistically
-      setCredits(prev => Math.max(0, prev - OPTIMIZE_COST));
+        const systemPrompt = language === 'zh'
+          ? '你是一个专业的需求分析师和产品经理。你的任务是优化用户提供的应用描述，使其更加详细、具体、可执行，同时保持用户的原意。'
+          : 'You are a professional requirements analyst and product manager. Your task is to optimize the user-provided app description to make it more detailed, specific, and actionable while preserving the original intent.';
 
-      const systemPrompt = language === 'zh'
-        ? '你是一个专业的需求分析师和产品经理。你的任务是优化用户提供的应用描述，使其更加详细、具体、可执行，同时保持用户的原意。'
-        : 'You are a professional requirements analyst and product manager. Your task is to optimize the user-provided app description to make it more detailed, specific, and actionable while preserving the original intent.';
-
-      const userPrompt = language === 'zh'
-        ? `请优化以下应用描述，使其更加详细和专业。要求：
+        const userPrompt = language === 'zh'
+          ? `请优化以下应用描述，使其更加详细和专业。要求：
 1. 保持原有意图不变
 2. 添加具体的功能细节和用户场景
 3. 使用清晰、专业的语言
@@ -1302,7 +1306,7 @@ function CreateContent() {
 
 原始描述：
 ${wizardData.description}`
-        : `Please optimize the following app description to make it more detailed and professional. Requirements:
+          : `Please optimize the following app description to make it more detailed and professional. Requirements:
 1. Keep the original intent unchanged
 2. Add specific feature details and user scenarios
 3. Use clear, professional language
@@ -1312,43 +1316,56 @@ ${wizardData.description}`
 Original description:
 ${wizardData.description}`;
 
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_prompt: systemPrompt,
-          user_prompt: userPrompt,
-          temperature: 0.7
-        })
+        try {
+          const response = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              system_prompt: systemPrompt,
+              user_prompt: userPrompt,
+              temperature: 0.7
+            })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Optimization failed');
+          }
+
+          const data = await response.json();
+          const optimizedText = data.content?.trim();
+
+          if (optimizedText) {
+            setWizardData(prev => ({ ...prev, description: optimizedText }));
+            toastSuccess(language === 'zh' ? 'AI 优化完成' : 'AI optimization completed');
+          } else {
+            throw new Error('Empty response');
+          }
+
+        } catch (error: any) {
+          console.error('Prompt optimization failed:', error);
+          toastError(error.message || (language === 'zh' ? '优化失败，请重试' : 'Optimization failed, please try again'));
+          // Refund credits on failure
+          try {
+            await supabase.rpc('add_credits', { user_id: userId, amount: OPTIMIZE_COST });
+            setCredits(prev => prev + OPTIMIZE_COST);
+          } catch (refundError) {
+            console.error('Failed to refund credits:', refundError);
+          }
+        } finally {
+          setIsOptimizingPrompt(false);
+        }
+      };
+
+      openConfirmModal({
+        title: language === 'zh' ? '优化提示词' : 'Optimize Prompt',
+        message: confirmMsg,
+        confirmText: language === 'zh' ? '继续' : 'Continue',
+        onConfirm: executeOptimization
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Optimization failed');
-      }
-
-      const data = await response.json();
-      const optimizedText = data.content?.trim();
-
-      if (optimizedText) {
-        setWizardData(prev => ({ ...prev, description: optimizedText }));
-        toastSuccess(language === 'zh' ? 'AI 优化完成' : 'AI optimization completed');
-      } else {
-        throw new Error('Empty response');
-      }
-
     } catch (error: any) {
-      console.error('Prompt optimization failed:', error);
-      toastError(error.message || (language === 'zh' ? '优化失败，请重试' : 'Optimization failed, please try again'));
-      // Refund credits on failure
-      try {
-        await supabase.rpc('add_credits', { user_id: userId, amount: OPTIMIZE_COST });
-        setCredits(prev => prev + OPTIMIZE_COST);
-      } catch (refundError) {
-        console.error('Failed to refund credits:', refundError);
-      }
-    } finally {
-      setIsOptimizingPrompt(false);
+      console.error('Prompt optimization setup failed:', error);
     }
   };
 
@@ -1934,7 +1951,11 @@ ${description}
                         }
                     };
 
-                    if (confirm(confirmMessage)) {
+                    openConfirmModal({
+                      title: language === 'zh' ? '尝试全量修复' : 'Try Full Repair',
+                      message: confirmMessage,
+                      confirmText: language === 'zh' ? '修复' : 'Repair',
+                      onConfirm: async () => {
                         // Refund first
                         await processRefund();
 
@@ -1943,13 +1964,15 @@ ${description}
                         setTimeout(() => {
                             startGeneration(true, currentGenerationPrompt, '', true, lastOperationType === 'init' ? 'regenerate' : lastOperationType);
                         }, 100);
-                    } else {
+                      },
+                      onCancel: async () => {
                         // User cancelled - Refund logic
                         await processRefund();
 
                         toastError(language === 'zh' ? '修改失败，请重试或尝试手动修改。' : 'Edit failed, please retry or try manual edit.');
                         setIsGenerating(false);
-                    }
+                      }
+                    });
                 }
             } else {
                 // Full Generation Mode
@@ -3198,25 +3221,30 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
   };
 
   const handleRollback = (item: typeof codeHistory[0]) => {
-    if (!confirm(t.create.confirm_rollback)) return;
-
-    const isAlreadyInHistory = codeHistory.some(h => h.code === generatedCode);
-    
-    if (!isAlreadyInHistory) {
-      setCodeHistory(prev => [...prev, {
-          code: generatedCode,
-          prompt: currentGenerationPrompt || 'Before Rollback',
-          timestamp: Date.now(),
-          type: lastOperationType
-      }]);
-    }
-    
-    setGeneratedCode(item.code);
-    setStreamingCode(item.code);
-    setCurrentGenerationPrompt(item.prompt);
-    setLastOperationType('rollback');
-    setShowHistoryModal(false);
-    toastSuccess(t.create.success_rollback);
+    openConfirmModal({
+      title: language === 'zh' ? '确认回滚' : 'Confirm Rollback',
+      message: t.create.confirm_rollback,
+      confirmText: language === 'zh' ? '回滚' : 'Rollback',
+      onConfirm: () => {
+        const isAlreadyInHistory = codeHistory.some(h => h.code === generatedCode);
+        
+        if (!isAlreadyInHistory) {
+          setCodeHistory(prev => [...prev, {
+              code: generatedCode,
+              prompt: currentGenerationPrompt || 'Before Rollback',
+              timestamp: Date.now(),
+              type: lastOperationType
+          }]);
+        }
+        
+        setGeneratedCode(item.code);
+        setStreamingCode(item.code);
+        setCurrentGenerationPrompt(item.prompt);
+        setLastOperationType('rollback');
+        setShowHistoryModal(false);
+        toastSuccess(t.create.success_rollback);
+      }
+    });
   };
 
   const toggleEditMode = () => {
@@ -3563,7 +3591,14 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       const errorMsg = language === 'zh' 
         ? `⚠️ 无法应用颜色修改\n\n可能的原因：\n• 代码中找不到该元素\n• 元素结构复杂，无法自动定位\n\n建议：\n• 尝试使用 AI 修改功能\n• 选择其他相似的元素`
         : `⚠️ Cannot apply color change\n\nPossible reasons:\n• Element not found in code\n• Element structure is complex\n\nSuggestion:\n• Try using AI modification\n• Select a similar element`;
-      alert(errorMsg);
+      
+      openConfirmModal({
+        title: language === 'zh' ? '无法应用修改' : 'Cannot Apply Change',
+        message: errorMsg,
+        confirmText: language === 'zh' ? '知道了' : 'OK',
+        cancelText: null,
+        onConfirm: () => {}
+      });
       return;
     }
     
@@ -3773,7 +3808,14 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       const errorMsg = language === 'zh' 
         ? `⚠️ 无法应用文字修改\n\n可能的原因：\n• 代码中找不到该文本\n• 文本可能是动态生成的\n• 文本包含特殊字符\n\n建议：\n• 尝试使用 AI 修改功能`
         : `⚠️ Cannot apply text change\n\nPossible reasons:\n• Text not found in code\n• Text may be dynamically generated\n• Text contains special characters\n\nSuggestion:\n• Try using AI modification`;
-      alert(errorMsg);
+      
+      openConfirmModal({
+        title: language === 'zh' ? '无法应用修改' : 'Cannot Apply Change',
+        message: errorMsg,
+        confirmText: language === 'zh' ? '知道了' : 'OK',
+        cancelText: null,
+        onConfirm: () => {}
+      });
       return;
     }
     
@@ -3782,7 +3824,14 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       const errorMsg = language === 'zh' 
         ? `⚠️ 替换失败\n\n新文本可能与原文本相同，或替换未生效。\n\n建议：\n• 尝试使用 AI 修改功能`
         : `⚠️ Replacement failed\n\nNew text may be same as old, or replacement did not take effect.\n\nSuggestion:\n• Try using AI modification`;
-      alert(errorMsg);
+      
+      openConfirmModal({
+        title: language === 'zh' ? '替换失败' : 'Replacement Failed',
+        message: errorMsg,
+        confirmText: language === 'zh' ? '知道了' : 'OK',
+        cancelText: null,
+        onConfirm: () => {}
+      });
       return;
     }
     
@@ -4068,9 +4117,14 @@ Please fix the code to make the app display properly.`;
         ? '全量修复将基于您最后一次的描述重新生成整个应用代码。这将消耗更多积分，但能解决大部分代码结构问题。是否继续？'
         : 'Full Repair will regenerate the entire app code based on your last description. This costs more credits but fixes most structural issues. Continue?';
         
-    if (confirm(confirmMsg)) {
+    openConfirmModal({
+      title: language === 'zh' ? '全量修复' : 'Full Repair',
+      message: confirmMsg,
+      confirmText: language === 'zh' ? '继续' : 'Continue',
+      onConfirm: () => {
         startGeneration(true, prompt, '', true, 'fix');
-    }
+      }
+    });
   };
 
   const renderHistoryModal = () => {

@@ -17,7 +17,7 @@ export interface RAGLogEntry {
   // 意图分类结果
   detectedIntent: UserIntent;
   intentConfidence: number;
-  intentSource: 'local' | 'deepseek' | 'timeout_fallback';
+  intentSource: 'local' | 'deepseek' | 'gemini_fallback' | 'timeout_fallback';
   
   // 性能指标
   intentLatencyMs: number;

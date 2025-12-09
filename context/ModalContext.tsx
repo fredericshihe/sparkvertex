@@ -34,6 +34,19 @@ interface ModalContextType {
   isCreditPurchaseModalOpen: boolean;
   openCreditPurchaseModal: () => void;
   closeCreditPurchaseModal: () => void;
+  isConfirmModalOpen: boolean;
+  confirmModalConfig: ConfirmModalConfig | null;
+  openConfirmModal: (config: ConfirmModalConfig) => void;
+  closeConfirmModal: () => void;
+}
+
+export interface ConfirmModalConfig {
+  title?: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string | null;
+  onConfirm?: () => void;
+  onCancel?: () => void;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -52,6 +65,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
   const [rewardAuthorId, setRewardAuthorId] = useState<string | null>(null);
   const [isCreditPurchaseModalOpen, setIsCreditPurchaseModalOpen] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [confirmModalConfig, setConfirmModalConfig] = useState<ConfirmModalConfig | null>(null);
 
   // History Management Refs
   const historyStatePushed = useRef(false);
@@ -135,6 +150,16 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const openCreditPurchaseModal = () => setIsCreditPurchaseModalOpen(true);
   const closeCreditPurchaseModal = () => setIsCreditPurchaseModalOpen(false);
 
+  const openConfirmModal = (config: ConfirmModalConfig) => {
+    setConfirmModalConfig(config);
+    setIsConfirmModalOpen(true);
+  };
+  const closeConfirmModal = () => {
+    setIsConfirmModalOpen(false);
+    // Don't clear config immediately to allow animation to finish
+    setTimeout(() => setConfirmModalConfig(null), 300);
+  };
+
   // Scroll Locking Effect
   useEffect(() => {
     const anyModalOpen = 
@@ -146,7 +171,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       isPaymentModalOpen || 
       isManageOrdersModalOpen ||
       isRewardModalOpen ||
-      isCreditPurchaseModalOpen;
+      isCreditPurchaseModalOpen ||
+      isConfirmModalOpen;
 
     if (anyModalOpen) {
       document.body.style.overflow = 'hidden';
@@ -166,7 +192,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     isPaymentModalOpen, 
     isManageOrdersModalOpen,
     isRewardModalOpen,
-    isCreditPurchaseModalOpen
+    isCreditPurchaseModalOpen,
+    isConfirmModalOpen
   ]);
 
   return (
@@ -201,7 +228,11 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       rewardAuthorId,
       isCreditPurchaseModalOpen,
       openCreditPurchaseModal,
-      closeCreditPurchaseModal
+      closeCreditPurchaseModal,
+      isConfirmModalOpen,
+      confirmModalConfig,
+      openConfirmModal,
+      closeConfirmModal
     }}>
       {children}
     </ModalContext.Provider>

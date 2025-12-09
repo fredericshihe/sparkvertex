@@ -164,7 +164,7 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
   };
 
   // 计算是否已有生成内容（计划、步骤或代码）
-  const hasGeneratingContent = !!details.plan || !!details.currentStep || !!details.streamingCode || (details.completedSteps && details.completedSteps.length > 0);
+  const hasGeneratingContent = !!details.plan || !!details.currentStep || !!details.streamingCode || !!(details.completedSteps && details.completedSteps.length > 0);
 
   return (
     <div className={containerClasses}>

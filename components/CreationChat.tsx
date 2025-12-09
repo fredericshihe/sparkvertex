@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { AIWorkflowProgress, WorkflowStage, StageDetails } from './AIWorkflowProgress';
 import { RefreshCw, Wand2 } from 'lucide-react';
+import { useModal } from '@/context/ModalContext';
 
 interface Message {
   role: 'user' | 'ai';
@@ -72,6 +73,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
   handleDownload,
   generatedCode
 }) => {
+  const { openConfirmModal } = useModal();
 
   // Resize logic
   const [sidebarWidth, setSidebarWidth] = useState(450);
@@ -210,9 +212,12 @@ export const CreationChat: React.FC<CreationChatProps> = ({
              <button 
                 onClick={() => {
                   if (isFromUpload) return;
-                  if (window.confirm(language === 'zh' ? '确定要重新生成吗？这将消耗积分并覆盖当前代码。' : 'Are you sure you want to regenerate? This will consume credits and overwrite current code.')) {
-                    startGeneration(false, currentGenerationPrompt, '', false, 'regenerate');
-                  }
+                  openConfirmModal({
+                    title: language === 'zh' ? '确认重新生成' : 'Confirm Regenerate',
+                    message: language === 'zh' ? '确定要重新生成吗？这将消耗积分并覆盖当前代码。' : 'Are you sure you want to regenerate? This will consume credits and overwrite current code.',
+                    confirmText: language === 'zh' ? '确认' : 'Confirm',
+                    onConfirm: () => startGeneration(false, currentGenerationPrompt, '', false, 'regenerate')
+                  });
                 }}
                 disabled={isFromUpload || isGenerating}
                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition border ${
@@ -370,11 +375,15 @@ export const CreationChat: React.FC<CreationChatProps> = ({
                 if (!fullCodeMode) {
                   // 开启时显示确认提示
                   const confirmMsg = language === 'zh' 
-                    ? `开启「全量修改」模式？\n\n✅ 优点：\n• AI 获得完整代码上下文，修改更精准\n• 避免因代码压缩导致的补丁失败\n• 适合复杂的结构性修改\n\n⚠️ 注意：\n• 积分消耗会增加 2-5 倍\n• 建议在普通模式失败后再开启`
-                    : `Enable "Full Code" mode?\n\n✅ Benefits:\n• AI gets complete code context for precise edits\n• Avoids patch failures from code compression\n• Better for complex structural changes\n\n⚠️ Note:\n• Credit cost increases 2-5x\n• Recommended when normal mode fails`;
-                  if (confirm(confirmMsg)) {
-                    setFullCodeMode(true);
-                  }
+                    ? `开启「全量修改」模式？\n\n✅ 优点：\n• AI 获得完整代码上下文，修改更精准\n• 避免因代码压缩导致的补丁失败\n• 适合复杂的结构性修改\n\n⚠️ 注意：\n• 积分消耗会增加 1.5 倍左右\n• 建议在普通模式失败后再开启`
+                    : `Enable "Full Code" mode?\n\n✅ Benefits:\n• AI gets complete code context for precise edits\n• Avoids patch failures from code compression\n• Better for complex structural changes\n\n⚠️ Note:\n• Credit cost increases ~1.5x\n• Recommended when normal mode fails`;
+                  
+                  openConfirmModal({
+                    title: language === 'zh' ? '开启全量模式' : 'Enable Full Code Mode',
+                    message: confirmMsg,
+                    confirmText: language === 'zh' ? '确认开启' : 'Enable',
+                    onConfirm: () => setFullCodeMode(true)
+                  });
                 } else {
                   setFullCodeMode(false);
                 }
