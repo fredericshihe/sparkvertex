@@ -33,3 +33,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 dist-electron/
+
+# data files
+*.csv
+
+# logs
+*.log
+
+# electron
+electron/
