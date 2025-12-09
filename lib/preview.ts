@@ -53,10 +53,7 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
       // Override console.error to capture React and other framework errors
       var originalConsoleError = console.error;
       console.error = function() {
-        // Call original
-        originalConsoleError.apply(console, arguments);
-        
-        // Convert arguments to string
+        // Convert arguments to string first for filtering
         var msg = Array.prototype.slice.call(arguments).map(function(arg) {
           if (arg instanceof Error) {
             return arg.message + (arg.stack ? '\\n' + arg.stack : '');
@@ -64,13 +61,25 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
           return String(arg);
         }).join(' ');
         
-        // Skip known non-critical messages
+        // Skip known non-critical messages (suppress in console too)
         if (msg.includes('Download the React DevTools') || 
             msg.includes('Consider adding an error boundary') ||
             msg.includes('Warning:') ||
-            msg.includes('validateDOMNesting')) {
-          return;
+            msg.includes('validateDOMNesting') ||
+            msg.includes('SecurityError') ||
+            msg.includes('The operation is insecure') ||
+            msg.includes('cross-origin') ||
+            msg.includes('Cross-Origin') ||
+            msg.includes('CORS') ||
+            msg.includes('Blocked a frame') ||
+            msg.includes('sandbox') ||
+            msg.includes('Source map') ||
+            msg.includes('源码映射')) {
+          return; // Don't even log these
         }
+        
+        // Call original for other errors
+        originalConsoleError.apply(console, arguments);
         
         // Check if it looks like a real error
         var isError = msg.includes('Error') || 
@@ -103,11 +112,22 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
       
       // Global error handler - notify parent for AI Fix
       window.onerror = function(msg, url, line, col, error) {
+        var msgStr = String(msg);
+        // Filter out non-critical errors
         if (msg === 'Script error.' || msg === 'Script error') return true;
+        if (msgStr.includes('SecurityError') || 
+            msgStr.includes('The operation is insecure') ||
+            msgStr.includes('cross-origin') ||
+            msgStr.includes('Cross-Origin') ||
+            msgStr.includes('CORS') ||
+            msgStr.includes('Blocked a frame') ||
+            msgStr.includes('sandbox')) {
+          return true; // Suppress these errors
+        }
         console.log('App Error captured:', msg, 'at line', line);
         
         var errorDetails = {
-          message: String(msg),
+          message: msgStr,
           line: line,
           column: col,
           stack: error ? error.stack : null

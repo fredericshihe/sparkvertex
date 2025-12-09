@@ -491,7 +491,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
                                 className="w-[200%] h-[200%] border-0 transform scale-50 origin-center pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity bg-slate-900" 
                                 tabIndex={-1}
                                 scrolling="no"
-                                sandbox="allow-scripts"
+                                sandbox="allow-scripts allow-same-origin"
                                 allow="autoplay 'none'; camera 'none'; microphone 'none'"
                                 title="Featured App Preview"
                             />

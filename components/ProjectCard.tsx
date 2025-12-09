@@ -126,7 +126,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                  srcDoc={previewContent}
                  className="w-[200%] h-[200%] border-0 origin-top-left scale-50 pointer-events-none select-none"
                  onLoad={() => setIframeLoaded(true)}
-                 sandbox="allow-scripts"
+                 sandbox="allow-scripts allow-same-origin"
                  allow="autoplay 'none'; camera 'none'; microphone 'none'"
                  scrolling="no"
                  title={`Preview of ${item.title}`}

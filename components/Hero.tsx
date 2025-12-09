@@ -126,7 +126,7 @@ await ai.chat("Help me build a website");`
         srcDoc={getPreviewContent(content, { raw: true })} 
         className="absolute inset-0 w-full h-full border-0 pointer-events-none bg-slate-900" 
         loading="lazy" 
-        sandbox="allow-scripts"
+        sandbox="allow-scripts allow-same-origin"
         allow="autoplay 'none'; camera 'none'; microphone 'none'"
       />
     );
