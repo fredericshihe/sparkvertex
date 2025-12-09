@@ -14,6 +14,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import { GenerationProgress } from '@/components/GenerationProgress';
 import { AIWorkflowProgress, type WorkflowStage, type StageDetails } from '@/components/AIWorkflowProgress';
 import { CodeWaterfall } from '@/components/CodeWaterfall';
+import { CreationChat } from '@/components/CreationChat';
+import { CreationPreview } from '../../components/CreationPreview';
 
 // --- Constants ---
 const CATEGORIES = [
@@ -1431,6 +1433,7 @@ ${description}
             
             if (!hasStartedStreaming) {
                 setGenerationPhase('generating');
+                setWorkflowStage('generating'); // 🆕 强制进入生成阶段，防止状态不同步
             }
             hasStartedStreaming = true;
         }
@@ -2077,6 +2080,17 @@ ${description}
       return;
     }
 
+    // 1. 立即更新 UI：显示用户消息气泡 (Immediate UI Update)
+    if (isModification) {
+        setChatHistory(prev => [...prev, { role: 'user', content: displayPrompt || overridePrompt || chatInput }]);
+        setChatInput('');
+        setModificationCount(prev => prev + 1);
+        
+        // 2. 动画延迟：让用户气泡先"飞"一会儿 (Animation Delay)
+        // 确保用户气泡弹出动画完成后，再显示 AI 思考气泡
+        await new Promise(resolve => setTimeout(resolve, 600));
+    }
+
     setIsGenerating(true);
     if (!isModification) {
       setStep('generating');
@@ -2140,11 +2154,8 @@ ${description}
 
       setCurrentGenerationPrompt(promptContent);
 
-      if (isModification) {
-        setChatHistory(prev => [...prev, { role: 'user', content: displayPrompt || overridePrompt || chatInput }]);
-        setChatInput('');
-        setModificationCount(prev => prev + 1);
-      }
+      // Note: Chat history already updated above for modification
+
 
       const deviceConstraint = wizardData.device === 'desktop' 
         ? '6. Optimize for Desktop: Use full width, multi-column layouts, and hover effects. Ensure content fills the screen appropriately.'
@@ -3835,44 +3846,55 @@ Please fix the code to make the app display properly.`;
     };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
-        <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl">
-          <div className="p-4 border-b border-slate-800 flex justify-between items-center">
-            <h3 className="font-bold text-white">{t.create.history}</h3>
-            <button onClick={() => setShowHistoryModal(false)} className="text-slate-400 hover:text-white">
-              <X size={20} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="bg-slate-900/90 border border-slate-700/50 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl overflow-hidden">
+          <div className="p-4 border-b border-slate-800/50 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
+            <h3 className="font-bold text-white flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-brand-500/20 flex items-center justify-center text-brand-400">
+                    <i className="fa-solid fa-clock-rotate-left text-sm"></i>
+                </div>
+                {t.create.history}
+            </h3>
+            <button onClick={() => setShowHistoryModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition">
+              <X size={18} />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             {codeHistory.length === 0 ? (
-              <div className="text-center text-slate-500 py-8">{t.create.no_history}</div>
+              <div className="flex flex-col items-center justify-center py-12 text-slate-500 gap-3">
+                  <div className="w-16 h-16 rounded-full bg-slate-800/50 flex items-center justify-center">
+                      <i className="fa-solid fa-clock-rotate-left text-2xl opacity-50"></i>
+                  </div>
+                  <p className="text-sm">{t.create.no_history}</p>
+              </div>
             ) : (
               [...codeHistory].reverse().map((item, index) => (
-                <div key={item.timestamp} className="bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-brand-500 transition group">
-                  <div className="flex justify-between items-start mb-2">
+                <div key={item.timestamp} className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/50 hover:border-brand-500/50 hover:bg-slate-800/60 transition group relative overflow-hidden">
+                  <div className="flex justify-between items-start mb-2 relative z-10">
                     <div className="flex items-center gap-2">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded border flex items-center gap-1 ${
-                            item.type === 'click' ? 'bg-purple-500/20 text-purple-300 border-purple-500/30' :
-                            item.type === 'chat' ? 'bg-blue-500/20 text-blue-300 border-blue-500/30' :
-                            item.type === 'regenerate' ? 'bg-orange-500/20 text-orange-300 border-orange-500/30' :
-                            item.type === 'fix' ? 'bg-red-500/20 text-red-300 border-red-500/30' :
-                            'bg-slate-700 text-slate-300 border-slate-600'
+                        <span className={`text-[10px] px-2 py-1 rounded-md border font-bold flex items-center gap-1.5 shadow-sm ${
+                            item.type === 'click' ? 'bg-purple-500/10 text-purple-300 border-purple-500/20' :
+                            item.type === 'chat' ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' :
+                            item.type === 'regenerate' ? 'bg-orange-500/10 text-orange-300 border-orange-500/20' :
+                            item.type === 'fix' ? 'bg-red-500/10 text-red-300 border-red-500/20' :
+                            'bg-slate-700/50 text-slate-300 border-slate-600/50'
                         }`}>
                             <i className={`fa-solid ${getTypeIcon(item.type)}`}></i>
                             {getTypeLabel(item.type)}
                         </span>
-                        <span className="text-xs text-slate-400 font-mono">
-                        {new Date(item.timestamp).toLocaleTimeString(language === 'zh' ? 'zh-CN' : 'en-US')} 
+                        <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
+                            <i className="fa-regular fa-clock"></i>
+                            {new Date(item.timestamp).toLocaleTimeString(language === 'zh' ? 'zh-CN' : 'en-US')} 
                         </span>
                     </div>
-                    <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-mono bg-slate-950/50 text-slate-400 px-2 py-1 rounded-lg border border-slate-800">
                       v{codeHistory.length - index}
                     </span>
                   </div>
-                  <p className="text-sm text-white line-clamp-2 mb-3">{item.prompt}</p>
+                  <p className="text-sm text-slate-300 line-clamp-2 mb-4 pl-1 border-l-2 border-slate-700/50 group-hover:border-brand-500/30 transition-colors">{item.prompt}</p>
                   <button 
                     onClick={() => handleRollback(item)}
-                    className="w-full py-2 bg-slate-700 hover:bg-brand-600 text-white rounded-lg text-sm font-bold transition flex items-center justify-center gap-2"
+                    className="w-full py-2.5 bg-slate-900/50 hover:bg-brand-600 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 border border-slate-700/50 hover:border-brand-500 hover:shadow-lg hover:shadow-brand-500/20"
                   >
                     <i className="fa-solid fa-clock-rotate-left"></i> {t.create.restore_version}
                   </button>
@@ -4206,991 +4228,98 @@ Please fix the code to make the app display properly.`;
 
   const renderPreview = () => (
     <div className="flex flex-col lg:flex-row h-full pt-0 overflow-hidden relative animate-in fade-in duration-700">
-      {/* Left (Desktop) / Bottom (Mobile): Chat & Controls */}
-      <div className={`w-full lg:w-1/3 border-r border-slate-800 bg-slate-900 flex flex-col 
-          order-2 lg:order-1 
-          h-full shrink-0 z-10 relative shadow-[0_-4px_20px_rgba(0,0,0,0.3)] lg:shadow-none
-          ${activeMobileTab === 'chat' ? 'flex pb-[80px] lg:pb-0' : 'hidden lg:flex'}
-      `}>
-        
-        <div className="p-3 lg:p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900 shrink-0">
-          <div className="flex items-center gap-3">
-            <button onClick={handleExit} className="hidden lg:flex w-8 h-8 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition" title={t.common.back}>
-              <i className="fa-solid fa-chevron-left"></i>
-            </button>
-            <h3 className="font-bold text-white text-sm lg:text-base">{t.create.preview_title}</h3>
-          </div>
-          <div className="flex items-center gap-2">
-             {/* Regenerate Button */}
-             <div className="relative group">
-               <button 
-                  onClick={() => {
-                    if (isFromUpload) {
-                      toastError(language === 'zh' ? '上传的作品不支持重新生成，仅支持修改' : 'Uploaded works cannot be regenerated, only modified');
-                      return;
-                    }
-                    // Removed confirmation dialog
-                    startGeneration(false, currentGenerationPrompt, '', false, 'regenerate');
-                  }}
-                  className={`text-xs px-2 py-1 rounded flex items-center gap-1 transition border ${
-                    isFromUpload 
-                      ? 'bg-slate-800/50 text-slate-500 border-slate-800 cursor-not-allowed' 
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                  }`}
-               >
-                  <RefreshCw size={12} />
-                  <span className="hidden sm:inline">{t.create.regenerate}</span>
-               </button>
-               <div className="absolute top-full right-0 mt-2 w-64 p-3 bg-slate-800 text-xs text-slate-300 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-slate-700">
-                  <div className="font-bold text-white mb-1 flex items-center gap-2">
-                    <RefreshCw size={10} />
-                    {language === 'zh' ? '重新生成' : 'Regenerate'}
-                  </div>
-                  <p className="leading-relaxed opacity-90">
-                    {isFromUpload 
-                      ? (language === 'zh' ? '上传的作品不支持重新生成，请使用对话框进行修改。' : 'Uploaded works cannot be regenerated. Please use the chat to make modifications.')
-                      : (language === 'zh' 
-                        ? '使用当前的提示词和设置重新生成应用。如果对当前结果不满意（如布局错乱、功能缺失），可以尝试此操作。这将消耗积分。' 
-                        : 'Regenerate the app using the current prompt and settings. Use this if the current result is not ideal (e.g., layout issues, missing features). This will consume credits.')
-                    }
-                  </p>
-               </div>
-             </div>
-             <div className="relative group cursor-help">
-               <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 transition-all duration-300 ${isCreditAnimating ? 'scale-125 border-red-500 bg-red-500/20 shadow-[0_0_20px_rgba(239,68,68,0.6)]' : ''}`}>
-                 <i className={`fa-solid fa-coins text-xs transition-colors duration-300 ${isCreditAnimating ? 'text-red-500' : 'text-yellow-500'}`}></i>
-                 <span className={`text-xs font-bold tabular-nums transition-colors duration-300 ${isCreditAnimating ? 'text-red-500' : 'text-slate-200'}`}>
-                   {Number.isInteger(credits) ? credits : credits.toFixed(2)}
-                 </span>
-                 <span className="text-[10px] text-slate-500">{language === 'zh' ? '积分' : 'Credits'}</span>
-               </div>
-               <div className="absolute top-full right-0 mt-2 w-48 p-2 bg-slate-800 text-[10px] text-slate-300 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-slate-700 text-center">
-                  {language === 'zh' ? '积分根据实际输入输出代码字符数量动态计算' : 'Credits are calculated dynamically based on input and output code characters.'}
-               </div>
-             </div>
-          </div>
-        </div>
-        
-        {/* Chat History */}
-        <div className="flex-1 overflow-y-auto p-3 lg:p-4 space-y-3 lg:space-y-4 bg-slate-900">
-          <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 flex-shrink-0">
-              <i className="fa-solid fa-robot"></i>
-            </div>
-            <div className="bg-slate-800 p-3 rounded-2xl rounded-tl-none text-sm text-slate-300">
-              {t.create.app_generated}
-            </div>
-          </div>
-          {chatHistory.map((msg, i) => {
-            // Hide the last message if it's the summary and workflow is still transitioning
-            const isLastMessage = i === chatHistory.length - 1;
-            const isSummaryMessage = msg.role === 'ai' && workflowStage === 'completed' && !isGenerating;
-            const shouldHide = isLastMessage && isSummaryMessage;
+        <CreationChat
+          activeMobileTab={activeMobileTab}
+          handleExit={handleExit}
+          t={t}
+          isFromUpload={isFromUpload}
+          language={language}
+          startGeneration={startGeneration}
+          currentGenerationPrompt={currentGenerationPrompt}
+          credits={credits}
+          isCreditAnimating={isCreditAnimating}
+          chatHistory={chatHistory}
+          workflowStage={workflowStage}
+          isGenerating={isGenerating}
+          workflowDetails={workflowDetails}
+          handleCancelGeneration={handleCancelGeneration}
+          chatEndRef={chatEndRef}
+          setShowHistoryModal={setShowHistoryModal}
+          handleDownload={handleDownload}
+          generatedCode={generatedCode}
+          chatInput={chatInput}
+          setChatInput={setChatInput}
+          selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
+          MODEL_CONFIG={MODEL_CONFIG}
+          handleFullRepair={handleFullRepair}
+          handleBlankScreenFix={handleBlankScreenFix}
+          handleFixError={handleFixError}
+        />
 
-            return (
-            <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''} transition-all duration-1000 ${shouldHide ? 'opacity-0 max-h-0 overflow-hidden' : 'animate-in slide-in-from-bottom-2 fade-in duration-500 opacity-100 max-h-[1000px]'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg ${
-                  msg.role === 'user' 
-                    ? 'bg-brand-500/20 backdrop-blur-md border border-brand-500/30 text-brand-400' 
-                    : (msg.type === 'error' ? 'bg-red-500/20 text-red-500 border border-red-500/30' : 'bg-black/40 backdrop-blur-md border border-white/10 text-brand-400')
-              }`}>
-                <i className={`fa-solid ${msg.role === 'user' ? 'fa-user' : (msg.type === 'error' ? 'fa-triangle-exclamation' : 'fa-robot')}`}></i>
-              </div>
-              <div className={`p-4 rounded-2xl text-sm max-w-[85%] select-text shadow-lg backdrop-blur-md border ${
-                  msg.role === 'user' 
-                    ? 'bg-brand-500/10 text-slate-200 rounded-tr-none border-brand-500/20' 
-                    : (msg.type === 'error' 
-                        ? 'bg-red-950/40 border-red-500/30 text-red-200 rounded-tl-none' 
-                        : 'bg-black/40 border-white/10 text-slate-200 rounded-tl-none')
-              }`}>
-                {msg.type === 'error' ? (
-                    <div className="flex flex-col gap-2">
-                        <div className="font-bold text-xs uppercase tracking-wider opacity-70 flex items-center gap-2">
-                            {msg.isBlankScreen 
-                                ? (language === 'zh' ? '白屏检测' : 'Blank Screen Detected')
-                                : (language === 'zh' ? '运行时错误' : 'Runtime Error')
-                            }
-                            {msg.errorDetails?.line && <span className="bg-red-500/20 px-1.5 rounded text-[10px]">Line {msg.errorDetails.line}</span>}
-                        </div>
-                        <div className="font-mono text-xs break-words bg-black/20 p-2 rounded border border-red-500/20">
-                            {msg.content}
-                        </div>
-                        {msg.isBlankScreen && msg.errorDetails?.hint && (
-                            <div className="text-[10px] text-yellow-300/70 bg-yellow-500/10 px-2 py-1 rounded">
-                                <i className="fa-solid fa-lightbulb mr-1"></i>
-                                {msg.errorDetails.hint}
-                            </div>
-                        )}
-                        <button 
-                            onClick={() => msg.isBlankScreen ? handleBlankScreenFix() : handleFixError(msg.content, msg.errorDetails)}
-                            className="mt-1 bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg"
-                        >
-                            <i className="fa-solid fa-wand-magic-sparkles"></i>
-                            {language === 'zh' ? 'AI 自动修复' : 'Fix with AI'}
-                        </button>
-                    </div>
-                ) : (
-                    <>
-                        <div className="whitespace-pre-wrap">{msg.content}</div>
-                        {msg.cost && (
-                            <div className="mt-2 pt-2 border-t border-white/5 flex justify-end">
-                                <span className="text-[10px] font-medium text-amber-500/80 flex items-center gap-1">
-                                    <i className="fa-solid fa-bolt text-amber-500 text-[9px]"></i>
-                                    {language === 'zh' ? `消耗 ${msg.cost} 积分` : `Cost: ${msg.cost} credits`}
-                                </span>
-                            </div>
-                        )}
-                    </>
-                )}
-              </div>
-            </div>
-            );
-          })}
-          
-          {(isGenerating || workflowStage === 'completed') && (
-            <div className={`flex gap-3 transition-all duration-1000 ease-in-out ${workflowStage === 'completed' && !isGenerating ? 'opacity-0 max-h-0 overflow-hidden translate-y-4' : 'animate-fade-in max-h-[500px] opacity-100'}`}>
-              <div className="w-8 h-8 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 flex-shrink-0">
-                <i className="fa-solid fa-robot fa-bounce"></i>
-              </div>
-              <div className="flex-1 min-w-0">
-                  <AIWorkflowProgress 
-                    stage={workflowStage}
-                    details={workflowDetails}
-                    isGenerating={isGenerating}
-                    language={language}
-                    variant="chat"
-                  />
-                  {/* Cancel Button */}
-                  {isGenerating && (
-                    <button
-                        onClick={() => handleCancelGeneration(0)}
-                        className="mt-3 px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600 rounded-lg text-sm text-slate-300 hover:text-white transition-colors flex items-center gap-2"
-                    >
-                        <i className="fa-solid fa-xmark"></i>
-                        <span>{language === 'zh' ? '取消生成' : 'Cancel'}</span>
-                    </button>
-                  )}
-              </div>
-            </div>
-          )}
-          
-          <div ref={chatEndRef}></div>
-        </div>
-
-        {/* Mobile Actions Bar */}
-        <div className="lg:hidden p-2 bg-slate-900 border-t border-slate-800 flex gap-2 shrink-0">
-           <button 
-             onClick={() => setShowHistoryModal(true)}
-             className="flex-1 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center justify-center gap-1"
-           >
-             <i className="fa-solid fa-clock-rotate-left"></i> {t.create.history}
-           </button>
-           <button 
-             onClick={handleDownload}
-             className="flex-1 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center justify-center gap-1"
-           >
-             <i className="fa-solid fa-download"></i> {t.create.download}
-           </button>
-           <button 
-             onClick={() => {
-                const blob = new Blob([generatedCode], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                window.open(url, '_blank');
-              }}
-             className="flex-1 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg text-xs whitespace-nowrap flex items-center justify-center gap-1"
-           >
-             <i className="fa-solid fa-code"></i> {t.create.view_code}
-           </button>
-        </div>
-
-        {/* Input Area */}
-        <div className="p-3 lg:p-4 border-t border-slate-800 bg-slate-900 shrink-0 lg:mb-0">
-          {/* Model Selector & Full Repair Button Row */}
-          <div className="flex justify-between items-center mb-2 gap-2">
-            {/* Model Selector */}
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-slate-500 mr-1">{language === 'zh' ? '模型' : 'Model'}:</span>
-              <div className="flex gap-1">
-                {(Object.entries(MODEL_CONFIG) as [ModelType, typeof MODEL_CONFIG[ModelType]][]).map(([key, config]) => (
-                  <button
-                    key={key}
-                    onClick={() => setSelectedModel(key)}
-                    disabled={isGenerating}
-                    className={`text-xs px-2 py-1 rounded transition flex items-center gap-1 ${
-                      selectedModel === key
-                        ? 'bg-brand-600 text-white'
-                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
-                    } disabled:opacity-50`}
-                    title={`${config.name}\n${config.subtitle}`}
-                  >
-                    <span>{config.icon}</span>
-                    <span className="hidden sm:inline">{config.description}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            {/* Full Repair Button */}
-            <button
-                onClick={handleFullRepair}
-                disabled={isGenerating}
-                className="text-xs flex items-center gap-1.5 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition border border-slate-700"
-                title={language === 'zh' ? '基于当前描述重新生成完整代码' : 'Regenerate full code based on current description'}
-            >
-                <i className="fa-solid fa-screwdriver-wrench"></i>
-                {language === 'zh' ? '全量修复' : 'Full Repair'}
-            </button>
-          </div>
-          <div className="relative">
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !isGenerating && chatInput.trim()) {
-                  // Removed confirmation dialog
-                  startGeneration(true, '', '', false, 'chat');
-                }
-              }}
-              placeholder={t.create.chat_placeholder}
-              disabled={isGenerating}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-4 pr-12 py-2 lg:py-3 text-sm lg:text-base text-white focus:border-brand-500 outline-none disabled:opacity-50"
-            />
-            <button 
-              onClick={() => {
-                if (!chatInput.trim() || isGenerating) return;
-                // Removed confirmation dialog
-                startGeneration(true, '', '', false, 'chat');
-              }}
-              disabled={isGenerating || !chatInput.trim()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-brand-600 hover:bg-brand-500 text-white rounded-lg flex items-center justify-center transition disabled:opacity-50 disabled:bg-slate-700"
-            >
-              {isGenerating ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-paper-plane"></i>}
-            </button>
-          </div>
-        </div>
-
-        {/* Actions - Hidden on mobile to save space, or simplified */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900 space-y-3 hidden lg:block shrink-0">
-          <div className="flex gap-2">
-            <button 
-              onClick={() => setShowHistoryModal(true)}
-              className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition border border-slate-700 flex items-center justify-center gap-2 text-sm"
-            >
-              <i className="fa-solid fa-clock-rotate-left"></i> {t.create.history}
-            </button>
-            <button 
-              onClick={handleDownload}
-              className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition border border-slate-700 flex items-center justify-center gap-2 text-sm"
-            >
-              <i className="fa-solid fa-download"></i> {t.create.download}
-            </button>
-            <button 
-              onClick={() => {
-                const blob = new Blob([generatedCode], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                window.open(url, '_blank');
-              }}
-              className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition border border-slate-700 flex items-center justify-center gap-2 text-sm"
-            >
-              <i className="fa-solid fa-code"></i> {t.create.view_code}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Right (Desktop) / Top (Mobile): Preview */}
-      <div className={`flex-1 bg-slate-950 relative flex flex-col group 
-          order-1 lg:order-2 
-          h-full shrink-0 overflow-hidden
-          ${activeMobileTab === 'preview' ? 'flex' : 'hidden lg:flex'}
-      `}>
-        <div className="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
-          <div className="flex items-center gap-3">
-            <button onClick={handleExit} className="lg:hidden flex w-6 h-6 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition" title={t.common.back}>
-              <i className="fa-solid fa-chevron-left"></i>
-            </button>
-            <span className="text-sm font-bold text-slate-400">{t.create.preview_mode}</span>
-            
-            {/* Full Screen Button */}
-            <button 
-              onClick={toggleFullScreen}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
-              title={language === 'zh' ? (isFullscreen ? '退出全屏' : '全屏预览') : (isFullscreen ? 'Exit Full Screen' : 'Full Screen')}
-            >
-              <i className={`fa-solid ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i>
-            </button>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={handleSaveDraft}
-              disabled={isSaving}
-              className={`px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
-            >
-              {isSaving ? (
-                <i className="fa-solid fa-circle-notch fa-spin"></i>
-              ) : (
-                <i className="fa-solid fa-floppy-disk"></i>
-              )}
-              <span>{isSaving ? (language === 'zh' ? '保存中...' : 'Saving...') : (language === 'zh' ? '存草稿' : 'Save Draft')}</span>
-            </button>
-            
-            <button 
-              onClick={handleUpload}
-              className="px-3 py-1.5 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-lg text-xs font-bold transition shadow-lg flex items-center gap-1.5"
-            >
-              <i className="fa-solid fa-rocket"></i> 
-              <span>{t.create.publish}</span>
-            </button>
-          </div>
-        </div>
-        
-        {/* Preview Container */}
-        <div 
-          ref={previewContainerRef}
-          className="flex-1 relative overflow-hidden flex items-center justify-center bg-[url('/grid.svg')] bg-center pb-16 lg:pb-0"
-        >
-          {/* Quick Edit History Panel - Right side of preview (persistent, collapsible) */}
-          {quickEditHistory.length > 0 && (
-            <div 
-              ref={historyPanelRef}
-              className={`absolute right-2 top-2 z-20 transition-all duration-300 ${isHistoryPanelOpen ? 'bottom-20 lg:bottom-2' : ''}`}
-            >
-              {isHistoryPanelOpen ? (
-                <div className="w-44 h-full bg-slate-900/95 backdrop-blur-md border border-slate-700/70 rounded-xl shadow-2xl flex flex-col overflow-hidden">
-                  {/* Header */}
-                  <div className="px-2 py-2 border-b border-slate-700/50 flex items-center justify-between shrink-0">
-                    <div className="text-[10px] text-slate-300 font-bold flex items-center gap-1.5">
-                      <i className="fa-solid fa-clock-rotate-left text-brand-400"></i>
-                      {language === 'zh' ? `历史` : `History`}
-                      <span className="text-slate-500">({quickEditHistory.length})</span>
-                    </div>
-                    <div className="flex items-center gap-0.5">
-                      <button
-                        onClick={quickEditUndo}
-                        disabled={!canQuickEditUndo}
-                        className={`w-5 h-5 rounded flex items-center justify-center transition text-[10px] ${
-                          canQuickEditUndo 
-                            ? 'text-slate-300 hover:bg-slate-700 hover:text-white' 
-                            : 'text-slate-600 cursor-not-allowed'
-                        }`}
-                        title={language === 'zh' ? '撤销' : 'Undo'}
-                      >
-                        <i className="fa-solid fa-rotate-left"></i>
-                      </button>
-                      <button
-                        onClick={quickEditRedo}
-                        disabled={!canQuickEditRedo}
-                        className={`w-5 h-5 rounded flex items-center justify-center transition text-[10px] ${
-                          canQuickEditRedo 
-                            ? 'text-slate-300 hover:bg-slate-700 hover:text-white' 
-                            : 'text-slate-600 cursor-not-allowed'
-                        }`}
-                        title={language === 'zh' ? '重做' : 'Redo'}
-                      >
-                        <i className="fa-solid fa-rotate-right"></i>
-                      </button>
-                      <button
-                        onClick={() => setIsHistoryPanelOpen(false)}
-                        className="w-5 h-5 rounded flex items-center justify-center transition text-[10px] text-slate-400 hover:bg-slate-700 hover:text-white ml-1"
-                        title={language === 'zh' ? '收起' : 'Collapse'}
-                      >
-                        <i className="fa-solid fa-chevron-right"></i>
-                      </button>
-                    </div>
-                  </div>
-                  {/* History List - Vertical */}
-                  <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin">
-                    {quickEditHistory.map((item, idx) => {
-                      const isCurrent = idx === quickEditHistoryIndex;
-                      const isPast = idx < quickEditHistoryIndex;
-                      return (
-                        <div 
-                          key={idx}
-                          className={`text-[10px] px-2 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition-all ${
-                            isCurrent 
-                              ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40 shadow-sm' 
-                              : isPast 
-                                ? 'text-slate-400 bg-slate-800/60 hover:bg-slate-800' 
-                                : 'text-slate-500 hover:bg-slate-800/40'
-                          }`}
-                          onClick={() => {
-                            // Jump to this history state
-                            if (idx !== quickEditHistoryIndex) {
-                              setGeneratedCode(item.code);
-                              setStreamingCode(item.code);
-                              setQuickEditHistoryIndex(idx);
-                              
-                              // Update iframe
-                              if (iframeRef.current?.contentWindow) {
-                                iframeRef.current.contentWindow.postMessage({ 
-                                  type: 'spark-update-content', 
-                                  html: item.code 
-                                }, '*');
-                                
-                                // Re-enable edit mode after content update
-                                setTimeout(() => {
-                                  if (isEditMode && iframeRef.current?.contentWindow) {
-                                    iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: true }, '*');
-                                  }
-                                }, 100);
-                              }
-                            }
-                          }}
-                          title={item.description}
-                        >
-                          <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] shrink-0 ${
-                            isCurrent ? 'bg-brand-500 text-white' : 'bg-slate-700'
-                          }`}>
-                            {idx + 1}
-                          </span>
-                          <span className="truncate flex-1">{item.description}</span>
-                          {isCurrent && (
-                            <i className="fa-solid fa-circle text-[4px] text-brand-400 animate-pulse"></i>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                /* Collapsed state - small button to expand */
-                <button
-                  onClick={() => setIsHistoryPanelOpen(true)}
-                  className="w-10 h-10 bg-slate-900/95 backdrop-blur-md border border-slate-700/70 rounded-xl shadow-2xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                  title={language === 'zh' ? `展开历史 (${quickEditHistory.length})` : `Expand History (${quickEditHistory.length})`}
-                >
-                  <div className="relative">
-                    <i className="fa-solid fa-clock-rotate-left text-sm"></i>
-                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-brand-500 rounded-full text-[8px] text-white flex items-center justify-center font-bold">
-                      {quickEditHistory.length}
-                    </span>
-                  </div>
-                </button>
-              )}
-            </div>
-          )}
-          <div 
-            className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 origin-center
-              ${(previewMode === 'mobile')
-                ? 'w-[375px] h-[812px] rounded-[3rem] border-[8px] border-slate-800 ring-1 ring-slate-700/50' 
-                : ''}
-              ${(previewMode === 'tablet')
-                ? 'w-[768px] h-[1024px] rounded-[2rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50' 
-                : ''}
-              ${(previewMode === 'desktop')
-                ? 'w-full h-full rounded-none border-0' 
-                : ''}
-            `}
-            style={{
-              transform: (previewMode !== 'desktop') ? `scale(${previewScale})` : 'none'
-            }}
-          >
-             {(previewMode === 'mobile' && !isFullscreen) && (
-               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-slate-800 rounded-b-2xl z-20 pointer-events-none"></div>
-             )}
-             
-             <iframe
-               ref={iframeRef}
-               srcDoc={getPreviewContent(generatedCode, { raw: true })}
-               className="w-full h-full bg-slate-900"
-               sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
-             />
-          </div>
-          
-          {/* Floating Preview Controls */}
-          <div className="absolute bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-10 w-max max-w-full px-4">
-            {runtimeError && (
-               <div className="absolute bottom-16 left-1/2 -translate-x-1/2 w-max max-w-[90vw] animate-bounce-in">
-                 <div className="bg-red-500/90 backdrop-blur-md text-white px-4 py-3 rounded-xl shadow-2xl border border-red-400 flex items-center gap-3">
-                   <i className="fa-solid fa-triangle-exclamation text-xl animate-pulse"></i>
-                   <div className="flex flex-col">
-                     <span className="text-xs font-bold uppercase opacity-80">{language === 'zh' ? '检测到错误' : 'Error Detected'}</span>
-                     <span className="text-sm font-mono max-w-[200px] truncate" title={runtimeError}>{runtimeError}</span>
-                   </div>
-                   <div className="h-8 w-px bg-white/20 mx-1"></div>
-                   <button 
-                     onClick={() => handleFixError()}
-                     className="bg-white text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 transition flex items-center gap-1 whitespace-nowrap shadow-sm"
-                   >
-                     <i className="fa-solid fa-wand-magic-sparkles"></i>
-                     {language === 'zh' ? 'AI 修复' : 'Fix with AI'}
-                   </button>
-                   <button 
-                     onClick={() => setRuntimeError(null)}
-                     className="text-white/70 hover:text-white transition"
-                   >
-                     <X size={16} />
-                   </button>
-                 </div>
-               </div>
-            )}
-
-            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-full p-1.5 flex shadow-2xl">
-              <button onClick={() => setPreviewMode('desktop')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.desktop}><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
-              <button onClick={() => setPreviewMode('tablet')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.tablet}><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
-              <button onClick={() => setPreviewMode('mobile')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.mobile}><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
-            </div>
-
-            <div className="w-px h-8 bg-slate-700/50 mx-1"></div>
-
-            <button 
-                onClick={handleMobilePreview}
-                className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group" 
-                title={t.create.mobile_preview}
-            >
-                <i className="fa-solid fa-qrcode text-sm group-hover:scale-110 transition"></i>
-            </button>
-
-            <button 
-                onClick={toggleEditMode}
-                className={`h-11 px-5 rounded-full flex items-center gap-2.5 font-bold transition-all shadow-xl border ${
-                    isEditMode 
-                    ? 'bg-gradient-to-r from-brand-600 to-purple-600 border-transparent text-white ring-2 ring-brand-500/30 scale-105' 
-                    : 'bg-slate-900/90 backdrop-blur-md border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-600 group'
-                }`}
-            >
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isEditMode ? 'bg-white/20' : 'bg-brand-500/20 group-hover:bg-brand-500/30'}`}>
-                    <i className={`fa-solid ${isEditMode ? 'fa-check text-white' : 'fa-arrow-pointer text-brand-400'} ${isEditMode ? '' : 'animate-pulse'}`}></i>
-                </div>
-                <span className="text-sm whitespace-nowrap">{isEditMode ? t.create.finish_edit : t.create.edit_mode}</span>
-            </button>
-
-            {/* Quick Edit Undo/Redo Buttons - Only show when in edit mode and has history */}
-            {isEditMode && quickEditHistory.length > 0 && (
-              <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-full px-2 py-1 shadow-xl">
-                <button
-                  onClick={quickEditUndo}
-                  disabled={!canQuickEditUndo}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition ${
-                    canQuickEditUndo 
-                      ? 'text-slate-300 hover:text-white hover:bg-slate-700' 
-                      : 'text-slate-600 cursor-not-allowed'
-                  }`}
-                  title={language === 'zh' ? `撤销 (${quickEditHistoryIndex + 1})` : `Undo (${quickEditHistoryIndex + 1})`}
-                >
-                  <i className="fa-solid fa-rotate-left text-sm"></i>
-                </button>
-                <span className="text-xs text-slate-500 px-1">{quickEditHistoryIndex + 1}/{quickEditHistory.length}</span>
-                <button
-                  onClick={quickEditRedo}
-                  disabled={!canQuickEditRedo}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition ${
-                    canQuickEditRedo 
-                      ? 'text-slate-300 hover:text-white hover:bg-slate-700' 
-                      : 'text-slate-600 cursor-not-allowed'
-                  }`}
-                  title={language === 'zh' ? '重做' : 'Redo'}
-                >
-                  <i className="fa-solid fa-rotate-right text-sm"></i>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {isGenerating && (
-            <div className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white animate-fade-in">
-                <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700 shadow-2xl flex flex-col items-center max-w-xs text-center">
-                  {/* Dynamic Icon based on mode */}
-                  <div className="relative mb-4">
-                     <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
-                     <div className="absolute inset-0 flex items-center justify-center">
-                        <i className={`fa-solid ${step === 'preview' ? 'fa-wand-magic-sparkles' : 'fa-robot'} text-brand-500 text-xs animate-pulse`}></i>
-                     </div>
-                  </div>
-                  
-                  <p className="font-bold text-lg text-white">
-                    {step === 'preview' 
-                        ? (language === 'zh' ? '正在优化应用...' : 'Refining App...') 
-                        : t.create.generating_title}
-                  </p>
-                  <p className="text-sm text-slate-400 mt-2 leading-relaxed">
-                    {step === 'preview'
-                        ? (language === 'zh' ? 'AI 正在根据您的反馈调整代码，请稍候...' : 'AI is adjusting the code based on your feedback, please wait...')
-                        : t.create.generating_subtitle}
-                  </p>
-                </div>
-            </div>
-          )}
-
-      {showEditModal && selectedElement && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 backdrop-blur-sm p-2 pt-8 overflow-y-auto animate-fade-in">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden my-auto">
-            {/* Header - More compact */}
-            <div className="px-3 py-2 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-brand-500/20 flex items-center justify-center text-brand-400">
-                    <i className="fa-solid fa-pen-to-square text-xs"></i>
-                </div>
-                {t.create.edit_element_title}
-              </h3>
-              <button onClick={() => { setShowEditModal(false); setQuickEditMode('none'); }} className="text-slate-400 hover:text-white transition w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-800">
-                <X size={16} />
-              </button>
-            </div>
-            
-            <div className="p-3 space-y-3 max-h-[70vh] overflow-y-auto">
-                {/* Context Card - More compact */}
-                <div className="bg-slate-950 rounded-lg p-3 border border-slate-800 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-1.5 opacity-50 group-hover:opacity-100 transition">
-                     <span className="text-[9px] font-mono text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
-                        {selectedElement.tagName.toLowerCase()}
-                     </span>
-                  </div>
-                  
-                  <div className="space-y-2">
-                      <div>
-                        <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-1 flex items-center gap-1.5">
-                            <i className="fa-solid fa-crosshairs text-[8px]"></i> {t.create.edit_element_selected}
-                        </div>
-                        <div className="font-mono text-xs text-brand-300 break-all">
-                            &lt;{selectedElement.tagName.toLowerCase()} className="..."&gt;
-                        </div>
-                      </div>
-                      
-                      {selectedElement.innerText && (
-                          <div className="pl-2 border-l-2 border-slate-800">
-                            <div className="text-[10px] text-slate-500 mb-0.5">Content</div>
-                            <div className="text-xs text-slate-300 italic line-clamp-1">
-                                "{selectedElement.innerText.substring(0, 60)}{selectedElement.innerText.length > 60 ? '...' : ''}"
-                            </div>
-                          </div>
-                      )}
-
-                      {selectedElement.parentTagName && (
-                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 pt-1.5 border-t border-slate-800/50">
-                             <i className="fa-solid fa-level-up-alt fa-rotate-90 text-[8px]"></i>
-                             <span>Inside &lt;{selectedElement.parentTagName}&gt;</span>
-                          </div>
-                      )}
-                  </div>
-                </div>
-
-                {/* Quick Edit Buttons - Show when applicable */}
-                {(detectQuickEditType(selectedElement) !== 'none') && quickEditMode === 'none' && (
-                  <div className="bg-emerald-950/30 border border-emerald-800/50 rounded-lg p-2.5">
-                    <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <i className="fa-solid fa-bolt text-[8px]"></i>
-                      {language === 'zh' ? '快速编辑' : 'Quick Edit'}
-                    </div>
-                    <div className="flex gap-2">
-                      {(detectQuickEditType(selectedElement) === 'text' || detectQuickEditType(selectedElement) === 'both') && (
-                        <button
-                          onClick={() => {
-                            setQuickEditMode('text');
-                            setQuickEditText(selectedElement.innerText || '');
-                          }}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition"
-                        >
-                          <i className="fa-solid fa-font text-[10px]"></i>
-                          {language === 'zh' ? '改文字' : 'Text'}
-                        </button>
-                      )}
-                      {(detectQuickEditType(selectedElement) === 'color' || detectQuickEditType(selectedElement) === 'both') && (
-                        <button
-                          onClick={() => {
-                            const types = detectAvailableColorTypes(selectedElement.className, selectedElement);
-                            setAvailableColorTypes(types);
-                            setQuickEditColorType(types.length === 1 ? types[0] : 'all');
-                            setQuickEditMode('color');
-                          }}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition"
-                        >
-                          <i className="fa-solid fa-palette text-[10px]"></i>
-                          {language === 'zh' ? '改颜色' : 'Color'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Quick Edit: Color Picker */}
-                {quickEditMode === 'color' && (
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        {language === 'zh' ? '选择颜色' : 'Select Color'}
-                      </label>
-                      <button 
-                        onClick={() => setQuickEditMode('none')}
-                        className="text-[10px] text-slate-500 hover:text-slate-300"
-                      >
-                        {language === 'zh' ? '用AI改' : 'Use AI'}
-                      </button>
-                    </div>
-                    
-                    {/* Color Type Selector - More compact */}
-                    {availableColorTypes.length > 0 && (
-                      <div className="space-y-1.5">
-                        <div className="text-[10px] text-slate-500">{language === 'zh' ? '颜色类型：' : 'Type:'}</div>
-                        <div className="flex gap-1 p-0.5 bg-slate-950 rounded-lg">
-                          {availableColorTypes.length > 1 && (
-                            <button
-                              onClick={() => setQuickEditColorType('all')}
-                              className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium transition ${quickEditColorType === 'all' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
-                            >
-                              {language === 'zh' ? '全部' : 'All'}
-                            </button>
-                          )}
-                          {availableColorTypes.includes('bg') && (
-                            <button
-                              onClick={() => setQuickEditColorType('bg')}
-                              className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium transition flex items-center justify-center gap-0.5 ${quickEditColorType === 'bg' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
-                            >
-                              <i className="fa-solid fa-fill-drip text-[8px]"></i>
-                              {language === 'zh' ? '背景' : 'BG'}
-                            </button>
-                          )}
-                          {availableColorTypes.includes('text') && (
-                            <button
-                              onClick={() => setQuickEditColorType('text')}
-                              className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium transition flex items-center justify-center gap-0.5 ${quickEditColorType === 'text' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
-                            >
-                              <i className="fa-solid fa-font text-[8px]"></i>
-                              {language === 'zh' ? '文字' : 'Text'}
-                            </button>
-                          )}
-                          {availableColorTypes.includes('border') && (
-                            <button
-                              onClick={() => setQuickEditColorType('border')}
-                              className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium transition flex items-center justify-center gap-0.5 ${quickEditColorType === 'border' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
-                            >
-                              <i className="fa-solid fa-border-all text-[8px]"></i>
-                              {language === 'zh' ? '边框' : 'Border'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="space-y-2">
-                      {/* Color picker - More compact */}
-                      <div className="flex gap-2 items-start">
-                        <div className="flex flex-col items-center gap-1">
-                          <input
-                            type="color"
-                            value={quickEditColor}
-                            onChange={(e) => setQuickEditColor(e.target.value)}
-                            className="w-10 h-10 rounded-lg border-2 border-slate-700 cursor-pointer bg-transparent"
-                          />
-                          <span className="text-[8px] text-slate-500 font-mono">{quickEditColor}</span>
-                        </div>
-                        <div className="flex-1">
-                          {/* Quick presets - Common colors */}
-                          <div className="text-[9px] text-slate-500 mb-1">{language === 'zh' ? '常用' : 'Common'}</div>
-                          <div className="grid grid-cols-8 gap-1 mb-1.5">
-                            {['#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1',
-                              '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#64748b', '#ffffff', '#000000'].map(color => (
-                              <button
-                                key={color}
-                                onClick={() => setQuickEditColor(color)}
-                                className={`w-5 h-5 rounded border transition ${quickEditColor === color ? 'border-white ring-1 ring-brand-500 scale-110' : 'border-slate-600 hover:border-slate-400'}`}
-                                style={{ backgroundColor: color }}
-                                title={color}
-                              />
-                            ))}
-                          </div>
-                          {/* Grayscale */}
-                          <div className="text-[9px] text-slate-500 mb-1">{language === 'zh' ? '灰度' : 'Gray'}</div>
-                          <div className="grid grid-cols-10 gap-1">
-                            {['#f8fafc', '#f1f5f9', '#e2e8f0', '#cbd5e1', '#94a3b8', '#64748b', '#475569', '#334155',
-                              '#1e293b', '#0f172a'].map(color => (
-                              <button
-                                key={color}
-                                onClick={() => setQuickEditColor(color)}
-                                className={`w-5 h-5 rounded border transition ${quickEditColor === color ? 'border-white ring-1 ring-brand-500 scale-110' : 'border-slate-600 hover:border-slate-400'}`}
-                                style={{ backgroundColor: color }}
-                                title={color}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      {/* Custom hex input */}
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={quickEditColor}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val.match(/^#[0-9A-Fa-f]{0,6}$/)) {
-                              setQuickEditColor(val);
-                            }
-                          }}
-                          placeholder="#3b82f6"
-                          className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => applyQuickColorEdit(quickEditColor)}
-                      disabled={!quickEditColor.match(/^#[0-9A-Fa-f]{6}$/)}
-                      className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition flex items-center justify-center gap-1"
-                    >
-                      <i className="fa-solid fa-check text-[10px]"></i>
-                      {language === 'zh' ? '应用' : 'Apply'}
-                    </button>
-                  </div>
-                )}
-
-                {/* Quick Edit: Text Input */}
-                {quickEditMode === 'text' && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        {language === 'zh' ? '编辑文字' : 'Edit Text'}
-                      </label>
-                      <button 
-                        onClick={() => setQuickEditMode('none')}
-                        className="text-[10px] text-slate-500 hover:text-slate-300"
-                      >
-                        {language === 'zh' ? 'AI修改' : 'Use AI'}
-                      </button>
-                    </div>
-                    <input
-                      type="text"
-                      value={quickEditText}
-                      onChange={(e) => setQuickEditText(e.target.value)}
-                      placeholder={language === 'zh' ? '输入新文字...' : 'Enter new text...'}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-xs"
-                      autoFocus
-                    />
-                    <button
-                      onClick={() => applyQuickTextEdit(quickEditText)}
-                      disabled={!quickEditText.trim()}
-                      className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition flex items-center justify-center gap-1"
-                    >
-                      <i className="fa-solid fa-check text-[10px]"></i>
-                      {language === 'zh' ? '应用' : 'Apply'}
-                    </button>
-                  </div>
-                )}
-
-                {/* AI Edit Section - Only show when not in quick edit mode */}
-                {quickEditMode === 'none' && (
-                  <>
-                    {/* Divider if quick edit was available */}
-                    {detectQuickEditType(selectedElement) !== 'none' && (
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-px bg-slate-800"></div>
-                        <span className="text-[10px] text-slate-600 font-medium">
-                          {language === 'zh' ? '或用AI' : 'Or AI'}
-                        </span>
-                        <div className="flex-1 h-px bg-slate-800"></div>
-                      </div>
-                    )}
-
-                {/* Intent Selector */}
-                <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                        {language === 'zh' ? '修改类型' : 'Type'}
-                    </label>
-                    <div className="grid grid-cols-4 gap-1">
-                        {[
-                            { id: 'auto', icon: 'fa-wand-magic-sparkles', label: language === 'zh' ? '自动' : 'Auto' },
-                            { id: 'style', icon: 'fa-palette', label: language === 'zh' ? '样式' : 'Style' },
-                            { id: 'content', icon: 'fa-font', label: language === 'zh' ? '内容' : 'Content' },
-                            { id: 'logic', icon: 'fa-code', label: language === 'zh' ? '逻辑' : 'Logic' }
-                        ].map(type => (
-                            <button
-                                key={type.id}
-                                onClick={() => setEditIntent(type.id as any)}
-                                className={`flex flex-col items-center justify-center gap-0.5 py-1.5 rounded border transition-all ${
-                                    editIntent === type.id 
-                                    ? 'bg-brand-600 border-brand-500 text-white shadow-lg shadow-brand-900/20' 
-                                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
-                                }`}
-                            >
-                                <i className={`fa-solid ${type.icon} text-[10px]`}></i>
-                                <span className="text-[8px] font-bold">{type.label}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                
-                {/* Input */}
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                    {t.create.edit_element_label}
-                  </label>
-                  <div className="relative">
-                      <textarea
-                        value={editRequest}
-                        onChange={(e) => setEditRequest(e.target.value)}
-                        placeholder={
-                            editIntent === 'style' ? (language === 'zh' ? '例如：改为圆角按钮，背景色用蓝色...' : 'E.g. Make it rounded with blue background...') :
-                            editIntent === 'content' ? (language === 'zh' ? '例如：把文字改为“提交订单”...' : 'E.g. Change text to "Submit Order"...') :
-                            editIntent === 'logic' ? (language === 'zh' ? '例如：点击后弹出一个提示框...' : 'E.g. Show an alert on click...') :
-                            t.create.edit_element_placeholder
-                        }
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white placeholder-slate-600 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 min-h-[60px] resize-none text-xs leading-relaxed"
-                      />
-                      <div className="absolute bottom-1.5 right-2 text-[8px] text-slate-600">
-                        {editRequest.length}
-                      </div>
-                  </div>
-                </div>
-                  </>
-                )}
-            </div>
-            
-            {/* Footer - Only show for AI edit */}
-            {quickEditMode === 'none' && (
-              <div className="px-3 py-2 border-t border-slate-800 bg-slate-900/50 flex gap-2">
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="flex-1 px-2 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors border border-slate-700"
-              >
-                {t.common.cancel}
-              </button>
-              <button
-                onClick={handleElementEditSubmit}
-                disabled={!editRequest.trim()}
-                className="flex-[2] px-2 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition-all shadow-lg shadow-brand-900/20 flex items-center justify-center gap-1"
-              >
-                <i className="fa-solid fa-wand-magic-sparkles text-[10px]"></i>
-                {t.create.btn_generate_edit}
-              </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showMobilePreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center relative">
-            <button 
-              onClick={() => setShowMobilePreview(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition"
-            >
-              <X size={24} />
-            </button>
-            
-            <h3 className="text-xl font-bold text-slate-900 mb-2">{t.create.mobile_preview_title}</h3>
-            <p className="text-sm text-slate-500 mb-6 text-center">
-              {t.create.mobile_preview_desc}
-            </p>
-            
-            <div className="bg-white p-2 rounded-xl border-2 border-slate-100 shadow-inner mb-6">
-              <QRCodeSVG 
-                value={mobilePreviewUrl} 
-                size={200}
-                level="H"
-                includeMargin={true}
-              />
-            </div>
-            
-            <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full">
-              <i className="fa-solid fa-clock"></i> {t.create.link_validity}
-            </div>
-          </div>
-        </div>
-      )}
-
+        <CreationPreview
+          activeMobileTab={activeMobileTab}
+          handleExit={handleExit}
+          t={t}
+          isFullscreen={isFullscreen}
+          toggleFullScreen={toggleFullScreen}
+          language={language}
+          isSaving={isSaving}
+          handleSaveDraft={handleSaveDraft}
+          handleUpload={handleUpload}
+          previewContainerRef={previewContainerRef}
+          quickEditHistory={quickEditHistory}
+          isHistoryPanelOpen={isHistoryPanelOpen}
+          setIsHistoryPanelOpen={setIsHistoryPanelOpen}
+          quickEditUndo={quickEditUndo}
+          canQuickEditUndo={canQuickEditUndo}
+          quickEditRedo={quickEditRedo}
+          canQuickEditRedo={canQuickEditRedo}
+          quickEditHistoryIndex={quickEditHistoryIndex}
+          setGeneratedCode={setGeneratedCode}
+          setStreamingCode={setStreamingCode}
+          setQuickEditHistoryIndex={setQuickEditHistoryIndex}
+          iframeRef={iframeRef}
+          isEditMode={isEditMode}
+          previewMode={previewMode}
+          previewScale={previewScale}
+          getPreviewContent={getPreviewContent}
+          runtimeError={runtimeError}
+          handleFixError={handleFixError}
+          setRuntimeError={setRuntimeError}
+          setPreviewMode={setPreviewMode}
+          handleMobilePreview={handleMobilePreview}
+          toggleEditMode={toggleEditMode}
+          step={step}
+          isGenerating={isGenerating}
+          showEditModal={showEditModal}
+          selectedElement={selectedElement}
+          setShowEditModal={setShowEditModal}
+          setQuickEditMode={setQuickEditMode}
+          detectQuickEditType={detectQuickEditType}
+          quickEditMode={quickEditMode}
+          setQuickEditText={setQuickEditText}
+          detectAvailableColorTypes={detectAvailableColorTypes}
+          setAvailableColorTypes={setAvailableColorTypes}
+          setQuickEditColorType={setQuickEditColorType}
+          availableColorTypes={availableColorTypes}
+          quickEditColorType={quickEditColorType}
+          quickEditColor={quickEditColor}
+          setQuickEditColor={setQuickEditColor}
+          applyQuickColorEdit={applyQuickColorEdit}
+          quickEditText={quickEditText}
+          applyQuickTextEdit={applyQuickTextEdit}
+          editIntent={editIntent}
+          setEditIntent={setEditIntent}
+          editRequest={editRequest}
+          setEditRequest={setEditRequest}
+          handleElementEditSubmit={handleElementEditSubmit}
+          showMobilePreview={showMobilePreview}
+          setShowMobilePreview={setShowMobilePreview}
+          generatedCode={generatedCode}
+          mobilePreviewUrl={mobilePreviewUrl}
+        />
       {renderHistoryModal()}
-        </div>
-      </div>
 
       {/* Mobile Bottom Tab Bar */}
       <div className="lg:hidden fixed bottom-0 left-0 w-full bg-slate-900 border-t border-slate-800 flex z-50 pb-safe">
