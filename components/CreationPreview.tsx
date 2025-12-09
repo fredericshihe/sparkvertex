@@ -329,7 +329,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                ref={iframeRef}
                srcDoc={getPreviewContent(generatedCode, { raw: true })}
                className="w-full h-full bg-slate-900"
-               sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
+               sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads allow-same-origin"
              />
           </div>
           

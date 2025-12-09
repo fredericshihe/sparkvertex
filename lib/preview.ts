@@ -47,6 +47,9 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
       var hasRendered = false;
       var renderCheckTimeout = null;
       
+      // 🆕 暴露错误列表给父窗口检测
+      window.__sparkErrors = errorList;
+      
       // Override console.error to capture React and other framework errors
       var originalConsoleError = console.error;
       console.error = function() {
@@ -152,21 +155,47 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
         var root = document.getElementById('root');
         var hasContent = false;
         
+        // 🆕 更严格的内容检测
         if (root && root.children.length > 0 && root.innerHTML.trim() !== '') {
-          hasContent = true;
-        } else if (document.body && document.body.children.length > 1) {
-          // More than just our injected scripts
-          hasContent = true;
+          // 检查是否有可见的文本内容
+          var textContent = root.innerText || '';
+          if (textContent.trim().length > 5) {
+            hasContent = true;
+          }
+        }
+        
+        // 检查 body 中是否有除了脚本以外的内容
+        if (!hasContent && document.body) {
+          var bodyChildren = document.body.children;
+          for (var i = 0; i < bodyChildren.length; i++) {
+            var child = bodyChildren[i];
+            if (child.tagName !== 'SCRIPT' && child.id !== 'root') {
+              // 有其他非脚本元素
+              var childText = child.innerText || '';
+              if (childText.trim().length > 5) {
+                hasContent = true;
+                break;
+              }
+            }
+          }
         }
         
         if (!hasContent) {
           console.warn('Blank screen detected - app may have failed to render');
+          
+          // 🆕 收集所有已捕获的错误信息
+          var errorMessages = errorList.map(function(e) { return e.message; }).join('\n');
+          var detailedMessage = errorMessages 
+            ? 'App failed to render. Errors:\n' + errorMessages.substring(0, 500)
+            : 'App failed to render - blank screen detected (no console errors captured, may be a syntax error).';
+          
           var blankError = {
-            message: 'App failed to render - blank screen detected',
+            message: detailedMessage,
             type: 'blank-screen',
             line: null,
             column: null,
-            stack: null
+            stack: null,
+            collectedErrors: errorList.slice(0, 5) // 🆕 包含收集到的错误
           };
           try {
             window.parent.postMessage({ type: 'spark-app-error', error: blankError, autoFix: true }, '*');
@@ -177,24 +206,18 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
       }
       
       // Check for blank screen after a delay (give React time to render)
+      // 🆕 增加延迟时间到 3 秒
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
-          renderCheckTimeout = setTimeout(checkForBlankScreen, 2000);
+          renderCheckTimeout = setTimeout(checkForBlankScreen, 3000);
         });
       } else {
-        renderCheckTimeout = setTimeout(checkForBlankScreen, 2000);
+        renderCheckTimeout = setTimeout(checkForBlankScreen, 3000);
       }
       
-      // Cancel blank screen check if we see any render activity
-      var origCreateElement = document.createElement;
-      document.createElement = function() {
-        hasRendered = true;
-        if (renderCheckTimeout) {
-          clearTimeout(renderCheckTimeout);
-          renderCheckTimeout = null;
-        }
-        return origCreateElement.apply(document, arguments);
-      };
+      // 🆕 不再因为 createElement 就取消白屏检测
+      // 因为即使创建了元素，最终也可能渲染失败
+      // 只有在确实有可见内容时才标记为已渲染
     })();
   </script>`;
 

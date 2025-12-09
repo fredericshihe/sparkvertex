@@ -11,14 +11,13 @@ interface GenerationProgressProps {
 }
 
 const SYSTEM_LOGS = [
-  { zh: "正在分析修改需求...", en: "Analyzing modification requirements..." },
-  { zh: "识别意图：通用修改", en: "Identified intent: General modification" },
-  { zh: "正在扫描工作区文件...", en: "Scanning workspace files..." },
-  { zh: "分析结果：已定位 14 个核心模块", en: "Analysis result: Located 14 core modules" },
-  { zh: "上下文优化：36%", en: "Context optimization: 36%" },
+  { zh: "正在分析您的需求...", en: "Analyzing your requirements..." },
+  { zh: "理解应用场景与功能需求", en: "Understanding use case and features" },
+  { zh: "规划应用架构与组件结构", en: "Planning app architecture and components" },
+  { zh: "选择最佳技术方案", en: "Selecting optimal technical approach" },
   { zh: "正在构建生成计划...", en: "Building generation plan..." },
-  { zh: "正在发送给 AI 大模型进行修改...", en: "Sending to AI model for modification..." },
-  { zh: "等待 AI 大模型返回生成结果...", en: "Waiting for AI model response..." }
+  { zh: "正在发送给 AI 大模型...", en: "Sending to AI model..." },
+  { zh: "等待 AI 生成代码...", en: "Waiting for AI to generate code..." }
 ];
 
 export const GenerationProgress: React.FC<GenerationProgressProps> = ({ 

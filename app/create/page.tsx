@@ -142,11 +142,16 @@ function CreateContent() {
   }));
 
   // Model Configuration
+  // Token汇率说明：
+  // - Gemini 2.5 Flash: 1积分 = 15000 tokens（便宜）
+  // - Gemini 2.5 Pro: 1积分 = 4000 tokens（均衡）
+  // - Gemini 3 Pro: 1积分 = 3000 tokens（强大）
+  // 注意：上下文 > 200k tokens 时，价格自动翻倍
   type ModelType = 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'gemini-3-pro-preview';
   const MODEL_CONFIG = {
     'gemini-2.5-flash': { 
       name: 'Gemini 2.5 Flash', 
-      tokensPerCredit: 5000, 
+      tokensPerCredit: 15000, 
       icon: '⚡', 
       description: language === 'zh' ? '日常修改' : 'Daily edits',
       subtitle: language === 'zh' ? '便宜快速，适合简单任务' : 'Fast & cheap for simple tasks'
@@ -342,6 +347,7 @@ function CreateContent() {
   // 🆕 AI 工作流可视化状态
   const [workflowStage, setWorkflowStage] = useState<WorkflowStage>('idle');
   const [workflowDetails, setWorkflowDetails] = useState<StageDetails>({});
+  const [fullCodeMode, setFullCodeMode] = useState(false); // 🆕 全量修改模式开关
   
   // State: Credit Animation
   const [isCreditAnimating, setIsCreditAnimating] = useState(false);
@@ -487,11 +493,41 @@ function CreateContent() {
       
       if (event.data && event.data.type === 'spark-app-error') {
         const errorData = event.data.error;
-        const errorMessage = typeof errorData === 'string' ? errorData : errorData.message;
         const isBlankScreen = errorData?.type === 'blank-screen';
         const shouldAutoFix = event.data.autoFix === true;
         
-        console.warn('Runtime Error Caught:', errorMessage, isBlankScreen ? '(blank screen)' : '');
+        // 🆕 提取详细错误信息
+        let errorMessage = typeof errorData === 'string' ? errorData : errorData.message;
+        let detailedErrors: string[] = [];
+        
+        // 如果有收集到的错误列表，提取详细信息
+        if (errorData?.collectedErrors && Array.isArray(errorData.collectedErrors)) {
+          detailedErrors = errorData.collectedErrors.map((e: any) => {
+            let msg = e.message || '';
+            if (e.line) msg += ` (Line ${e.line})`;
+            if (e.source) msg += ` [${e.source}]`;
+            return msg;
+          }).filter(Boolean);
+          
+          // 如果有详细错误，构建更好的错误消息
+          if (detailedErrors.length > 0) {
+            errorMessage = language === 'zh' 
+              ? `应用渲染失败。控制台错误:\n${detailedErrors.slice(0, 3).join('\n')}`
+              : `App failed to render. Console errors:\n${detailedErrors.slice(0, 3).join('\n')}`;
+          } else if (isBlankScreen) {
+            // 没有捕获到错误但检测到白屏，提示用户这可能是语法错误
+            errorMessage = language === 'zh'
+              ? '应用渲染失败 - 检测到白屏（未捕获到运行时错误，可能是语法错误）。点击下方按钮让 AI 分析代码。'
+              : 'App failed to render - blank screen detected (no runtime errors captured, possibly a syntax error). Click button below to let AI analyze.';
+          }
+        } else if (isBlankScreen && !errorMessage.includes('Errors:')) {
+          // 空白屏幕但没有 collectedErrors 数组
+          errorMessage = language === 'zh'
+            ? '应用渲染失败 - 检测到白屏（未捕获到运行时错误，可能是语法错误）。点击下方按钮让 AI 分析代码。'
+            : 'App failed to render - blank screen detected (no runtime errors captured, possibly a syntax error). Click button below to let AI analyze.';
+        }
+        
+        console.warn('Runtime Error Caught:', errorMessage, isBlankScreen ? '(blank screen)' : '', detailedErrors);
         
         setRuntimeError(errorMessage);
 
@@ -506,7 +542,7 @@ function CreateContent() {
                 role: 'ai', 
                 content: errorMessage, 
                 type: 'error',
-                errorDetails: errorData,
+                errorDetails: { ...errorData, detailedErrors },
                 isBlankScreen,
                 canAutoFix: shouldAutoFix || isBlankScreen  // Blank screen errors can be auto-fixed
             }];
@@ -544,6 +580,99 @@ function CreateContent() {
       return () => clearTimeout(timer);
     }
   }, [workflowStage, isGenerating]);
+
+  // 🆕 Effect: 父窗口级别白屏检测 (当代码更新后主动检测 iframe 内容)
+  useEffect(() => {
+    if (!generatedCode || !iframeRef.current || isGenerating) return;
+    
+    // 延迟检测，给 iframe 足够的渲染时间
+    const checkTimer = setTimeout(() => {
+      try {
+        const iframe = iframeRef.current;
+        if (!iframe) return;
+        
+        // 尝试访问 iframe 内容
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!iframeDoc) {
+          console.warn('[BlankScreen] Cannot access iframe document');
+          return;
+        }
+        
+        // 检查是否有可见内容
+        const body = iframeDoc.body;
+        const root = iframeDoc.getElementById('root');
+        
+        // 计算实际可见内容
+        const hasVisibleContent = (() => {
+          // 检查 body 是否有子元素
+          if (!body || body.children.length === 0) return false;
+          
+          // 检查 root 元素
+          if (root) {
+            // 如果 root 存在但为空
+            if (root.innerHTML.trim() === '' || root.children.length === 0) {
+              return false;
+            }
+          }
+          
+          // 检查 body 的实际文本内容长度
+          const textContent = body.innerText?.trim() || '';
+          if (textContent.length < 10) {
+            // 内容太少，可能是白屏
+            return false;
+          }
+          
+          return true;
+        })();
+        
+        // 检查是否有 console 错误
+        const consoleErrors: any[] = [];
+        
+        // 如果检测到白屏且没有收到 postMessage 错误
+        if (!hasVisibleContent && !runtimeError) {
+          console.warn('[BlankScreen] Parent-level blank screen detection triggered');
+          
+          // 尝试获取 iframe 的控制台错误
+          try {
+            // 检查是否有全局错误变量
+            const iframeWindow = iframe.contentWindow as any;
+            if (iframeWindow && iframeWindow.__sparkErrors) {
+              consoleErrors.push(...iframeWindow.__sparkErrors);
+            }
+          } catch (e) {
+            // 跨域限制，忽略
+          }
+          
+          const errorMessage = consoleErrors.length > 0 
+            ? (typeof consoleErrors[0] === 'object' ? consoleErrors[0].message : String(consoleErrors[0]))
+            : (language === 'zh' ? '应用渲染失败 - 检测到白屏，可能存在语法错误。点击下方按钮让 AI 分析代码。' : 'App failed to render - blank screen detected, possibly a syntax error. Click the button below to let AI analyze the code.');
+          
+          // 添加到聊天历史
+          setChatHistory(prev => {
+            const lastMsg = prev[prev.length - 1];
+            // 避免重复添加
+            if (lastMsg && lastMsg.type === 'error' && lastMsg.isBlankScreen) {
+              return prev;
+            }
+            return [...prev, {
+              role: 'ai',
+              content: errorMessage,
+              type: 'error',
+              isBlankScreen: true,
+              canAutoFix: true
+            }];
+          });
+          
+          setRuntimeError(errorMessage);
+        }
+      } catch (e) {
+        // 跨域错误或其他问题，静默处理
+        console.warn('[BlankScreen] Detection error:', e);
+      }
+    }, 3000); // 3秒延迟，给 React 足够的渲染时间
+    
+    return () => clearTimeout(checkTimer);
+  }, [generatedCode, isGenerating, language, runtimeError]);
 
   useEffect(() => {
     const draftIdParam = searchParams.get('draftId');
@@ -1398,6 +1527,33 @@ ${description}
                     plan: planMatch[1].trim()
                 }));
             }
+            
+            // 🆕 Extract Analysis - 显示为需求分析步骤 (支持多种格式，包括中英文冒号)
+            const analysisMatch = content.match(/(?:\/\/\/\s*)?ANALYSIS[:：\s]+([\s\S]*?)(?=(?:\/\/\/\s*)?SUMMARY|$)/i);
+            if (analysisMatch) {
+                const analysisText = analysisMatch[1].trim();
+                content = content.replace(analysisMatch[0], '');
+                setLoadingText(language === 'zh' ? '需求分析中...' : 'Analyzing requirements...');
+                
+                // 更新工作流可视化 - 需求分析作为第一步
+                setWorkflowDetails(prev => ({
+                    ...prev,
+                    currentStep: language === 'zh' ? '需求分析' : 'Requirement Analysis',
+                    plan: analysisText // 将 ANALYSIS 内容作为计划显示
+                }));
+            }
+            
+            // 🆕 Extract Summary - 仅从内容中移除，不显示为步骤
+            const summaryMatch = content.match(/(?:\/\/\/\s*)?SUMMARY[:：\s]+([\s\S]*?)(?:\/\/\/|$)/i);
+            if (summaryMatch) {
+                content = content.replace(summaryMatch[0], '');
+                
+                // 仅更新当前步骤状态，不添加 summary 到 completedSteps
+                setWorkflowDetails(prev => ({
+                    ...prev,
+                    currentStep: language === 'zh' ? '正在编写代码' : 'Writing code'
+                }));
+            }
 
             // Extract Steps
             const stepMatches = [...content.matchAll(/\/\/\/ STEP: (.*?) \/\/\//g)];
@@ -1417,15 +1573,19 @@ ${description}
                 setWorkflowDetails(prev => ({
                     ...prev,
                     currentStep: currentStepName,
-                    completedSteps: completedSteps,
+                    completedSteps: [...(prev.completedSteps || []), ...completedSteps.filter(s => !(prev.completedSteps || []).includes(s))],
                     stepsCompleted: stepMatches.length,
                     totalSteps: Math.max(stepMatches.length + 1, prev.totalSteps || 0) // 估计总步骤
                 }));
             }
 
+            // 🆕 过滤掉 AST_REPLACE 标记，避免在 UI 中显示
+            content = content.replace(/<<<<?(?:AST_REPLACE|SEARCH|REPLACE)[^>]*>>>?>?/g, '');
+            content = content.replace(/>>>?>?\s*$/g, ''); // 清理末尾的 >>> 或 >>>>
+
             setStreamingCode(content);
             
-            // 🆕 更新工作流可视化 - 流式代码
+            // 🆕 更新工作流可视化 - 流式代码（过滤后的）
             setWorkflowDetails(prev => ({
                 ...prev,
                 streamingCode: content
@@ -1795,16 +1955,40 @@ ${description}
                 // Full Generation Mode
                 let cleanCode = cleanTheCode(rawCode);
                 
+                // 🆕 Extract and remove PLAN if present
+                const planMatch = cleanCode.match(/\/\/\/\s*PLAN\s*\/\/\/([\s\S]*?)\/\/\//);
+                if (planMatch) {
+                    const planContent = planMatch[1].trim();
+                    if (planContent && !extractedPlan) {
+                        setAiPlan(planContent);
+                    }
+                    cleanCode = cleanCode.replace(planMatch[0], '').trim();
+                }
+                
+                // 🆕 Extract and remove ANALYSIS if present
+                const analysisMatch = cleanCode.match(/\/\/\/\s*ANALYSIS:\s*([\s\S]*?)(?:\/\/\/|$)/);
+                if (analysisMatch) {
+                    console.log('[Full Mode] AI Analysis:', analysisMatch[1].trim());
+                    cleanCode = cleanCode.replace(analysisMatch[0], '').trim();
+                }
+                
                 // Extract Summary if present (for full rewrite modification)
-                const summaryMatch = cleanCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)\s*\/\/\//);
+                const summaryMatch = cleanCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)(?:\s*\/\/\/|$)/);
                 let summary = summaryMatch ? summaryMatch[1].trim() : null;
                 
                 // Remove summary from code
                 if (summaryMatch) {
                     cleanCode = cleanCode.replace(summaryMatch[0], '').trim();
                 }
+                
+                // 🆕 Remove any remaining /// markers (STEP, etc.)
+                cleanCode = cleanCode.replace(/\/\/\/\s*STEP:\s*.*?\s*\/\/\//g, '');
+                cleanCode = cleanCode.replace(/\/\/\/[^/]*\/\/\//g, ''); // Generic /// ... /// patterns
+                
+                // 🆕 Remove any SEARCH/REPLACE blocks that AI might have incorrectly included
+                cleanCode = cleanCode.replace(/<<<<\s*SEARCH[\s\S]*?>>>>/g, '');
 
-                cleanCode = cleanCode.replace(/```html/g, '').replace(/```/g, '');
+                cleanCode = cleanCode.replace(/```html/g, '').replace(/```tsx?/g, '').replace(/```jsx?/g, '').replace(/```javascript/g, '').replace(/```/g, '');
 
                 if (!cleanCode.includes('<meta name="viewport"')) {
                     cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
@@ -1902,6 +2086,33 @@ ${description}
                          plan: planMatch[1].trim()
                      }));
                  }
+                 
+                 // 🆕 Extract Analysis - 显示为需求分析步骤 (支持多种格式，包括中英文冒号)
+                 const analysisMatch = content.match(/(?:\/\/\/\s*)?ANALYSIS[:：\s]+([\s\S]*?)(?=(?:\/\/\/\s*)?SUMMARY|$)/i);
+                 if (analysisMatch) {
+                     const analysisText = analysisMatch[1].trim();
+                     content = content.replace(analysisMatch[0], '');
+                     setLoadingText(language === 'zh' ? '需求分析中...' : 'Analyzing requirements...');
+                     
+                     // 更新工作流可视化 - 需求分析作为第一步
+                     setWorkflowDetails(prev => ({
+                         ...prev,
+                         currentStep: language === 'zh' ? '需求分析' : 'Requirement Analysis',
+                         plan: analysisText
+                     }));
+                 }
+                 
+                 // 🆕 Extract Summary - 仅从内容中移除，不显示为步骤
+                 const summaryMatch = content.match(/(?:\/\/\/\s*)?SUMMARY[:：\s]+([\s\S]*?)(?:\/\/\/|$)/i);
+                 if (summaryMatch) {
+                     content = content.replace(summaryMatch[0], '');
+                     
+                     // 仅更新当前步骤状态，不添加 summary 到 completedSteps
+                     setWorkflowDetails(prev => ({
+                         ...prev,
+                         currentStep: language === 'zh' ? '正在编写代码' : 'Writing code'
+                     }));
+                 }
 
                  // Extract Steps
                  const stepMatches = [...content.matchAll(/\/\/\/ STEP: (.*?) \/\/\//g)];
@@ -1921,15 +2132,19 @@ ${description}
                      setWorkflowDetails(prev => ({
                          ...prev,
                          currentStep: currentStepName,
-                         completedSteps: completedSteps,
+                         completedSteps: [...(prev.completedSteps || []), ...completedSteps.filter(s => !(prev.completedSteps || []).includes(s))],
                          stepsCompleted: stepMatches.length,
                          totalSteps: Math.max(stepMatches.length + 1, prev.totalSteps || 0)
                      }));
                  }
 
+                 // 🆕 过滤掉 AST_REPLACE 标记，避免在 UI 中显示
+                 content = content.replace(/<<<<?(?:AST_REPLACE|SEARCH|REPLACE)[^>]*>>>?>?/g, '');
+                 content = content.replace(/>>>?>?\s*$/g, ''); // 清理末尾的 >>> 或 >>>>
+
                  setStreamingCode(content);
                  
-                 // 🆕 更新工作流可视化 - 流式代码
+                 // 🆕 更新工作流可视化 - 流式代码（过滤后的）
                  setWorkflowDetails(prev => ({
                      ...prev,
                      streamingCode: content
@@ -1937,6 +2152,7 @@ ${description}
                  
                  if (!hasStartedStreaming) {
                      setGenerationPhase('generating');
+                     setWorkflowStage('generating'); // 🆕 强制进入生成阶段，防止状态不同步
                  }
                  hasStartedStreaming = true;
                  lastUpdateTimestamp = Date.now();
@@ -2104,6 +2320,7 @@ ${description}
     // 🆕 重置工作流可视化状态
     setWorkflowStage('analyzing');
     setWorkflowDetails({});
+    // 全量修改模式由开关控制，不再由forceFull参数控制
     
     let hasStartedStreaming = false;
 
@@ -2268,6 +2485,12 @@ Your response MUST follow this exact structure:
 4. **No Shortcuts**: Output every single line between start and end markers
    - Do NOT skip lines or use ellipsis (\`...\`)
    - Do NOT use placeholders
+
+5. **🚨 NEVER Use Compressed Code as Anchors**:
+   - ❌ FORBIDDEN: Using any line containing \`@semantic-compressed\`, \`/* compressed */\`, \`IRRELEVANT\`, or \`/* ... statements hidden */\`
+   - ❌ FORBIDDEN: Referencing or modifying components marked as \`[IRRELEVANT - DO NOT USE AS ANCHOR]\`
+   - ✅ REQUIRED: Only use lines from VISIBLE, UNCOMPRESSED code in your SEARCH blocks
+   - If you need to modify a compressed component, STOP and ask the user to explicitly request it
 
 ### Critical Rules for REPLACE Block:
 1. **Completeness**: Output the FULL replacement including all context lines from SEARCH
@@ -2592,7 +2815,8 @@ Remember: You're building for production. Code must be clean, performant, and er
                 current_code: isModification ? generatedCode : undefined,
                 is_first_edit: isFirstEditOnUpload,
                 model: selectedModel,
-                tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit
+                tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit,
+                skip_compression: fullCodeMode || forceFull // 🆕 全量修改模式或强制全量时跳过压缩
             }),
             signal: abortControllerRef.current.signal
         });
@@ -2658,15 +2882,21 @@ Remember: You're building for production. Code must be clean, performant, and er
                                         }
                                         // 🆕 根据 stage 更新工作流可视化
                                         if (event.data?.stage === 'compression') {
-                                            setWorkflowStage('compressing');
-                                            if (event.data.compressionStats) {
-                                                setWorkflowDetails(prev => ({
-                                                    ...prev,
-                                                    compressionStats: event.data.compressionStats
-                                                }));
+                                            // 🆕 全量修改模式跳过压缩阶段，保持analyzing
+                                            if (!fullCodeMode && !forceFull) {
+                                                setWorkflowStage('compressing');
+                                                if (event.data.compressionStats) {
+                                                    setWorkflowDetails(prev => ({
+                                                        ...prev,
+                                                        compressionStats: event.data.compressionStats
+                                                    }));
+                                                }
                                             }
                                         } else if (event.data?.stage === 'rag') {
-                                            setWorkflowStage('compressing');
+                                            // 🆕 全量修改模式跳过RAG阶段
+                                            if (!fullCodeMode && !forceFull) {
+                                                setWorkflowStage('compressing');
+                                            }
                                         } else if (event.data?.stage === 'intent') {
                                             setWorkflowStage('analyzing');
                                         }
@@ -2729,8 +2959,10 @@ Remember: You're building for production. Code must be clean, performant, and er
       // Inject RAG Context if available
       let finalSystemPrompt = SYSTEM_PROMPT;
       
-      // Apply Smart Context Compression
-      if (compressedCode && isModification) {
+      // Apply Smart Context Compression (跳过全量修复模式)
+      // 全量修改模式下，不进行任何压缩
+      const skipCompressionForThisRequest = fullCodeMode || forceFull;
+      if (compressedCode && isModification && !skipCompressionForThisRequest) {
           console.log('Applying Smart Context Compression to User Prompt');
           // Replace the full code in finalUserPrompt with compressed code
           
@@ -2740,16 +2972,27 @@ Remember: You're building for production. Code must be clean, performant, and er
           if (safeOriginalCode && finalUserPrompt.includes(safeOriginalCode)) {
               finalUserPrompt = finalUserPrompt.replace(safeOriginalCode, safeCompressedCode);
               
-              // Add explicit warning about semantic compression
-              finalUserPrompt += `\n\n### ⚠️ SEMANTIC COMPRESSION NOTICE
-Some components are shown as \`@semantic-compressed\` with a summary of their Props/State/Handlers.
-These compressed components are NOT targets for modification - focus on the full components shown.
-**NEVER** include \`/* compressed */\` or \`@semantic-compressed\` in your SEARCH blocks.`;
+              // Add explicit warning about semantic compression with STRONGER constraints
+              finalUserPrompt += `\n\n### ⚠️ CRITICAL: SEMANTIC COMPRESSION RULES
+Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO NOT USE AS ANCHOR]\`.
+
+**🚨 ABSOLUTE RULES:**
+1. **NEVER** use ANY line from compressed components in your \`<<<<SEARCH\` blocks
+2. **NEVER** reference \`/* ... statements hidden */\` or \`@semantic-compressed\` markers
+3. **NEVER** attempt to modify components marked as \`[IRRELEVANT]\`
+4. **ONLY** modify the FULL, UNCOMPRESSED components shown in the code
+5. If you MUST modify a compressed component, **STOP** and tell the user to explicitly request it
+
+**WHY**: Compressed components exist ONLY for context. Their code signatures may differ from the actual source file, causing patch failures.
+
+**FOCUS ON**: The fully-visible components that match the user's request.`;
 
               console.log('User Prompt compressed successfully.');
           } else {
               console.warn('Could not find original code in User Prompt to replace. Using full code.');
           }
+      } else if (skipCompressionForThisRequest && isModification) {
+          console.log('[Full Code Mode] Sending complete uncompressed code to AI');
       }
 
       if (ragContext) {
@@ -3783,16 +4026,28 @@ ${editIntent === 'logic' ? '4. **Logic**: Update the onClick handler or state lo
   };
 
   // Handle blank screen fix - called when user clicks fix button for blank screen
-  const handleBlankScreenFix = () => {
+  const handleBlankScreenFix = (errorDetails?: any) => {
+    // 🆕 提取详细错误信息
+    let consoleErrors = '';
+    if (errorDetails?.detailedErrors && errorDetails.detailedErrors.length > 0) {
+      consoleErrors = errorDetails.detailedErrors.join('\n');
+    } else if (errorDetails?.collectedErrors && errorDetails.collectedErrors.length > 0) {
+      consoleErrors = errorDetails.collectedErrors.map((e: any) => e.message).join('\n');
+    }
+    
     const blankScreenPrompt = language === 'zh'
-      ? `应用出现白屏，无法渲染任何内容。请检查以下可能的问题并修复：
+      ? `应用出现白屏，无法渲染任何内容。${consoleErrors ? `\n\n浏览器控制台报错：\n${consoleErrors}` : ''}
+
+请检查以下可能的问题并修复：
 1. React 组件是否正确导出和渲染
 2. ReactDOM.render/createRoot 是否正确调用
 3. 是否有语法错误导致 JSX 解析失败
 4. 是否有未定义的变量或组件
 
 请修复代码使应用能够正常显示。`
-      : `The app is showing a blank screen and not rendering any content. Please check and fix these potential issues:
+      : `The app is showing a blank screen and not rendering any content.${consoleErrors ? `\n\nBrowser console errors:\n${consoleErrors}` : ''}
+
+Please check and fix these potential issues:
 1. Are React components properly exported and rendered?
 2. Is ReactDOM.render/createRoot called correctly?
 3. Are there syntax errors causing JSX parsing failure?
@@ -4165,19 +4420,20 @@ Please fix the code to make the app display properly.`;
             <div className={`relative z-10 w-full max-w-4xl px-6 transition-all duration-500 ${isCompleting ? 'scale-110 opacity-0' : 'scale-100 opacity-100'}`}>
                 
                 {/* Central Status Display */}
-                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700/50 rounded-3xl p-8 shadow-2xl relative overflow-hidden group">
+                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700/50 rounded-3xl p-8 shadow-2xl relative group">
                     {/* Glowing Border Effect */}
-                    <div className="absolute -inset-[1px] bg-gradient-to-r from-transparent via-brand-500/50 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-1000 animate-gradient-x"></div>
+                    <div className="absolute -inset-[1px] bg-gradient-to-r from-transparent via-brand-500/50 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-1000 animate-gradient-x rounded-3xl"></div>
                     
                     <div className="relative flex flex-col md:flex-row gap-8 items-center md:items-start">
                         {/* Left: Visual Indicator */}
-                        <div className="shrink-0 relative">
-                            <div className="w-20 h-20 rounded-2xl bg-slate-800 flex items-center justify-center border border-slate-700 overflow-hidden">
-                                <i className={`fa-solid ${wizardData.category ? (CATEGORIES.find(c => c.id === wizardData.category)?.icon || 'fa-cube') : 'fa-cube'} text-4xl text-brand-500/80`}></i>
-                                <div className="absolute inset-0 bg-gradient-to-t from-brand-500/20 to-transparent animate-pulse"></div>
+                        <div className="shrink-0 relative z-10">
+                            <div className="w-20 h-20 rounded-2xl shadow-lg relative">
+                                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700/50 overflow-hidden flex items-center justify-center">
+                                    <i className={`fa-solid ${wizardData.category ? (CATEGORIES.find(c => c.id === wizardData.category)?.icon || 'fa-cube') : 'fa-cube'} text-4xl text-brand-500/80`}></i>
+                                </div>
                             </div>
-                            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-slate-900 rounded-full border border-slate-700 flex items-center justify-center">
-                                <i className="fa-solid fa-robot text-brand-400 text-xs animate-bounce"></i>
+                            <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full border-2 border-slate-900 bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shadow-lg">
+                                <i className="fa-solid fa-robot text-white text-xs animate-bounce"></i>
                             </div>
                         </div>
 
@@ -4253,6 +4509,8 @@ Please fix the code to make the app display properly.`;
           setSelectedModel={setSelectedModel}
           MODEL_CONFIG={MODEL_CONFIG}
           handleFullRepair={handleFullRepair}
+          fullCodeMode={fullCodeMode}
+          setFullCodeMode={setFullCodeMode}
           handleBlankScreenFix={handleBlankScreenFix}
           handleFixError={handleFixError}
         />

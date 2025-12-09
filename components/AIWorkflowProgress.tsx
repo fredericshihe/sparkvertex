@@ -42,6 +42,7 @@ interface AIWorkflowProgressProps {
   language: 'zh' | 'en';
   variant?: 'floating' | 'centered' | 'chat';
   onExpand?: () => void;
+  skipCompression?: boolean; // 🆕 全量修复模式跳过压缩阶段显示
 }
 
 // 阶段图标和颜色映射
@@ -84,7 +85,8 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
   details,
   isGenerating,
   language,
-  variant = 'floating'
+  variant = 'floating',
+  skipCompression = false // 🆕 默认不跳过
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -142,11 +144,13 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
   }
 
   // 获取当前阶段配置
-  const currentConfig = STAGE_CONFIG[stage as keyof typeof STAGE_CONFIG];
+  // 如果有代码流，强制显示为生成阶段
+  const effectiveStage = details.streamingCode ? 'generating' : stage;
+  const currentConfig = STAGE_CONFIG[effectiveStage as keyof typeof STAGE_CONFIG];
 
   // 计算整体进度
   const getOverallProgress = () => {
-    switch (stage) {
+    switch (effectiveStage) {
       case 'analyzing': return 15;
       case 'compressing': return 35;
       case 'generating': 
@@ -158,6 +162,9 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
       default: return 0;
     }
   };
+
+  // 计算是否已有生成内容（计划、步骤或代码）
+  const hasGeneratingContent = !!details.plan || !!details.currentStep || !!details.streamingCode || (details.completedSteps && details.completedSteps.length > 0);
 
   return (
     <div className={containerClasses}>
@@ -220,8 +227,8 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
           {/* 阶段 1: DeepSeek 分析 */}
           {stage !== 'idle' && (
             <TimelineItem
-              active={stage === 'analyzing'}
-              completed={stage !== 'analyzing'}
+              active={stage === 'analyzing' && !hasGeneratingContent}
+              completed={stage !== 'analyzing' || hasGeneratingContent}
               icon="fa-brain"
               color="purple"
             >
@@ -255,8 +262,8 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
             </TimelineItem>
           )}
 
-          {/* 阶段 2: RAG/压缩 */}
-          {(stage === 'compressing' || details.compressionStats || stage === 'generating' || stage === 'completed') && (
+          {/* 阶段 2: RAG/压缩 (全量修复时跳过) */}
+          {!skipCompression && (stage === 'compressing' || details.compressionStats || stage === 'generating' || stage === 'completed') && (
             <TimelineItem
               active={stage === 'compressing'}
               completed={stage !== 'compressing' && (!!details.compressionStats || stage === 'generating' || stage === 'completed')}
@@ -293,9 +300,9 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
           )}
 
           {/* 阶段 3: Gemini 生成 */}
-          {(stage === 'generating' || details.plan || details.currentStep || details.streamingCode || stage === 'completed') && (
+          {(stage === 'generating' || hasGeneratingContent || stage === 'completed') && (
             <TimelineItem
-              active={stage === 'generating'}
+              active={stage === 'generating' || hasGeneratingContent}
               completed={stage === 'completed'}
               icon="fa-code"
               color="blue"
@@ -308,10 +315,10 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
                       : (stage === 'generating' ? 'Building App in progress...' : 'Building App')}
                 </span>
 
-                {/* 计划展示 */}
-                {details.plan && (
-                  <div className="bg-blue-500/5 rounded-lg p-3 border border-blue-500/10">
-                    <div className="flex items-center gap-2 mb-2">
+                {/* 计划展示 - 已移除详细内容显示 */}
+                {/* {details.plan && (
+                  <div className="bg-blue-500/5 rounded-lg p-3 border border-blue-500/10 max-h-40 overflow-y-auto custom-scrollbar">
+                    <div className="flex items-center gap-2 mb-2 sticky top-0 bg-inherit backdrop-blur-sm">
                       <i className="fa-solid fa-list-check text-blue-400 text-[10px]"></i>
                       <span className="text-[10px] font-medium text-blue-300 uppercase tracking-wider">
                         {language === 'zh' ? '生成计划' : 'Plan'}
@@ -321,25 +328,34 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
                       {details.plan}
                     </p>
                   </div>
-                )}
+                )} */}
 
                 {/* 步骤执行 */}
-                {(details.completedSteps?.length || details.currentStep) && (
-                  <div className="space-y-2 mt-2">
-                    {details.completedSteps?.map((step, i) => (
-                      <div key={i} className="flex items-center gap-3 text-[11px] text-slate-400 animate-in slide-in-from-left-2 fade-in duration-300">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-500/50"></div>
-                        <span className="line-through opacity-50">{step}</span>
-                      </div>
-                    ))}
-                    {details.currentStep && (
-                      <div className="flex items-center gap-3 text-[11px] text-blue-200 animate-pulse">
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)]"></div>
-                        <span className="font-medium">{details.currentStep}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {(details.completedSteps?.length || details.currentStep) && (() => {
+                  // 预处理步骤数据：去重、清理空白
+                  const normalizeStep = (s: string) => s.trim();
+                  const completedSteps = Array.from(new Set((details.completedSteps || []).map(normalizeStep)));
+                  const currentStep = details.currentStep ? normalizeStep(details.currentStep) : null;
+                  // 只有当当前步骤不在已完成列表中时才显示，避免重复
+                  const showCurrentStep = currentStep && !completedSteps.includes(currentStep);
+
+                  return (
+                    <div className="space-y-3 mt-4 pl-1">
+                      {completedSteps.map((step, i) => (
+                        <div key={i} className="flex items-start gap-3 text-[11px] text-slate-400 animate-in slide-in-from-left-2 fade-in duration-300">
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-500/50 mt-1.5 shrink-0"></div>
+                          <span className="line-through opacity-50 leading-relaxed">{step}</span>
+                        </div>
+                      ))}
+                      {showCurrentStep && (
+                        <div className="flex items-start gap-3 text-[11px] text-blue-200 animate-pulse">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.8)] mt-1.5 shrink-0"></div>
+                          <span className="font-medium leading-relaxed">{currentStep}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* 代码预览 */}
                 {details.streamingCode && (
@@ -353,7 +369,7 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
                         className="p-3 h-32 overflow-y-auto custom-scrollbar scroll-smooth"
                     >
                       <pre className="font-mono text-[10px] text-slate-300/90 leading-relaxed break-all whitespace-pre-wrap">
-                        {details.streamingCode}
+                        {cleanCode(details.streamingCode)}
                       </pre>
                     </div>
                   </div>
@@ -445,5 +461,21 @@ const ThinkingDots: React.FC<{ text: string }> = ({ text }) => (
     {text}
   </div>
 );
+
+// 辅助函数：清理代码显示
+const cleanCode = (code: string) => {
+  if (!code) return '';
+  return code
+    .split('\n')
+    .filter(line => {
+      const trimmed = line.trim();
+      return !trimmed.startsWith('<<<<') && 
+             !trimmed.startsWith('====') && 
+             !trimmed.startsWith('>>>>') &&
+             !trimmed.startsWith('STEP:') &&
+             !trimmed.startsWith('///');
+    })
+    .join('\n');
+};
 
 export default AIWorkflowProgress;

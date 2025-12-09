@@ -1629,7 +1629,7 @@ function UploadContent() {
                 <iframe 
                     srcDoc={getValidationContent(fileContent)}
                     className="fixed top-0 left-0 w-[100px] h-[100px] opacity-0 pointer-events-none -z-50"
-                    sandbox="allow-scripts allow-forms allow-modals"
+                    sandbox="allow-scripts allow-forms allow-modals allow-same-origin"
                 />
              </div>
           )}
@@ -1712,7 +1712,7 @@ function UploadContent() {
                 <iframe 
                   srcDoc={getPreviewContent(fileContent, { raw: true })} 
                   className="w-full h-full border-0 bg-slate-900" 
-                  sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
+                  sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads allow-same-origin"
                   allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; payment; fullscreen; picture-in-picture"
                 />
               </div>

@@ -34,7 +34,7 @@ serve(async (req) => {
 
     // Handle Batch Request (inputs array)
     if (inputs && Array.isArray(inputs)) {
-        const batchResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:batchEmbedContents', {
+        const batchResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -42,7 +42,7 @@ serve(async (req) => {
             },
             body: JSON.stringify({
                 requests: inputs.map(text => ({
-                    model: 'models/text-embedding-004',
+                    model: 'models/gemini-embedding-001',
                     content: { parts: [{ text }] },
                     outputDimensionality: 768
                 }))
@@ -63,14 +63,14 @@ serve(async (req) => {
     }
 
     // Handle Single Request (Legacy support)
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-goog-api-key': apiKey
       },
       body: JSON.stringify({
-        model: 'models/text-embedding-004',
+        model: 'models/gemini-embedding-001',
         content: {
           parts: [{ text: input }]
         },

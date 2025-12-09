@@ -157,6 +157,37 @@ Use these stable, China-accessible CDNs when these features are needed:
 - **Excel (XLSX)**: \`https://cdn.staticfile.org/xlsx/0.18.5/xlsx.full.min.js\` (Global: \`XLSX\`)
 - **PDF Generation**: \`https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js\` (Global: \`jspdf\`)
 - **QRCode**: \`https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js\` (Global: \`QRCode\`. Usage: \`new QRCode(document.getElementById("id"), "text")\`)
+- **Supabase**: \`https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2\` (Global: \`supabase\`. For backend/database features)
+
+### 🆕 Backend Integration (Supabase)
+When the user requests features that need:
+- User authentication (login/signup)
+- Data persistence (save/load data)
+- User accounts, membership, points system
+- Real-time data synchronization
+
+Generate code with Supabase integration:
+\`\`\`javascript
+// Add this script to head:
+// <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+// Initialize Supabase client (user needs to replace with their credentials)
+const SUPABASE_URL = 'YOUR_SUPABASE_URL'; // Get from Supabase Dashboard
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // Get from Supabase Dashboard
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Example: Authentication
+const signUp = async (email, password) => {
+  const { data, error } = await supabaseClient.auth.signUp({ email, password });
+  return { data, error };
+};
+
+// Example: Data operations
+const saveData = async (tableName, data) => {
+  const { data: result, error } = await supabaseClient.from(tableName).insert(data);
+  return { result, error };
+};
+\`\`\`
 
 ### Strict Constraints
 1. Output ONLY raw HTML. No Markdown blocks.

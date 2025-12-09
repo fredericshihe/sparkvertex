@@ -91,16 +91,19 @@ serve(async (req) => {
     const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
     
     // 模型配置：支持用户选择的模型
-    // 不同模型的积分汇率:
-    // - gemini-2.5-flash: 1积分 = 5000 tokens (最便宜，速度快)
+    // 不同模型的积分汇率（基于 Gemini 官方定价）:
+    // - gemini-2.5-flash: 1积分 = 15000 tokens (最便宜，速度快)
     // - gemini-2.5-pro: 1积分 = 4000 tokens (均衡)
     // - gemini-3-pro-preview: 1积分 = 3000 tokens (最强，最贵)
+    // 注意：上下文 > 200k tokens 时，价格自动翻倍（tokensPerCredit / 2）
     const VALID_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-pro-preview'];
     const DEFAULT_TOKENS_PER_CREDIT: Record<string, number> = {
-        'gemini-2.5-flash': 5000,
+        'gemini-2.5-flash': 15000,
         'gemini-2.5-pro': 4000,
         'gemini-3-pro-preview': 3000
     };
+    // 超长上下文阈值（200k tokens）
+    const LONG_CONTEXT_THRESHOLD = 200000;
     
     // 使用用户选择的模型，如果无效则使用默认
     let modelName = VALID_MODELS.includes(requestedModel) ? requestedModel : 'gemini-2.5-flash';
@@ -490,9 +493,19 @@ serve(async (req) => {
                 const inputTokens = calculateTokens((system_prompt || '') + (userPromptStr || ''));
                 const outputTokens = calculateTokens(fullContent || '');
                 const totalTokens = inputTokens + outputTokens;
+                
+                // 检查是否超过200k token阈值（超长上下文模式，价格翻倍）
+                const isLongContext = inputTokens > LONG_CONTEXT_THRESHOLD;
+                const effectiveTokensPerCredit = isLongContext ? Math.floor(tokensPerCredit / 2) : tokensPerCredit;
+                
+                if (isLongContext) {
+                    console.log(`⚠️ 超长上下文模式：输入 ${inputTokens} tokens > ${LONG_CONTEXT_THRESHOLD}，积分消耗翻倍`);
+                }
+                
                 // 根据用户选择的模型使用对应的积分汇率
-                // gemini-2.5-flash: 1积分=5000tokens, gemini-2.5-pro: 1积分=4000tokens, gemini-3-pro-preview: 1积分=3000tokens
-                const actualCost = Math.ceil(totalTokens / tokensPerCredit);
+                // gemini-2.5-flash: 1积分=15000tokens, gemini-2.5-pro: 1积分=4000tokens, gemini-3-pro-preview: 1积分=3000tokens
+                // 超长上下文时，汇率减半（相当于价格翻倍）
+                const actualCost = Math.ceil(totalTokens / effectiveTokensPerCredit);
 
                 // 保存结果和 cost 到数据库（cost 用于退款时查询）
                 await supabaseAdmin
@@ -503,7 +516,7 @@ serve(async (req) => {
                 
                 // 生成成功，现在扣除积分
                 console.log(`生成成功，Token统计: 输入=${inputTokens}, 输出=${outputTokens}, 总计=${totalTokens}`);
-                console.log(`扣除 ${actualCost} 积分 (模型: ${modelName}, 汇率: 1积分=${tokensPerCredit}Tokens)...`);
+                console.log(`扣除 ${actualCost} 积分 (模型: ${modelName}, 汇率: 1积分=${effectiveTokensPerCredit}Tokens${isLongContext ? ' [超长上下文双倍扣费]' : ''})...`);
 
                 const { data: finalProfile } = await supabaseAdmin
                     .from('profiles')

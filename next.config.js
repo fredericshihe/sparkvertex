@@ -117,9 +117,8 @@ const nextConfig = {
   },
   // 允许局域网设备访问开发服务器
   allowedDevOrigins: [
-    'http://192.168.3.151:3000',
-    'http://192.168.*.*:3000',
-    'http://localhost:3000'
+    '192.168.3.151:3000',
+    'localhost:3000'
   ]
 };
 

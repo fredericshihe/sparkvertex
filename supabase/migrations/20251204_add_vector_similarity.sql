@@ -2,7 +2,7 @@
 create extension if not exists vector;
 
 -- Add embedding column to items table
--- Google text-embedding-004 outputs 768 dimensions by default
+-- Google gemini-embedding-001 outputs 768 dimensions (when configured)
 alter table items add column if not exists embedding vector(768);
 
 -- Create an index for faster similarity search

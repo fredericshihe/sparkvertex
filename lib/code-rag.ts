@@ -742,11 +742,24 @@ ${skeleton.code}`;
         }
 
         // ========================================
-        // 🚨 NEW: "Allowlist or Skeleton" Strategy
+        // 🚨 REVISED: "Protect Relevant Chunks" Strategy
         // ========================================
-        // If a chunk is NOT in the explicit edit list, it gets skeletonized.
-        // This is the key change: we no longer preserve "relevant" chunks fully.
-        // RAG relevance only determines WHICH chunks to include, not HOW to compress them.
+        // CRITICAL FIX: RAG-relevant chunks MUST be preserved fully!
+        // Previous "Allowlist or Skeleton" strategy caused "Code Degradation":
+        //   1. AI couldn't see dependencies → broke interfaces
+        //   2. AI used compressed markers as anchors → patches failed
+        //   3. Skeletonized relevant code → AI hallucinated implementations
+        //
+        // NEW RULE: Only compress chunks that are BOTH:
+        //   - Not in explicitTargets
+        //   - Not in relevantChunkIds (RAG-selected)
+        //   - Not in referenceTargets
+        
+        // 🛡️ PROTECT RELEVANT CHUNKS: If RAG selected it, keep it FULL
+        if (isRelevant) {
+            console.log(`[Compression] 📗 Preserving relevant chunk: ${chunk.id} (RAG-selected, ${lines.length} lines)`);
+            continue;
+        }
         
         // Data Definitions: Sample them instead of full expansion
         const isDataDefinition = /const\s+[A-Z0-9_]+\s*=\s*[\[\{]/.test(chunk.content);
@@ -777,23 +790,20 @@ ${skeleton.code}`;
             continue;
         }
         
-        // Apply AST skeletonization to ALL remaining chunks (including "relevant" ones!)
+        // Apply AST skeletonization ONLY to truly irrelevant chunks
+        // (At this point, isRelevant=false because relevant chunks are handled above)
         const skeleton = skeletonizeCode(chunk.content, chunk.id);
         
         // Log detailed AST compression stats
         const reductionPercent = Math.round((1 - skeleton.resultLines / skeleton.originalLines) * 100);
+        console.log(`[AST] 🗜️ Compressed irrelevant: ${chunk.id}: ${skeleton.originalLines} → ${skeleton.resultLines} lines (${reductionPercent}% reduction)`);
         
-        // Different message based on whether it was "relevant" or not
-        if (isRelevant) {
-            console.log(`[AST] 🔶 Relevant but skeletonized: ${chunk.id}: ${skeleton.originalLines} → ${skeleton.resultLines} lines (${reductionPercent}% reduction)`);
-        } else {
-            console.log(`[AST] Skeletonized ${chunk.id}: ${skeleton.originalLines} → ${skeleton.resultLines} lines (${reductionPercent}% reduction)`);
-        }
-        
-        // Create compressed replacement with semantic info and READ-ONLY warning
-        const replacement = `/** @semantic-compressed ${chunk.id} (${lines.length} lines) [READ-ONLY]
- * ⚠️ THIS IS READ-ONLY CONTEXT - DO NOT MODIFY THIS COMPONENT
- * ⚠️ If you need to change ${chunk.id}, tell the user to explicitly request it
+        // Create compressed replacement with semantic info and STRICT warnings
+        const replacement = `/** @semantic-compressed ${chunk.id} (${lines.length} lines) [IRRELEVANT - DO NOT USE AS ANCHOR]
+ * ⚠️ THIS COMPONENT IS NOT RELEVANT TO THE USER'S REQUEST
+ * ⚠️ DO NOT include any line from this block in your SEARCH patterns
+ * ⚠️ DO NOT attempt to modify this component
+ * ⚠️ If modification is needed, request the user to specify it explicitly
  */
 ${skeleton.code}`;
 
@@ -810,12 +820,62 @@ ${skeleton.code}`;
 
 
 // 2. Embedding & Retrieval Logic
+/**
+ * 🆕 增强参数：支持传入用户显式指定的文件列表
+ * 当用户明确点名大量文件时，动态提高 chunk 限制
+ */
+export interface RAGOptions {
+    explicitTargets?: string[];  // Intent Classifier 识别的 files_to_edit
+    referenceTargets?: string[]; // Intent Classifier 识别的 files_to_read
+    isGlobalReview?: boolean;    // 是否是全局审查模式
+}
+
 export async function findRelevantCodeChunks(
     userPrompt: string, 
     code: string, 
     supabaseUrl: string, 
-    supabaseKey: string
+    supabaseKey: string,
+    options?: RAGOptions
 ) {
+    const { explicitTargets = [], referenceTargets = [], isGlobalReview = false } = options || {};
+    
+    // 🆕 动态计算 chunk 限制
+    const userExplicitFileCount = explicitTargets.length + referenceTargets.length;
+    
+    // 🚨 恐慌模式检测：如果 Intent Classifier 超时/失败，targets 可能为空
+    // 此时我们需要更宽松的限制，避免漏掉关键文件
+    const isPanicMode = userExplicitFileCount === 0 && !isGlobalReview;
+    
+    // 🆕 Prompt 复杂度检测：长 Prompt 或包含多个代码关键词时，提高限制
+    const promptComplexity = userPrompt.length > 500 ? 'high' : 
+                             userPrompt.length > 200 ? 'medium' : 'low';
+    const codeKeywordsCount = (userPrompt.match(/\b(function|component|class|hook|screen|modal|page|error|undefined|bug|fix)\b/gi) || []).length;
+    const hasMultipleKeywords = codeKeywordsCount >= 3;
+    
+    let dynamicMaxChunks: number;
+    
+    if (isGlobalReview) {
+        // 全局审查模式：最宽松
+        dynamicMaxChunks = Math.min(25, userExplicitFileCount + 10);
+    } else if (userExplicitFileCount > 10) {
+        // 用户指定 10+ 文件
+        dynamicMaxChunks = Math.min(20, userExplicitFileCount + 5);
+    } else if (isPanicMode && (promptComplexity !== 'low' || hasMultipleKeywords)) {
+        // 🚨 恐慌模式：Intent Classifier 失败但 Prompt 复杂
+        dynamicMaxChunks = 15;
+        console.warn(`[CodeRAG] 🚨 PANIC MODE: No explicit targets but complex prompt (${promptComplexity}, ${codeKeywordsCount} keywords). Raising limit to ${dynamicMaxChunks}`);
+    } else if (userExplicitFileCount > 0) {
+        // 有明确目标
+        dynamicMaxChunks = Math.max(10, userExplicitFileCount + 3);
+    } else {
+        // 默认限制
+        dynamicMaxChunks = 10;
+    }
+    
+    if (userExplicitFileCount > 0) {
+        console.log(`[CodeRAG] User explicitly named ${userExplicitFileCount} files, dynamic max chunks: ${dynamicMaxChunks}`);
+    }
+    
     try {
         // A. Chunk the code
         const chunks = chunkCode(code);
@@ -943,9 +1003,25 @@ export async function findRelevantCodeChunks(
         // Step 4: Dependency Graph Expansion with DEPTH LIMIT
         // Only include DIRECT dependencies (Depth=1) to prevent "recursion bomb"
         const dependencySet = new Set<string>(relevantChunks.map(c => c.id));
-        const MAX_DEPENDENCY_SIZE = 20000; // 20KB limit for dependencies (原来30KB，更精简)
-        const MAX_TOTAL_CHUNKS = 10; // 最多10个块，包含依赖
+        const MAX_DEPENDENCY_SIZE = isGlobalReview ? 50000 : 20000; // 全局审查模式允许更大
+        const MAX_TOTAL_CHUNKS = dynamicMaxChunks; // 🆕 使用动态计算的限制
         let totalDependencySize = 0;
+        
+        // 🆕 Step 4.1: 强制包含用户显式指定的文件
+        if (explicitTargets.length > 0) {
+            for (const target of explicitTargets) {
+                const targetLower = target.toLowerCase();
+                const matchingChunk = scoredChunks.find(c => 
+                    c.id.toLowerCase().includes(targetLower) || 
+                    c.id.toLowerCase().replace('component-', '').includes(targetLower)
+                );
+                if (matchingChunk && !dependencySet.has(matchingChunk.id)) {
+                    console.log(`[CodeRAG] Force including ${matchingChunk.id} (explicit target from intent)`);
+                    dependencySet.add(matchingChunk.id);
+                    relevantChunks.push(matchingChunk);
+                }
+            }
+        }
         
         // ✅ SAFETY: Create snapshot of initial chunks to iterate
         // This physically prevents infinite loops even if relevantChunks gets modified

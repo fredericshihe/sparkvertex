@@ -12,7 +12,59 @@ export enum UserIntent {
   PERFORMANCE = 'PERFORMANCE',            // 性能优化
   REFACTOR = 'REFACTOR',                  // 代码重构
   DATA_OPERATION = 'DATA_OPERATION',      // 数据库、API、数据操作
+  BACKEND_SETUP = 'BACKEND_SETUP',        // 🆕 后端配置 (Supabase/数据库/认证)
+  GLOBAL_REVIEW = 'GLOBAL_REVIEW',        // 🆕 全局代码审查
   UNKNOWN = 'UNKNOWN'
+}
+
+/**
+ * 🚨 紧急兜底函数：从文本中提取 PascalCase 组件名
+ * 当 DeepSeek 没有正确输出 JSON 时，从 Reasoning 文本中提取文件名
+ * 
+ * 匹配规则：
+ * - PascalCase 单词 (e.g., MapScreen, BattleScene, App)
+ * - SCREAMING_CASE 常量 (e.g., MAP_GRID, GAME_CONFIG)
+ * - 排除常见的非组件词 (e.g., Component, Screen, View 单独出现)
+ */
+function extractFileNamesFromText(text: string): string[] {
+  const fileNames = new Set<string>();
+  
+  // 匹配 PascalCase (至少两个大写字母开头的单词)
+  // e.g., MapScreen, BattleScene, PlayerStats, App
+  const pascalCaseRegex = /\b([A-Z][a-z]+(?:[A-Z][a-z]*)+)\b/g;
+  let match;
+  while ((match = pascalCaseRegex.exec(text)) !== null) {
+    const name = match[1];
+    // 排除一些通用词
+    if (!['Component', 'Screen', 'View', 'Page', 'Modal', 'Context', 'Provider', 'Hook', 'Function', 'Method', 'Class', 'Type', 'Interface', 'Props', 'State', 'Effect', 'Callback', 'Memo', 'Reducer', 'Action', 'Dispatch'].includes(name)) {
+      fileNames.add(name);
+    }
+  }
+  
+  // 匹配 SCREAMING_CASE 常量 (用于 Data 文件)
+  // e.g., MAP_GRID, GAME_CONFIG, PLAYER_DATA
+  const screamingCaseRegex = /\b([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\b/g;
+  while ((match = screamingCaseRegex.exec(text)) !== null) {
+    fileNames.add(match[1]);
+  }
+  
+  // 匹配简单的单词 + "Screen" / "Scene" / "Component" 组合
+  // e.g., "Map Screen" -> MapScreen
+  const compoundRegex = /\b([A-Z][a-z]+)\s+(Screen|Scene|Component|Page|Modal|View)\b/g;
+  while ((match = compoundRegex.exec(text)) !== null) {
+    fileNames.add(match[1] + match[2]);
+  }
+  
+  // 匹配中文后的组件名 (e.g., "检查 App 组件" -> App)
+  const chineseContextRegex = /[\u4e00-\u9fa5]\s*([A-Z][a-zA-Z]+)\s*[\u4e00-\u9fa5]?/g;
+  while ((match = chineseContextRegex.exec(text)) !== null) {
+    const name = match[1];
+    if (name.length >= 3) { // 至少3个字符
+      fileNames.add(name);
+    }
+  }
+  
+  return Array.from(fileNames);
 }
 
 export interface SearchStrategy {
@@ -95,10 +147,25 @@ const INTENT_KEYWORDS: Record<UserIntent, {
          'prisma', 'sql', 'mutation'],
     weight: 1.0
   },
+  [UserIntent.BACKEND_SETUP]: {
+    zh: ['后端', '数据库', '用户登录', '用户注册', '认证', '鉴权', '存数据',
+         '保存数据', '持久化', '会员', '积分系统', '订阅', '支付', '数据表',
+         '建表', '存储', '账号', '密码', '登录注册'],
+    en: ['backend', 'database', 'auth', 'authentication', 'login', 'signup',
+         'register', 'persist', 'save data', 'store data', 'membership',
+         'subscription', 'payment', 'table', 'schema', 'supabase', 'firebase',
+         'user account', 'password', 'session', 'jwt', 'api key'],
+    weight: 1.3  // 高权重，优先检测后端需求
+  },
   [UserIntent.UNKNOWN]: {
     zh: [],
     en: [],
     weight: 0.5
+  },
+  [UserIntent.GLOBAL_REVIEW]: {
+    zh: ['检查', '全部', '审查', '全局', '整体', '所有文件', '完整检查'],
+    en: ['review', 'all', 'check', 'global', 'entire', 'whole', 'full'],
+    weight: 1.3
   }
 };
 
@@ -112,7 +179,9 @@ const EXTENSION_MAP: Record<UserIntent, string[]> = {
   [UserIntent.PERFORMANCE]: ['.ts', '.tsx', '.js', '.jsx'],
   [UserIntent.REFACTOR]: ['.ts', '.tsx', '.js', '.jsx'],
   [UserIntent.DATA_OPERATION]: ['.ts', '.js', '.sql'],
-  [UserIntent.UNKNOWN]: []
+  [UserIntent.BACKEND_SETUP]: ['.ts', '.tsx', '.js', '.sql'],
+  [UserIntent.UNKNOWN]: [],
+  [UserIntent.GLOBAL_REVIEW]: ['.ts', '.tsx', '.js', '.jsx', '.css', '.json']
 };
 
 // 优先目录模式
@@ -125,7 +194,9 @@ const PRIORITY_PATTERNS: Record<UserIntent, string[]> = {
   [UserIntent.PERFORMANCE]: ['components/', 'hooks/', 'lib/'],
   [UserIntent.REFACTOR]: ['components/', 'lib/', 'utils/', 'hooks/'],
   [UserIntent.DATA_OPERATION]: ['lib/', 'app/api/', 'supabase/', 'services/'],
-  [UserIntent.UNKNOWN]: []
+  [UserIntent.BACKEND_SETUP]: ['lib/', 'app/api/', 'supabase/', 'services/'],
+  [UserIntent.UNKNOWN]: [],
+  [UserIntent.GLOBAL_REVIEW]: ['components/', 'lib/', 'app/', 'hooks/', 'context/']
 };
 
 // 排除目录模式
@@ -138,7 +209,9 @@ const EXCLUDE_PATTERNS: Record<UserIntent, string[]> = {
   [UserIntent.PERFORMANCE]: ['node_modules/', '.git/', '*.test.*'],
   [UserIntent.REFACTOR]: ['node_modules/', '.git/', 'dist/'],
   [UserIntent.DATA_OPERATION]: ['node_modules/', '.git/', 'components/', 'styles/'],
-  [UserIntent.UNKNOWN]: ['node_modules/', '.git/']
+  [UserIntent.BACKEND_SETUP]: ['node_modules/', '.git/', 'components/', 'styles/'],
+  [UserIntent.UNKNOWN]: ['node_modules/', '.git/'],
+  [UserIntent.GLOBAL_REVIEW]: ['node_modules/', '.git/', 'dist/', 'build/']
 };
 
 /**
@@ -257,8 +330,8 @@ export interface DeepSeekConfig {
   fileSummaries?: string[]; // 🆕 文件摘要列表，用于依赖提示
 }
 
-// 默认超时时间：15秒 (从 5秒 增加，避免复杂分析时超时)
-const DEFAULT_DEEPSEEK_TIMEOUT = 15000;
+// 默认超时时间：45秒 (DeepSeek V3/R1 推理时间可能较长)
+const DEFAULT_DEEPSEEK_TIMEOUT = 45000;
 
 /**
  * 使用 DeepSeek API 进行意图分类（通过 Supabase Edge Function）
@@ -275,7 +348,7 @@ export async function classifyIntentWithDeepSeek(
   query: string,
   config?: DeepSeekConfig,
   fileSummariesArg?: string[]
-): Promise<{ intent: UserIntent; confidence: number; latencyMs: number; source: 'deepseek' | 'timeout_fallback'; targets: string[]; referenceTargets: string[]; reasoning?: string }> {
+): Promise<{ intent: UserIntent; confidence: number; latencyMs: number; source: 'deepseek' | 'gemini_fallback' | 'timeout_fallback'; targets: string[]; referenceTargets: string[]; reasoning?: string }> {
   const startTime = Date.now();
   const {
     supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -366,6 +439,7 @@ Task: 分析用户请求，深入思考依赖关系，决定哪些文件需要�
         system_prompt: systemPrompt,
         user_prompt: userPrompt,
         temperature,
+        max_tokens: 5000,  // 🔧 显式指定 token 限制，避免 JSON 被截断
         stream: false  // 意图分类不需要流式输出
       }),
       signal: controller.signal  // 添加超时信号
@@ -382,6 +456,12 @@ Task: 分析用户请求，深入思考依赖关系，决定哪些文件需要�
 
     // 处理非流式响应
     const data = await response.json();
+    
+    // 🆕 检测是否使用了 Gemini fallback
+    const usedGeminiFallback = data._source === 'gemini-fallback';
+    if (usedGeminiFallback) {
+      console.log('[IntentClassifier] 🔄 DeepSeek failed, used Gemini 2.5 Flash fallback');
+    }
     
     // Edge Function 返回的格式可能是直接的 JSON 或 SSE 格式
     let result = '';
@@ -438,14 +518,40 @@ Task: 分析用户请求，深入思考依赖关系，决定哪些文件需要�
         
         // 提取 reasoning（思维链输出）
         reasoning = parsed.reasoning;
+        
+        // 🚨 兜底提取：如果 files_to_edit 为空，尝试从 reasoning 中提取文件名
+        if (targets.length === 0 && reasoning) {
+          const extractedFromReasoning = extractFileNamesFromText(reasoning);
+          if (extractedFromReasoning.length > 0) {
+            console.warn(`⚠️ [IntentClassifier] files_to_edit was empty, extracted ${extractedFromReasoning.length} files from reasoning: [${extractedFromReasoning.join(', ')}]`);
+            targets = extractedFromReasoning;
+          }
+        }
     } catch (e) {
         // 降级处理：如果不是 JSON，尝试直接提取意图
-        console.warn('[IntentClassifier] Failed to parse JSON, falling back to regex. Raw text:', result);
-        intentStr = result.trim().toUpperCase().replace(/[^A-Z_]/g, '') as UserIntent;
+        console.warn('[IntentClassifier] Failed to parse JSON, falling back to regex. Raw text:', result.substring(0, 500));
         
-        // 🚨 紧急兜底：如果 JSON 解析失败，且意图看起来是修改，
-        // 为了防止误杀，返回空数组，让上层逻辑决定是否启用保守模式
-        // (注意：这里返回空数组，但 intent 可能是 UNKNOWN 或被正则提取的意图)
+        // 尝试提取意图
+        const intentMatch = result.match(/(?:"intent"\s*:\s*"?|intent:\s*)([A-Z_]+)/i);
+        if (intentMatch) {
+          intentStr = intentMatch[1].toUpperCase() as UserIntent;
+        }
+        
+        // 🚨 关键兆底：从Reasoning文本中提取PascalCase组件名
+        const extractedFiles = extractFileNamesFromText(result);
+        if (extractedFiles.length > 0) {
+          console.warn(`⚠️ [IntentClassifier] Extracted ${extractedFiles.length} files from raw text: [${extractedFiles.join(', ')}]`);
+          targets = extractedFiles;
+        }
+        
+        // 提取reasoning（如果有 REASONING 标记）
+        // 使用 [\s\S] 代替 . 配合 s 标志，兼容 ES5+
+        const reasoningMatch = result.match(/REASONING[:\s]*([\s\S]*?)(?=FILES_TO_|\n\n|$)/i);
+        if (reasoningMatch) {
+          reasoning = reasoningMatch[1].trim();
+        } else {
+          reasoning = result; // 整个输出都当作 reasoning
+        }
     }
 
     const latencyMs = Date.now() - startTime;
@@ -469,10 +575,10 @@ Task: 分析用户请求，深入思考依赖关系，决定哪些文件需要�
           if (!reasoning) reasoning = "FAIL-SAFE: Empty edit list detected.";
       }
 
-      return { intent: intentStr, confidence: 0.9, latencyMs, source: 'deepseek', targets, referenceTargets, reasoning };
+      return { intent: intentStr, confidence: 0.9, latencyMs, source: usedGeminiFallback ? 'gemini_fallback' : 'deepseek', targets, referenceTargets, reasoning };
     }
 
-    return { intent: UserIntent.UNKNOWN, confidence: 0.3, latencyMs, source: 'deepseek', targets: [], referenceTargets: [] };
+    return { intent: UserIntent.UNKNOWN, confidence: 0.3, latencyMs, source: usedGeminiFallback ? 'gemini_fallback' : 'deepseek', targets: [], referenceTargets: [] };
   } catch (error: any) {
     // 清除超时定时器（以防异常发生在 fetch 之前）
     clearTimeout(timeoutId);
@@ -481,11 +587,37 @@ Task: 分析用户请求，深入思考依赖关系，决定哪些文件需要�
     // 区分超时和其他错误
     if (error.name === 'AbortError') {
       console.warn(`[IntentClassifier] DeepSeek request aborted (timeout: ${timeoutMs}ms)`);
-      return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs, source: 'timeout_fallback', targets: [], referenceTargets: [] };
+      
+      // 🆘 紧急兆底：使用本地分类器 + 从 Prompt 提取文件名
+      const localResult = classifyIntentLocal(query);
+      const extractedFiles = extractFileNamesFromText(query);
+      
+      console.warn(`[IntentClassifier] 🆘 PANIC FALLBACK: Using local classifier (${localResult.intent}, conf=${localResult.confidence.toFixed(2)}) + extracted files: [${extractedFiles.join(', ')}]`);
+      
+      return { 
+        intent: localResult.intent, 
+        confidence: localResult.confidence * 0.5, // 降低置信度表示不确定
+        latencyMs, 
+        source: 'timeout_fallback', 
+        targets: extractedFiles,  // 🆕 传递提取到的文件名
+        referenceTargets: [] 
+      };
     }
     
     console.error('[IntentClassifier] DeepSeek classification failed:', error);
-    return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs, source: 'timeout_fallback', targets: [], referenceTargets: [] };
+    
+    // 🆘 同样的兆底逻辑
+    const localResult = classifyIntentLocal(query);
+    const extractedFiles = extractFileNamesFromText(query);
+    
+    return { 
+      intent: localResult.intent, 
+      confidence: localResult.confidence * 0.5,
+      latencyMs, 
+      source: 'timeout_fallback', 
+      targets: extractedFiles,
+      referenceTargets: [] 
+    };
   }
 }
 
@@ -546,7 +678,8 @@ Category:`;
  * 返回值包含 source 字段，用于追踪分类来源：
  * - 'local': 本地规则分类
  * - 'deepseek': DeepSeek API 分类
- * - 'timeout_fallback': DeepSeek 超时后的降级
+ * - 'gemini_fallback': DeepSeek 失败后使用 Gemini 2.5 Flash
+ * - 'timeout_fallback': 所有 API 都失败后的本地降级
  */
 export async function classifyUserIntent(
   query: string,
@@ -558,7 +691,7 @@ export async function classifyUserIntent(
     deepSeekConfig?: DeepSeekConfig;
     fileSummaries?: string[]; // 🆕 文件摘要，用于依赖提示
   }
-): Promise<SearchStrategy & { source: 'local' | 'deepseek' | 'timeout_fallback'; latencyMs: number; targets?: string[]; referenceTargets?: string[]; reasoning?: string }> {
+): Promise<SearchStrategy & { source: 'local' | 'deepseek' | 'gemini_fallback' | 'timeout_fallback'; latencyMs: number; targets?: string[]; referenceTargets?: string[]; reasoning?: string }> {
   const startTime = Date.now();
   const { 
     useLLM = false,
@@ -571,7 +704,7 @@ export async function classifyUserIntent(
 
   // Step 1: 先尝试本地分类
   let { intent, confidence } = classifyIntentLocal(query);
-  let source: 'local' | 'deepseek' | 'timeout_fallback' = 'local';
+  let source: 'local' | 'deepseek' | 'gemini_fallback' | 'timeout_fallback' = 'local';
   let targets: string[] = [];
   let referenceTargets: string[] = [];
   let reasoning: string | undefined;

@@ -57,6 +57,7 @@ function createSSEStream() {
     let controller: ReadableStreamDefaultController<Uint8Array>;
     let isClosed = false;
     
+    // 🆕 使用 highWaterMark: 0 禁用内部缓冲，确保 SSE 事件立即发送
     const stream = new ReadableStream<Uint8Array>({
         start(c) {
             controller = c;
@@ -65,6 +66,8 @@ function createSSEStream() {
             isClosed = true;
             console.log('[SSE] Stream cancelled by client');
         }
+    }, {
+        highWaterMark: 0 // 禁用背压缓冲
     });
     
     const send = (event: SSEEvent) => {
@@ -142,6 +145,16 @@ async function handleSSERequest(request: Request) {
 
       const body = await request.json();
       
+      // 🆕 立即发送连接确认，让前端知道 SSE 通道已建立
+      console.log('[SSE] Connection established, sending heartbeat...');
+      send({ type: 'progress', data: { stage: 'intent', message: '连接已建立，开始处理...' } as ProgressEventData });
+      
+      // 🆕 全量修复模式：跳过压缩，发送完整代码给AI
+      const skipCompression = body.skip_compression === true;
+      if (skipCompression) {
+        console.log('[SSE] Full Repair mode - skipping RAG/compression, sending full code');
+      }
+      
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
         send({ type: 'error', data: { error: '服务器配置错误' } });
         close();
@@ -197,6 +210,9 @@ async function handleSSERequest(request: Request) {
 
       try {
         if (body.type === 'modification' && body.user_prompt && body.current_code) {
+          // 🆕 立即发送"正在分析"状态，让用户知道处理已开始
+          send({ type: 'progress', data: { stage: 'intent', message: '正在分析您的需求...' } as ProgressEventData });
+          
           // Step 1: 意图分类
           const chunks = chunkCode(body.current_code);
           const fileSummaries = chunks.slice(0, 15).map(chunk => 
@@ -224,12 +240,21 @@ async function handleSSERequest(request: Request) {
           // 发送进度：RAG 分析
           send({ type: 'progress', data: { stage: 'rag', message: '正在定位相关代码...' } as ProgressEventData });
 
-          // Step 2: RAG 分析
+          // Step 2: RAG 分析 (传入 Intent Classifier 的结果以动态调整限制)
+          const isGlobalReview = intentResult?.intent === 'GLOBAL_REVIEW' || 
+            (body.user_prompt.includes('检查') && body.user_prompt.includes('全部')) ||
+            (body.user_prompt.toLowerCase().includes('review') && body.user_prompt.toLowerCase().includes('all'));
+          
           const relevantChunks = await findRelevantCodeChunks(
             body.user_prompt, 
             body.current_code,
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            {
+              explicitTargets: intentResult?.targets || [],
+              referenceTargets: intentResult?.referenceTargets || [],
+              isGlobalReview
+            }
           );
           ragLatencyMs = Date.now() - ragStartTime - intentLatencyMs;
 
@@ -247,8 +272,8 @@ async function handleSSERequest(request: Request) {
             const relevantIds = relevantChunks.map(c => c.id);
             console.log(`[CodeRAG] Found ${relevantChunks.length} relevant chunks: ${relevantIds.join(', ')}`);
             
-            // Step 3: 压缩
-            if (body.current_code.length > 10000) {
+            // Step 3: 压缩 (全量修复时跳过)
+            if (body.current_code.length > 10000 && !skipCompression) {
               send({ type: 'progress', data: { stage: 'compression', message: '正在优化上下文...' } as ProgressEventData });
               console.log('[CodeRAG] Code is large, applying Smart Compression...');
               
@@ -277,6 +302,10 @@ async function handleSSERequest(request: Request) {
                   }
                 } as ProgressEventData 
               });
+            } else if (skipCompression && body.current_code) {
+              // 🆕 全量修复模式：直接使用完整代码，不压缩
+              console.log(`[CodeRAG] Full Repair mode - using full code: ${body.current_code.length} chars`);
+              // 不设置 compressedCode，后续会使用 body.current_code
             }
           }
         } else if (body.type === 'modification' && body.user_prompt) {
@@ -347,8 +376,9 @@ async function handleSSERequest(request: Request) {
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no', // 🆕 禁用 nginx/proxy 缓冲，确保 SSE 实时到达
     },
   });
 }
@@ -488,12 +518,22 @@ async function handleJSONRequest(request: Request) {
             // 🆕 如果使用 SSE，在这里可以先推送 reasoning（由调用方处理）
             // 思考过程存储在 intentResult.reasoning 中
             
-            // 然后并行执行 RAG
+            // 🆕 检测是否为全局审查模式
+            const isGlobalReview = intentResult?.intent === 'GLOBAL_REVIEW' || 
+              (body.user_prompt.includes('检查') && body.user_prompt.includes('全部')) ||
+              (body.user_prompt.toLowerCase().includes('review') && body.user_prompt.toLowerCase().includes('all'));
+            
+            // 然后并行执行 RAG (传入 Intent Classifier 结果以动态调整限制)
             const ragPromise = findRelevantCodeChunks(
                  body.user_prompt, 
                  body.current_code,
                  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                 process.env.SUPABASE_SERVICE_ROLE_KEY!
+                 process.env.SUPABASE_SERVICE_ROLE_KEY!,
+                 {
+                   explicitTargets: intentResult?.targets || [],
+                   referenceTargets: intentResult?.referenceTargets || [],
+                   isGlobalReview
+                 }
             );
 
             const relevantChunks = await ragPromise;
