@@ -63,6 +63,10 @@
 | 动态内容发布 | ❌ | ✅ CDN JSON |
 | 离线使用 | ❌ | ✅ PWA + OPFS |
 | Schema 迁移 | ❌ | ✅ 增量迁移 |
+| 🆕 加密文件上传 | ❌ | ✅ 端到端加密 |
+| 🆕 公开资源发布 | ❌ | ✅ CDN 分发 |
+| 🆕 图片压缩 | ❌ | ✅ 浏览器端 WebP |
+| 🆕 大文件分片 | ❌ | ✅ 分片加密上传 |
 
 ---
 
@@ -205,12 +209,14 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 app/api/
 ├── mailbox/                 # 加密信箱 (数据收集)
 │   ├── submit/route.ts      # 公开投递接口
+│   ├── upload/route.ts      # 🆕 加密文件上传接口
 │   ├── sync/route.ts        # 拉取数据接口 (需鉴权)
 │   ├── ack/route.ts         # 确认收到接口 (需鉴权)
 │   └── stats/route.ts       # 统计接口 (需鉴权)
 │
 └── cms/                     # CMS 发布 (内容控制)
     ├── publish/route.ts     # 发布内容接口 (需鉴权)
+    ├── upload/route.ts      # 🆕 公开资源上传接口 (需鉴权)
     ├── content/[appId]/route.ts  # 获取公开内容 (公开)
     └── history/route.ts     # 发布历史接口 (需鉴权)
 ```
@@ -452,6 +458,508 @@ export async function OPTIONS() {
 }
 ```
 
+#### 1.3 多媒体存储架构 (Secure Drop-box)
+
+> **核心理念**: 大文件与元数据分离，引入对象存储支持图片、语音、视频的加密传输
+
+**引入两个 Supabase Storage Buckets:**
+
+| 存储桶 | 用途 | 权限 | 状态 |
+|--------|------|------|------|
+| 🔒 `inbox-files` | 用户上传的身份证、录音、视频证据 | 公众可写，仅拥有者可读 | **加密二进制流** |
+| 📢 `public-assets` | 管理员发布的 Banner、产品视频、语音介绍 | 拥有者可写，公众可读 | **公开明文 CDN** |
+
+**Storage Bucket 配置 (Supabase Dashboard 或 SQL)**
+
+```sql
+-- ============================================
+-- 5. 创建 Storage Buckets
+-- ============================================
+
+-- 加密收件箱 (用户上传的私密文件)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'inbox-files',
+  'inbox-files',
+  FALSE,  -- 非公开
+  52428800,  -- 50MB 限制
+  ARRAY['application/octet-stream', 'image/*', 'audio/*', 'video/*', 'application/pdf']
+);
+
+-- 公开资源库 (管理员发布的资源)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'public-assets',
+  'public-assets',
+  TRUE,  -- 公开
+  104857600,  -- 100MB 限制
+  ARRAY['image/*', 'audio/*', 'video/*', 'application/pdf']
+);
+
+-- RLS 策略: inbox-files
+CREATE POLICY "Anyone can upload to inbox-files"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'inbox-files');
+
+CREATE POLICY "Owner can read inbox-files"
+ON storage.objects FOR SELECT
+USING (
+  bucket_id = 'inbox-files' AND
+  (storage.foldername(name))[1] LIKE 'app_' || auth.uid()::TEXT || '_%'
+);
+
+-- RLS 策略: public-assets
+CREATE POLICY "Owner can upload to public-assets"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'public-assets' AND
+  (storage.foldername(name))[1] LIKE 'app_' || auth.uid()::TEXT || '_%'
+);
+
+CREATE POLICY "Anyone can read public-assets"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'public-assets');
+```
+
+##### 场景一：Public → Local (加密文件上传)
+
+**场景**: 用户在表单中上传身份证照片或语音反馈
+
+```
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                      加密文件上传流程 (浏览器端)                                 │
+├────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  [用户选择文件]                                                                 │
+│       │                                                                         │
+│       │ 1. 生成一次性 AES-GCM 密钥 (FileKey)                                    │
+│       ▼                                                                         │
+│  [加密文件内容]                                                                 │
+│       │                                                                         │
+│       │ 2. FileKey + 原始数据 → 加密二进制流                                    │
+│       ▼                                                                         │
+│  [上传到 inbox-files]                                                           │
+│       │                                                                         │
+│       │ 3. POST encrypted_video.enc → 获得 path                                 │
+│       ▼                                                                         │
+│  [加密 FileKey]                                                                 │
+│       │                                                                         │
+│       │ 4. 使用 App 公钥加密 FileKey                                            │
+│       ▼                                                                         │
+│  [投递到信箱]                                                                   │
+│       │                                                                         │
+│       └─ 5. { type: 'file', path, encrypted_key, iv } → inbox_messages          │
+│                                                                                 │
+└────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**新增 API: `app/api/mailbox/upload/route.ts`**
+
+```typescript
+// POST /api/mailbox/upload
+// 处理加密文件上传到 inbox-files 桶
+
+import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function POST(req: Request) {
+  try {
+    const formData = await req.formData();
+    const file = formData.get('file') as File;
+    const appId = formData.get('app_id') as string;
+    
+    if (!file || !appId) {
+      return NextResponse.json({ error: 'Missing file or app_id' }, { status: 400 });
+    }
+    
+    // 校验 app_id 格式
+    if (!/^app_[a-f0-9-]+_[a-f0-9-]+$/.test(appId)) {
+      return NextResponse.json({ error: 'Invalid app_id' }, { status: 400 });
+    }
+    
+    // 限制文件大小 (50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File too large (max 50MB)' }, { status: 413 });
+    }
+    
+    // 生成唯一路径
+    const timestamp = Date.now();
+    const randomId = crypto.randomUUID().slice(0, 8);
+    const path = `${appId}/${timestamp}_${randomId}.enc`;
+    
+    // 上传到 inbox-files 桶
+    const { data, error } = await supabase.storage
+      .from('inbox-files')
+      .upload(path, file, {
+        contentType: 'application/octet-stream',
+        upsert: false
+      });
+    
+    if (error) {
+      console.error('[Upload Error]', error);
+      return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+    }
+    
+    return NextResponse.json({ 
+      success: true,
+      path: data.path,
+      bucket: 'inbox-files'
+    });
+    
+  } catch (error: any) {
+    console.error('[Upload Error]', error);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}
+```
+
+**前端加密上传模板: `lib/templates/file-upload.ts`**
+
+```typescript
+export const ENCRYPTED_FILE_UPLOAD_TEMPLATE = `
+// ============================================
+// SparkVertex 加密文件上传
+// ============================================
+
+class SparkFileUploader {
+  constructor(appId, appPublicKey) {
+    this.appId = appId;
+    this.appPublicKey = appPublicKey;
+    this.apiBase = '{{API_BASE}}';
+  }
+  
+  // 上传并加密文件
+  async upload(file, onProgress) {
+    try {
+      // 1. 生成一次性 AES-GCM 密钥
+      const fileKey = await window.crypto.subtle.generateKey(
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"]
+      );
+      
+      // 2. 生成随机 IV
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      
+      // 3. 读取并加密文件内容
+      const fileContent = await this.readFileAsArrayBuffer(file);
+      const encryptedContent = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv },
+        fileKey,
+        fileContent
+      );
+      
+      onProgress?.({ stage: 'encrypted', progress: 50 });
+      
+      // 4. 上传加密文件到 Storage
+      const formData = new FormData();
+      formData.append('file', new Blob([encryptedContent]));
+      formData.append('app_id', this.appId);
+      
+      const uploadRes = await fetch(\`\${this.apiBase}/api/mailbox/upload\`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!uploadRes.ok) {
+        throw new Error('Upload failed');
+      }
+      
+      const { path } = await uploadRes.json();
+      onProgress?.({ stage: 'uploaded', progress: 80 });
+      
+      // 5. 导出并加密 FileKey
+      const exportedKey = await window.crypto.subtle.exportKey("raw", fileKey);
+      const encryptedKey = await this.encryptKeyWithPublicKey(exportedKey);
+      
+      onProgress?.({ stage: 'complete', progress: 100 });
+      
+      // 返回投递信息
+      return {
+        type: 'encrypted_file',
+        path: path,
+        key: encryptedKey,
+        iv: Array.from(iv),
+        original_name: file.name,
+        original_size: file.size,
+        mime_type: file.type
+      };
+      
+    } catch (e) {
+      console.error('Upload failed:', e);
+      throw e;
+    }
+  }
+  
+  // 读取文件为 ArrayBuffer
+  readFileAsArrayBuffer(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  }
+  
+  // 使用公钥加密对称密钥
+  async encryptKeyWithPublicKey(keyData) {
+    const publicKey = await window.crypto.subtle.importKey(
+      "jwk",
+      this.appPublicKey,
+      { name: "RSA-OAEP", hash: "SHA-256" },
+      false,
+      ["encrypt"]
+    );
+    
+    const encrypted = await window.crypto.subtle.encrypt(
+      { name: "RSA-OAEP" },
+      publicKey,
+      keyData
+    );
+    
+    return btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+  }
+}
+
+window.SparkFileUploader = SparkFileUploader;
+`;
+```
+
+##### 场景二：Local → Public (公开资源发布)
+
+**场景**: 管理员发布带图文和视频的文章
+
+```
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                      公开资源发布流程 (管理端)                                   │
+├────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  [管理员选择媒体文件]                                                           │
+│       │                                                                         │
+│       │ 1. (可选) 本地压缩/转码 (FFmpeg.wasm)                                   │
+│       ▼                                                                         │
+│  [上传到 public-assets]                                                         │
+│       │                                                                         │
+│       │ 2. 直接上传明文文件                                                     │
+│       ▼                                                                         │
+│  [获取 CDN URL]                                                                 │
+│       │                                                                         │
+│       │ 3. https://cdn.supabase.co/.../my-video.mp4                             │
+│       ▼                                                                         │
+│  [更新 content.json]                                                            │
+│       │                                                                         │
+│       └─ 4. 发布更新到 public_content 表                                        │
+│                                                                                 │
+└────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**新增 API: `app/api/cms/upload/route.ts`**
+
+```typescript
+// POST /api/cms/upload
+// 管理员上传公开资源到 public-assets 桶
+
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+
+export async function POST(req: Request) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies });
+    
+    // 验证登录
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const formData = await req.formData();
+    const file = formData.get('file') as File;
+    const appId = formData.get('app_id') as string;
+    
+    if (!file || !appId) {
+      return NextResponse.json({ error: 'Missing file or app_id' }, { status: 400 });
+    }
+    
+    // 校验所有权
+    const expectedPrefix = \`app_\${user.id}_\`;
+    if (!appId.startsWith(expectedPrefix)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    
+    // 限制文件大小 (100MB)
+    if (file.size > 100 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File too large (max 100MB)' }, { status: 413 });
+    }
+    
+    // 生成唯一路径 (保留原始扩展名)
+    const ext = file.name.split('.').pop() || 'bin';
+    const timestamp = Date.now();
+    const randomId = crypto.randomUUID().slice(0, 8);
+    const path = \`\${appId}/\${timestamp}_\${randomId}.\${ext}\`;
+    
+    // 上传到 public-assets 桶
+    const { data, error } = await supabase.storage
+      .from('public-assets')
+      .upload(path, file, {
+        contentType: file.type,
+        upsert: false
+      });
+    
+    if (error) {
+      console.error('[CMS Upload Error]', error);
+      return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+    }
+    
+    // 获取公开 URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('public-assets')
+      .getPublicUrl(data.path);
+    
+    return NextResponse.json({ 
+      success: true,
+      path: data.path,
+      url: publicUrl,
+      bucket: 'public-assets'
+    });
+    
+  } catch (error: any) {
+    console.error('[CMS Upload Error]', error);
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+  }
+}
+```
+
+##### 媒体类型处理策略
+
+| 媒体类型 | 挑战 | 解决方案 | 推荐库 |
+|----------|------|----------|--------|
+| **图片** | 容易 | Canvas 压缩，上传前转 WebP | `browser-image-compression` |
+| **语音** | 中等 | MediaRecorder API，直接录制 WebM/MP3 | `react-media-recorder` |
+| **视频** | 困难 | 分片上传 (Multipart Upload)，每片单独加密 | `uppy`, `tus-js-client` |
+| **文档** | 安全 | 强制加密，PDF/Word 通常含敏感信息 | Native File API |
+
+**图片压缩模板: `lib/templates/image-compress.ts`**
+
+```typescript
+export const IMAGE_COMPRESS_TEMPLATE = `
+// 浏览器端图片压缩
+async function compressImage(file, maxSizeMB = 1, maxWidthOrHeight = 1920) {
+  // 动态加载压缩库
+  const imageCompression = await import('browser-image-compression');
+  
+  const options = {
+    maxSizeMB,
+    maxWidthOrHeight,
+    useWebWorker: true,
+    fileType: 'image/webp'  // 转换为 WebP 格式
+  };
+  
+  const compressed = await imageCompression.default(file, options);
+  console.log(\`压缩: \${file.size} → \${compressed.size} (\${Math.round(compressed.size/file.size*100)}%)\`);
+  
+  return compressed;
+}
+`;
+```
+
+**大文件分片上传模板 (进阶): `lib/templates/chunked-upload.ts`**
+
+```typescript
+export const CHUNKED_UPLOAD_TEMPLATE = `
+// 大文件分片加密上传 (用于视频等)
+class ChunkedEncryptedUploader {
+  constructor(appId, appPublicKey) {
+    this.appId = appId;
+    this.appPublicKey = appPublicKey;
+    this.chunkSize = 5 * 1024 * 1024; // 5MB 每片
+    this.apiBase = '{{API_BASE}}';
+  }
+  
+  async upload(file, onProgress) {
+    // 1. 生成主密钥
+    const masterKey = await window.crypto.subtle.generateKey(
+      { name: "AES-GCM", length: 256 },
+      true,
+      ["encrypt", "decrypt"]
+    );
+    
+    const totalChunks = Math.ceil(file.size / this.chunkSize);
+    const chunkPaths = [];
+    
+    // 2. 分片加密上传
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * this.chunkSize;
+      const end = Math.min(start + this.chunkSize, file.size);
+      const chunk = file.slice(start, end);
+      
+      // 每片使用不同的 IV
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const chunkData = await chunk.arrayBuffer();
+      const encryptedChunk = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv },
+        masterKey,
+        chunkData
+      );
+      
+      // 上传分片
+      const formData = new FormData();
+      formData.append('file', new Blob([iv, encryptedChunk])); // IV 前置
+      formData.append('app_id', this.appId);
+      formData.append('chunk_index', i.toString());
+      formData.append('total_chunks', totalChunks.toString());
+      
+      const res = await fetch(\`\${this.apiBase}/api/mailbox/upload\`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      const { path } = await res.json();
+      chunkPaths.push(path);
+      
+      onProgress?.({
+        stage: 'uploading',
+        progress: Math.round((i + 1) / totalChunks * 90)
+      });
+    }
+    
+    // 3. 加密主密钥
+    const exportedKey = await window.crypto.subtle.exportKey("raw", masterKey);
+    const encryptedKey = await this.encryptKeyWithPublicKey(exportedKey);
+    
+    onProgress?.({ stage: 'complete', progress: 100 });
+    
+    return {
+      type: 'chunked_encrypted_file',
+      chunks: chunkPaths,
+      key: encryptedKey,
+      original_name: file.name,
+      original_size: file.size,
+      mime_type: file.type
+    };
+  }
+  
+  async encryptKeyWithPublicKey(keyData) {
+    // ... 同上
+  }
+}
+`;
+```
+
+##### 潜在限制与应对策略
+
+| 限制 | 问题描述 | 解决方案 |
+|------|----------|----------|
+| **浏览器内存** | 2GB 视频读入内存会崩溃 | 使用 **Streams API** 流式处理 |
+| **流量成本** | 视频消耗大量带宽和存储 | 限制附件大小 (免费版 50MB)，付费版更高 |
+| **本地存储压力** | 下载所有视频会撑满硬盘 | 支持 **"按需下载"**，列表只显示元数据 |
+| **大文件传输** | 网络不稳定导致上传失败 | **断点续传** (记录已上传分片) |
+
 ---
 
 ### 🧠 第二阶段：AI 代码生成升级 (3-4 周)
@@ -546,7 +1054,10 @@ lib/templates/
 ├── migration-manager.ts    # 数据库迁移管理器
 ├── admin-ui.ts             # 管理后台 UI 组件
 ├── cms-publish.ts          # 🆕 CMS 发布服务模板
-└── cms-public-viewer.ts    # 🆕 CMS 公开展示端模板
+├── cms-public-viewer.ts    # 🆕 CMS 公开展示端模板
+├── file-upload.ts          # 🆕 加密文件上传模板
+├── image-compress.ts       # 🆕 图片压缩模板
+└── chunked-upload.ts       # 🆕 大文件分片上传模板
 ```
 
 **pglite-core.ts (核心模板)**
@@ -1893,11 +2404,22 @@ export default function CMSAdminPanel({ appId, contentType, onPublish }: CMSAdmi
 
 ### 第一阶段 ✅
 - [ ] 创建 `inbox_messages` 表
+- [ ] 创建 `public_content` 表
 - [ ] 扩展 `items` 表 (app_manifest, schema_version, has_backend)
 - [ ] 实现 `/api/mailbox/submit` 接口
 - [ ] 实现 `/api/mailbox/sync` 接口
 - [ ] 实现 `/api/mailbox/ack` 接口
 - [ ] 添加定时清理任务
+
+### 第一阶段 (多媒体) 🆕
+- [ ] 创建 `inbox-files` Storage Bucket
+- [ ] 创建 `public-assets` Storage Bucket
+- [ ] 配置 Bucket RLS 策略
+- [ ] 实现 `/api/mailbox/upload` 加密文件上传接口
+- [ ] 实现 `/api/cms/upload` 公开资源上传接口
+- [ ] 创建 `file-upload.ts` 加密上传模板
+- [ ] 创建 `image-compress.ts` 图片压缩模板
+- [ ] 创建 `chunked-upload.ts` 大文件分片上传模板
 
 ### 第二阶段 ✅
 - [ ] 更新意图分类器 (检测后端需求)
@@ -1946,22 +2468,31 @@ export default function CMSAdminPanel({ appId, contentType, onPublish }: CMSAdmi
    - 支持硬盘备份和恢复
    - 支持云端同步
 
-2. **CMS 能力 🆕**
+2. **CMS 能力**
    - 用户可以创建内容管理型应用 (餐厅菜单、活动日程等)
    - 支持 Local → Public 内容发布
    - 公开内容通过 CDN 静态文件分发
    - 支持发布历史和版本回滚
 
-3. **安全性**
+3. **多媒体能力 🆕 (Secure Drop-box)**
+   - 用户可以上传加密的身份证、录音、视频证据
+   - 平台无法查看上传的私密文件 (端到端加密)
+   - 管理员可以发布图片、视频到公开 CDN
+   - 支持浏览器端图片压缩 (WebP 转换)
+   - 支持大文件分片加密上传
+
+4. **安全性**
    - 平台无法读取用户的业务数据 (端到端加密)
    - 私钥仅存储在用户本地
    - 公开内容与私密数据完全隔离
+   - 加密文件上传使用一次性对称密钥 + 非对称加密
 
-4. **用户体验**
+5. **用户体验**
    - 现有应用可以平滑升级 (Schema Migration)
    - 数据不会因为迭代而丢失
    - 离线也能正常使用本地功能
    - CMS 发布一键完成，无需技术背景
+   - 文件上传带进度指示，支持断点续传
 
 ---
 
@@ -1971,9 +2502,13 @@ export default function CMSAdminPanel({ appId, contentType, onPublish }: CMSAdmi
 - [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API)
 - [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
 - [Local-First Software](https://www.inkandswitch.com/local-first/)
+- [Streams API](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API) 🆕
+- [browser-image-compression](https://github.com/nicktomlin/browser-image-compression) 🆕
+- [Uppy File Uploader](https://uppy.io/) 🆕
 
 ---
 
-*文档版本: 2.1.0 (CMS Extension)*
-*最后更新: 2025-01-21*
+*文档版本: 2.2.0 (Secure Drop-box Extension)*
+*最后更新: 2025-12-09*
+*新增功能: 多媒体加密传输、公开资源 CDN、图片压缩、大文件分片上传*
 *新增功能: CMS 双向数据流、内容发布系统、公开展示端模板*
