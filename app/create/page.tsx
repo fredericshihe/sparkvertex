@@ -1875,6 +1875,12 @@ ${description}
                         }
                     }
                     
+                    // Safety check: Ensure patched code is not empty
+                    if (!patched || patched.trim().length === 0) {
+                        console.error('Patched code is empty! Reverting to original.');
+                        throw new Error(language === 'zh' ? '生成的代码为空，已取消修改' : 'Generated code is empty, modification cancelled');
+                    }
+
                     if (patched === generatedCode) {
                         console.warn('Patch applied but code is unchanged.');
                         console.log('[Debug] rawCode length:', rawCode.length);
@@ -2122,7 +2128,7 @@ ${description}
                 }
             } else {
                 // Full Generation Mode
-                
+                try {
                 // 🆕 Safety Check: Ensure rawCode is not empty
                 if (!rawCode || rawCode.trim().length === 0) {
                      throw new Error(language === 'zh' ? 'AI 返回了空内容，请检查网络或重试' : 'AI returned empty content, please check network or retry');
@@ -2185,6 +2191,14 @@ ${description}
 
                 // 🆕 Safety Check: Ensure code is not empty after cleaning
                 if (cleanCode.trim().length === 0) {
+                     if (summary) {
+                         console.log('AI returned summary but no code. Treating as message.');
+                         setChatHistory(prev => [...prev, { role: 'ai', content: summary!, cost: currentTaskCostRef.current || undefined }]);
+                         setIsGenerating(false);
+                         setWorkflowStage('completed');
+                         setCurrentTaskId(null);
+                         return;
+                     }
                      throw new Error(language === 'zh' ? 'AI 生成的代码为空' : 'AI generated empty code');
                 }
 
@@ -2226,6 +2240,10 @@ ${description}
                         }
                         return prev;
                     });
+                }
+                } catch (e: any) {
+                    console.error('Full generation failed:', e);
+                    toastError(e.message || (language === 'zh' ? '生成失败' : 'Generation failed'));
                 }
             }
             
