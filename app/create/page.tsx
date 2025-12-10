@@ -1963,6 +1963,12 @@ ${description}
                                      (largestReplace.includes('<!DOCTYPE') || largestReplace.includes('<html') || largestReplace.includes('<head'))) {
                                      console.log('[Debug] Using largest REPLACE block as full replacement:', largestReplace.length, 'chars');
                                      const finalCode = cleanTheCode(largestReplace);
+
+                                     // 🆕 Safety Check
+                                     if (!finalCode || finalCode.trim().length === 0) {
+                                         throw new Error(language === 'zh' ? '修改后的代码为空' : 'Patched code is empty');
+                                     }
+
                                      setGeneratedCode(finalCode);
                                      resetQuickEditHistory();
                                      toastSuccess(t.create.success_edit);
@@ -1986,6 +1992,12 @@ ${description}
 
                     // Clean the RESULT of the patch
                     const finalCode = cleanTheCode(patched);
+
+                    // 🆕 Safety Check
+                    if (!finalCode || finalCode.trim().length === 0) {
+                        throw new Error(language === 'zh' ? '修改后的代码为空' : 'Patched code is empty');
+                    }
+
                     setGeneratedCode(finalCode);
                     // Clear quick edit history when AI generates new content
                     resetQuickEditHistory();
@@ -2110,6 +2122,12 @@ ${description}
                 }
             } else {
                 // Full Generation Mode
+                
+                // 🆕 Safety Check: Ensure rawCode is not empty
+                if (!rawCode || rawCode.trim().length === 0) {
+                     throw new Error(language === 'zh' ? 'AI 返回了空内容，请检查网络或重试' : 'AI returned empty content, please check network or retry');
+                }
+
                 let cleanCode = cleanTheCode(rawCode);
                 
                 // 🆕 Extract and remove PLAN if present
@@ -2164,6 +2182,11 @@ ${description}
                 cleanCode = cleanCode.replace(/<<<<\s*SEARCH[\s\S]*?>>>>/g, '');
 
                 cleanCode = cleanCode.replace(/```html/g, '').replace(/```tsx?/g, '').replace(/```jsx?/g, '').replace(/```javascript/g, '').replace(/```/g, '');
+
+                // 🆕 Safety Check: Ensure code is not empty after cleaning
+                if (cleanCode.trim().length === 0) {
+                     throw new Error(language === 'zh' ? 'AI 生成的代码为空' : 'AI generated empty code');
+                }
 
                 if (!cleanCode.includes('<meta name="viewport"')) {
                     cleanCode = cleanCode.replace('<head>', '<head>\n<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />');
@@ -3759,6 +3782,13 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       });
       return;
     }
+
+    // 🆕 Safety Check: Ensure code is not empty
+    if (!updatedCode || updatedCode.trim().length === 0) {
+        console.error('Quick Edit resulted in empty code');
+        toastError(language === 'zh' ? '修改导致代码为空，已取消' : 'Edit resulted in empty code, cancelled');
+        return;
+    }
     
     // Save to main code history
     setCodeHistory(prev => [...prev, { 
@@ -3991,6 +4021,13 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
         onConfirm: () => {}
       });
       return;
+    }
+
+    // 🆕 Safety Check: Ensure code is not empty
+    if (!updatedCode || updatedCode.trim().length === 0) {
+        console.error('Quick Edit resulted in empty code');
+        toastError(language === 'zh' ? '修改导致代码为空，已取消' : 'Edit resulted in empty code, cancelled');
+        return;
     }
     
     // Save to main code history
