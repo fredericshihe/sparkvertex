@@ -1499,7 +1499,7 @@ function detectUndefinedReferences(code: string): string[] {
             'Intl', 'RegExp', 'eval', 'Function',
             // Common libraries (often loaded via CDN)
             'confetti', 'html2canvas', 'QRCode', 'Chart', 'moment', 'dayjs', 'axios',
-            'Babel', '_', 'lodash', '$', 'jQuery',
+            'Babel', '_', 'lodash', '$', 'jQuery', 'lucide', 'Lucide',
             // Spark platform globals
             'SPARK_APP_ID', 'SPARK_API_BASE', 'SPARK_USER_ID', 'SPARK_PUBLIC_KEY', 'SparkCrypto', 'SparkCMS',
             // HTML Elements (JSX intrinsic elements will be lowercase)
@@ -1509,6 +1509,16 @@ function detectUndefinedReferences(code: string): string[] {
             'section', 'article', 'header', 'footer', 'nav', 'aside', 'main',
             'label', 'select', 'option', 'textarea', 'fieldset', 'legend',
             'pre', 'code', 'blockquote', 'em', 'strong', 'i', 'b', 'u', 's', 'br', 'hr',
+            // Common Component Names (often used as placeholders or generic components)
+            'Header', 'Footer', 'Layout', 'Container', 'Button', 'Input', 'Card', 'Modal', 'Icon',
+            'Controls', 'Summary', 'Sidebar', 'Menu', 'MenuItem', 'List', 'ListItem', 'Grid', 'Row', 'Col',
+            'Text', 'Title', 'Subtitle', 'Image', 'Avatar', 'Badge', 'Tag', 'Tooltip', 'Popover',
+            'Tabs', 'Tab', 'Accordion', 'AccordionItem', 'Alert', 'Toast', 'Spinner', 'Loader',
+            'Form', 'FormItem', 'Label', 'Select', 'Option', 'Checkbox', 'Radio', 'Switch', 'Slider',
+            'Table', 'Thead', 'Tbody', 'Tr', 'Th', 'Td', 'Pagination', 'Breadcrumb', 'Dropdown',
+            'Navbar', 'Nav', 'NavItem', 'Link', 'Router', 'Route', 'Switch', 'Redirect',
+            'App', 'Main', 'Root', 'Wrapper', 'Provider', 'Context', 'Consumer',
+            'Suspense', 'ErrorBoundary', 'Portal', 'Fragment', 'StrictMode', 'Profiler'
         ]);
 
         // First pass: collect all top-level definitions

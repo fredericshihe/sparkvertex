@@ -1789,6 +1789,9 @@ ${description}
                 // SAFETY FIX: Remove Mixkit MP3s (403 Forbidden)
                 c = c.replace(/src="[^"]*mixkit[^"]*\.mp3"/g, 'src=""');
                 c = c.replace(/new Audio\("[^"]*mixkit[^"]*\.mp3"\)/g, 'null');
+
+                // SAFETY FIX: Use CORS proxy for CoinGecko API
+                c = c.replace(/https:\/\/api\.coingecko\.com\/api\/v3/g, 'https://corsproxy.io/?https://api.coingecko.com/api/v3');
                 
                 return c;
             };
