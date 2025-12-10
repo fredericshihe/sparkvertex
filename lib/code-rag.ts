@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { parse } from '@babel/parser';
+import { parse, ParserOptions } from '@babel/parser';
 import traverse from '@babel/traverse';
 import generate from '@babel/generator';
 import * as t from '@babel/types';
@@ -16,6 +16,61 @@ import {
 export type { SearchStrategy } from './intent-classifier';
 export { UserIntent, classifyUserIntent } from './intent-classifier';
 export { analyzeDependencies, analyzeFullDependencies } from './ast-parser';
+
+/**
+ * 🆕 Shared Babel Parser Configuration
+ * Comprehensive plugin list to handle all modern JavaScript/TypeScript syntax
+ * Export this for use in other modules (patch.ts, etc.)
+ */
+export const BABEL_PARSER_CONFIG: ParserOptions = {
+    sourceType: "module",
+    plugins: [
+        "jsx", 
+        "typescript", 
+        "classProperties",
+        // 🔧 FIX: Only use decorators-legacy (not both decorators + decorators-legacy)
+        // decorators-legacy is more compatible with React/RN projects
+        "decorators-legacy",
+        "dynamicImport",
+        "exportDefaultFrom",
+        "exportNamespaceFrom",
+        "nullishCoalescingOperator",
+        "optionalChaining",
+        "objectRestSpread",
+        "asyncGenerators",
+        "classPrivateProperties",
+        "classPrivateMethods",
+        "doExpressions",
+        "numericSeparator",
+        "throwExpressions",
+        "topLevelAwait",
+        "importMeta",
+        "logicalAssignment",
+        "classStaticBlock",
+        // Note: Some experimental plugins removed to avoid conflicts
+        // "partialApplication", "pipelineOperator", "recordAndTuple" - may conflict
+        "importAssertions"
+    ] as any,
+    errorRecovery: true,
+    allowReturnOutsideFunction: true,
+    allowSuperOutsideMethod: true,
+    allowUndeclaredExports: true,
+    allowAwaitOutsideFunction: true,
+    allowImportExportEverywhere: true,
+    allowNewTargetOutsideFunction: true,
+    createParenthesizedExpressions: true
+};
+
+/**
+ * Code chunk type definition
+ */
+export interface CodeChunk {
+    id: string;
+    content: string;
+    type: string;
+    startIndex?: number;
+    endIndex?: number;
+}
 
 // Helper to calculate cosine similarity
 function cosineSimilarity(vecA: number[], vecB: number[]) {
@@ -404,6 +459,7 @@ interface SkeletonResult {
     resultLines: number;
     functionsHidden: number;
     functionsKept: number;
+    wasModified: boolean; // 🆕 Flag to indicate if AST actually changed anything
 }
 
 function skeletonizeCode(code: string, chunkId?: string): SkeletonResult {
@@ -421,94 +477,218 @@ function skeletonizeCode(code: string, chunkId?: string): SkeletonResult {
             originalLines,
             resultLines: originalLines,
             functionsHidden: 0,
-            functionsKept: 0
+            functionsKept: 0,
+            wasModified: false
         };
     }
 
-    // ⚡ Skip specific problematic components (Known Issues)
-    // Some constants or special files might fail AST parsing but are safe to keep as is
-    if (chunkId && chunkId.includes('CONTAINER_BASE_UNIT_FOR_LAUNCH')) {
-        console.log(`[AST] ⏭️ Skipping ${chunkId} (known parsing issue)`);
-        return {
-            code,
-            originalLines,
-            resultLines: originalLines,
-            functionsHidden: 0,
-            functionsKept: 0
-        };
+    // 🆕 Removed hardcoded skip for CONTAINER_BASE_UNIT_FOR_LAUNCH
+    // The enhanced parser with more plugins should handle it now
+    // If it still fails, the catch block will use brutalTruncate as fallback
+
+    // 🧹 Pre-process: Clean up common syntax issues that break Babel
+    let cleanedInput = code;
+    
+    // Fix: Remove BOM if present
+    if (cleanedInput.charCodeAt(0) === 0xFEFF) {
+        cleanedInput = cleanedInput.slice(1);
     }
+    
+    // Fix: Normalize line endings
+    cleanedInput = cleanedInput.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // Fix: Remove zero-width characters that can break parsing
+    cleanedInput = cleanedInput.replace(/[\u200B-\u200D\uFEFF]/g, '');
+    
+    // 🆕 Fix: Handle edge cases that commonly break parsers
+    // Remove hashbang/shebang if present
+    cleanedInput = cleanedInput.replace(/^#!.*\n/, '');
+    
+    // Fix trailing commas in edge cases (defensive)
+    cleanedInput = cleanedInput.replace(/,(\s*[}\]])/g, '$1');
 
     try {
-        // 1. Parse code to AST
-        const ast = parse(code, {
-            sourceType: "module",
-            plugins: ["jsx", "typescript", "classProperties"],
-            errorRecovery: true
-        });
+        // 1. Parse code to AST with comprehensive plugin support
+        const ast = parse(cleanedInput, BABEL_PARSER_CONFIG);
+
+        // Helper: Estimate the "size" of a node by counting its source characters
+        const estimateNodeSize = (node: any): number => {
+            if (!node) return 0;
+            if (node.start !== undefined && node.end !== undefined) {
+                return node.end - node.start;
+            }
+            return 0;
+        };
 
         // 2. Traverse and modify AST
+        // 🚨 FIX: Process BOTH traditional functions AND arrow functions in variable declarations
         traverse(ast, {
-            // Match all function types
-            "FunctionDeclaration|ArrowFunctionExpression|FunctionExpression|ObjectMethod|ClassMethod"(path: any) {
+            // Handle: function foo() {}, class methods, object methods
+            "FunctionDeclaration|FunctionExpression|ObjectMethod|ClassMethod"(path: any) {
                 const node = path.node;
-                // Skip if body is already empty or very short (<= 1 statement)
-                if (!node.body || (node.body.type === 'BlockStatement' && node.body.body.length <= 1)) {
+                if (!node.body || node.body.type !== 'BlockStatement') {
+                    functionsKept++;
+                    return;
+                }
+                
+                const bodySize = estimateNodeSize(node.body);
+                const bodyStatements = node.body.body.length;
+                
+                // 🔧 NEW LOGIC: Hide if body is > 100 chars OR > 3 statements
+                // This catches functions with few statements but lots of JSX
+                if (bodySize < 100 && bodyStatements <= 3) {
                     functionsKept++;
                     return;
                 }
 
-                // Count statements in body to determine if worth hiding
-                const bodyStatements = node.body.type === 'BlockStatement' ? node.body.body.length : 1;
-                if (bodyStatements <= 2) {
-                    functionsKept++;
-                    return; // Keep very short functions
-                }
-
                 functionsHidden++;
-
-                // Create a comment node
-                const comment = t.addComment(
-                    t.blockStatement([]), // Empty block
-                    "inner",
-                    ` ... ${bodyStatements} statements hidden ... `
-                );
+                const hiddenInfo = bodyStatements > 0 ? `${bodyStatements} statements` : `${bodySize} chars`;
                 
-                // Replace body with the comment-only block
-                if (node.type === 'ArrowFunctionExpression' && node.body.type !== 'BlockStatement') {
-                     path.get("body").replaceWith(comment);
-                } else {
-                    path.get("body").replaceWith(comment);
+                // Replace body with empty block + comment
+                path.get("body").replaceWith(
+                    t.addComment(
+                        t.blockStatement([]),
+                        "inner",
+                        ` ... ${hiddenInfo} hidden ... `
+                    )
+                );
+            },
+            
+            // 🚨 CRITICAL FIX: Handle arrow functions (most React components use this!)
+            // Pattern: const MyComponent = () => { ... } OR const MyComponent = () => <JSX />
+            ArrowFunctionExpression(path: any) {
+                const node = path.node;
+                
+                // Case 1: Arrow with block body: () => { return <JSX /> }
+                if (node.body && node.body.type === 'BlockStatement') {
+                    const bodySize = estimateNodeSize(node.body);
+                    const bodyStatements = node.body.body.length;
+                    
+                    if (bodySize < 100 && bodyStatements <= 3) {
+                        functionsKept++;
+                        return;
+                    }
+
+                    functionsHidden++;
+                    const hiddenInfo = bodyStatements > 0 ? `${bodyStatements} statements` : `${bodySize} chars`;
+                    
+                    path.get("body").replaceWith(
+                        t.addComment(
+                            t.blockStatement([]),
+                            "inner",
+                            ` ... ${hiddenInfo} hidden ... `
+                        )
+                    );
+                }
+                // Case 2: Arrow with expression body: () => <JSX /> (implicit return)
+                else if (node.body) {
+                    const bodySize = estimateNodeSize(node.body);
+                    
+                    // Only hide if the expression is large (> 100 chars, likely JSX)
+                    if (bodySize < 100) {
+                        functionsKept++;
+                        return;
+                    }
+                    
+                    functionsHidden++;
+                    
+                    // Convert to block body with hidden comment
+                    // () => <JSX /> becomes () => { /* ... hidden ... */ }
+                    path.get("body").replaceWith(
+                        t.addComment(
+                            t.blockStatement([]),
+                            "inner",
+                            ` ... ${bodySize} chars hidden (JSX expression) ... `
+                        )
+                    );
                 }
             }
         });
 
         // 3. Generate new code
+        // CRITICAL: Preserve function signatures! Don't over-compress.
         const output = generate(ast, {
-            retainLines: false,
-            compact: false,
-            comments: true
-        }, code);
+            retainLines: false,  // Don't preserve original line positions
+            compact: false,      // DON'T compact - we need readable signatures
+            minified: false,     // Don't minify
+            comments: true,      // Keep comments (including our hidden markers)
+            concise: false,      // DON'T use concise - it removes formatting
+            // Ensure function parameters stay on same line as function
+            auxiliaryCommentBefore: undefined,
+            auxiliaryCommentAfter: undefined
+        }, cleanedInput);  // Use cleanedInput, not original code
 
-        const resultLines = output.code.split('\n').length;
+        // Post-process: Remove excessive blank lines (more than 1 consecutive)
+        const cleanedCode = output.code.replace(/\n{3,}/g, '\n\n');
+        const resultLines = cleanedCode.split('\n').length;
+        
+        // 🚨 SAFETY CHECK: If "compressed" code is longer than original, discard it!
+        if (resultLines >= originalLines || functionsHidden === 0) {
+            // No improvement or no functions were hidden - don't add wrapper overhead
+            if (functionsHidden === 0) {
+                console.log(`[AST] ℹ️ No functions hidden for ${chunkId || 'unknown'}, keeping original`);
+            } else {
+                console.warn(`[AST] ⚠️ Negative compression detected for ${chunkId || 'unknown'} (${originalLines} -> ${resultLines}). Reverting to original.`);
+            }
+            return {
+                code,
+                originalLines,
+                resultLines: originalLines,
+                functionsHidden: 0,
+                functionsKept: 0,
+                wasModified: false
+            };
+        }
 
         return {
-            code: output.code,
+            code: cleanedCode,
             originalLines,
             resultLines,
             functionsHidden,
-            functionsKept
+            functionsKept,
+            wasModified: true
         };
 
-    } catch (error) {
-        console.warn(`[AST] Skeletonization failed for ${chunkId || 'unknown'}:`, error);
+    } catch (error: any) {
+        // 🚨 AST parsing failed - return original code WITHOUT modification
+        // CRITICAL: Set wasModified=false so caller knows NOT to add comment wrapper
+        console.warn(`[AST] Skeletonization failed for ${chunkId || 'unknown'}: ${error?.message || error}`);
         return {
             code,
             originalLines,
             resultLines: originalLines,
             functionsHidden: 0,
-            functionsKept: 0
+            functionsKept: 0,
+            wasModified: false
         };
     }
+}
+
+/**
+ * 🚨 BRUTAL TRUNCATION: Last resort when AST fails or is ineffective
+ * Simply keeps the first N lines (imports + signatures) and truncates the rest
+ * This guarantees compression even for unparseable code
+ */
+function brutalTruncate(code: string, chunkId: string, maxLines: number = 15): { code: string; originalLines: number; resultLines: number; wasTruncated: boolean } {
+    const lines = code.split('\n');
+    const originalLines = lines.length;
+    
+    if (originalLines <= maxLines) {
+        return { code, originalLines, resultLines: originalLines, wasTruncated: false };
+    }
+    
+    // Keep first maxLines (usually imports + component signature + first few lines)
+    const keptLines = lines.slice(0, maxLines);
+    const truncatedCode = keptLines.join('\n') + `\n// ... ${originalLines - maxLines} more lines truncated for ${chunkId} ...`;
+    
+    console.log(`[Truncate] ✂️ Brutally truncated ${chunkId}: ${originalLines} → ${maxLines + 1} lines`);
+    
+    return {
+        code: truncatedCode,
+        originalLines,
+        resultLines: maxLines + 1,
+        wasTruncated: true
+    };
 }
 
 /**
@@ -644,14 +824,92 @@ export function compressCode(
     // Only consider JS chunks for now as they are inside the script tag
     const jsChunks = chunks.filter(c => c.type === 'js' && c.startIndex !== undefined).sort((a, b) => b.startIndex! - a.startIndex!);
     
+    // ========================================
+    // 🚨 NEW: Function Name → Parent File Resolution
+    // ========================================
+    // Problem: DeepSeek may return function names (handleEncounter, resetGame) instead of file names (App)
+    // Solution: Search each chunk to find which file contains these functions, then add parent to explicitTargets
+    const resolvedTargets = [...explicitTargets];
+    const functionToParentMap: Map<string, string> = new Map();
+    
+    // Build a map of function names -> parent chunk IDs
+    for (const chunk of jsChunks) {
+        const componentName = chunk.id.replace('component-', '');
+        
+        // Search for function definitions in this chunk
+        // Patterns: function xxx, const xxx =, let xxx =, var xxx =, xxx: function, xxx()
+        const functionPatterns = [
+            /(?:function|const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?:=|[<(])/g,
+            /([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:\s*(?:function|\(|async)/g,
+            /([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s*)?\(/g,
+            /([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[a-zA-Z_$][a-zA-Z0-9_$]*)\s*=>/g
+        ];
+        
+        for (const pattern of functionPatterns) {
+            let match;
+            while ((match = pattern.exec(chunk.content)) !== null) {
+                const funcName = match[1];
+                if (funcName && funcName.length > 2) {
+                    // Store the mapping (function name -> parent chunk ID)
+                    if (!functionToParentMap.has(funcName.toLowerCase())) {
+                        functionToParentMap.set(funcName.toLowerCase(), componentName);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Now check if any explicitTargets are function names that need resolution
+    const targetsToCheck = [...explicitTargets];
+    const parentFilesAdded: string[] = [];
+    
+    for (const target of targetsToCheck) {
+        const targetLower = target.toLowerCase().trim();
+        
+        // Check if this target matches any chunk ID directly
+        const directMatch = jsChunks.some(chunk => {
+            const componentName = chunk.id.replace('component-', '').toLowerCase();
+            return componentName === targetLower || componentName.includes(targetLower) || targetLower.includes(componentName);
+        });
+        
+        if (!directMatch) {
+            // This target doesn't match any file directly - it might be a function name
+            // Look up the parent file from our map
+            const parentFile = functionToParentMap.get(targetLower);
+            if (parentFile && !resolvedTargets.some(t => t.toLowerCase() === parentFile.toLowerCase())) {
+                console.log(`🔍 [TargetResolution] Function "${target}" found in "${parentFile}" - adding parent to targets`);
+                resolvedTargets.push(parentFile);
+                parentFilesAdded.push(parentFile);
+            } else if (!parentFile) {
+                // Try partial match on function map
+                functionToParentMap.forEach((parent, funcName) => {
+                    if (funcName.includes(targetLower) || targetLower.includes(funcName)) {
+                        if (!resolvedTargets.some(t => t.toLowerCase() === parent.toLowerCase())) {
+                            console.log(`🔍 [TargetResolution] Function "${target}" (partial: ${funcName}) found in "${parent}" - adding parent to targets`);
+                            resolvedTargets.push(parent);
+                            parentFilesAdded.push(parent);
+                        }
+                    }
+                });
+            }
+        }
+    }
+    
+    if (parentFilesAdded.length > 0) {
+        console.log(`🔍 [TargetResolution] Added ${parentFilesAdded.length} parent files: ${parentFilesAdded.join(', ')}`);
+    }
+    
+    // Use resolved targets instead of original
+    const finalExplicitTargets = resolvedTargets;
+    
     // Dynamic compression threshold based on intent
     const intentKey = (intent as CompressionIntent) || 'UNKNOWN';
     const compressionThreshold = COMPRESSION_THRESHOLDS[intentKey] || 15;
     
     console.log(`[Compression] Total JS chunks: ${jsChunks.length}, Relevant IDs: ${relevantChunkIds.join(', ')}`);
     console.log(`[Compression] Intent: ${intent || 'UNKNOWN'}, Threshold: ${compressionThreshold} lines`);
-    if (explicitTargets.length > 0) {
-        console.log(`[Compression] 📝 Primary targets (Full Code): ${explicitTargets.join(', ')}`);
+    if (finalExplicitTargets.length > 0) {
+        console.log(`[Compression] 📝 Primary targets (Full Code): ${finalExplicitTargets.join(', ')}`);
     }
     if (referenceTargets.length > 0) {
         console.log(`[Compression] 📖 Reference targets (Skeleton): ${referenceTargets.join(', ')}`);
@@ -670,7 +928,7 @@ export function compressCode(
         UserIntent.DATA_OPERATION
     ];
     
-    if (explicitTargets.length === 0 && modificationIntents.includes(intent as UserIntent)) {
+    if (finalExplicitTargets.length === 0 && modificationIntents.includes(intent as UserIntent)) {
         console.warn("⚠️ [Compression] Fail-Safe Mode Activated: Modification intent with empty target list.");
         console.warn("⚠️ [Compression] Will preserve ALL relevant chunks to prevent accidental skeletonization.");
         failSafeMode = true;
@@ -708,58 +966,78 @@ export function compressCode(
             return false;
         };
         
-        const isExplicitTarget = explicitTargets.some(t => 
+        // 🚨 Use finalExplicitTargets (resolved) instead of original explicitTargets
+        const isExplicitTarget = finalExplicitTargets.some(t => 
             fuzzyMatch(t, componentName) || fuzzyMatch(t, chunk.id)
         );
-
-        // ✅ FAIL-SAFE LOGIC: If in fail-safe mode, treat relevant chunks as explicit targets
-        if (isExplicitTarget || (failSafeMode && isRelevant)) {
-            const reason = isExplicitTarget ? "Primary Target" : "Fail-Safe Preservation";
-            console.log(`[Compression] 📝 Full code: ${chunk.id} (${reason} - will be edited)`);
-            continue;
-        }
 
         // NEW: Check if this chunk is a REFERENCE target (needs skeleton only, not full code)
         const isReferenceTarget = referenceTargets.some(t => 
             fuzzyMatch(t, componentName) || fuzzyMatch(t, chunk.id)
         );
 
-        if (isReferenceTarget && lines.length > 10) {
-            // Reference targets get AST skeletonization - keep interface, hide implementation
-            const skeleton = skeletonizeCode(chunk.content, chunk.id);
-            const reductionPercent = Math.round((1 - skeleton.resultLines / skeleton.originalLines) * 100);
-            console.log(`[AST] 📖 Reference skeleton: ${chunk.id}: ${skeleton.originalLines} → ${skeleton.resultLines} lines (${reductionPercent}% reduction)`);
-            
-            const replacement = `/** @reference-skeleton ${chunk.id} (${lines.length} lines) [INTERFACE ONLY]
- * 📖 This is a REFERENCE component - showing interface/exports only
- * 📖 Full implementation hidden to save tokens
- */
-${skeleton.code}`;
-
-            compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
-            skeletonizedReferenceCount++;
-            continue;
-        }
-
         // ========================================
-        // 🚨 REVISED: "Protect Relevant Chunks" Strategy
+        // 🚨 REVISED: "Aggressive Skeletonization" Strategy
         // ========================================
-        // CRITICAL FIX: RAG-relevant chunks MUST be preserved fully!
-        // Previous "Allowlist or Skeleton" strategy caused "Code Degradation":
-        //   1. AI couldn't see dependencies → broke interfaces
-        //   2. AI used compressed markers as anchors → patches failed
-        //   3. Skeletonized relevant code → AI hallucinated implementations
-        //
-        // NEW RULE: Only compress chunks that are BOTH:
-        //   - Not in explicitTargets
-        //   - Not in relevantChunkIds (RAG-selected)
-        //   - Not in referenceTargets
+        // User Request: "For non-primary target files, force AST parsing, keep only export function signatures and type definitions, delete function body content."
         
-        // 🛡️ PROTECT RELEVANT CHUNKS: If RAG selected it, keep it FULL
-        if (isRelevant) {
-            console.log(`[Compression] 📗 Preserving relevant chunk: ${chunk.id} (RAG-selected, ${lines.length} lines)`);
+        // 1. Primary Targets: Keep FULL Code
+        if (isExplicitTarget || (failSafeMode && isRelevant)) {
+            const reason = isExplicitTarget ? "Primary Target - will be edited" : "Fail-Safe - kept for reference";
+            console.log(`[Compression] 📝 Full code: ${chunk.id} (${reason})`);
             continue;
         }
+
+        // 2. Context Files (Relevant but not Primary): SKELETONIZE
+        // This includes both explicit referenceTargets AND any other relevant chunks found by RAG
+        if (isRelevant || isReferenceTarget) {
+            // Only skeletonize if it's large enough to matter
+            if (lines.length > 10) {
+                const skeleton = skeletonizeCode(chunk.content, chunk.id);
+                
+                // 🚨 AST succeeded and modified code
+                if (skeleton.wasModified) {
+                    const reductionPercent = Math.round((1 - skeleton.resultLines / skeleton.originalLines) * 100);
+                    console.log(`[AST] 📖 Context skeleton: ${chunk.id}: ${skeleton.originalLines} → ${skeleton.resultLines} lines (${reductionPercent}% reduction)`);
+                    
+                    // Only add wrapper if there was actual compression (> 10%)
+                    let replacement: string;
+                    if (reductionPercent >= 10) {
+                        replacement = `/** @context-skeleton ${chunk.id} [INTERFACE ONLY] */\n${skeleton.code}`;
+                    } else {
+                        replacement = skeleton.code;
+                    }
+
+                    compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
+                    skeletonizedReferenceCount++;
+                    continue;
+                }
+                
+                // 🚨 AST failed or didn't help - use BRUTAL TRUNCATION as fallback
+                // This ensures we ALWAYS compress context files, even if AST can't parse them
+                if (lines.length > 20) {
+                    const truncated = brutalTruncate(chunk.content, chunk.id, 15);
+                    if (truncated.wasTruncated) {
+                        const reductionPercent = Math.round((1 - truncated.resultLines / truncated.originalLines) * 100);
+                        console.log(`[Truncate] 📖 Context truncated: ${chunk.id}: ${truncated.originalLines} → ${truncated.resultLines} lines (${reductionPercent}% reduction)`);
+                        
+                        const replacement = `/** @truncated ${chunk.id} [IMPORTS + SIGNATURE ONLY] */\n${truncated.code}`;
+                        compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
+                        skeletonizedReferenceCount++;
+                        continue;
+                    }
+                }
+                
+                console.log(`[Compression] Keeping ${chunk.id} (AST unchanged, no truncation needed, ${lines.length} lines)`);
+                continue;
+            } else {
+                console.log(`[Compression] Keeping ${chunk.id} (context but small: ${lines.length} lines)`);
+                continue;
+            }
+        }
+        
+        // 3. Irrelevant Files: Compress/Remove
+        // (Logic continues below for truly irrelevant chunks)
         
         // Data Definitions: Sample them instead of full expansion
         const isDataDefinition = /const\s+[A-Z0-9_]+\s*=\s*[\[\{]/.test(chunk.content);
@@ -794,21 +1072,39 @@ ${skeleton.code}`;
         // (At this point, isRelevant=false because relevant chunks are handled above)
         const skeleton = skeletonizeCode(chunk.content, chunk.id);
         
-        // Log detailed AST compression stats
-        const reductionPercent = Math.round((1 - skeleton.resultLines / skeleton.originalLines) * 100);
-        console.log(`[AST] 🗜️ Compressed irrelevant: ${chunk.id}: ${skeleton.originalLines} → ${skeleton.resultLines} lines (${reductionPercent}% reduction)`);
-        
-        // Create compressed replacement with semantic info and STRICT warnings
-        const replacement = `/** @semantic-compressed ${chunk.id} (${lines.length} lines) [IRRELEVANT - DO NOT USE AS ANCHOR]
- * ⚠️ THIS COMPONENT IS NOT RELEVANT TO THE USER'S REQUEST
- * ⚠️ DO NOT include any line from this block in your SEARCH patterns
- * ⚠️ DO NOT attempt to modify this component
- * ⚠️ If modification is needed, request the user to specify it explicitly
- */
-${skeleton.code}`;
+        // 🚨 AST succeeded and modified code
+        if (skeleton.wasModified) {
+            const reductionPercent = Math.round((1 - skeleton.resultLines / skeleton.originalLines) * 100);
+            console.log(`[AST] 🗜️ Compressed irrelevant: ${chunk.id}: ${skeleton.originalLines} → ${skeleton.resultLines} lines (${reductionPercent}% reduction)`);
+            
+            let replacement: string;
+            if (reductionPercent >= 10) {
+                replacement = `/** @irrelevant ${chunk.id} [DO NOT EDIT] */\n${skeleton.code}`;
+            } else {
+                replacement = skeleton.code;
+            }
 
-        compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
-        compressedCount++;
+            compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
+            compressedCount++;
+            continue;
+        }
+        
+        // 🚨 AST failed or didn't help - use BRUTAL TRUNCATION
+        // For irrelevant files, be even more aggressive (keep only 10 lines)
+        if (lines.length > 15) {
+            const truncated = brutalTruncate(chunk.content, chunk.id, 10);
+            if (truncated.wasTruncated) {
+                const reductionPercent = Math.round((1 - truncated.resultLines / truncated.originalLines) * 100);
+                console.log(`[Truncate] 🗜️ Irrelevant truncated: ${chunk.id}: ${truncated.originalLines} → ${truncated.resultLines} lines (${reductionPercent}% reduction)`);
+                
+                const replacement = `/** @irrelevant-truncated ${chunk.id} */\n${truncated.code}`;
+                compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
+                compressedCount++;
+                continue;
+            }
+        }
+        
+        console.log(`[Compression] Keeping ${chunk.id} (AST unchanged, small file, ${lines.length} lines)`);
     }
     
     if (compressedCount > 0 || skeletonizedReferenceCount > 0) {
@@ -828,6 +1124,99 @@ export interface RAGOptions {
     explicitTargets?: string[];  // Intent Classifier 识别的 files_to_edit
     referenceTargets?: string[]; // Intent Classifier 识别的 files_to_read
     isGlobalReview?: boolean;    // 是否是全局审查模式
+    intent?: string;             // User intent for filtering (LOGIC_FIX, UI_MODIFICATION, etc.)
+    trustMode?: boolean;         // 🆕 信任模式：DeepSeek 指定的文件直接使用，不做向量搜索
+    forceDeepSeek?: boolean;     // 🆕 是否启用 DeepSeek Only 模式
+}
+
+/**
+ * 🆕 信任模式压缩策略
+ * - files_to_edit: 全量代码（不压缩）
+ * - files_to_read: 智能压缩（保留签名）
+ * - 其他文件: 丢弃
+ */
+export interface TrustModeCompressionResult {
+    editFiles: Array<{ id: string; content: string; compressed: boolean }>;
+    readFiles: Array<{ id: string; content: string; compressed: boolean; originalSize: number; compressedSize: number }>;
+    discardedCount: number;
+    totalSize: number;
+}
+
+/**
+ * 🆕 精准模式：基于 DeepSeek 的文件列表直接加载，跳过向量搜索
+ * 
+ * 流程：
+ * 1. 根据 files_to_edit 和 files_to_read 过滤 chunks
+ * 2. files_to_edit → 全量代码
+ * 3. files_to_read → 智能压缩
+ * 4. 其他文件 → 丢弃
+ */
+export function applyTrustModeCompression(
+    chunks: CodeChunk[],
+    filesToEdit: string[],
+    filesToRead: string[]
+): TrustModeCompressionResult {
+    console.log(`[CodeRAG] 🎯 Trust Mode: ${filesToEdit.length} edit files, ${filesToRead.length} read files`);
+    
+    const editFiles: TrustModeCompressionResult['editFiles'] = [];
+    const readFiles: TrustModeCompressionResult['readFiles'] = [];
+    let discardedCount = 0;
+    let totalSize = 0;
+    
+    // 构建匹配函数（模糊匹配文件名）
+    const matchesTarget = (chunkId: string, targets: string[]): boolean => {
+        const chunkIdLower = chunkId.toLowerCase();
+        return targets.some(target => {
+            const targetLower = target.toLowerCase();
+            // 完全匹配或部分匹配
+            return chunkIdLower.includes(targetLower) || 
+                   targetLower.includes(chunkIdLower) ||
+                   chunkIdLower.replace(/[^a-z0-9]/g, '').includes(targetLower.replace(/[^a-z0-9]/g, ''));
+        });
+    };
+    
+    for (const chunk of chunks) {
+        const isEditTarget = matchesTarget(chunk.id, filesToEdit);
+        const isReadTarget = matchesTarget(chunk.id, filesToRead);
+        
+        if (isEditTarget) {
+            // files_to_edit → 全量代码（不压缩）
+            editFiles.push({
+                id: chunk.id,
+                content: chunk.content,
+                compressed: false
+            });
+            totalSize += chunk.content.length;
+            console.log(`[CodeRAG] ✏️ EDIT: ${chunk.id} (${chunk.content.length} chars, FULL)`);
+        } else if (isReadTarget) {
+            // files_to_read → 智能压缩
+            const originalSize = chunk.content.length;
+            // 对于 read 文件，使用 skeletonizeCode 进行压缩
+            const skeleton = skeletonizeCode(chunk.content, chunk.id);
+            const compressed = skeleton.wasModified ? skeleton.code : chunk.content;
+            const compressedSize = compressed.length;
+            
+            readFiles.push({
+                id: chunk.id,
+                content: compressed,
+                compressed: skeleton.wasModified,
+                originalSize,
+                compressedSize
+            });
+            totalSize += compressedSize;
+            
+            const ratio = originalSize > 0 ? ((1 - compressedSize / originalSize) * 100).toFixed(1) : '0';
+            console.log(`[CodeRAG] 📖 READ: ${chunk.id} (${originalSize} → ${compressedSize} chars, -${ratio}%)`);
+        } else {
+            // 其他文件 → 丢弃
+            discardedCount++;
+        }
+    }
+    
+    console.log(`[CodeRAG] 🗑️ Discarded ${discardedCount} irrelevant chunks`);
+    console.log(`[CodeRAG] 📊 Total context size: ${totalSize} chars`);
+    
+    return { editFiles, readFiles, discardedCount, totalSize };
 }
 
 export async function findRelevantCodeChunks(
@@ -837,7 +1226,7 @@ export async function findRelevantCodeChunks(
     supabaseKey: string,
     options?: RAGOptions
 ) {
-    const { explicitTargets = [], referenceTargets = [], isGlobalReview = false } = options || {};
+    const { explicitTargets = [], referenceTargets = [], isGlobalReview = false, intent } = options || {};
     
     // 🆕 动态计算 chunk 限制
     const userExplicitFileCount = explicitTargets.length + referenceTargets.length;
@@ -889,17 +1278,29 @@ export async function findRelevantCodeChunks(
         
         const inputs = [userPrompt, ...chunks.map(c => `[${c.type}] ${c.content.substring(0, 1000)}`)]; // Truncate for embedding to save tokens/limits
 
-        // C. Call Edge Function (Batch)
-        const response = await fetch(`${supabaseUrl}/functions/v1/embed`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseKey}`
-            },
-            body: JSON.stringify({ inputs })
-        });
+        // C. Call Edge Function (Batch) with Retry
+        let response;
+        let retries = 3;
+        while (retries > 0) {
+            try {
+                response = await fetch(`${supabaseUrl}/functions/v1/embed`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${supabaseKey}`
+                    },
+                    body: JSON.stringify({ inputs })
+                });
+                if (response.ok) break;
+                console.warn(`[CodeRAG] Embed fetch failed with status ${response.status}, retrying... (${retries} left)`);
+            } catch (e: any) {
+                console.warn(`[CodeRAG] Embed fetch error: ${e.message}, retrying... (${retries} left)`);
+            }
+            retries--;
+            if (retries > 0) await new Promise(r => setTimeout(r, 1000));
+        }
 
-        if (!response.ok) throw new Error('Failed to get embeddings');
+        if (!response || !response.ok) throw new Error('Failed to get embeddings after retries');
         
         const { embeddings } = await response.json();
         if (!embeddings || embeddings.length !== inputs.length) throw new Error('Invalid embedding response');
@@ -927,6 +1328,30 @@ export async function findRelevantCodeChunks(
 
         // Sort by score descending
         scoredChunks.sort((a, b) => b.score - a.score);
+        
+        // 🧹 INTENT-BASED FILTERING: Remove irrelevant file types based on intent
+        // For LOGIC_FIX/DATA_OPERATION: Filter out style/CSS files - they're NEVER relevant for bug fixes
+        if (intent === 'LOGIC_FIX' || intent === 'DATA_OPERATION') {
+            // 🚨 AGGRESSIVE PATTERN: Match any style-related chunk
+            const stylePatterns = /style|css|scss|less|tailwind|styled|\.css|theme|color/i;
+            const beforeCount = scoredChunks.length;
+            
+            // Filter in place
+            const filteredChunks = scoredChunks.filter(c => {
+                const isStyle = stylePatterns.test(c.id) || c.id === 'style-block';
+                if (isStyle) {
+                    console.log(`[CodeRAG] 🚫 Banned ${c.id} (style file in ${intent} mode)`);
+                }
+                return !isStyle;
+            });
+            
+            if (filteredChunks.length > 0 && filteredChunks.length < beforeCount) {
+                const removed = beforeCount - filteredChunks.length;
+                console.log(`[CodeRAG] 🧹 Filtered ${removed} style chunks for ${intent} intent`);
+                scoredChunks.length = 0;
+                scoredChunks.push(...filteredChunks);
+            }
+        }
 
         // E. Smart Selection Strategy with Dependency Graph
         // Goal: Include target component AND its direct dependencies
@@ -961,6 +1386,29 @@ export async function findRelevantCodeChunks(
         const promptLower = userPrompt.toLowerCase();
         const chineseKeywords = extractChineseKeywords(promptLower);
         
+        // 🆕 ERROR-DRIVEN RETRIEVAL: If prompt contains error messages, prioritize related files
+        const errorMatch = promptLower.match(/(?:can't find variable|is not defined|undefined is not an object|cannot read property)\s+['"]?(\w+)['"]?/i);
+        if (errorMatch) {
+            const missingVar = errorMatch[1];
+            console.log(`[CodeRAG] 🚨 Detected runtime error for variable: ${missingVar}`);
+            
+            // Find files that define this variable
+            const definingChunks = scoredChunks.filter(c => 
+                c.content.includes(`const ${missingVar}`) || 
+                c.content.includes(`let ${missingVar}`) || 
+                c.content.includes(`function ${missingVar}`) ||
+                c.content.includes(`class ${missingVar}`) ||
+                c.content.includes(`interface ${missingVar}`)
+            );
+            
+            for (const chunk of definingChunks) {
+                if (!relevantChunks.find(c => c.id === chunk.id)) {
+                    console.log(`[CodeRAG] 🚑 Adding ${chunk.id} (defines missing variable ${missingVar})`);
+                    relevantChunks.push(chunk);
+                }
+            }
+        }
+
         let promptMatchCount = 0;
         const MAX_PROMPT_MATCHES = 5; // Increased from 3 to 5 to catch more relevant components (e.g. Map, Grid, Screen)
         
@@ -1182,3 +1630,233 @@ export async function analyzeIntent(
         generateText: options?.generateText
     });
 }
+
+// ============================================
+// 🆕 DeepSeek Only RAG - 两阶段精准模式
+// ============================================
+
+export interface DeepSeekRAGOptions {
+    supabaseUrl: string;
+    supabaseKey: string;
+    fileTree?: string;           // 文件树字符串（推荐）
+    fileSummaries?: string[];    // 文件摘要列表（备用）
+    authToken?: string;          // 用户 auth token
+    timeoutMs?: number;          // DeepSeek 超时时间
+}
+
+export interface DeepSeekRAGResult {
+    // 意图分类结果
+    intent: string;
+    confidence: number;
+    source: 'local' | 'deepseek' | 'gemini_fallback' | 'timeout_fallback';
+    reasoning?: string;
+    
+    // 文件列表
+    filesToEdit: string[];
+    filesToRead: string[];
+    
+    // 压缩后的上下文
+    context: {
+        editFiles: Array<{ id: string; content: string }>;
+        readFiles: Array<{ id: string; content: string; compressionRatio: number }>;
+    };
+    
+    // 元数据
+    metadata: {
+        totalChunks: number;
+        selectedChunks: number;
+        discardedChunks: number;
+        totalContextSize: number;
+        latencyMs: number;
+        phases: {
+            intentClassification: number;
+            fileLoading: number;
+            compression: number;
+        };
+    };
+}
+
+/**
+ * 🚀 DeepSeek Only RAG - 精准制导模式
+ * 
+ * 两阶段策略：
+ * 1. 第一阶段：仅发送文件树 + 用户 Prompt 给 DeepSeek，获取 files_to_edit/read
+ * 2. 第二阶段：根据 DeepSeek 的指示精准加载文件
+ *    - files_to_edit → 全量代码
+ *    - files_to_read → 智能压缩
+ *    - 其他文件 → 丢弃
+ * 
+ * @param userPrompt 用户请求
+ * @param code 完整代码（将被 chunk 化）
+ * @param options 配置选项
+ */
+export async function findRelevantCodeWithDeepSeek(
+    userPrompt: string,
+    code: string,
+    options: DeepSeekRAGOptions
+): Promise<DeepSeekRAGResult> {
+    const startTime = Date.now();
+    const phases = { intentClassification: 0, fileLoading: 0, compression: 0 };
+    
+    console.log(`\n🤖 [DeepSeek RAG] Starting precision mode...`);
+    console.log(`📝 [DeepSeek RAG] User prompt: "${userPrompt.substring(0, 100)}${userPrompt.length > 100 ? '...' : ''}"`);
+    
+    // ========== Phase 1: DeepSeek 意图分类 ==========
+    const phase1Start = Date.now();
+    
+    const intentResult = await classifyUserIntent(userPrompt, {
+        forceDeepSeek: true,  // 🆕 强制使用 DeepSeek
+        useDeepSeek: true,
+        fileTree: options.fileTree,
+        fileSummaries: options.fileSummaries,
+        deepSeekConfig: {
+            supabaseUrl: options.supabaseUrl,
+            supabaseAnonKey: options.supabaseKey,
+            authToken: options.authToken,
+            timeoutMs: options.timeoutMs || 45000,
+            fileTree: options.fileTree,
+            fileSummaries: options.fileSummaries
+        }
+    });
+    
+    phases.intentClassification = Date.now() - phase1Start;
+    
+    const filesToEdit = intentResult.targets || [];
+    const filesToRead = intentResult.referenceTargets || [];
+    
+    console.log(`\n🎯 [DeepSeek RAG] Phase 1 complete (${phases.intentClassification}ms)`);
+    console.log(`   Intent: ${intentResult.intent} (${(intentResult.confidence * 100).toFixed(1)}%)`);
+    console.log(`   Source: ${intentResult.source}`);
+    console.log(`   files_to_edit: [${filesToEdit.join(', ')}]`);
+    console.log(`   files_to_read: [${filesToRead.join(', ')}]`);
+    
+    // ========== Phase 2: 精准加载文件 ==========
+    const phase2Start = Date.now();
+    
+    // Chunk 代码
+    const chunks = chunkCode(code);
+    console.log(`\n📦 [DeepSeek RAG] Phase 2: Loading ${chunks.length} chunks...`);
+    
+    phases.fileLoading = Date.now() - phase2Start;
+    
+    // ========== Phase 3: 信任模式压缩 ==========
+    const phase3Start = Date.now();
+    
+    // 如果 DeepSeek 没有返回任何目标，使用 fallback
+    if (filesToEdit.length === 0 && filesToRead.length === 0) {
+        console.warn(`⚠️ [DeepSeek RAG] No targets from DeepSeek, falling back to top chunks`);
+        
+        // Fallback: 使用向量搜索的 top 结果
+        const fallbackChunks = await findRelevantCodeChunks(
+            userPrompt,
+            code,
+            options.supabaseUrl,
+            options.supabaseKey,
+            { intent: intentResult.intent }
+        );
+        
+        phases.compression = Date.now() - phase3Start;
+        const totalLatency = Date.now() - startTime;
+        
+        return {
+            intent: intentResult.intent,
+            confidence: intentResult.confidence,
+            source: intentResult.source,
+            reasoning: intentResult.reasoning,
+            filesToEdit: [],
+            filesToRead: [],
+            context: {
+                editFiles: [],
+                readFiles: fallbackChunks?.map(c => ({
+                    id: c.id,
+                    content: c.content,
+                    compressionRatio: 0
+                })) || []
+            },
+            metadata: {
+                totalChunks: chunks.length,
+                selectedChunks: fallbackChunks?.length || 0,
+                discardedChunks: chunks.length - (fallbackChunks?.length || 0),
+                totalContextSize: fallbackChunks?.reduce((sum, c) => sum + c.content.length, 0) || 0,
+                latencyMs: totalLatency,
+                phases
+            }
+        };
+    }
+    
+    // 应用信任模式压缩
+    const compressionResult = applyTrustModeCompression(chunks, filesToEdit, filesToRead);
+    
+    phases.compression = Date.now() - phase3Start;
+    const totalLatency = Date.now() - startTime;
+    
+    console.log(`\n✅ [DeepSeek RAG] Complete!`);
+    console.log(`   Total time: ${totalLatency}ms (Intent: ${phases.intentClassification}ms, Load: ${phases.fileLoading}ms, Compress: ${phases.compression}ms)`);
+    console.log(`   Context size: ${compressionResult.totalSize} chars`);
+    console.log(`   Selected: ${compressionResult.editFiles.length + compressionResult.readFiles.length} files`);
+    console.log(`   Discarded: ${compressionResult.discardedCount} files`);
+    
+    return {
+        intent: intentResult.intent,
+        confidence: intentResult.confidence,
+        source: intentResult.source,
+        reasoning: intentResult.reasoning,
+        filesToEdit,
+        filesToRead,
+        context: {
+            editFiles: compressionResult.editFiles.map(f => ({
+                id: f.id,
+                content: f.content
+            })),
+            readFiles: compressionResult.readFiles.map(f => ({
+                id: f.id,
+                content: f.content,
+                compressionRatio: f.originalSize > 0 ? 1 - f.compressedSize / f.originalSize : 0
+            }))
+        },
+        metadata: {
+            totalChunks: chunks.length,
+            selectedChunks: compressionResult.editFiles.length + compressionResult.readFiles.length,
+            discardedChunks: compressionResult.discardedCount,
+            totalContextSize: compressionResult.totalSize,
+            latencyMs: totalLatency,
+            phases
+        }
+    };
+}
+
+/**
+ * 🔧 辅助函数：生成文件树字符串
+ * 从 CodeChunk 数组生成简洁的文件树
+ */
+export function generateFileTreeFromChunks(chunks: CodeChunk[]): string {
+    const fileNames = Array.from(new Set(chunks.map(c => c.id)));
+    
+    // 按类型分组
+    const groups: Record<string, string[]> = {};
+    
+    for (const chunk of chunks) {
+        const type = chunk.type || 'unknown';
+        if (!groups[type]) groups[type] = [];
+        if (!groups[type].includes(chunk.id)) {
+            groups[type].push(chunk.id);
+        }
+    }
+    
+    // 生成树状结构
+    let tree = `📁 Project Files (${fileNames.length} total)\n`;
+    
+    for (const [type, files] of Object.entries(groups)) {
+        tree += `\n├── ${type}/ (${files.length})\n`;
+        files.slice(0, 10).forEach((f, i) => {
+            const isLast = i === Math.min(files.length - 1, 9);
+            tree += `│   ${isLast ? '└──' : '├──'} ${f}\n`;
+        });
+        if (files.length > 10) {
+            tree += `│   └── ... and ${files.length - 10} more\n`;
+        }
+    }
+    
+    return tree;
+}
+

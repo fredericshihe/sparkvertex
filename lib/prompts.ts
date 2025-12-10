@@ -402,6 +402,52 @@ async function uploadEncryptedFile(file) {
 ### 🚫 NO BACKEND BY DEFAULT
 Do NOT include any backend integration (fetch, API calls, CMS) unless explicitly requested by the user. The app should be purely frontend and use local state or localStorage.
 
+### 💾 DEFAULT DATA PERSISTENCE (CRITICAL - MUST IMPLEMENT)
+**ALL apps with user data MUST use localStorage by default** to prevent data loss on page refresh or app restart.
+
+**When to use localStorage** (ALWAYS for these scenarios):
+- Games with scores, levels, progress, inventory, or save states
+- Todo lists, notes, task managers
+- Settings, preferences, user configurations
+- Shopping carts, wishlists
+- Any user-created content (drawings, writings, records)
+- Counters, trackers, logs
+
+**Required Implementation Pattern:**
+\`\`\`javascript
+// 1. Define a unique storage key for the app
+const STORAGE_KEY = 'spark_app_data';
+
+// 2. Load saved state on mount
+const [state, setState] = useState(() => {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : { /* default values */ };
+  } catch { return { /* default values */ }; }
+});
+
+// 3. Auto-save on state change
+useEffect(() => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) { console.warn('Save failed:', e); }
+}, [state]);
+
+// 4. Optional: Manual save/load/reset functions
+const saveGame = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+const loadGame = () => { /* restore from localStorage */ };
+const resetGame = () => { localStorage.removeItem(STORAGE_KEY); setState(defaultState); };
+\`\`\`
+
+**Examples of what MUST be persisted:**
+- 🎮 Games: Player position, score, level, inventory, unlocked items, high scores
+- 📝 Notes/Todo: All user-created entries, completion status, order
+- ⚙️ Settings: Theme, language, sound on/off, difficulty level
+- 🛒 E-commerce: Cart items, quantities, selected options
+- 📊 Trackers: Historical data, streaks, records
+
+**NEVER lose user data on refresh!** This is a critical UX requirement.
+
 ### Strict Constraints
 1. Output ONLY raw HTML. No Markdown blocks.
 2. NO \`import\` or \`require\`. Destructure \`React\` globals (e.g., \`const { useState } = React;\`).

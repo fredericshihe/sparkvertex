@@ -219,11 +219,15 @@ async function handleSSERequest(request: Request) {
             generateFileSummary(chunk.id.replace('component-', ''), chunk.content)
           );
 
-          const intentRes = await classifyUserIntent(body.user_prompt, { fileSummaries });
+          // 🚀 DeepSeek Only 模式：强制使用 DeepSeek，跳过本地分类器
+          const intentRes = await classifyUserIntent(body.user_prompt, { 
+            fileSummaries,
+            forceDeepSeek: true  // 🔧 强制调用 DeepSeek，确保 100% 准确率
+          });
           intentResult = intentRes;
           intentLatencyMs = intentResult.latencyMs;
 
-          console.log(`[SSE] Intent: ${intentResult.intent}, reasoning: ${intentResult.reasoning?.substring(0, 50)}...`);
+          console.log(`[SSE] 🤖 DeepSeek Intent: ${intentResult.intent}, source: ${intentResult.source}, reasoning: ${intentResult.reasoning?.substring(0, 100)}...`);
 
           // 🎯 立即发送思考过程！
           if (intentResult.reasoning) {
@@ -309,7 +313,8 @@ async function handleSSERequest(request: Request) {
             }
           }
         } else if (body.type === 'modification' && body.user_prompt) {
-          intentResult = await classifyUserIntent(body.user_prompt);
+          // 🚀 DeepSeek Only 模式
+          intentResult = await classifyUserIntent(body.user_prompt, { forceDeepSeek: true });
           if (intentResult.reasoning) {
             send({ type: 'thinking', data: { reasoning: intentResult.reasoning, intent: intentResult.intent } as ThinkingEventData });
           }
@@ -504,9 +509,10 @@ async function handleJSONRequest(request: Request) {
             console.log(`[FileSummaries] Generated ${fileSummaries.length} summaries for DeepSeek context`);
             
             // Pass file summaries to Intent Classification for better recall
-            // 🆕 分离 Intent Classification 以便先推送思考过程
+            // 🚀 DeepSeek Only 模式：强制使用 DeepSeek，跳过本地分类器
             const intentRes = await classifyUserIntent(body.user_prompt, {
-                fileSummaries // 🆕 Inject dependency hints
+                fileSummaries,
+                forceDeepSeek: true  // 🔧 强制调用 DeepSeek，确保 100% 准确率
             });
             
             // Update intent result

@@ -1,6 +1,7 @@
 import { parse } from '@babel/parser';
 // @ts-ignore
 import _generate from '@babel/generator';
+import { BABEL_PARSER_CONFIG } from './code-rag';
 
 // NOTE: We intentionally DO NOT import @babel/traverse
 // It causes "undefined is not an object (evaluating 'this.path.hub.buildError')" in browser
@@ -135,11 +136,7 @@ export function applyPatches(source: string, patchText: string, relaxedMode: boo
  */
 function applyExplicitASTPatch(source: string, targetName: string, newContent: string): string | null {
     try {
-        const originalAst = parse(source, { 
-            sourceType: 'module', 
-            plugins: ['jsx', 'typescript'],
-            errorRecovery: true
-        });
+        const originalAst = parse(source, BABEL_PARSER_CONFIG);
         
         let replacementRange: { start: number, end: number } | null = null;
 
@@ -218,11 +215,7 @@ function applySmartASTPatch(source: string, replaceBlock: string): string | null
     }
 
     try {
-        const newAst = parse(replaceBlock, { 
-            sourceType: 'module', 
-            plugins: ['jsx', 'typescript'],
-            errorRecovery: true 
-        });
+        const newAst = parse(replaceBlock, BABEL_PARSER_CONFIG);
         
         let targetVariableName: string | null = null;
         let targetType: 'VariableDeclarator' | 'FunctionDeclaration' = 'VariableDeclarator';
@@ -275,11 +268,7 @@ function applySmartASTPatch(source: string, replaceBlock: string): string | null
         if (!targetVariableName) return null;
 
         // 2. Find the variable in the original source
-        const originalAst = parse(source, { 
-            sourceType: 'module', 
-            plugins: ['jsx', 'typescript'],
-            errorRecovery: true
-        });
+        const originalAst = parse(source, BABEL_PARSER_CONFIG);
         
         let replacementRange: { start: number, end: number } | null = null;
 
@@ -485,8 +474,7 @@ function validateIncrementalPatch(
         }
         
         parse(contentToCheck, {
-            sourceType: 'module',
-            plugins: ['jsx', 'typescript'],
+            ...BABEL_PARSER_CONFIG,
             errorRecovery: false // Strict mode - any error means invalid
         });
     } catch (e: any) {
@@ -531,11 +519,7 @@ function validateIncrementalPatch(
             }
         }
         
-        const ast = parse(contentToCheck, {
-            sourceType: 'module',
-            plugins: ['jsx', 'typescript'],
-            errorRecovery: true
-        });
+        const ast = parse(contentToCheck, BABEL_PARSER_CONFIG);
         
         // Check for orphaned statements at top level that shouldn't be there
         for (const node of ast.program.body) {
@@ -1326,11 +1310,7 @@ function dedupeTopLevelBindings(code: string): string {
  */
 function pureAstDedupe(scriptContent: string): string {
     try {
-        const ast = parse(scriptContent, {
-            sourceType: 'module',
-            plugins: ['jsx', 'typescript'],
-            errorRecovery: true
-        });
+        const ast = parse(scriptContent, BABEL_PARSER_CONFIG);
 
         const body = ast.program.body;
         const seenDeclarations = new Map<string, number>(); // varName -> index in body
@@ -1440,8 +1420,7 @@ function validateWholeFileOrThrow(code: string): void {
 
     try {
         parse(contentToCheck, {
-            sourceType: 'module',
-            plugins: ['jsx', 'typescript'],
+            ...BABEL_PARSER_CONFIG,
             errorRecovery: false // Strict mode
         });
     } catch (e: any) {
@@ -1469,11 +1448,7 @@ function detectUndefinedReferences(code: string): string[] {
     }
 
     try {
-        const ast = parse(contentToCheck, {
-            sourceType: 'module',
-            plugins: ['jsx', 'typescript'],
-            errorRecovery: true
-        });
+        const ast = parse(contentToCheck, BABEL_PARSER_CONFIG);
 
         // Collect defined identifiers (top-level declarations)
         const definedIdentifiers = new Set<string>();
@@ -1610,11 +1585,7 @@ function extractTopLevelDefinitions(code: string): string[] {
     }
 
     try {
-        const ast = parse(contentToCheck, {
-            sourceType: 'module',
-            plugins: ['jsx', 'typescript'],
-            errorRecovery: true
-        });
+        const ast = parse(contentToCheck, BABEL_PARSER_CONFIG);
 
         const definitions: string[] = [];
 
@@ -1646,8 +1617,7 @@ function extractTopLevelDefinitions(code: string): string[] {
 function validateAstReplaceBlock(targetName: string, code: string): boolean {
     try {
         const ast = parse(code, { 
-            sourceType: 'module', 
-            plugins: ['jsx', 'typescript'],
+            ...BABEL_PARSER_CONFIG,
             errorRecovery: false 
         });
         

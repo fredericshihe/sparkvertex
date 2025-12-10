@@ -102,11 +102,23 @@ const INTENT_KEYWORDS: Record<UserIntent, {
   },
   [UserIntent.LOGIC_FIX]: {
     zh: ['修复', 'bug', '错误', '问题', '不工作', '失败', '崩溃', '报错', 
-         '异常', '不对', '逻辑', '判断', '条件', '循环', '函数', '方法'],
+         '异常', '不对', '逻辑', '判断', '条件', '循环', '函数', '方法',
+         // 🆕 运行时错误和数据获取失败
+         '看不到', '不显示', '没有数据', '获取失败', '加载失败', '请求失败',
+         '实时', '更新失败', '无法获取', '空白', '消失', '丢失', '缺失',
+         // 🆕 API 和网络相关
+         '接口', '请求', '返回', '响应', '超时', '网络', '代理', '跨域'],
     en: ['fix', 'bug', 'error', 'issue', 'broken', 'fail', 'crash', 'exception',
          'wrong', 'logic', 'condition', 'loop', 'function', 'method', 'debug',
-         'undefined', 'null', 'NaN', 'TypeError', 'ReferenceError'],
-    weight: 1.2
+         'undefined', 'null', 'NaN', 'TypeError', 'ReferenceError',
+         // 🆕 Runtime errors and data fetching failures
+         'not showing', 'not working', 'not loading', 'not updating', 'not fetching',
+         'missing', 'empty', 'blank', 'disappeared', 'lost', 'cannot see', 'can\'t see',
+         'no data', 'fetch failed', 'request failed', 'realtime', 'real-time', 'live',
+         // 🆕 API and network related (HIGH WEIGHT for confidence boost)
+         'api', 'fetch', 'request', 'response', 'axios', 'http', 'https', 'endpoint',
+         'cors', 'proxy', 'timeout', 'network', 'loading', 'async', 'await', 'promise'],
+    weight: 1.5  // 🔧 Increased to 1.5 for stronger LOGIC_FIX detection
   },
   [UserIntent.CONFIG_HELP]: {
     zh: ['配置', '环境变量', '安装', '启动', '部署', '构建', '编译', '打包',
@@ -147,11 +159,11 @@ const INTENT_KEYWORDS: Record<UserIntent, {
   },
   [UserIntent.DATA_OPERATION]: {
     zh: ['数据库', '查询', 'API', '接口', '请求', '数据', '表', '字段',
-         '增删改查', 'CRUD', '存储', '获取'],
+         '增删改查', 'CRUD', '存储', '获取', '加载', '同步', '上传', '下载'],
     en: ['database', 'query', 'api', 'endpoint', 'request', 'data', 'table',
          'field', 'crud', 'storage', 'fetch', 'post', 'get', 'supabase',
-         'prisma', 'sql', 'mutation'],
-    weight: 1.0
+         'prisma', 'sql', 'mutation', 'axios', 'load', 'sync', 'upload', 'download'],
+    weight: 1.2 // Increased from 1.0 to prioritize data operations over UI
   },
   [UserIntent.BACKEND_SETUP]: {
     zh: ['后端', '数据库', '用户登录', '用户注册', '认证', '鉴权', '存数据',
@@ -292,24 +304,96 @@ const EXCLUDE_PATTERNS: Record<UserIntent, string[]> = {
   [UserIntent.FILE_UPLOAD_APP]: ['node_modules/', '.git/', 'dist/', 'build/']
 };
 
+// =========== 🆕 Few-Shot 模式匹配 - 高置信度快速通道 ===========
+// 这些模式几乎 100% 确定意图，直接返回高置信度，跳过 DeepSeek 调用
+const FEW_SHOT_PATTERNS: Array<{
+  pattern: RegExp;
+  intent: UserIntent;
+  confidence: number; // 0.65-0.9, must be > 0.6 to skip DeepSeek
+}> = [
+  // ========== LOGIC_FIX (Bug/Error patterns) - 最常见 ==========
+  { pattern: /看不到.*(数据|价格|内容|信息|结果|列表|图片)/i, intent: UserIntent.LOGIC_FIX, confidence: 0.85 },
+  { pattern: /.*(数据|价格|内容|信息|结果).*(不显示|不出来|消失|丢失)/i, intent: UserIntent.LOGIC_FIX, confidence: 0.85 },
+  { pattern: /(无法|不能|没办法).*(获取|加载|请求|显示|登录|注册)/i, intent: UserIntent.LOGIC_FIX, confidence: 0.85 },
+  { pattern: /(报错|出错|错误|异常|崩溃|白屏|卡死)/i, intent: UserIntent.LOGIC_FIX, confidence: 0.80 },
+  { pattern: /(修复|修一下|修改|fix|bug|debug)/i, intent: UserIntent.LOGIC_FIX, confidence: 0.75 },
+  { pattern: /not (showing|working|loading|displaying|updating|fetching)/i, intent: UserIntent.LOGIC_FIX, confidence: 0.85 },
+  { pattern: /(can'?t|cannot|couldn'?t|won'?t|doesn'?t) (see|get|fetch|load|work|display)/i, intent: UserIntent.LOGIC_FIX, confidence: 0.85 },
+  { pattern: /(no|missing|empty|blank|undefined|null) (data|results?|content|response|value)/i, intent: UserIntent.LOGIC_FIX, confidence: 0.80 },
+  { pattern: /(error|exception|failed|failure|crash|broken)/i, intent: UserIntent.LOGIC_FIX, confidence: 0.75 },
+  { pattern: /(api|fetch|request|axios).*(fail|error|timeout|cors)/i, intent: UserIntent.LOGIC_FIX, confidence: 0.85 },
+  { pattern: /(cors|跨域|代理|proxy).*(问题|错误|失败)/i, intent: UserIntent.LOGIC_FIX, confidence: 0.85 },
+  { pattern: /(实时|realtime|real-time|live).*(不|no|not|fail)/i, intent: UserIntent.LOGIC_FIX, confidence: 0.85 },
+  
+  // ========== UI_MODIFICATION (Style patterns) ==========
+  { pattern: /(改|换|调整|修改).*(颜色|字体|样式|布局|间距|大小|位置)/i, intent: UserIntent.UI_MODIFICATION, confidence: 0.80 },
+  { pattern: /(change|modify|adjust|update).*(color|font|style|layout|spacing|size)/i, intent: UserIntent.UI_MODIFICATION, confidence: 0.80 },
+  { pattern: /把.*(改成|换成|调成).*(红|蓝|绿|黑|白|大|小)/i, intent: UserIntent.UI_MODIFICATION, confidence: 0.85 },
+  { pattern: /(好看|美化|优化.*界面|ui.*优化)/i, intent: UserIntent.UI_MODIFICATION, confidence: 0.75 },
+  { pattern: /(tailwind|css|scss|styled|className).*(add|change|修改)/i, intent: UserIntent.UI_MODIFICATION, confidence: 0.80 },
+  
+  // ========== DATA_OPERATION (Database/API patterns) ==========
+  { pattern: /(数据库|database|supabase|prisma|sql).*(查询|插入|更新|删除|query|insert|update|delete)/i, intent: UserIntent.DATA_OPERATION, confidence: 0.85 },
+  { pattern: /(增|删|改|查|crud)/i, intent: UserIntent.DATA_OPERATION, confidence: 0.70 },
+  { pattern: /(存|读|写).*(数据|记录|信息)/i, intent: UserIntent.DATA_OPERATION, confidence: 0.75 },
+  { pattern: /(api|接口).*(调用|请求|返回)/i, intent: UserIntent.DATA_OPERATION, confidence: 0.75 },
+  
+  // ========== NEW_FEATURE (Add feature patterns) ==========
+  { pattern: /(添加|新增|加个|实现|开发).*(功能|页面|组件|按钮|模块)/i, intent: UserIntent.NEW_FEATURE, confidence: 0.80 },
+  { pattern: /(add|create|implement|build|make).*(feature|page|component|button|module)/i, intent: UserIntent.NEW_FEATURE, confidence: 0.80 },
+  { pattern: /我想要.*(功能|页面|效果)/i, intent: UserIntent.NEW_FEATURE, confidence: 0.75 },
+  
+  // ========== CONFIG_HELP (Setup/Config patterns) ==========
+  { pattern: /(环境|配置|安装|部署|启动).*(变量|问题|失败|报错)/i, intent: UserIntent.CONFIG_HELP, confidence: 0.80 },
+  { pattern: /(npm|yarn|pnpm).*(install|error|fail)/i, intent: UserIntent.CONFIG_HELP, confidence: 0.80 },
+  { pattern: /(\.env|next\.config|package\.json|tsconfig)/i, intent: UserIntent.CONFIG_HELP, confidence: 0.75 },
+  { pattern: /(vercel|docker|deploy|部署)/i, intent: UserIntent.CONFIG_HELP, confidence: 0.75 },
+  
+  // ========== PERFORMANCE (Optimization patterns) ==========
+  { pattern: /(性能|优化|慢|卡|加速|缓存)/i, intent: UserIntent.PERFORMANCE, confidence: 0.75 },
+  { pattern: /(slow|fast|speed|performance|optimize|cache|memo)/i, intent: UserIntent.PERFORMANCE, confidence: 0.75 },
+  
+  // ========== BACKEND_SETUP (Auth/Backend patterns) ==========
+  { pattern: /(用户|登录|注册|认证|鉴权|会员)/i, intent: UserIntent.BACKEND_SETUP, confidence: 0.70 },
+  { pattern: /(auth|login|signup|register|authentication)/i, intent: UserIntent.BACKEND_SETUP, confidence: 0.75 },
+  { pattern: /(supabase|firebase).*(配置|设置|初始化)/i, intent: UserIntent.BACKEND_SETUP, confidence: 0.80 },
+];
+
 /**
  * 本地快速意图分类（无需 LLM）
- * 基于关键词匹配，适合大多数明确的请求
+ * 🔧 优化策略：
+ * 1. Few-Shot 模式匹配 - 高置信度快速通道，跳过 DeepSeek
+ * 2. 关键词匹配 - 多维度评分
+ * 3. 后处理规则 - 修正常见误分类
+ * 4. 置信度增强 - 单一意图匹配时提高置信度
  */
 export function classifyIntentLocal(query: string): { intent: UserIntent; confidence: number } {
   const queryLower = query.toLowerCase();
+  
+  // ========== Phase 1: Few-Shot 模式匹配（高置信度快速通道）==========
+  for (const { pattern, intent, confidence } of FEW_SHOT_PATTERNS) {
+    if (pattern.test(query) || pattern.test(queryLower)) {
+      console.log(`[LocalIntent] ⚡ Few-Shot match: ${intent} (confidence: ${(confidence * 100).toFixed(1)}%)`);
+      return { intent, confidence };
+    }
+  }
+  
+  // ========== Phase 2: 关键词匹配评分 ==========
   const scores: Map<UserIntent, number> = new Map();
+  const matchDetails: Map<UserIntent, string[]> = new Map(); // 调试用
 
   for (const [intent, keywords] of Object.entries(INTENT_KEYWORDS)) {
     const { zh, en, weight } = keywords;
     let score = 0;
     let matchCount = 0;
+    const matches: string[] = [];
 
     // 中文关键词匹配
     for (const kw of zh) {
       if (query.includes(kw)) {
         score += weight;
         matchCount++;
+        matches.push(kw);
       }
     }
 
@@ -318,29 +402,96 @@ export function classifyIntentLocal(query: string): { intent: UserIntent; confid
       if (queryLower.includes(kw.toLowerCase())) {
         score += weight;
         matchCount++;
+        matches.push(kw);
       }
     }
 
-    // 归一化分数
+    // 🔧 改进的分数计算：使用更陡峭的对数曲线
     if (matchCount > 0) {
-      scores.set(intent as UserIntent, score * Math.log2(matchCount + 1));
+      // 基础分 = 权重 * 匹配数的对数
+      // 增加匹配数奖励：每多匹配一个关键词，额外 +0.5 权重
+      const matchBonus = Math.min(matchCount * 0.5, 3); // 最多 +3 奖励
+      scores.set(intent as UserIntent, score * Math.log2(matchCount + 1) + matchBonus);
+      matchDetails.set(intent as UserIntent, matches);
     }
   }
 
-  // 找出最高分
+  // ========== Phase 3: 后处理规则修正 ==========
+  // Rule 1: Bug 模式检测 - 强制提升 LOGIC_FIX
+  const bugPatterns = [
+    /看不到.*(数据|价格|内容|信息|结果)/,
+    /.*(数据|价格|内容|信息|结果).*不显示/,
+    /.*(数据|价格|内容|信息|结果).*消失/,
+    /无法获取/,
+    /获取失败/,
+    /加载失败/,
+    /请求失败/,
+    /not (showing|displaying|loading|updating|working)/i,
+    /(can't|cannot|couldn't) (see|get|fetch|load)/i,
+    /no (data|results|content|response)/i
+  ];
+  
+  const isBugReport = bugPatterns.some(pattern => pattern.test(query));
+  
+  if (isBugReport) {
+    const currentUIScore = scores.get(UserIntent.UI_MODIFICATION) || 0;
+    const currentLogicScore = scores.get(UserIntent.LOGIC_FIX) || 0;
+    
+    // If currently classified as UI but matches bug patterns, boost LOGIC_FIX
+    if (currentUIScore > currentLogicScore) {
+      scores.set(UserIntent.LOGIC_FIX, currentLogicScore + currentUIScore * 2.0);
+      console.log(`[LocalIntent] 🔧 Bug pattern detected, boosting LOGIC_FIX score`);
+    } else {
+      // 即使 LOGIC_FIX 已经是最高分，也额外增加置信度
+      scores.set(UserIntent.LOGIC_FIX, currentLogicScore * 1.5 + 2);
+    }
+  }
+
+  // ========== Phase 4: 计算最终结果 ==========
   let bestIntent = UserIntent.UNKNOWN;
   let bestScore = 0;
+  let secondBestScore = 0;
 
   scores.forEach((score, intent) => {
     if (score > bestScore) {
+      secondBestScore = bestScore;
       bestScore = score;
       bestIntent = intent;
+    } else if (score > secondBestScore) {
+      secondBestScore = score;
     }
   });
 
-  // 计算置信度（0-1）
+  // 🔧 改进的置信度计算
   const totalScore = Array.from(scores.values()).reduce((a, b) => a + b, 0);
-  const confidence = totalScore > 0 ? bestScore / totalScore : 0;
+  let confidence = totalScore > 0 ? bestScore / totalScore : 0;
+  
+  // 置信度增强策略：
+  // 1. 如果最高分显著高于第二高分（>2倍），提升置信度
+  // 2. 如果只有一个意图匹配，大幅提升置信度
+  const scoreRatio = secondBestScore > 0 ? bestScore / secondBestScore : 10;
+  const matchingIntents = scores.size;
+  
+  if (matchingIntents === 1) {
+    // 单一意图匹配 - 高置信度
+    confidence = Math.min(confidence + 0.3, 0.85);
+    console.log(`[LocalIntent] 📊 Single intent match, boosted confidence to ${(confidence * 100).toFixed(1)}%`);
+  } else if (scoreRatio >= 2.0) {
+    // 最高分是第二高分的 2 倍以上 - 中等提升
+    confidence = Math.min(confidence + 0.15, 0.80);
+    console.log(`[LocalIntent] 📊 Clear winner (ratio=${scoreRatio.toFixed(1)}), boosted confidence to ${(confidence * 100).toFixed(1)}%`);
+  } else if (scoreRatio >= 1.5) {
+    // 最高分是第二高分的 1.5 倍以上 - 轻微提升
+    confidence = Math.min(confidence + 0.08, 0.75);
+  }
+  
+  // 调试输出
+  if (matchDetails.size > 0) {
+    const detailStr = Array.from(matchDetails.entries())
+      .map(([intent, matches]) => `${intent}:[${matches.slice(0, 3).join(',')}${matches.length > 3 ? '...' : ''}]`)
+      .join(' | ');
+    console.log(`[LocalIntent] 🔍 Keyword matches: ${detailStr}`);
+  }
 
   return { intent: bestIntent, confidence };
 }
@@ -406,6 +557,8 @@ export interface DeepSeekConfig {
   temperature?: number;
   timeoutMs?: number;  // 超时时间（毫秒），默认 5000ms
   fileSummaries?: string[]; // 🆕 文件摘要列表，用于依赖提示
+  fileTree?: string;        // 🆕 完整文件树字符串
+  forceDeepSeek?: boolean;  // 🆕 强制使用 DeepSeek，跳过本地分类
 }
 
 // 默认超时时间：45秒 (DeepSeek V3/R1 推理时间可能较长)
@@ -434,7 +587,8 @@ export async function classifyIntentWithDeepSeek(
     authToken,
     temperature = 0.3,
     timeoutMs = DEFAULT_DEEPSEEK_TIMEOUT,
-    fileSummaries: fileSummariesFromConfig
+    fileSummaries: fileSummariesFromConfig,
+    fileTree
   } = config || {};
 
   // 支持从参数或 config 中获取 fileSummaries
@@ -445,49 +599,67 @@ export async function classifyIntentWithDeepSeek(
     return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs: Date.now() - startTime, source: 'timeout_fallback', targets: [], referenceTargets: [] };
   }
 
-  // 构建文件列表部分（如果有摘要）
-  const fileListSection = fileSummaries && fileSummaries.length > 0
-    ? `\n\n可用文件 (带依赖关系):\n${fileSummaries.slice(0, 15).join('\n')}`
-    : '';
+  // 🆕 优先使用文件树，否则使用文件摘要
+  let contextSection = '';
+  if (fileTree) {
+    contextSection = `\n\n📁 Project File Tree:\n\`\`\`\n${fileTree}\n\`\`\``;
+  } else if (fileSummaries && fileSummaries.length > 0) {
+    contextSection = `\n\n可用文件 (带依赖关系):\n${fileSummaries.slice(0, 15).join('\n')}`;
+  }
 
-  // 🧠 增强版 Prompt：强制思维链 + 连带责任规则 + 偏向召回
-  const systemPrompt = `Role: Senior Software Architect
-Task: 分析用户请求，深入思考依赖关系，决定哪些文件需要修改。${fileListSection}
+  // 🧠 架构师模式 Prompt：深度分析依赖关系
+  const systemPrompt = `# Role: Senior Software Architect & Code Navigator
 
-⚠️ CRITICAL RULES (连带责任):
-1. Navigation Rule: 如果用户要"添加新页面/屏幕"，必须检查 App/Router/Navigator 文件是否需要修改
-2. Data Rule: 如果用户修改数值/平衡/配置，同时检查 Data 文件和使用它的 UI 文件
-3. Parent Rule: 如果修改子组件的 props，考虑父组件是否需要传递新参数
-4. Import Rule: 如果新增组件引用，检查是否需要添加 import 语句
+You are an expert at analyzing codebases. Your task is to precisely identify which files need to be **modified** vs **read-only** for the user's request.
+${contextSection}
 
-⚠️ PRIORITY: 召回率 > 精确率
-- 可以接受：把不需要改的文件放进 files_to_edit（只是多给 AI 看一些代码）
-- 绝不接受：把需要改的文件放进 files_to_read（AI 会看不到关键代码导致失败）
-- 当不确定时：选择 files_to_edit
+## 🎯 CORE MISSION
+Analyze the user's request and the file tree to determine:
+1. **files_to_edit**: Files that MUST be modified to fulfill the request
+2. **files_to_read**: Files needed for context/reference only (interfaces, types, data)
 
-分类类别：
-- UI_MODIFICATION: 样式、颜色、布局、CSS
-- LOGIC_FIX: Bug修复、算法、业务逻辑
-- NEW_FEATURE: 新增页面、组件、功能
-- DATA_OPERATION: 数据/配置变更
-- CONFIG_HELP / PERFORMANCE / REFACTOR / QA_EXPLANATION / UNKNOWN
+## ⚠️ CRITICAL RULES
 
-⚠️ IMPORTANT OUTPUT RULES:
-1. You must output **STRICT JSON ONLY**.
-2. Do NOT output "/// PLAN ///", "Here is the JSON", or any reasoning text outside the JSON object.
-3. If you want to explain, put it inside the "reasoning" field of the JSON.
-4. Start your response with \`{\` and end with \`}\`.
-5. files_to_edit 和 files_to_read 数组中只能放**纯文件名/组件名** (e.g. ["MapScreen", "App"])
+### 🚫 Style File Exclusion
+- **NEVER** include CSS/SCSS/style files unless user explicitly mentions "style", "CSS", "color", "theme"
+- For bug reports → Look at Logic/State files, NOT style files
+- For "not showing" issues → Check data flow, NOT styling
 
-输出格式 (严格 JSON，直接以 { 开始):
+### 🔗 Dependency Chain Rules
+1. **Navigation Rule**: Adding new screen? → Include Router/Navigator/App
+2. **Parent-Child Rule**: Modifying component props? → Check parent components
+3. **Data Flow Rule**: Changing data structure? → Check all consumers
+4. **Import Rule**: Adding new imports? → Verify export exists
+
+### 📊 Prioritization
+- **RECALL > PRECISION**: Better to include an unnecessary file than miss a critical one
+- When uncertain → Put in files_to_edit (safer)
+- files_to_read = purely informational (types, constants, interfaces)
+
+## 📝 OUTPUT FORMAT
+**Output ONLY valid JSON. No explanations outside JSON. Start with \`{\`**
+
+\`\`\`json
 {
-  "reasoning": "简短分析：用户想做X，涉及组件A和B，A需要改因为...，B只需参考因为...",
-  "intent": "类别",
+  "reasoning": "Brief analysis: User wants X. File A needs modification because... File B is reference only because...",
+  "intent": "LOGIC_FIX | UI_MODIFICATION | NEW_FEATURE | DATA_OPERATION | CONFIG_HELP | PERFORMANCE | REFACTOR | QA_EXPLANATION | UNKNOWN",
   "files_to_edit": ["ComponentA", "ComponentB"],
-  "files_to_read": ["DataFile"]
-}`;
+  "files_to_read": ["TypeDefinitions", "Constants"]
+}
+\`\`\`
 
-  const userPrompt = `用户请求: "${query}"`;
+## 🏷️ Intent Categories
+- **LOGIC_FIX**: Bug fixes, algorithm errors, data flow issues, "not working/showing" problems
+- **UI_MODIFICATION**: Styling, colors, layout, CSS, visual changes
+- **NEW_FEATURE**: Adding new pages, components, features
+- **DATA_OPERATION**: Database queries, API calls, data structure changes
+- **CONFIG_HELP**: Environment, build, deployment issues
+- **PERFORMANCE**: Speed, caching, optimization
+- **REFACTOR**: Code cleanup, restructuring`;
+
+  const userPrompt = `User Request: "${query}"
+
+Analyze this request and return the JSON response.`;
 
   // 创建 AbortController 用于超时控制
   const controller = new AbortController();
@@ -510,24 +682,39 @@ Task: 分析用户请求，深入思考依赖关系，决定哪些文件需要�
       headers['Authorization'] = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(`${supabaseUrl}/functions/v1/deepseek-chat`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        system_prompt: systemPrompt,
-        user_prompt: userPrompt,
-        temperature,
-        max_tokens: 5000,  // 🔧 显式指定 token 限制，避免 JSON 被截断
-        stream: false  // 意图分类不需要流式输出
-      }),
-      signal: controller.signal  // 添加超时信号
-    });
+    // Retry logic for DeepSeek API
+    let response;
+    let retries = 3;
+    while (retries > 0) {
+        try {
+            response = await fetch(`${supabaseUrl}/functions/v1/deepseek-chat`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    system_prompt: systemPrompt,
+                    user_prompt: userPrompt,
+                    temperature,
+                    max_tokens: 5000,
+                    stream: false
+                }),
+                signal: controller.signal
+            });
+            if (response.ok) break;
+            console.warn(`[IntentClassifier] DeepSeek fetch failed with status ${response.status}, retrying... (${retries} left)`);
+        } catch (e: any) {
+            // Don't retry on abort (timeout)
+            if (e.name === 'AbortError') throw e;
+            console.warn(`[IntentClassifier] DeepSeek fetch error: ${e.message}, retrying... (${retries} left)`);
+        }
+        retries--;
+        if (retries > 0) await new Promise(r => setTimeout(r, 1000));
+    }
 
-    // 清除超时定时器
+    // Clear timeout if successful or retries exhausted
     clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      const errorText = await response.text();
+    if (!response || !response.ok) {
+      const errorText = response ? await response.text() : 'Network error after retries';
       console.error('[IntentClassifier] DeepSeek Edge Function error:', errorText);
       return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs: Date.now() - startTime, source: 'timeout_fallback', targets: [], referenceTargets: [] };
     }
@@ -751,7 +938,10 @@ Category:`;
 
 /**
  * 主分类函数 - 智能选择分类方式
- * 优先使用本地分类，置信度低时使用 DeepSeek API
+ * 
+ * 🆕 支持两种模式：
+ * - 默认模式：先本地分类，置信度低时使用 DeepSeek API
+ * - forceDeepSeek 模式：跳过本地分类，直接使用 DeepSeek（推荐用于生产环境）
  * 
  * 返回值包含 source 字段，用于追踪分类来源：
  * - 'local': 本地规则分类
@@ -764,40 +954,83 @@ export async function classifyUserIntent(
   options?: {
     useLLM?: boolean;
     useDeepSeek?: boolean;
+    forceDeepSeek?: boolean;  // 🆕 强制使用 DeepSeek，跳过本地分类
     llmThreshold?: number;
     generateText?: (options: { model: string; prompt: string }) => Promise<string>;
     deepSeekConfig?: DeepSeekConfig;
-    fileSummaries?: string[]; // 🆕 文件摘要，用于依赖提示
+    fileSummaries?: string[]; // 文件摘要，用于依赖提示
+    fileTree?: string;        // 🆕 完整文件树（推荐）
   }
 ): Promise<SearchStrategy & { source: 'local' | 'deepseek' | 'gemini_fallback' | 'timeout_fallback'; latencyMs: number; targets?: string[]; referenceTargets?: string[]; reasoning?: string }> {
   const startTime = Date.now();
   const { 
     useLLM = false,
-    useDeepSeek = true, // 默认启用 DeepSeek
+    useDeepSeek = true,
+    forceDeepSeek = false,  // 🆕 默认关闭，保持向后兼容
     llmThreshold = 0.6,
     generateText,
     deepSeekConfig,
-    fileSummaries
+    fileSummaries,
+    fileTree
   } = options || {};
 
-  // Step 1: 先尝试本地分类
-  let { intent, confidence } = classifyIntentLocal(query);
+  let intent: UserIntent;
+  let confidence: number;
   let source: 'local' | 'deepseek' | 'gemini_fallback' | 'timeout_fallback' = 'local';
   let targets: string[] = [];
   let referenceTargets: string[] = [];
   let reasoning: string | undefined;
 
+  // 🆕 DeepSeek Only 模式：跳过本地分类，直接调用 DeepSeek
+  if (forceDeepSeek && useDeepSeek) {
+    console.log(`🤖 [IntentClassifier] Force DeepSeek mode: Analyzing with file tree...`);
+    
+    // 合并配置，添加文件树支持
+    const mergedConfig: DeepSeekConfig = {
+      ...deepSeekConfig,
+      fileSummaries: fileSummaries || deepSeekConfig?.fileSummaries,
+      fileTree: fileTree || deepSeekConfig?.fileTree,
+      forceDeepSeek: true
+    };
+    
+    const deepSeekResult = await classifyIntentWithDeepSeek(query, mergedConfig);
+    
+    intent = deepSeekResult.intent;
+    confidence = deepSeekResult.confidence;
+    source = deepSeekResult.source;
+    targets = deepSeekResult.targets;
+    referenceTargets = deepSeekResult.referenceTargets;
+    reasoning = deepSeekResult.reasoning;
+    
+    console.log(`🎯 [IntentClassifier] DeepSeek result: ${intent} (confidence: ${(confidence * 100).toFixed(1)}%, source: ${source})`);
+    console.log(`   📝 files_to_edit: [${targets.join(', ')}]`);
+    console.log(`   📖 files_to_read: [${referenceTargets.join(', ')}]`);
+    if (reasoning) {
+      console.log(`   💭 Reasoning: ${reasoning.substring(0, 200)}${reasoning.length > 200 ? '...' : ''}`);
+    }
+    
+    const latencyMs = Date.now() - startTime;
+    const strategy = buildSearchStrategy(intent, confidence);
+    return { ...strategy, source, latencyMs, targets, referenceTargets, reasoning };
+  }
+
+  // 默认模式：先本地分类
+  const localResult = classifyIntentLocal(query);
+  intent = localResult.intent;
+  confidence = localResult.confidence;
+
   console.log(`🧠 [IntentClassifier] Local classification: ${intent} (confidence: ${(confidence * 100).toFixed(1)}%)`);
 
-  // Step 2: 如果置信度低，使用 AI 增强
+  // 如果置信度低，使用 AI 增强
   if (confidence < llmThreshold) {
     // 优先使用 DeepSeek（性价比高，中文理解好）
     if (useDeepSeek) {
       console.log(`🤖 [IntentClassifier] Low confidence, using DeepSeek API...`);
-      // 合并 fileSummaries 到 deepSeekConfig
+      // 合并 fileSummaries 和 fileTree 到 deepSeekConfig
       const mergedConfig: DeepSeekConfig = {
         ...deepSeekConfig,
-        fileSummaries: fileSummaries || deepSeekConfig?.fileSummaries
+        fileSummaries: fileSummaries || deepSeekConfig?.fileSummaries,
+        fileTree: fileTree || deepSeekConfig?.fileTree
       };
       const deepSeekResult = await classifyIntentWithDeepSeek(query, mergedConfig);
       
@@ -807,7 +1040,7 @@ export async function classifyUserIntent(
         source = deepSeekResult.source;
         targets = deepSeekResult.targets;
         referenceTargets = deepSeekResult.referenceTargets;
-        reasoning = deepSeekResult.reasoning; // 🆕 保存思考过程
+        reasoning = deepSeekResult.reasoning;
         console.log(`🎯 [IntentClassifier] DeepSeek override: ${intent} (confidence: ${(confidence * 100).toFixed(1)}%, source: ${source})`);
       }
     }
@@ -827,7 +1060,7 @@ export async function classifyUserIntent(
 
   const latencyMs = Date.now() - startTime;
 
-  // Step 3: 根据意图构建搜索策略
+  // 根据意图构建搜索策略
   const strategy = buildSearchStrategy(intent, confidence);
   return { ...strategy, source, latencyMs, targets, referenceTargets, reasoning };
 }
