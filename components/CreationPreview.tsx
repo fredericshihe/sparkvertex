@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { X } from 'lucide-react';
+import BackendDataPanel from './BackendDataPanel';
 
 interface CreationPreviewProps {
   activeMobileTab: string;
@@ -64,6 +65,9 @@ interface CreationPreviewProps {
   mobilePreviewUrl: string;
   generatedCode: string;
   historyPanelRef?: React.RefObject<HTMLDivElement>;
+  userId?: string | null; // 新增：用户ID，用于后端数据
+  appId?: string; // 新增：应用ID（发布后）
+  handleConfigureBackend: () => void; // 新增：一键配置后端
 }
 
 export const CreationPreview: React.FC<CreationPreviewProps> = ({
@@ -127,14 +131,39 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
   setShowMobilePreview,
   mobilePreviewUrl,
   generatedCode,
-  historyPanelRef
+  historyPanelRef,
+  userId,
+  appId,
+  handleConfigureBackend
 }) => {
+  // 后端数据面板状态
+  const [showBackendPanel, setShowBackendPanel] = useState(false);
+
+  // 检测是否已配置后端（支持新的 data-cms 属性和旧的 SparkCMS 调用）
+  const hasBackend = generatedCode.includes('window.SparkCMS') || 
+                     generatedCode.includes('data-cms=') ||
+                     generatedCode.includes('data-cms-src=') ||
+                     generatedCode.includes('/api/mailbox/submit') || 
+                     generatedCode.includes('action="/api/mailbox/submit"');
+
   return (
     <div className={`flex-1 bg-slate-950 relative flex flex-col group 
         order-1 lg:order-2 
         h-full shrink-0 overflow-hidden
         ${activeMobileTab === 'preview' ? 'flex' : 'hidden lg:flex'}
     `}>
+        {/* Backend Data Panel */}
+        <BackendDataPanel
+          isOpen={showBackendPanel}
+          onClose={() => setShowBackendPanel(false)}
+          userId={userId || null}
+          appId={appId}
+          language={language}
+          mode="test"
+          code={generatedCode}
+          onCodeUpdate={setGeneratedCode}
+        />
+
         <div className="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-3">
             <button onClick={handleExit} className="lg:hidden flex w-6 h-6 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition" title={t.common.back}>
@@ -327,7 +356,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
              
              <iframe
                ref={iframeRef}
-               srcDoc={getPreviewContent(generatedCode, { raw: true })}
+               srcDoc={getPreviewContent(generatedCode, { raw: true, userId: userId || undefined, appId: appId, apiBaseUrl: typeof window !== 'undefined' ? window.location.origin : '' })}
                className="w-full h-full bg-slate-900"
                sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads allow-same-origin"
              />
@@ -376,6 +405,29 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             >
                 <i className="fa-solid fa-qrcode text-sm group-hover:scale-110 transition"></i>
             </button>
+
+            {/* Configure Backend Button */}
+            <button 
+                onClick={handleConfigureBackend}
+                className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group relative" 
+                title={language === 'zh' ? '一键配置表单' : 'Configure Form Collection'}
+            >
+                <i className="fa-solid fa-server text-sm group-hover:scale-110 transition"></i>
+                {!hasBackend && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-yellow-500 rounded-full border-2 border-slate-900"></span>}
+            </button>
+
+            {/* Backend Data Button */}
+            {hasBackend && (
+              <button 
+                  onClick={() => setShowBackendPanel(true)}
+                  className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group relative" 
+                  title={language === 'zh' ? '查看表单数据' : 'View Form Data'}
+              >
+                  <i className="fa-solid fa-inbox text-sm group-hover:scale-110 transition"></i>
+                  {/* Pulse indicator */}
+                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-900 animate-pulse"></span>
+              </button>
+            )}
 
             <button 
                 onClick={toggleEditMode}

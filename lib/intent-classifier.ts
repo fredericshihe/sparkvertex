@@ -14,6 +14,12 @@ export enum UserIntent {
   DATA_OPERATION = 'DATA_OPERATION',      // 数据库、API、数据操作
   BACKEND_SETUP = 'BACKEND_SETUP',        // 🆕 后端配置 (Supabase/数据库/认证)
   GLOBAL_REVIEW = 'GLOBAL_REVIEW',        // 🆕 全局代码审查
+  // =========== Local-First 架构新增 ===========
+  LOCAL_DB_APP = 'LOCAL_DB_APP',          // 🆕 本地数据库应用 (PGLite/IndexedDB) - 数据主权模式
+  CMS_APP = 'CMS_APP',                    // 🆕 CMS/内容发布类应用
+  FORM_COLLECTION = 'FORM_COLLECTION',    // 🆕 表单收集/问卷类应用 (云端信箱)
+  OFFLINE_FIRST = 'OFFLINE_FIRST',        // 🆕 离线优先应用
+  FILE_UPLOAD_APP = 'FILE_UPLOAD_APP',    // 🆕 文件上传类应用
   UNKNOWN = 'UNKNOWN'
 }
 
@@ -166,6 +172,60 @@ const INTENT_KEYWORDS: Record<UserIntent, {
     zh: ['检查', '全部', '审查', '全局', '整体', '所有文件', '完整检查'],
     en: ['review', 'all', 'check', 'global', 'entire', 'whole', 'full'],
     weight: 1.3
+  },
+  // =========== Local-First 架构新增意图 ===========
+  [UserIntent.LOCAL_DB_APP]: {
+    zh: ['本地数据库', '离线存储', '本地存储', 'PGLite', 'IndexedDB', '浏览器数据库',
+         '本地优先', '离线数据', '数据持久化', '本地缓存', 'OPFS', '客户端数据库',
+         '数据不上传', '数据主权', '隐私', '断网可用', '断网', '无网络',
+         '记账', '记账本', '账本', '个人财务', '密码管理', '密码本', '日记', '笔记',
+         '库存管理', '进销存', '仓库', '收银', 'POS', '门店', '店铺管理',
+         '客户管理', 'CRM', '通讯录', '名单管理', '会员管理', '私域',
+         '健康记录', '体重记录', '运动记录', '饮食记录', '私人数据'],
+    en: ['local database', 'offline storage', 'local storage', 'pglite', 'indexeddb',
+         'browser database', 'local first', 'offline data', 'persist', 'opfs',
+         'client side database', 'wasm database', 'sqlite', 'dexie',
+         'data sovereignty', 'privacy', 'works offline', 'no upload', 'offline capable',
+         'accounting', 'personal finance', 'expense tracker', 'budget', 'password manager',
+         'diary', 'journal', 'notes', 'inventory', 'pos', 'stock management', 'warehouse',
+         'crm', 'customer management', 'contact list', 'member management',
+         'health tracker', 'weight tracker', 'fitness log', 'private data'],
+    weight: 1.5  // 提高权重，确保这些场景被优先识别
+  },
+  [UserIntent.CMS_APP]: {
+    zh: ['内容管理', 'CMS', '博客', '文章发布', '内容发布', '发布系统', '静态网站',
+         '页面发布', '内容展示', '公开内容', '版本管理', '发布历史'],
+    en: ['cms', 'content management', 'blog', 'publish', 'article', 'static site',
+         'content publish', 'page publish', 'public content', 'version history',
+         'rollback', 'cdn', 'headless cms'],
+    weight: 1.3
+  },
+  [UserIntent.FORM_COLLECTION]: {
+    zh: ['表单', '问卷', '收集数据', '用户提交', '反馈收集', '信息收集', '报名',
+         '调查', '投票', '预约', '订单', '申请', '注册表单', '上门服务', '服务预约',
+         '宠物服务', '家政服务', '美容预约', '医疗预约', '维修预约', '咨询表单',
+         '联系表单', '留言', '反馈', '客户信息', '预订', '点餐', '下单', '购物车'],
+    en: ['form', 'survey', 'collect', 'submission', 'feedback', 'questionnaire',
+         'registration', 'inquiry', 'booking', 'order', 'application', 'signup form',
+         'contact form', 'lead generation', 'appointment', 'reservation', 'schedule',
+         'service request', 'pet service', 'home service', 'beauty appointment',
+         'medical booking', 'repair request', 'customer info', 'checkout', 'cart'],
+    weight: 1.4  // 提高权重确保优先识别
+  },
+  [UserIntent.OFFLINE_FIRST]: {
+    zh: ['离线', '断网', '无网络', '离线优先', '网络恢复', '同步', '冲突解决',
+         'PWA', '渐进式', '后台同步', '消息队列'],
+    en: ['offline', 'offline first', 'network', 'sync', 'synchronize', 'conflict',
+         'pwa', 'progressive', 'background sync', 'queue', 'reconnect'],
+    weight: 1.2
+  },
+  [UserIntent.FILE_UPLOAD_APP]: {
+    zh: ['文件上传', '图片上传', '附件', '文件管理', '图片压缩', '加密上传',
+         '分片上传', '大文件', '拖拽上传', '媒体文件', '文档管理'],
+    en: ['file upload', 'image upload', 'attachment', 'file manager', 'compress',
+         'encrypt upload', 'chunked upload', 'large file', 'drag drop', 'media',
+         'document manager', 'storage', 'bucket'],
+    weight: 1.2
   }
 };
 
@@ -181,7 +241,13 @@ const EXTENSION_MAP: Record<UserIntent, string[]> = {
   [UserIntent.DATA_OPERATION]: ['.ts', '.js', '.sql'],
   [UserIntent.BACKEND_SETUP]: ['.ts', '.tsx', '.js', '.sql'],
   [UserIntent.UNKNOWN]: [],
-  [UserIntent.GLOBAL_REVIEW]: ['.ts', '.tsx', '.js', '.jsx', '.css', '.json']
+  [UserIntent.GLOBAL_REVIEW]: ['.ts', '.tsx', '.js', '.jsx', '.css', '.json'],
+  // =========== Local-First 架构新增 ===========
+  [UserIntent.LOCAL_DB_APP]: ['.ts', '.tsx', '.js', '.jsx', '.sql'],
+  [UserIntent.CMS_APP]: ['.ts', '.tsx', '.js', '.jsx', '.html', '.md'],
+  [UserIntent.FORM_COLLECTION]: ['.ts', '.tsx', '.js', '.jsx'],
+  [UserIntent.OFFLINE_FIRST]: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+  [UserIntent.FILE_UPLOAD_APP]: ['.ts', '.tsx', '.js', '.jsx']
 };
 
 // 优先目录模式
@@ -196,7 +262,13 @@ const PRIORITY_PATTERNS: Record<UserIntent, string[]> = {
   [UserIntent.DATA_OPERATION]: ['lib/', 'app/api/', 'supabase/', 'services/'],
   [UserIntent.BACKEND_SETUP]: ['lib/', 'app/api/', 'supabase/', 'services/'],
   [UserIntent.UNKNOWN]: [],
-  [UserIntent.GLOBAL_REVIEW]: ['components/', 'lib/', 'app/', 'hooks/', 'context/']
+  [UserIntent.GLOBAL_REVIEW]: ['components/', 'lib/', 'app/', 'hooks/', 'context/'],
+  // =========== Local-First 架构新增 ===========
+  [UserIntent.LOCAL_DB_APP]: ['lib/', 'lib/templates/', 'hooks/', 'components/'],
+  [UserIntent.CMS_APP]: ['lib/', 'lib/templates/', 'app/api/cms/', 'components/'],
+  [UserIntent.FORM_COLLECTION]: ['lib/', 'lib/templates/', 'app/api/mailbox/', 'components/'],
+  [UserIntent.OFFLINE_FIRST]: ['lib/', 'lib/templates/', 'hooks/', 'public/'],
+  [UserIntent.FILE_UPLOAD_APP]: ['lib/', 'lib/templates/', 'app/api/mailbox/', 'components/']
 };
 
 // 排除目录模式
@@ -211,7 +283,13 @@ const EXCLUDE_PATTERNS: Record<UserIntent, string[]> = {
   [UserIntent.DATA_OPERATION]: ['node_modules/', '.git/', 'components/', 'styles/'],
   [UserIntent.BACKEND_SETUP]: ['node_modules/', '.git/', 'components/', 'styles/'],
   [UserIntent.UNKNOWN]: ['node_modules/', '.git/'],
-  [UserIntent.GLOBAL_REVIEW]: ['node_modules/', '.git/', 'dist/', 'build/']
+  [UserIntent.GLOBAL_REVIEW]: ['node_modules/', '.git/', 'dist/', 'build/'],
+  // =========== Local-First 架构新增 ===========
+  [UserIntent.LOCAL_DB_APP]: ['node_modules/', '.git/', 'dist/', 'build/'],
+  [UserIntent.CMS_APP]: ['node_modules/', '.git/', 'dist/', 'build/'],
+  [UserIntent.FORM_COLLECTION]: ['node_modules/', '.git/', 'dist/', 'build/'],
+  [UserIntent.OFFLINE_FIRST]: ['node_modules/', '.git/', 'dist/', 'build/'],
+  [UserIntent.FILE_UPLOAD_APP]: ['node_modules/', '.git/', 'dist/', 'build/']
 };
 
 /**

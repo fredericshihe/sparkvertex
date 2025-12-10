@@ -82,6 +82,50 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 const nextConfig = {
   productionBrowserSourceMaps: false, // Disable source maps in production
   poweredByHeader: false, // Remove X-Powered-By header
+  async rewrites() {
+    return [
+      {
+        source: '/api/contact',
+        destination: '/api/submit',
+      },
+      {
+        source: '/api/feedback',
+        destination: '/api/submit',
+      },
+      {
+        source: '/api/message',
+        destination: '/api/submit',
+      },
+      {
+        source: '/api/form',
+        destination: '/api/submit',
+      },
+      {
+        source: '/api/order',
+        destination: '/api/submit',
+      },
+      {
+        source: '/api/booking',
+        destination: '/api/submit',
+      },
+      {
+        source: '/api/contact',
+        destination: '/api/submit',
+      },
+      {
+        source: '/api/feedback',
+        destination: '/api/submit',
+      },
+      {
+        source: '/api/message',
+        destination: '/api/submit',
+      },
+      {
+        source: '/api/reservation',
+        destination: '/api/submit',
+      },
+    ];
+  },
   async headers() {
     return [
       {
@@ -118,7 +162,8 @@ const nextConfig = {
   // 允许局域网设备访问开发服务器
   allowedDevOrigins: [
     '192.168.3.151:3000',
-    'localhost:3000'
+    'localhost:3000',
+    '0.0.0.0:3000'
   ]
 };
 

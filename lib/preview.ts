@@ -5,8 +5,604 @@
  * @param content - The HTML content to process
  * @param options - Configuration options (kept for backward compatibility, currently ignored)
  */
-export const getPreviewContent = (content: string | null, options?: { raw?: boolean; appId?: string }): string => {
+export const getPreviewContent = (content: string | null, options?: { raw?: boolean; appId?: string; userId?: string; apiBaseUrl?: string }): string => {
   if (!content) return '';
+
+  // Debug: Log received options
+  console.log('[preview.ts] getPreviewContent called with options:', JSON.stringify({
+    appId: options?.appId,
+    userId: options?.userId,
+    apiBaseUrl: options?.apiBaseUrl?.substring(0, 30),
+    hasContent: !!content
+  }));
+
+  // Generate SPARK_APP_ID for backend integration
+  // In preview mode: draft_{user_id}, after publish: use the actual app ID (numeric)
+  const userId = options?.userId || '';
+  // IMPORTANT: Use provided appId directly, don't fallback to draft format for published apps
+  let appId = options?.appId || '';
+  
+  // Only generate draft ID if no appId was provided at all
+  if (!appId) {
+    if (userId) {
+      appId = `draft_${userId}`;
+    } else {
+      appId = 'draft_demo_' + Math.random().toString(36).substring(7);
+    }
+  }
+  
+  // Debug log (will appear in server console during SSR)
+  console.log('[preview.ts] Final appId:', appId);
+  
+  const providedApiBase = options?.apiBaseUrl || '';
+  
+  // Inject SPARK_APP_ID for backend API calls
+  // If userId not provided, request from parent window
+  // Also inject API base URL and fetch interceptor for srcdoc iframe
+  const sparkAppIdScript = `<script>
+    (function() {
+      // ============================================
+      // 端到端加密工具
+      // ============================================
+      window.SparkCrypto = {
+        // ArrayBuffer 转 Base64
+        arrayBufferToBase64: function(buffer) {
+          var bytes = new Uint8Array(buffer);
+          var binary = '';
+          for (var i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          return btoa(binary);
+        },
+        
+        // AES 加密
+        aesEncrypt: async function(data) {
+          var aesKey = await crypto.subtle.generateKey(
+            { name: 'AES-GCM', length: 256 },
+            true,
+            ['encrypt', 'decrypt']
+          );
+          
+          var iv = crypto.getRandomValues(new Uint8Array(12));
+          var encoded = new TextEncoder().encode(data);
+          
+          var encrypted = await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv: iv },
+            aesKey,
+            encoded
+          );
+          
+          var rawKey = await crypto.subtle.exportKey('raw', aesKey);
+          
+          return {
+            encrypted: this.arrayBufferToBase64(encrypted),
+            key: rawKey,
+            iv: iv
+          };
+        },
+        
+        // 混合加密（AES + RSA）
+        encryptData: async function(data, publicKeyJWK) {
+          // 导入公钥
+          var publicKey = await crypto.subtle.importKey(
+            'jwk',
+            publicKeyJWK,
+            { name: 'RSA-OAEP', hash: 'SHA-256' },
+            true,
+            ['encrypt']
+          );
+          
+          var jsonData = JSON.stringify(data);
+          
+          // 1. AES 加密数据
+          var aesResult = await this.aesEncrypt(jsonData);
+          
+          // 2. RSA 加密 AES 密钥
+          var encryptedKey = await crypto.subtle.encrypt(
+            { name: 'RSA-OAEP' },
+            publicKey,
+            aesResult.key
+          );
+          
+          // 3. 打包
+          return JSON.stringify({
+            v: 1,
+            d: aesResult.encrypted,
+            k: this.arrayBufferToBase64(encryptedKey),
+            i: this.arrayBufferToBase64(aesResult.iv.buffer)
+          });
+        }
+      };
+      
+      // 公钥存储
+      window.SPARK_PUBLIC_KEY = null;
+      
+      // ============================================
+      // CMS 内容管理工具
+      // ============================================
+      window.SparkCMS = {
+        // 内容缓存
+        _cache: {},
+        _initialized: false,
+        
+        // 初始化：预加载所有内容到缓存
+        init: async function() {
+          if (this._initialized || !window.SPARK_APP_ID) return;
+          
+          try {
+            if (window.supabase) {
+              var { data, error } = await window.supabase
+                .from('public_content')
+                .select('slug, content')
+                .eq('app_id', window.SPARK_APP_ID);
+                
+              if (!error && data) {
+                data.forEach(function(item) {
+                  window.SparkCMS._cache[item.slug] = item.content;
+                });
+                this._initialized = true;
+                console.log('[SparkCMS] Loaded', data.length, 'content items');
+              }
+            }
+          } catch (e) {
+            console.warn('[SparkCMS] Init failed:', e);
+          }
+        },
+        
+        // 获取内容 (同步，从缓存读取，支持默认值)
+        getContent: function(slug, defaultValue) {
+          // 如果缓存中有，返回缓存
+          if (this._cache[slug] !== undefined) {
+            return this._cache[slug];
+          }
+          // 否则返回默认值
+          return defaultValue !== undefined ? defaultValue : '';
+        },
+        
+        // 异步获取单条内容（会更新缓存）
+        fetchContent: async function(slug, defaultValue) {
+          if (!window.SPARK_APP_ID) {
+            console.warn('SparkCMS: App ID not found');
+            return defaultValue || '';
+          }
+          
+          try {
+            // 尝试通过 Supabase Client 获取 (如果存在)
+            if (window.supabase) {
+              var { data, error } = await window.supabase
+                .from('public_content')
+                .select('content')
+                .eq('app_id', window.SPARK_APP_ID)
+                .eq('slug', slug)
+                .single();
+                
+              if (!error && data) {
+                this._cache[slug] = data.content;
+                return data.content;
+              }
+            }
+            
+            // 降级：尝试通过 API 获取
+            var response = await fetch('/api/cms/content?appId=' + window.SPARK_APP_ID + '&slug=' + slug);
+            if (response.ok) {
+              var result = await response.json();
+              if (result && result.content) {
+                this._cache[slug] = result.content;
+                return result.content;
+              }
+            }
+          } catch (e) {
+            console.error('SparkCMS: Failed to fetch content', e);
+          }
+          return defaultValue || '';
+        },
+        
+        // 获取 HTML 内容 (如果是 Markdown 则转换)
+        getHtml: async function(slug, defaultValue) {
+          var content = await this.fetchContent(slug, defaultValue);
+          // 简单的 Markdown 转 HTML (如果引入了 marked 库则使用)
+          if (window.marked && content) {
+            return window.marked.parse(content);
+          }
+          return content;
+        },
+        
+        // 刷新所有动态内容 (应用 data-cms 属性的元素)
+        refreshAll: function() {
+          var self = this;
+          // 刷新文本内容
+          document.querySelectorAll('[data-cms]').forEach(function(el) {
+            var slug = el.dataset.cms;
+            var content = self.getContent(slug, el.textContent);
+            if (content && content !== el.textContent) {
+              el.textContent = content;
+            }
+          });
+          // 刷新图片 src
+          document.querySelectorAll('[data-cms-src]').forEach(function(el) {
+            var slug = el.dataset.cmsSrc;
+            var src = self.getContent(slug, el.src);
+            if (src && src !== el.src) {
+              el.src = src;
+            }
+          });
+          // 刷新链接 href
+          document.querySelectorAll('[data-cms-href]').forEach(function(el) {
+            var slug = el.dataset.cmsHref;
+            var href = self.getContent(slug, el.href);
+            if (href && href !== el.href) {
+              el.href = href;
+            }
+          });
+          console.log('[SparkCMS] Refreshed all dynamic content');
+        },
+        
+        // 更新单个内容（从外部调用，如父窗口 postMessage）
+        updateContent: function(slug, content) {
+          this._cache[slug] = content;
+          // 立即更新 DOM
+          document.querySelectorAll('[data-cms="' + slug + '"]').forEach(function(el) {
+            el.textContent = content;
+          });
+          document.querySelectorAll('[data-cms-src="' + slug + '"]').forEach(function(el) {
+            el.src = content;
+          });
+          document.querySelectorAll('[data-cms-href="' + slug + '"]').forEach(function(el) {
+            el.href = content;
+          });
+        }
+      };
+      
+      // 自动初始化 CMS 内容并应用到 DOM
+      setTimeout(function() {
+        window.SparkCMS.init().then(function() {
+          window.SparkCMS.refreshAll();
+        });
+      }, 100);
+      
+      // 监听来自父窗口的内容更新消息
+      window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'SPARK_CMS_UPDATE') {
+          var updates = event.data.updates;
+          if (updates && typeof updates === 'object') {
+            Object.keys(updates).forEach(function(slug) {
+              window.SparkCMS.updateContent(slug, updates[slug]);
+            });
+          }
+        } else if (event.data && event.data.type === 'SPARK_CMS_REFRESH') {
+          // 重新从数据库加载所有内容
+          window.SparkCMS._initialized = false;
+          window.SparkCMS.init().then(function() {
+            window.SparkCMS.refreshAll();
+          });
+        }
+      });
+
+      // ============================================
+      // API 配置
+      // ============================================
+      // Get the actual API base URL from parent window origin
+      // This is needed because srcdoc iframes have origin "null" or "about:srcdoc"
+      var apiBaseUrl = "${providedApiBase}";
+      
+      if (!apiBaseUrl) {
+        try {
+          // Try to get from referrer first
+          if (document.referrer) {
+            var url = new URL(document.referrer);
+            apiBaseUrl = url.origin;
+          }
+        } catch(e) {}
+      }
+      
+      // Fallback: try to detect from parent window or use current location
+      if (!apiBaseUrl) {
+        try {
+          // Try parent window location
+          if (window.parent && window.parent.location && window.parent.location.origin) {
+            apiBaseUrl = window.parent.location.origin;
+          }
+        } catch(e) {
+          // Cross-origin access blocked, use a smarter fallback
+        }
+      }
+      
+      // Final fallback: detect port from URL or use default
+      if (!apiBaseUrl) {
+        // Check if we're on a non-standard port in development
+        var defaultPort = window.location.port || '3000';
+        apiBaseUrl = 'http://' + (window.location.hostname || 'localhost') + ':' + defaultPort;
+      }
+      
+      window.SPARK_API_BASE = apiBaseUrl;
+      console.log('[Spark] Initial SPARK_API_BASE:', window.SPARK_API_BASE);
+      
+      // Set initial values if provided
+      window.SPARK_APP_ID = "${appId}" || null;
+      window.SPARK_USER_ID = "${userId}" || null;
+      
+      // Log initial values for debugging
+      console.log('[Spark] Initial SPARK_APP_ID:', window.SPARK_APP_ID);
+      
+      // Always request the latest appId from parent to handle userId changes
+      // This ensures we get the correct appId even if userId wasn't available initially
+      window.parent.postMessage({ type: 'spark-request-user-id' }, '*');
+      
+      // Intercept fetch to rewrite /api/ URLs to use correct base
+      var originalFetch = window.fetch;
+      window.fetch = function(url, options) {
+        var newUrl = url;
+        var isApi = false;
+        
+        if (typeof url === 'string' && url.startsWith('/api/')) {
+          newUrl = window.SPARK_API_BASE + url;
+          console.log('[Spark] Rewriting API URL:', url, '->', newUrl);
+          isApi = true;
+        } else if (typeof url === 'object' && url && url.url) {
+           // Handle Request object
+           var urlStr = url.url;
+           // If the URL is resolved to about:srcdoc (iframe base), we need to fix it
+           if (urlStr.includes('/api/') && (urlStr.startsWith('about:') || urlStr.startsWith('blob:') || urlStr.startsWith('data:'))) {
+              try {
+                 var apiPath = urlStr.substring(urlStr.indexOf('/api/'));
+                 var newUrlStr = window.SPARK_API_BASE + apiPath;
+                 console.log('[Spark] Rewriting API Request URL:', urlStr, '->', newUrlStr);
+                 // Create new request with updated URL but keep other properties
+                 newUrl = new Request(newUrlStr, url);
+                 isApi = true;
+              } catch(e) {
+                 console.error('[Spark] Failed to rewrite Request object:', e);
+              }
+           }
+        }
+        
+        // Add App ID header if it's an API call
+        if (isApi && window.SPARK_APP_ID) {
+            if (!options) options = {};
+            
+            // Handle different header formats
+            if (!options.headers) {
+                options.headers = { 'X-Spark-App-Id': window.SPARK_APP_ID };
+            } else if (options.headers instanceof Headers) {
+                options.headers.set('X-Spark-App-Id', window.SPARK_APP_ID);
+            } else if (Array.isArray(options.headers)) {
+                options.headers.push(['X-Spark-App-Id', window.SPARK_APP_ID]);
+            } else {
+                // Plain object
+                options.headers['X-Spark-App-Id'] = window.SPARK_APP_ID;
+            }
+        }
+
+        // Auto-wrap body for /api/mailbox/submit if needed
+        // This fixes the 400 Bad Request error when generated code sends raw JSON
+        if (isApi && typeof newUrl === 'string' && newUrl.includes('/api/mailbox/submit')) {
+             if (options && options.body && typeof options.body === 'string') {
+                 try {
+                     var bodyContent = JSON.parse(options.body);
+                     // Only wrap if it doesn't look like it's already wrapped
+                     if (!bodyContent.app_id && !bodyContent.payload) {
+                         console.log('[Spark] Auto-wrapping body for Mailbox API');
+                         var wrapped = {
+                             app_id: window.SPARK_APP_ID,
+                             payload: bodyContent,
+                             metadata: {
+                                 title: document.title,
+                                 url: window.location.href,
+                                 timestamp: Date.now()
+                             }
+                         };
+                         options.body = JSON.stringify(wrapped);
+                     }
+                 } catch(e) {
+                     // Ignore parse errors (maybe not JSON)
+                 }
+             }
+        }
+        
+        return originalFetch.call(this, newUrl, options);
+      };
+
+      // Intercept XMLHttpRequest to rewrite /api/ URLs
+      var originalOpen = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function(method, url) {
+        var args = Array.prototype.slice.call(arguments);
+        var newUrl = url;
+        var isApi = false;
+        
+        if (typeof url === 'string' && url.startsWith('/api/')) {
+          newUrl = window.SPARK_API_BASE + url;
+          console.log('[Spark] Rewriting XHR URL:', url, '->', newUrl);
+          args[1] = newUrl;
+          isApi = true;
+        }
+        
+        var result = originalOpen.apply(this, args);
+        
+        if (isApi && window.SPARK_APP_ID) {
+            try {
+                this.setRequestHeader('X-Spark-App-Id', window.SPARK_APP_ID);
+            } catch(e) {
+                console.warn('[Spark] Failed to set header on XHR:', e);
+            }
+        }
+        return result;
+      };
+
+      // Helper for handling form submissions
+      async function handleSparkFormSubmit(form, fullUrl) {
+          console.log('[Spark] Processing form submission to:', fullUrl);
+          
+          var formData = new FormData(form);
+          
+          // Convert FormData to plain object
+          var dataObj = {};
+          formData.forEach(function(value, key) {
+            // Handle file uploads separately (don't encrypt files)
+            if (value instanceof File) {
+              dataObj[key] = { _file: true, name: value.name, type: value.type, size: value.size };
+            } else {
+              dataObj[key] = value;
+            }
+          });
+          
+          // Try to encrypt if public key is available
+          var payload = JSON.stringify(dataObj);
+          var isEncrypted = false;
+          
+          if (window.SPARK_PUBLIC_KEY) {
+            try {
+              console.log('[Spark] Encrypting form data with E2E encryption...');
+              payload = await window.SparkCrypto.encryptData(dataObj, window.SPARK_PUBLIC_KEY);
+              isEncrypted = true;
+              console.log('[Spark] Data encrypted successfully');
+            } catch(err) {
+              console.warn('[Spark] Encryption failed, sending unencrypted:', err);
+            }
+          } else {
+            console.log('[Spark] No public key available, sending unencrypted');
+          }
+          
+          // Send with JSON body
+          var requestBody = payload;
+          
+          // Special handling for Spark Mailbox API
+          // The mailbox API expects a wrapped envelope: { app_id, payload, metadata }
+          if (fullUrl.includes('/api/mailbox/submit')) {
+            requestBody = JSON.stringify({
+              app_id: window.SPARK_APP_ID,
+              payload: isEncrypted ? payload : dataObj,
+              metadata: {
+                title: document.title,
+                url: window.location.href,
+                timestamp: Date.now()
+              }
+            });
+          }
+
+          fetch(fullUrl, {
+            method: form.getAttribute('method') || 'POST',
+            body: requestBody,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Spark-App-Id': window.SPARK_APP_ID,
+              'X-Spark-Encrypted': isEncrypted ? 'true' : 'false'
+            }
+          })
+          .then(function(response) {
+            if (!response.ok) {
+              return response.text().then(function(text) {
+                try {
+                  var data = JSON.parse(text);
+                  throw new Error(data.error || '提交失败 (' + response.status + ')');
+                } catch(e) {
+                  throw new Error('服务器错误 (' + response.status + ')');
+                }
+              });
+            }
+            return response.json();
+          })
+          .then(function(data) {
+            alert('提交成功！');
+            form.reset();
+          })
+          .catch(function(err) {
+            console.error('Form submission error:', err);
+            alert('提交出错: ' + err.message);
+          });
+      }
+
+      // Intercept Form Submission with E2E Encryption
+      document.addEventListener('submit', async function(e) {
+        var form = e.target;
+        var action = form.getAttribute('action');
+        
+        // Case 1: Explicit API Action (e.g. action="/api/...")
+        if (action && action.startsWith('/api/')) {
+          e.preventDefault();
+          await handleSparkFormSubmit(form, window.SPARK_API_BASE + action);
+        }
+        // Case 2: Native Submission (No JS handler prevented it)
+        // This catches forms where the AI forgot to write an onSubmit handler
+        // We only intercept if the form has inputs to avoid false positives
+        else if (!e.defaultPrevented && form.querySelectorAll('input, textarea, select').length > 0) {
+           // Check if action is explicitly external (http/https) or empty/local
+           if (!action || action.startsWith('/') || action.startsWith('#')) {
+               e.preventDefault();
+               console.log('[Spark] Auto-intercepting native form submission');
+               // Use the universal mailbox endpoint
+               await handleSparkFormSubmit(form, window.SPARK_API_BASE + '/api/mailbox/submit');
+           }
+        }
+      }, true);
+      
+      // Only request from parent if BOTH appId and userId are not provided
+      // This prevents overwriting appId when it's already set (e.g., for published apps)
+      var originalAppId = window.SPARK_APP_ID;
+      
+      // Always request public key from parent for E2E encryption
+      window.parent.postMessage({ type: 'spark-request-public-key' }, '*');
+      
+      // Listen for responses from parent
+      window.addEventListener('message', function(event) {
+        // Handle user ID response
+        if (event.data && event.data.type === 'spark-user-id-response') {
+          window.SPARK_USER_ID = event.data.userId;
+          // Always update appId from parent to ensure we have the latest (with correct userId)
+          // Only exception: published apps with numeric IDs should not be overwritten
+          var newAppId = event.data.appId;
+          if (newAppId) {
+            // Check if current appId is a published numeric ID - don't overwrite those
+            if (originalAppId && /^\\d+$/.test(originalAppId)) {
+              console.log('[Spark] Keeping published appId:', originalAppId);
+            } else {
+              window.SPARK_APP_ID = newAppId;
+              console.log('[Spark] Updated SPARK_APP_ID from parent:', newAppId);
+            }
+          }
+          // Also update API base if provided
+          if (event.data.apiBase) {
+            window.SPARK_API_BASE = event.data.apiBase;
+          }
+        }
+        
+        // Handle public key response for E2E encryption
+        if (event.data && event.data.type === 'spark-public-key-response') {
+          if (event.data.publicKey) {
+            window.SPARK_PUBLIC_KEY = event.data.publicKey;
+            console.log('[Spark] Received public key for E2E encryption');
+          }
+        }
+      });
+
+      // Intercept Link Clicks to prevent navigation to homepage
+      document.addEventListener('click', function(e) {
+        var target = e.target;
+        while (target && target.tagName !== 'A') {
+          target = target.parentElement;
+        }
+        
+        if (target && target.tagName === 'A') {
+          var href = target.getAttribute('href');
+          
+          // Prevent navigation for empty links, # links, or root links
+          if (!href || href === '#' || href === '/' || href === '') {
+            e.preventDefault();
+            console.log('[Spark] Prevented navigation to:', href);
+            
+            // Optional: If it's a hash link, we might want to scroll (if it's not just #)
+            if (href && href.startsWith('#') && href.length > 1) {
+                var id = href.substring(1);
+                var el = document.getElementById(id);
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }
+            return;
+          }
+        }
+      }, true);
+      
+      console.log('[Spark] Initialized with APP_ID:', window.SPARK_APP_ID, 'USER_ID:', window.SPARK_USER_ID);
+    })();
+  </script>`;
 
   // Minimal error handler to catch and display errors
   // IMPORTANT: Must include postMessage to parent for AI Fix feature to work
@@ -204,9 +800,9 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
           console.warn('Blank screen detected - app may have failed to render');
           
           // 🆕 收集所有已捕获的错误信息
-          var errorMessages = errorList.map(function(e) { return e.message; }).join('\n');
+          var errorMessages = errorList.map(function(e) { return e.message; }).join('\\n');
           var detailedMessage = errorMessages 
-            ? 'App failed to render. Errors:\n' + errorMessages.substring(0, 500)
+            ? 'App failed to render. Errors:\\n' + errorMessages.substring(0, 500)
             : 'App failed to render - blank screen detected (no console errors captured, may be a syntax error).';
           
           var blankError = {
@@ -523,10 +1119,10 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
     </script>
   `;
 
-  // Inject error handler AND highlight style AND probe script into head
+  // Inject error handler AND highlight style AND probe script AND SPARK_APP_ID into head
   // This ensures they persist even if body.innerHTML is replaced
   let result = content;
-  const scriptsToInject = minimalErrorHandler + highlightStyle + probeScript;
+  const scriptsToInject = sparkAppIdScript + minimalErrorHandler + highlightStyle + probeScript;
   
   if (result.includes('</head>')) {
     result = result.replace('</head>', `${scriptsToInject}</head>`);

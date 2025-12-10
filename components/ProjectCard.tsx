@@ -15,12 +15,13 @@ interface ProjectCardProps {
   onClick: (id: string) => void;
   isOwner?: boolean;
   onEdit?: (item: Item) => void;
+  onUpdate?: (item: Item) => void; // 重新上传替换作品
   onDelete?: (id: string) => void;
   onHover?: (item: Item) => void;
   className?: string;
 }
 
-export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onDelete, onHover, className = '' }: ProjectCardProps) {
+export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onUpdate, onDelete, onHover, className = '' }: ProjectCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
@@ -84,7 +85,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   };
 
   // Memoize preview content
-  const previewContent = showPreview && item.content ? getPreviewContent(item.content, { raw: true }) : '';
+  const previewContent = showPreview && item.content ? getPreviewContent(item.content, { raw: true, appId: item.id ? String(item.id) : undefined }) : '';
 
   return (
     <div 
@@ -140,7 +141,8 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
             
             {/* Owner Actions */}
             {isOwner && (
-              <div className="absolute top-2 left-2 z-20 flex gap-2" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'translateZ(0)' }}>
+              <div className="absolute top-2 left-2 z-20 flex gap-1.5" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'translateZ(0)' }}>
+                {/* 编辑按钮 - 进入创作页面 */}
                 <button 
                   onClick={(e) => { e.stopPropagation(); onEdit && onEdit(item); }}
                   className="w-7 h-7 rounded-full bg-slate-900/80 backdrop-blur text-white hover:bg-brand-600 transition flex items-center justify-center border border-slate-700 shadow-lg"
@@ -148,6 +150,17 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                 >
                   <i className="fa-solid fa-pen text-xs"></i>
                 </button>
+                {/* 更新按钮 - 重新上传替换 */}
+                {!item.is_draft && onUpdate && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onUpdate(item); }}
+                    className="w-7 h-7 rounded-full bg-slate-900/80 backdrop-blur text-white hover:bg-emerald-600 transition flex items-center justify-center border border-slate-700 shadow-lg"
+                    title={t.project_card?.update || '更新作品'}
+                  >
+                    <i className="fa-solid fa-arrow-up-from-bracket text-xs"></i>
+                  </button>
+                )}
+                {/* 删除按钮 */}
                 <button 
                   onClick={(e) => { e.stopPropagation(); onDelete && onDelete(item.id); }}
                   className="w-7 h-7 rounded-full bg-slate-900/80 backdrop-blur text-white hover:bg-rose-600 transition flex items-center justify-center border border-slate-700 shadow-lg"

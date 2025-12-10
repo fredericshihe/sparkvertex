@@ -8,8 +8,13 @@ import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { getPreviewContent } from '@/lib/preview';
-import { copyToClipboard } from '@/lib/utils';
+import { copyToClipboard, detectSparkBackendCode } from '@/lib/utils';
 import { sha256 } from '@/lib/sha256';
+import BackendDataPanel from '@/components/BackendDataPanel';
+import { generateKeyPair as generateE2EKeyPair } from '@/lib/client-crypto';
+
+// E2E 密钥存储 Key 前缀（每个应用一对密钥）
+const E2E_KEY_PREFIX = 'spark_e2e_app_';
 
 // --- Helper Functions (Ported from SparkWorkbench.html) ---
 
@@ -265,12 +270,15 @@ function performBasicSecurityCheck(htmlContent: string) {
       }
   });
   
+  // Check for Spark backend integration
+  const hasSparkBackend = detectSparkBackendCode(htmlContent);
+  
   // Only block for high severity findings
   if (foundRisks.length > 0) {
-      return { isSafe: false, risks: foundRisks, severity: 'high' };
+      return { isSafe: false, risks: foundRisks, severity: 'high', hasBackendCode: hasSparkBackend };
   }
   
-  return { isSafe: true, risks: [], severity: 'low' };
+  return { isSafe: true, risks: [], severity: 'low', hasBackendCode: hasSparkBackend };
 }
 
 async function checkMaliciousCode(htmlContent: string) {
@@ -282,10 +290,16 @@ async function checkMaliciousCode(htmlContent: string) {
 2. eval() or new Function() for math (e.g., calculator).
 3. localStorage/sessionStorage.
 4. innerHTML for UI updates.
+5. **Spark Platform Backend API** - This is our official backend integration:
+   - /api/mailbox/submit - Official form submission endpoint
+   - window.SPARK_APP_ID or SPARK_APP_ID - Platform app identifier
+   - SparkCrypto - Platform encryption module
+   - sparkvertex.vercel.app/api/* - Platform API endpoints
+   - These are SAFE and should NOT be reported as Data Theft!
 
 **Risks (Report these):**
 1. **Malicious Mining**: CPU intensive loops or mining pool connections.
-2. **Data Theft**: Sending sensitive data to unknown 3rd party servers (navigator.sendBeacon, fetch to unknown domains).
+2. **Data Theft**: Sending sensitive data to UNKNOWN 3rd party servers (not Spark platform APIs).
 3. **Malicious Destruction**: Deleting page content or infinite alerts.
 
 Return JSON format:
@@ -302,12 +316,15 @@ Code:\n\n${htmlContent.substring(0, 50000)}`;
   
   let resultText = typeof result === 'string' ? result : String(result);
   
+  // Check for Spark backend integration
+  const hasSparkBackend = detectSparkBackendCode(htmlContent);
+  
   const jsonMatch = resultText.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
       try {
           const parsed = JSON.parse(jsonMatch[0]);
           if (parsed.error) return performBasicSecurityCheck(htmlContent);
-          return parsed;
+          return { ...parsed, hasBackendCode: hasSparkBackend };
       } catch (e) {
           return performBasicSecurityCheck(htmlContent);
       }
@@ -377,7 +394,9 @@ function UploadContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
+  const updateId = searchParams.get('update'); // 更新模式：重新上传替换作品
   const [isEditing, setIsEditing] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false); // 更新模式标志
   const { openLoginModal, openCreditPurchaseModal } = useModal();
   const { error: toastError, success: toastSuccess } = useToast();
   const [step, setStep] = useState(1);
@@ -416,6 +435,7 @@ function UploadContent() {
   const [tagInput, setTagInput] = useState('');
   const [publishedId, setPublishedId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
+  const [showBackendPanel, setShowBackendPanel] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analysisSessionIdRef = useRef(0);
@@ -475,7 +495,11 @@ function UploadContent() {
       if (editId) {
         setIsEditing(true);
         await loadItemData(editId);
-      } 
+      } else if (updateId) {
+        // 更新模式：加载元数据但不加载内容，让用户重新上传
+        setIsUpdating(true);
+        await loadItemDataForUpdate(updateId);
+      }
       
       // Check for generated content from Create Wizard (overrides DB content if present)
       if (fromCreate) {
@@ -496,7 +520,7 @@ function UploadContent() {
     };
 
     init();
-  }, [editId]);
+  }, [editId, updateId]);
 
   const validateCode = (code: string) => {
     setValidationState({ status: 'validating' });
@@ -628,7 +652,18 @@ function UploadContent() {
         setTags(data.tags || []);
         setPrompt(data.prompt || '');
         setFileContent(data.content);
-        setIsPublic(data.is_public !== false); // Default to true if null
+        
+        // Check for backend code in existing content
+        const hasBackend = detectSparkBackendCode(data.content);
+        setHasBackendCode(hasBackend);
+        
+        // If has backend code, force private; otherwise use saved value
+        if (hasBackend) {
+          setIsPublic(false);
+        } else {
+          setIsPublic(data.is_public !== false); // Default to true if null
+        }
+        
         setStep(2); // Skip upload step
         
         // Mark as safe to allow proceeding without re-analysis unless file changes
@@ -648,6 +683,48 @@ function UploadContent() {
       }
     } catch (error) {
       console.error('Error loading item:', error);
+      toastError(t.upload.load_fail);
+      router.push('/profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 更新模式：加载元数据但保持在上传步骤，让用户重新上传文件
+  const loadItemDataForUpdate = async (id: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('items')
+        .select('id, title, description, price, author_id, tags, prompt, is_public, icon_url')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        // Verify ownership
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user.id !== data.author_id) {
+          toastError(t.upload.no_permission);
+          router.push('/profile');
+          return;
+        }
+
+        // 只加载元数据，不加载内容
+        setTitle(data.title);
+        setDescription(data.description);
+        setPrice(data.price);
+        setPriceType(data.price > 0 ? 'paid' : 'free');
+        setTags(data.tags || []);
+        setPrompt(data.prompt || '');
+        setIsPublic(data.is_public !== false);
+        
+        // 保持在步骤1，让用户上传新文件
+        setStep(1);
+      }
+    } catch (error) {
+      console.error('Error loading item for update:', error);
       toastError(t.upload.load_fail);
       router.push('/profile');
     } finally {
@@ -730,6 +807,7 @@ function UploadContent() {
   }>({ status: 'idle' });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSecuritySafe, setIsSecuritySafe] = useState(false);
+  const [hasBackendCode, setHasBackendCode] = useState(false);
   const [prompt, setPrompt] = useState('');
 
 
@@ -765,6 +843,7 @@ function UploadContent() {
     setAnalysisState({ status: 'idle', progress: 0, tasks: [], message: '', data: undefined });
     setIsAnalyzing(false);
     setIsSecuritySafe(false);
+    setHasBackendCode(false);
     setPrompt('');
     setIconFile(null);
     setIconPreview('');
@@ -834,15 +913,16 @@ function UploadContent() {
         .select('id, author_id')
         .eq('content_hash', contentHash);
       
-      // If editing, exclude the current item being edited
-      if (isEditing && editId) {
-        console.log('🔍 [Duplicate Check] Editing mode - excluding ID:', editId);
-        hashQuery = hashQuery.neq('id', editId);
+      // If editing or updating, exclude the current item
+      const currentItemId = editId || updateId;
+      if ((isEditing && editId) || (isUpdating && updateId)) {
+        console.log('🔍 [Duplicate Check] Edit/Update mode - excluding ID:', currentItemId);
+        hashQuery = hashQuery.neq('id', currentItemId);
       }
       
       const { data: existing } = await hashQuery.maybeSingle();
 
-      console.log('🔍 [Duplicate Check] Hash Match Found:', existing ? 'YES' : 'NO', existing?.id, '(isEditing:', isEditing, 'editId:', editId, ')');
+      console.log('🔍 [Duplicate Check] Hash Match Found:', existing ? 'YES' : 'NO', existing?.id, '(isEditing:', isEditing, 'editId:', editId, 'isUpdating:', isUpdating, 'updateId:', updateId, ')');
 
       if (existing) {
         // Get the matched item's title
@@ -903,12 +983,13 @@ function UploadContent() {
             if (matchError) console.error('🔍 [Duplicate Check] Vector Match Error:', matchError);
             
             if (!matchError && similarItems && similarItems.length > 0) {
-              // Filter out the current item being edited
+              // Filter out the current item being edited or updated
+              const excludeId = editId || updateId;
               console.log('🔍 [Duplicate Check] Vector results before filter:', similarItems.map((i: any) => ({ id: i.id, similarity: i.similarity })));
-              const filteredItems = isEditing && editId 
+              const filteredItems = ((isEditing && editId) || (isUpdating && updateId))
                 ? similarItems.filter((item: any) => {
-                    const isMatch = String(item.id) !== String(editId);
-                    console.log('🔍 [Duplicate Check] Comparing:', item.id, '!==', editId, '=', isMatch);
+                    const isMatch = String(item.id) !== String(excludeId);
+                    console.log('🔍 [Duplicate Check] Comparing:', item.id, '!==', excludeId, '=', isMatch);
                     return isMatch;
                   })
                 : similarItems;
@@ -1195,6 +1276,15 @@ function UploadContent() {
         setFileContent(mobileResult.optimizedHtml);
       }
 
+      // Track if code has backend integration
+      const hasBackend = securityResult.hasBackendCode || false;
+      setHasBackendCode(hasBackend);
+      
+      // If has backend code, force private sharing
+      if (hasBackend) {
+        setIsPublic(false);
+      }
+
       // Update UI based on Security Result
       if (securityResult.isSafe) {
         setIsSecuritySafe(true);
@@ -1320,8 +1410,8 @@ function UploadContent() {
       // Use cached embedding from early detection if available
       const finalEmbedding = embedding;
 
-      // Check daily limit (5 posts per day)
-      if (!isEditing) {
+      // Check daily limit (10 posts per day) - 只对新发布检查，编辑和更新不算
+      if (!isEditing && !isUpdating) {
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
         const todayStr = today.toISOString();
@@ -1334,7 +1424,7 @@ function UploadContent() {
 
         if (countError) {
           console.error('Error checking daily limit:', countError);
-        } else if (count !== null && count >= 5) {
+        } else if (count !== null && count >= 10) {
           setShowLimitModal(true);
           setLoading(false);
           return;
@@ -1384,9 +1474,13 @@ function UploadContent() {
       }
 
       let data, error;
+      // E2EE 密钥对（新建应用时生成）
+      let publicKeyJWK: JsonWebKey | null = null;
+      let privateKeyJWK: JsonWebKey | null = null;
 
-      if (isEditing && editId) {
-        // Update existing item
+      if ((isEditing && editId) || (isUpdating && updateId)) {
+        // Update existing item (编辑模式或更新模式)
+        const itemIdToUpdate = editId || updateId;
         const updateData: any = {
           title,
           description,
@@ -1402,7 +1496,7 @@ function UploadContent() {
         // Update hash as well
         updateData.content_hash = contentHash;
 
-        let result = await supabase.from('items').update(updateData).eq('id', editId).select().single();
+        let result = await supabase.from('items').update(updateData).eq('id', itemIdToUpdate).select().single();
         
         // Fallback: If any error occurs (likely missing columns), try without new schema fields
         if (result.error) {
@@ -1412,7 +1506,7 @@ function UploadContent() {
           const { embedding, is_public, ...safeData } = updateData;
           
           // Try updating without embedding and is_public
-          result = await supabase.from('items').update(safeData).eq('id', editId).select().single();
+          result = await supabase.from('items').update(safeData).eq('id', itemIdToUpdate).select().single();
           
           if (!result.error) {
             toastError(t.upload.db_warning || 'Database schema update required for full features');
@@ -1427,6 +1521,16 @@ function UploadContent() {
         // Note: Ideally this should be handled by catching the 409 error, but Supabase JS client sometimes wraps it obscurely.
         // Let's try to catch the specific error code below.
         
+        // 为应用生成 E2EE 密钥对
+        try {
+          const keyPair = await generateE2EKeyPair();
+          publicKeyJWK = keyPair.publicKey;
+          privateKeyJWK = keyPair.privateKey;
+          console.log('[E2E] Generated new key pair for app');
+        } catch (e) {
+          console.error('[E2E] Failed to generate key pair:', e);
+        }
+
         const insertPayload = {
           title,
           description,
@@ -1442,7 +1546,8 @@ function UploadContent() {
           downloads: 0,
           icon_url: iconUrl,
           content_hash: contentHash,
-          embedding: finalEmbedding
+          embedding: finalEmbedding,
+          public_key: publicKeyJWK ? JSON.stringify(publicKeyJWK) : null
         };
 
         let result = await supabase.from('items').insert(insertPayload).select().single();
@@ -1482,6 +1587,17 @@ function UploadContent() {
       setUploadProgress(100);
       const itemId = isEditing && editId ? editId : data.id;
       setPublishedId(itemId);
+
+      // 保存私钥到本地存储（仅新建时）
+      if (!isEditing && !isUpdating && privateKeyJWK && itemId) {
+        try {
+          localStorage.setItem(`${E2E_KEY_PREFIX}${itemId}_private`, JSON.stringify(privateKeyJWK));
+          localStorage.setItem(`${E2E_KEY_PREFIX}${itemId}_public`, JSON.stringify(publicKeyJWK));
+          console.log('[E2E] Saved key pair to localStorage for app:', itemId);
+        } catch (e) {
+          console.error('[E2E] Failed to save keys to localStorage:', e);
+        }
+      }
 
       // 触发 AI 评分（后台异步，不阻塞用户）
       if (itemId) {
@@ -1541,9 +1657,28 @@ function UploadContent() {
   return (
     <div className="min-h-screen pt-24 px-4 max-w-4xl mx-auto pb-20">
       <h1 className="text-3xl font-bold text-white mb-8 flex items-center gap-3">
-        <i className={`fa-solid ${isEditing ? 'fa-pen-to-square' : 'fa-cloud-arrow-up'} text-brand-500`}></i>
-        {isEditing ? t.upload.edit_title : t.upload.title}
+        <i className={`fa-solid ${isUpdating ? 'fa-arrow-up-from-bracket' : isEditing ? 'fa-pen-to-square' : 'fa-cloud-arrow-up'} text-brand-500`}></i>
+        {isUpdating 
+          ? (t.upload?.update_title || '更新作品') 
+          : isEditing 
+            ? t.upload.edit_title 
+            : t.upload.title}
       </h1>
+
+      {/* 更新模式提示 */}
+      {isUpdating && (
+        <div className="mb-6 glass-panel rounded-xl p-4 border border-emerald-500/30 bg-emerald-500/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+              <i className="fa-solid fa-sync text-xl text-emerald-400"></i>
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white mb-0.5">{t.upload?.update_mode || '更新模式'}</h3>
+              <p className="text-xs text-slate-300">{t.upload?.update_desc || '上传新文件将替换当前作品内容，标题和描述等信息会保留'}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* How to Create Guide Banner */}
       <div className="mb-8 glass-panel rounded-xl p-5 border border-blue-500/30 bg-gradient-to-r from-blue-500/10 to-purple-500/10">
@@ -1672,6 +1807,15 @@ function UploadContent() {
                     </div>
 
                     <div className="flex gap-4">
+                        {hasBackendCode && (
+                          <button 
+                              onClick={() => setShowBackendPanel(true)}
+                              className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition border border-slate-600 flex items-center gap-2"
+                          >
+                              <i className="fa-solid fa-database"></i>
+                              {language === 'zh' ? '配置后端' : 'Backend'}
+                          </button>
+                        )}
                         <button 
                             onClick={handleEditInCreator}
                             className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2"
@@ -1818,6 +1962,12 @@ function UploadContent() {
                       <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> {t.upload.result_security}</div>
                       <div className="font-bold text-white">{t.upload.result_safe}</div>
                     </div>
+                    {hasBackendCode && (
+                      <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-3 col-span-2">
+                        <div className="text-xs text-amber-400 mb-1"><i className="fa-solid fa-server mr-1"></i> {language === 'zh' ? '检测到后端集成' : 'Backend Integration Detected'}</div>
+                        <div className="text-sm text-slate-300">{language === 'zh' ? '作品包含 Spark 平台后端代码，发布后仅支持私有分享以保护数据安全' : 'This work contains Spark platform backend code. It will be published as private-only to protect data security.'}</div>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -2118,18 +2268,31 @@ function UploadContent() {
                     {isPublic ? t.upload.public_work : t.upload.private_work}
                   </h4>
                   <p className="text-sm text-slate-400">
-                    {isPublic 
-                      ? t.upload.public_hint 
-                      : t.upload.private_hint}
+                    {hasBackendCode 
+                      ? (language === 'zh' ? '含后端代码的作品只能私有分享' : 'Works with backend code can only be shared privately')
+                      : (isPublic 
+                        ? t.upload.public_hint 
+                        : t.upload.private_hint)}
                   </p>
                 </div>
                 <button 
-                  onClick={() => setIsPublic(!isPublic)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${isPublic ? 'bg-brand-500' : 'bg-slate-600'}`}
+                  onClick={() => !hasBackendCode && setIsPublic(!isPublic)}
+                  disabled={hasBackendCode}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                    hasBackendCode 
+                      ? 'bg-slate-600 cursor-not-allowed opacity-50' 
+                      : (isPublic ? 'bg-brand-500' : 'bg-slate-600')
+                  }`}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
               </div>
+              {hasBackendCode && (
+                <div className="mt-3 flex items-center gap-2 text-amber-400 text-xs">
+                  <i className="fa-solid fa-server"></i>
+                  <span>{language === 'zh' ? '检测到后端集成代码，为保护数据安全，仅支持私有分享' : 'Backend integration detected. Private sharing only for data security.'}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2189,10 +2352,14 @@ function UploadContent() {
               {loading ? (
                 <>
                   <i className="fa-solid fa-circle-notch fa-spin"></i>
-                  {isEditing ? t.upload.saving : t.upload.publishing} {Math.round(uploadProgress)}%
+                  {isEditing || isUpdating ? t.upload.saving : t.upload.publishing} {Math.round(uploadProgress)}%
                 </>
               ) : (
-                isEditing ? t.upload.save_changes : t.upload.confirm_publish
+                isUpdating 
+                  ? (t.upload?.confirm_update || '确认更新') 
+                  : isEditing 
+                    ? t.upload.save_changes 
+                    : t.upload.confirm_publish
               )}
             </button>
           </div>
@@ -2205,8 +2372,8 @@ function UploadContent() {
           <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <i className="fa-solid fa-check text-5xl text-green-500"></i>
           </div>
-          <h2 className="text-3xl font-bold text-white mb-4">{isEditing ? t.upload.modify_success : t.upload.publish_success}</h2>
-          <p className="text-slate-400 mb-8">{isEditing ? t.upload.modify_success_desc : t.upload.publish_success_desc}</p>
+          <h2 className="text-3xl font-bold text-white mb-4">{(isEditing || isUpdating) ? t.upload.modify_success : t.upload.publish_success}</h2>
+          <p className="text-slate-400 mb-8">{(isEditing || isUpdating) ? t.upload.modify_success_desc : t.upload.publish_success_desc}</p>
           
           <div className="bg-slate-950 rounded-xl p-6 border border-slate-800 flex flex-col items-center justify-center gap-4 mb-8">
             <div className="text-slate-500 text-sm">{t.upload.work_link}</div>
@@ -2365,6 +2532,17 @@ function UploadContent() {
         </div>
       )}
 
+      {/* Backend Data Panel */}
+      <BackendDataPanel
+        isOpen={showBackendPanel}
+        onClose={() => setShowBackendPanel(false)}
+        userId={user?.id || null}
+        language={language}
+        mode="test"
+        code={fileContent}
+        onCodeUpdate={(newCode) => setFileContent(newCode)}
+      />
+
       {/* Daily Limit Modal */}
       {showLimitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm p-4 animate-fade-in">
@@ -2377,7 +2555,7 @@ function UploadContent() {
             </h3>
             <p className="text-slate-400 mb-8">
               {language === 'zh' 
-                ? '为了保证社区质量，每位创作者每天最多发布 5 个作品。请明天再来分享您的创意！' 
+                ? '为了保证社区质量，每位创作者每天最多发布 10 个作品。请明天再来分享您的创意！' 
                 : 'To ensure community quality, each creator can publish up to 5 works per day. Please come back tomorrow!'}
             </p>
             <button 

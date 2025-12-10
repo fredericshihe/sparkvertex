@@ -7,6 +7,7 @@ import { useToast } from '@/context/ToastContext';
 import { exploreCache } from '@/lib/cache';
 import ProjectCard from '@/components/ProjectCard';
 import { useLanguage } from '@/context/LanguageContext';
+import BackendDataPanel from '@/components/BackendDataPanel';
 
 import { useRouter } from 'next/navigation';
 
@@ -14,7 +15,7 @@ export default function Profile() {
   const router = useRouter();
   const { openLoginModal, openDetailModal, openEditProfileModal, openPaymentQRModal, openManageOrdersModal, openCreditPurchaseModal } = useModal();
   const { success: toastSuccess } = useToast();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [activeTab, setActiveTab] = useState<'works' | 'drafts' | 'purchased' | 'favorites'>('works');
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -23,6 +24,9 @@ export default function Profile() {
   const [counts, setCounts] = useState({ works: 0, drafts: 0, purchased: 0, favorites: 0 });
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [filterVisibility, setFilterVisibility] = useState<'all' | 'public' | 'private'>('all');
+  
+  // 后端数据面板状态
+  const [showBackendPanel, setShowBackendPanel] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -294,8 +298,14 @@ export default function Profile() {
     if (item.is_draft) {
       router.push(`/create?draftId=${item.id}`);
     } else {
-      router.push(`/upload?edit=${item.id}`);
+      // 直接进入创作页面编辑
+      router.push(`/create?editId=${item.id}`);
     }
+  };
+
+  // 更新作品 - 重新上传替换
+  const handleUpdateItem = (item: any) => {
+    router.push(`/upload?update=${item.id}`);
   };
 
   const handleDeleteItem = async (id: string) => {
@@ -353,6 +363,12 @@ export default function Profile() {
             <p className="text-slate-400 text-sm max-w-xl mx-auto md:mx-0">{profile?.bio || t.profile.default_bio}</p>
           </div>
           <div className="flex flex-wrap justify-center md:justify-end gap-3 mb-4 w-full md:w-auto">
+            <button 
+              onClick={() => setShowBackendPanel(true)}
+              className="px-4 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white transition text-sm font-bold shadow-lg shadow-brand-500/20"
+            >
+              <i className="fa-solid fa-database mr-2"></i>{t.profile.backend_data || '后端数据'}
+            </button>
             <button 
               onClick={openEditProfileModal}
               className="px-4 py-2 rounded-lg glass-panel border border-slate-600 hover:bg-slate-800 transition text-sm font-bold"
@@ -504,6 +520,7 @@ export default function Profile() {
                     onClick={(id) => openDetailModal(id, item)}
                     isOwner={activeTab === 'works' || activeTab === 'drafts'}
                     onEdit={handleEditItem}
+                    onUpdate={handleUpdateItem}
                     onDelete={handleDeleteItem}
                   />
                   {activeTab === 'purchased' && item.orderStatus === 'paid' && (
@@ -523,6 +540,15 @@ export default function Profile() {
           {/* Logout Button - Removed from here */}
         </div>
       </div>
+      
+      {/* 后端数据管理面板 */}
+      <BackendDataPanel
+        isOpen={showBackendPanel}
+        onClose={() => setShowBackendPanel(false)}
+        userId={user?.id || null}
+        language={language as 'zh' | 'en'}
+        mode="production"
+      />
     </div>
   );
 }

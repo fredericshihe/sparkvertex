@@ -15,6 +15,7 @@ import { copyToClipboard, getFingerprint } from '@/lib/utils';
 import { useLanguage } from '@/context/LanguageContext';
 import { translations } from '@/lib/i18n/translations';
 
+
 interface ProductDetailClientProps {
   initialItem: Item;
   id: string;
@@ -48,8 +49,20 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   // Logo Data URL for Share Card
   const [logoDataUrl, setLogoDataUrl] = useState<string>('');
   const [defaultIconDataUrl, setDefaultIconDataUrl] = useState<string>('');
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>('');
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setApiBaseUrl(window.location.origin);
+    }
+    
+    // Get current user
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setCurrentUser(user);
+    });
+
     const loadAssets = async () => {
         try {
             // Load Logo
@@ -72,7 +85,60 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
         }
     };
     loadAssets();
-  }, []);
+    
+    // Listen for messages from iframe (for E2E encryption public key request)
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data?.type === 'spark-request-public-key') {
+        // 🔐 关键修复：使用应用所有者的公钥，而不是查看者的公钥
+        // 这样只有应用所有者能解密收到的数据
+        
+        let publicKey: JsonWebKey | null = null;
+        
+        // 优先使用应用存储在数据库中的公钥
+        if (item?.public_key) {
+          try {
+            publicKey = typeof item.public_key === 'string' 
+              ? JSON.parse(item.public_key) 
+              : item.public_key;
+            console.log('[E2E] Using app owner\'s public key from database');
+          } catch (e) {
+            console.error('[E2E] Failed to parse app public key:', e);
+          }
+        }
+        
+        // 如果数据库没有公钥（旧应用），尝试从本地存储加载
+        // 这种情况下只有应用所有者自己访问时才能加密
+        if (!publicKey) {
+          const E2E_KEY_PREFIX = 'spark_e2e_app_';
+          const storedKey = localStorage.getItem(`${E2E_KEY_PREFIX}${id}_public`);
+          if (storedKey) {
+            try {
+              publicKey = JSON.parse(storedKey);
+              console.log('[E2E] Using app owner\'s public key from localStorage');
+            } catch (e) {
+              console.error('[E2E] Failed to parse stored public key:', e);
+            }
+          }
+        }
+        
+        // 如果仍然没有公钥，记录警告（数据将明文传输）
+        if (!publicKey) {
+          console.warn('[E2E] No public key available for this app - data will be sent unencrypted');
+        }
+        
+        // Send public key to iframe
+        if (publicKey && event.source) {
+          (event.source as Window).postMessage({
+            type: 'spark-public-key-response',
+            publicKey: publicKey
+          }, '*');
+        }
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [item?.public_key, id]);
 
   useEffect(() => {
     checkIfLiked(id);
@@ -429,7 +495,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
               }`}></div>
 
               <iframe 
-                srcDoc={getPreviewContent(item.content || '', { raw: true, appId: item.id })}
+                srcDoc={getPreviewContent(item.content || '', { raw: true, appId: String(item.id), apiBaseUrl })}
                 className="w-full h-full border-0 bg-white" 
                 sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
                 allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; fullscreen; picture-in-picture; display-capture; screen-wake-lock"

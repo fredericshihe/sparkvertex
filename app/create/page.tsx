@@ -7,6 +7,7 @@ import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
 import { copyToClipboard } from '@/lib/utils';
 import { getPreviewContent } from '@/lib/preview';
+import { BackendConfigFlow } from '@/components/BackendConfigFlow';
 import { X, RefreshCw, MessageSquare, Eye, Wand2, Edit3, Play } from 'lucide-react';
 import { applyPatches } from '@/lib/patch';
 import { useLanguage } from '@/context/LanguageContext';
@@ -16,6 +17,7 @@ import { AIWorkflowProgress, type WorkflowStage, type StageDetails } from '@/com
 import { CodeWaterfall } from '@/components/CodeWaterfall';
 import { CreationChat } from '@/components/CreationChat';
 import { CreationPreview } from '../../components/CreationPreview';
+import { GET_BACKEND_CONFIG_PROMPT } from '@/lib/prompts';
 
 // --- Constants ---
 const CATEGORIES = [
@@ -134,6 +136,12 @@ function CreateContent() {
     description: ''
   });
 
+  // Generate a unique session ID for this creation session
+  // This ensures that data submitted in this session is isolated from other drafts
+  const [sessionId] = useState(() => Math.random().toString(36).substring(7));
+  
+
+
   const currentCategory = wizardData.category || 'tool';
   // @ts-ignore
   const QUICK_TAGS = (t.templates?.[currentCategory] || []).map((item: any) => ({
@@ -186,9 +194,9 @@ function CreateContent() {
   const [currentGenerationPrompt, setCurrentGenerationPrompt] = useState('');
   
   // State: History
-  const [codeHistory, setCodeHistory] = useState<{code: string, prompt: string, timestamp: number, type?: 'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback'}[]>([]);
+  const [codeHistory, setCodeHistory] = useState<{code: string, prompt: string, timestamp: number, type?: 'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback' | 'backend_config'}[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [lastOperationType, setLastOperationType] = useState<'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback'>('init');
+  const [lastOperationType, setLastOperationType] = useState<'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback' | 'backend_config'>('init');
 
   // State: Point-and-Click Edit
   const [isEditMode, setIsEditMode] = useState(false);
@@ -220,6 +228,13 @@ function CreateContent() {
   const [credits, setCredits] = useState(30);
   const [userId, setUserId] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('Spark Creator');
+
+  // Construct a unique draft ID
+  // Format: draft_{userId}_{sessionId} or draft_guest_{sessionId}
+  // We use underscore separator to align with the backend parsing logic
+  const sessionDraftId = userId 
+    ? `draft_${userId}_${sessionId}` 
+    : `draft_guest_${sessionId}`;
   
   // State: Preview Scaling
   const [previewScale, setPreviewScale] = useState(1);
@@ -240,6 +255,7 @@ function CreateContent() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null); // Add user state for saving draft
   const [isSaving, setIsSaving] = useState(false);
+  const [isConfiguringBackend, setIsConfiguringBackend] = useState(false); // New state for backend config flow
 
   const handleSaveDraft = async () => {
     console.log('handleSaveDraft called');
@@ -461,6 +477,18 @@ function CreateContent() {
         // User can continue clicking other elements after closing modal
       }
       
+      // Handle request for user ID from iframe (for backend API calls)
+      if (event.data && event.data.type === 'spark-request-user-id') {
+        if (iframeRef.current?.contentWindow && userId) {
+          iframeRef.current.contentWindow.postMessage({
+            type: 'spark-user-id-response',
+            userId: userId,
+            appId: `draft_${userId}`,
+            apiBase: window.location.origin // 传递正确的 API 基地址
+          }, '*');
+        }
+      }
+      
       // Handle edit mode restore request after content update
       if (event.data && event.data.type === 'spark-request-edit-mode-restore') {
         // Re-send edit mode state to iframe immediately
@@ -535,8 +563,11 @@ function CreateContent() {
         setChatHistory(prev => {
             const lastMsg = prev[prev.length - 1];
             // Avoid duplicate error messages in a row
-            if (lastMsg && lastMsg.type === 'error' && lastMsg.content === errorMessage) {
-                return prev;
+            // Check both exact match and if it's already a blank screen error
+            if (lastMsg && lastMsg.type === 'error') {
+                if (lastMsg.content === errorMessage || (lastMsg.isBlankScreen && isBlankScreen)) {
+                    return prev;
+                }
             }
             return [...prev, { 
                 role: 'ai', 
@@ -552,7 +583,7 @@ function CreateContent() {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isEditMode]);
+  }, [isEditMode, userId]);
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -649,9 +680,10 @@ function CreateContent() {
           
           // 添加到聊天历史
           setChatHistory(prev => {
-            const lastMsg = prev[prev.length - 1];
-            // 避免重复添加
-            if (lastMsg && lastMsg.type === 'error' && lastMsg.isBlankScreen) {
+            // 检查最近的消息是否已经是错误消息（避免重复）
+            // 检查所有最近的错误消息，不仅仅是最后一条
+            const recentErrors = prev.slice(-3).filter(msg => msg.type === 'error');
+            if (recentErrors.some(msg => msg.isBlankScreen || msg.content.includes('白屏') || msg.content.includes('blank screen'))) {
               return prev;
             }
             return [...prev, {
@@ -676,6 +708,8 @@ function CreateContent() {
 
   useEffect(() => {
     const draftIdParam = searchParams.get('draftId');
+    const editIdParam = searchParams.get('editId'); // 编辑已发布作品
+    
     if (draftIdParam) {
       setDraftId(draftIdParam);
       // Fetch draft data
@@ -711,6 +745,42 @@ function CreateContent() {
         }
       };
       fetchDraft();
+      return;
+    }
+    
+    // 编辑已发布作品
+    if (editIdParam) {
+      const fetchPublishedItem = async () => {
+        const { data, error } = await supabase
+          .from('items')
+          .select('id, title, description, content, prompt')
+          .eq('id', editIdParam)
+          .single();
+          
+        if (data && data.content) {
+          setGeneratedCode(data.content);
+          setStreamingCode(data.content);
+          setStep('preview');
+          setWizardData(prev => ({ 
+            ...prev, 
+            description: data.description || data.title || '' 
+          }));
+          if (data.prompt) {
+            setCurrentGenerationPrompt(data.prompt);
+          }
+          
+          // 初始化代码历史
+          setCodeHistory([{
+            code: data.content,
+            prompt: data.prompt || '',
+            timestamp: Date.now(),
+            type: 'upload'
+          }]);
+          
+          setTimeout(() => toastSuccess(language === 'zh' ? '已加载作品，可以继续编辑' : 'Work loaded, you can continue editing'), 500);
+        }
+      };
+      fetchPublishedItem();
       return;
     }
 
@@ -1746,7 +1816,25 @@ ${description}
                     // Extract Summary
                     // 优化正则：支持 /// SUMMARY: ... /// 和 /// SUMMARY: ... (到结尾) 两种格式
                     const summaryMatch = rawCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)(?:\/\/\/|$)/);
-                    const summary = summaryMatch ? summaryMatch[1].trim() : null;
+                    let summary = summaryMatch ? summaryMatch[1].trim() : null;
+                    
+                    // 🆕 Clean summary: remove any code blocks, SEARCH/REPLACE markers, etc.
+                    if (summary) {
+                        // Remove SEARCH/REPLACE blocks
+                        summary = summary.replace(/<<<<\s*(?:SEARCH|AST_REPLACE)[^>]*>?[\s\S]*?(?:>>>>|$)/g, '');
+                        // Remove code block markers
+                        summary = summary.replace(/```[\s\S]*?```/g, '');
+                        // Remove any remaining technical markers
+                        summary = summary.replace(/====+/g, '');
+                        summary = summary.replace(/>>>>+/g, '');
+                        summary = summary.replace(/<<<<+/g, '');
+                        // Clean up excessive whitespace
+                        summary = summary.replace(/\n{3,}/g, '\n\n').trim();
+                        // If summary is now empty or too short, set to null
+                        if (summary.length < 5) {
+                            summary = null;
+                        }
+                    }
 
                     if (summary) {
                         // Append to conversation summary
@@ -1804,11 +1892,13 @@ ${description}
                                  toastSuccess(t.create.success_edit);
                                  
                                  // 最终结论消息不包含思考过程
-                                 if (summary) {
-                                     setChatHistory(prev => [...prev, { role: 'ai', content: summary, cost: currentTaskCostRef.current || undefined }]);
-                                 } else {
-                                     setChatHistory(prev => [...prev, { role: 'ai', content: language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.', cost: currentTaskCostRef.current || undefined }]);
+                                 let finalContent = summary || (language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.');
+                                 
+                                 if (lastOperationType === 'backend_config') {
+                                     finalContent = language === 'zh' ? '表单收集配置已完成。' : 'Form collection configuration complete.';
                                  }
+
+                                 setChatHistory(prev => [...prev, { role: 'ai', content: finalContent, cost: currentTaskCostRef.current || undefined }]);
                                  
                                  setIsGenerating(false);
                                  setWorkflowStage('completed'); // 🆕 完成工作流
@@ -1852,7 +1942,45 @@ ${description}
 
                              throw new Error(language === 'zh' ? 'AI 未返回有效的修改代码块' : 'AI did not return valid modification blocks');
                         } else {
-                             throw new Error(language === 'zh' ? '找到修改块但无法应用（上下文不匹配）' : 'Found modification blocks but could not apply them (context mismatch)');
+                             // 补丁格式存在但无法应用
+                             // 尝试提取 REPLACE 块作为完整代码回退
+                             console.log('[Debug] Attempting to extract REPLACE blocks as fallback...');
+                             
+                             // 提取所有 REPLACE 块
+                             const replaceMatches = rawCode.match(/>>>>REPLACE([\s\S]*?)(?=<<<<SEARCH|$)/g);
+                             if (replaceMatches && replaceMatches.length > 0) {
+                                 // 找最大的 REPLACE 块（可能是完整代码）
+                                 let largestReplace = '';
+                                 for (const rm of replaceMatches) {
+                                     const content = rm.replace(/>>>>REPLACE\s*/, '').trim();
+                                     if (content.length > largestReplace.length) {
+                                         largestReplace = content;
+                                     }
+                                 }
+                                 
+                                 // 如果最大的 REPLACE 块看起来像是完整的 HTML 代码
+                                 if (largestReplace.length > 500 && 
+                                     (largestReplace.includes('<!DOCTYPE') || largestReplace.includes('<html') || largestReplace.includes('<head'))) {
+                                     console.log('[Debug] Using largest REPLACE block as full replacement:', largestReplace.length, 'chars');
+                                     const finalCode = cleanTheCode(largestReplace);
+                                     setGeneratedCode(finalCode);
+                                     resetQuickEditHistory();
+                                     toastSuccess(t.create.success_edit);
+                                     
+                                     let finalContent = summary || (language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.');
+                                     if (lastOperationType === 'backend_config') {
+                                         finalContent = language === 'zh' ? '表单收集配置已完成。' : 'Form collection configuration complete.';
+                                     }
+                                     setChatHistory(prev => [...prev, { role: 'ai', content: finalContent, cost: currentTaskCostRef.current || undefined }]);
+                                     setIsGenerating(false);
+                                     setWorkflowStage('completed');
+                                     setCurrentTaskId(null);
+                                     currentTaskReasoningRef.current = null;
+                                     return;
+                                 }
+                             }
+                             
+                             throw new Error(language === 'zh' ? '找到修改块但无法应用（上下文不匹配），请重试或尝试简化修改请求' : 'Found modification blocks but could not apply them (context mismatch), please retry or simplify your request');
                         }
                     }
 
@@ -1863,7 +1991,13 @@ ${description}
                     resetQuickEditHistory();
                     toastSuccess(t.create.success_edit);
                     
-                    const finalContent = summary || (language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.');
+                    let finalContent = summary || (language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.');
+                    
+                    // Special handling for backend config to keep it simple
+                    if (lastOperationType === 'backend_config') {
+                        finalContent = language === 'zh' ? '表单收集配置已完成。' : 'Form collection configuration complete.';
+                    }
+
                     // 最终结论消息不包含思考过程
                     setChatHistory(prev => [...prev, { role: 'ai', content: finalContent, cost: currentTaskCostRef.current || undefined }]);
                     currentTaskReasoningRef.current = null;
@@ -1999,6 +2133,24 @@ ${description}
                 const summaryMatch = cleanCode.match(/\/\/\/\s*SUMMARY:\s*([\s\S]*?)(?:\s*\/\/\/|$)/);
                 let summary = summaryMatch ? summaryMatch[1].trim() : null;
                 
+                // 🆕 Clean summary: remove any code blocks, SEARCH/REPLACE markers, etc.
+                if (summary) {
+                    // Remove SEARCH/REPLACE blocks
+                    summary = summary.replace(/<<<<\s*(?:SEARCH|AST_REPLACE)[^>]*>?[\s\S]*?(?:>>>>|$)/g, '');
+                    // Remove code block markers
+                    summary = summary.replace(/```[\s\S]*?```/g, '');
+                    // Remove any remaining technical markers
+                    summary = summary.replace(/====+/g, '');
+                    summary = summary.replace(/>>>>+/g, '');
+                    summary = summary.replace(/<<<<+/g, '');
+                    // Clean up excessive whitespace
+                    summary = summary.replace(/\n{3,}/g, '\n\n').trim();
+                    // If summary is now empty or too short, set to null
+                    if (summary.length < 5) {
+                        summary = null;
+                    }
+                }
+                
                 // Remove summary from code
                 if (summaryMatch) {
                     cleanCode = cleanCode.replace(summaryMatch[0], '').trim();
@@ -2024,7 +2176,12 @@ ${description}
                 
                 if (isModification) {
                     toastSuccess(t.create.success_edit);
-                    const finalContent = summary || (language === 'zh' ? '已重新生成完整代码。' : 'Regenerated full code.');
+                    let finalContent = summary || (language === 'zh' ? '已重新生成完整代码。' : 'Regenerated full code.');
+                    
+                    if (lastOperationType === 'backend_config') {
+                        finalContent = language === 'zh' ? '后端配置已完成。' : 'Backend configuration complete.';
+                    }
+
                     // 最终结论消息不包含思考过程
                     setChatHistory(prev => [...prev, { role: 'ai', content: finalContent, cost: currentTaskCostRef.current || undefined }]);
                     currentTaskReasoningRef.current = null;
@@ -2247,17 +2404,18 @@ ${description}
       }, 3000);
   };
 
-  const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '', forceFull = false, explicitType?: 'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback') => {
+  const startGeneration = async (isModificationArg = false, overridePrompt = '', displayPrompt = '', forceFull = false, explicitType?: 'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback' | 'backend_config') => {
     // Reset cost ref for new task
     currentTaskCostRef.current = null;
     currentTaskReasoningRef.current = null; // 🆕 重置 reasoning
 
     // Explicitly rely on the argument to determine if it's a modification or a new generation (regenerate)
     const isModification = isModificationArg;
-    const useDiffMode = isModification && !forceFull;
+    // 🆕 fullCodeMode 开关也会禁用 Diff 模式
+    const useDiffMode = isModification && !forceFull && !fullCodeMode;
     
     // Determine operation type for the NEXT generation
-    let nextOperationType: 'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback' = 'init';
+    let nextOperationType: 'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback' | 'backend_config' = 'init';
     
     if (explicitType) {
         nextOperationType = explicitType;
@@ -4389,26 +4547,6 @@ Please fix the code to make the app display properly.`;
                  </button>
               </div>
 
-              {/* Quick Tags */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <Wand2 size={12} /> {language === 'zh' ? '快捷标签' : 'Quick Tags'}
-                  </h3>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {QUICK_TAGS.map((tag: any, index: number) => (
-                    <button
-                      key={index}
-                      onClick={() => appendToDescription(tag.text)}
-                      className="px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 hover:border-brand-500 hover:bg-slate-700 transition text-xs text-slate-300 hover:text-white"
-                    >
-                      + {tag.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div className="flex gap-4 pt-4">
                 <button
                   onClick={() => setStep('style')}
@@ -4435,7 +4573,28 @@ Please fix the code to make the app display properly.`;
     </div>
   );
 
+  const handleConfigureBackend = async () => {
+    if (isGenerating) return;
+    setIsConfiguringBackend(true);
+  };
+
+  const startBackendConfiguration = async () => {
+    setGenerationPhase('starting');
+    setStep('preview'); // Ensure we are in preview mode
+    
+    // Use a special prompt for backend configuration
+    const systemPrompt = GET_BACKEND_CONFIG_PROMPT(language);
+    const userPrompt = language === 'zh' 
+      ? `一键配置表单`
+      : `Configure Form Collection`;
+    
+    await startGeneration(true, userPrompt, systemPrompt, false, 'backend_config');
+  };
+
   const renderGenerating = () => {
+    // If configuring backend, do not show the default waterfall UI
+    if (isConfiguringBackend) return null;
+
     // Animation variants based on phase
     const isStarting = generationPhase === 'starting';
     const isCompleting = generationPhase === 'completing';
@@ -4609,6 +4768,8 @@ Please fix the code to make the app display properly.`;
           setShowEditModal={setShowEditModal}
           setQuickEditMode={setQuickEditMode}
           detectQuickEditType={detectQuickEditType}
+          userId={userId}
+          appId={sessionDraftId}
           quickEditMode={quickEditMode}
           setQuickEditText={setQuickEditText}
           detectAvailableColorTypes={detectAvailableColorTypes}
@@ -4630,7 +4791,9 @@ Please fix the code to make the app display properly.`;
           setShowMobilePreview={setShowMobilePreview}
           generatedCode={generatedCode}
           mobilePreviewUrl={mobilePreviewUrl}
+          handleConfigureBackend={handleConfigureBackend}
         />
+      
       {renderHistoryModal()}
 
       {/* Mobile Bottom Tab Bar */}
@@ -4668,6 +4831,21 @@ Please fix the code to make the app display properly.`;
       {step === 'generating' ? renderGenerating() : 
        step === 'preview' ? renderPreview() : 
        renderWizard()}
+
+      {/* Backend Configuration Flow Overlay */}
+      {isConfiguringBackend && (
+        <BackendConfigFlow 
+          language={language}
+          onComplete={() => {
+            setIsConfiguringBackend(false);
+            // The green button will appear automatically because generatedCode now has backend logic
+          }}
+          startGeneration={startBackendConfiguration}
+          isGenerating={isGenerating}
+          generatedCode={generatedCode}
+          streamingCode={streamingCode}
+        />
+      )}
 
       {/* Timeout Modal */}
       {showTimeoutModal && (

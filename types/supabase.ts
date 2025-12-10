@@ -30,6 +30,7 @@ export interface Item {
   analysis_reason_en?: string;
   is_draft?: boolean;
   draft_data?: any;
+  public_key?: string; // E2EE 公钥 (JWK JSON 字符串)
 }
 
 export interface Order {

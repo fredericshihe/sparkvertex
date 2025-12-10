@@ -361,6 +361,42 @@ function validatePatchedCode(originalSource: string, patchedCode: string): strin
         return originalSource;
     }
 
+    // Step 0.7: Undefined Reference Detection (Safety Net 2b) - CRITICAL
+    // This catches cases where AI deleted component definitions but left references
+    const undefinedRefs = detectUndefinedReferences(patchedCode);
+    if (undefinedRefs.length > 0) {
+        console.error(`[Patch] CRITICAL: Found ${undefinedRefs.length} undefined component references: ${undefinedRefs.join(', ')}`);
+        console.error('[Patch] Reverting to original source to prevent broken app');
+        return originalSource;
+    }
+
+    // Step 0.8: Compare definitions - detect if patch accidentally deleted components
+    // Only run if original source had no undefined refs (was valid)
+    const originalUndefinedRefs = detectUndefinedReferences(originalSource);
+    if (originalUndefinedRefs.length === 0) {
+        // Original was valid, check if patched code lost any definitions
+        const originalDefs = extractTopLevelDefinitions(originalSource);
+        const patchedDefs = extractTopLevelDefinitions(patchedCode);
+        
+        const lostDefinitions = originalDefs.filter(def => !patchedDefs.includes(def));
+        if (lostDefinitions.length > 0) {
+            // Check if the lost definitions are still referenced
+            const stillReferenced = lostDefinitions.filter(def => {
+                // Simple regex check for usage (not perfect but catches most cases)
+                const usagePattern = new RegExp(`<${def}[\\s/>]|\\b${def}\\s*\\(`, 'g');
+                return usagePattern.test(patchedCode);
+            });
+            
+            if (stillReferenced.length > 0) {
+                console.error(`[Patch] CRITICAL: Patch deleted ${stillReferenced.length} component definitions that are still referenced: ${stillReferenced.join(', ')}`);
+                console.error('[Patch] Reverting to original source to prevent broken app');
+                return originalSource;
+            } else {
+                console.warn(`[Patch] Warning: ${lostDefinitions.length} definitions were removed but not referenced: ${lostDefinitions.join(', ')}`);
+            }
+        }
+    }
+
     // Check 1: Basic HTML structure (Relaxed for React Components)
     const hasDoctype = patchedCode.includes('<!DOCTYPE') || patchedCode.includes('<!doctype');
     const hasHtmlTag = /<html[\s>]/i.test(patchedCode);
@@ -375,12 +411,21 @@ function validatePatchedCode(originalSource: string, patchedCode: string): strin
     }
 
     // Check 2: Script tag balance (critical for React)
+    // Note: validateAndFixSyntax already tries to fix imbalanced tags,
+    // so this check is for cases that couldn't be automatically fixed.
     const scriptOpenCount = (patchedCode.match(/<script/gi) || []).length;
     const scriptCloseCount = (patchedCode.match(/<\/script>/gi) || []).length;
     
     if (scriptOpenCount !== scriptCloseCount) {
-        console.error(`Validation failed: Unbalanced script tags (open: ${scriptOpenCount}, close: ${scriptCloseCount})`);
-        return originalSource;
+        // Don't fail immediately - the code was already attempted to be fixed
+        // Only fail if the difference is significant (more than 1)
+        const diff = Math.abs(scriptOpenCount - scriptCloseCount);
+        if (diff > 1) {
+            console.error(`Validation failed: Unbalanced script tags (open: ${scriptOpenCount}, close: ${scriptCloseCount})`);
+            return originalSource;
+        } else {
+            console.warn(`Validation warning: Minor script tag imbalance (open: ${scriptOpenCount}, close: ${scriptCloseCount}), proceeding anyway`);
+        }
     }
 
     // Check 3: Brace balance in script content (rough check)
@@ -416,11 +461,111 @@ function validatePatchedCode(originalSource: string, patchedCode: string): strin
     return patchedCode;
 }
 
+/**
+ * Incremental Patch Validation (Safety Net 4)
+ * Validates that a single patch application didn't break the code structure.
+ * Returns { valid: true } if safe, or { valid: false, reason: string } if not.
+ */
+function validateIncrementalPatch(
+    previousSource: string,
+    newSource: string,
+    originalDefinitions: string[],
+    patchIndex: number
+): { valid: boolean; reason?: string } {
+    // Check 1: Quick syntax validation
+    try {
+        const isHtml = /^\s*<!DOCTYPE|^\s*<html/i.test(newSource);
+        let contentToCheck = newSource;
+        
+        if (isHtml) {
+            const match = newSource.match(/<script[^>]*type=["']text\/babel["'][^>]*>([\s\S]*?)<\/script>/i);
+            if (match) {
+                contentToCheck = match[1];
+            }
+        }
+        
+        parse(contentToCheck, {
+            sourceType: 'module',
+            plugins: ['jsx', 'typescript'],
+            errorRecovery: false // Strict mode - any error means invalid
+        });
+    } catch (e: any) {
+        return { 
+            valid: false, 
+            reason: `Syntax error after patch ${patchIndex + 1}: ${e.message}` 
+        };
+    }
+    
+    // Check 2: Component definitions integrity
+    const newDefinitions = extractTopLevelDefinitions(newSource);
+    
+    // Check if any original definitions were lost
+    const lostDefinitions = originalDefinitions.filter(def => !newDefinitions.includes(def));
+    
+    if (lostDefinitions.length > 0) {
+        // Check if the lost definitions are still referenced in the new source
+        const stillReferenced = lostDefinitions.filter(def => {
+            // Look for JSX usage or function calls
+            const usagePattern = new RegExp(`<${def}[\\s/>]|\\b${def}\\s*\\(|case\\s+['"]${def}['"]`, 'g');
+            return usagePattern.test(newSource);
+        });
+        
+        if (stillReferenced.length > 0) {
+            return {
+                valid: false,
+                reason: `Patch ${patchIndex + 1} deleted component(s) that are still referenced: ${stillReferenced.join(', ')}`
+            };
+        }
+    }
+    
+    // Check 3: Detect orphaned code (code outside of any function)
+    // This catches the "Step2_PetSelection body without declaration" case
+    try {
+        const isHtml = /^\s*<!DOCTYPE|^\s*<html/i.test(newSource);
+        let contentToCheck = newSource;
+        
+        if (isHtml) {
+            const match = newSource.match(/<script[^>]*type=["']text\/babel["'][^>]*>([\s\S]*?)<\/script>/i);
+            if (match) {
+                contentToCheck = match[1];
+            }
+        }
+        
+        const ast = parse(contentToCheck, {
+            sourceType: 'module',
+            plugins: ['jsx', 'typescript'],
+            errorRecovery: true
+        });
+        
+        // Check for orphaned statements at top level that shouldn't be there
+        for (const node of ast.program.body) {
+            // ExpressionStatement at top level with hooks or setState calls is suspicious
+            if (node.type === 'ExpressionStatement') {
+                const code = contentToCheck.slice(node.start!, node.end!);
+                if (/\buse[A-Z]\w*\s*\(/.test(code) || /\bset[A-Z]\w*\s*\(/.test(code)) {
+                    return {
+                        valid: false,
+                        reason: `Patch ${patchIndex + 1} created orphaned hook/setState call at top level`
+                    };
+                }
+            }
+        }
+    } catch (e) {
+        // Parsing failed - already caught in Check 1
+    }
+    
+    return { valid: true };
+}
+
 function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relaxedMode: boolean = false, targets: string[] = []): string {
     let currentSource = source;
     let successCount = 0;
     let failCount = 0;
     const failedBlocks: string[] = [];
+
+    // CRITICAL: Capture original component definitions for incremental validation
+    const originalDefinitions = extractTopLevelDefinitions(source);
+    console.log(`[Patch] Original definitions: ${originalDefinitions.join(', ')}`);
 
     // Safety Net 3: Text Fallback Scope Limitation
     // If targets are provided, we restrict the search to the ranges of those targets.
@@ -443,11 +588,21 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
 
     for (const match of matches) {
         const [_, searchBlock, replaceBlock] = match;
+        const patchIndex = matches.indexOf(match);
+        const previousSource = currentSource; // Save for potential rollback
         
         // Strategy 0: AST Smart Patch (Conflict Detection)
         // Before trying text matching, check if we are replacing a known variable/function
         const astResult = applySmartASTPatch(currentSource, replaceBlock);
         if (astResult) {
+            // Validate incremental patch
+            const validation = validateIncrementalPatch(previousSource, astResult, originalDefinitions, patchIndex);
+            if (!validation.valid) {
+                console.error(`[Patch] ROLLBACK: ${validation.reason}`);
+                failedBlocks.push(`AST Smart Patch (rolled back): ${validation.reason}`);
+                failCount++;
+                continue; // Skip this patch
+            }
             currentSource = astResult;
             successCount++;
             continue;
@@ -515,7 +670,17 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
                     // Need to handle newline carefully
                     const newContent = (before ? before + '\n' : '') + replaceBlock + (after ? '\n' + after : '');
                     const patchEndIndex = (before ? before.length + 1 : 0) + replaceBlock.length;
-                    currentSource = fixOverlapArtifacts(newContent, patchEndIndex);
+                    const candidateSource = fixOverlapArtifacts(newContent, patchEndIndex);
+                    
+                    // Validate incremental patch
+                    const validation = validateIncrementalPatch(previousSource, candidateSource, originalDefinitions, patchIndex);
+                    if (!validation.valid) {
+                        console.error(`[Patch] ROLLBACK Anchor: ${validation.reason}`);
+                        failedBlocks.push(`Anchor Patch (rolled back): ${validation.reason}`);
+                        failCount++;
+                        continue; // Skip this patch, don't apply
+                    }
+                    currentSource = candidateSource;
                     successCount++;
                     continue;
                 }
@@ -556,7 +721,17 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
                  const after = currentSource.substring(functionMatch.end);
                  const newContent = before + replaceBlock + after;
                  const patchEndIndex = before.length + replaceBlock.length;
-                 currentSource = fixOverlapArtifacts(newContent, patchEndIndex);
+                 const candidateSource = fixOverlapArtifacts(newContent, patchEndIndex);
+                 
+                 // Validate incremental patch
+                 const validation = validateIncrementalPatch(previousSource, candidateSource, originalDefinitions, patchIndex);
+                 if (!validation.valid) {
+                     console.error(`[Patch] ROLLBACK AST Lite: ${validation.reason}`);
+                     failedBlocks.push(`AST Lite for ${functionMatch.name} (rolled back): ${validation.reason}`);
+                     failCount++;
+                     continue; // Skip this patch
+                 }
+                 currentSource = candidateSource;
                  successCount++;
                  continue;
              }
@@ -594,7 +769,17 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
                          const after = sourceLines.slice(bestAnchorMatch.endLine + 1).join('\n');
                          const newContent = (before ? before + '\n' : '') + replaceBlock + (after ? '\n' + after : '');
                          const patchEndIndex = (before ? before.length + 1 : 0) + replaceBlock.length;
-                         currentSource = fixOverlapArtifacts(newContent, patchEndIndex);
+                         const candidateSource = fixOverlapArtifacts(newContent, patchEndIndex);
+                         
+                         // Validate incremental patch
+                         const validation = validateIncrementalPatch(previousSource, candidateSource, originalDefinitions, patchIndex);
+                         if (!validation.valid) {
+                             console.error(`[Patch] ROLLBACK Significant Anchor: ${validation.reason}`);
+                             failedBlocks.push(`Significant Anchor (rolled back): ${validation.reason}`);
+                             failCount++;
+                             continue; // Skip this patch
+                         }
+                         currentSource = candidateSource;
                          successCount++;
                          continue;
                      }
@@ -611,7 +796,17 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
             
             const newContent = before + replaceBlock + after;
             const patchEndIndex = before.length + replaceBlock.length;
-            currentSource = fixOverlapArtifacts(newContent, patchEndIndex);
+            const candidateSource = fixOverlapArtifacts(newContent, patchEndIndex);
+            
+            // Validate incremental patch
+            const validation = validateIncrementalPatch(previousSource, candidateSource, originalDefinitions, patchIndex);
+            if (!validation.valid) {
+                console.error(`[Patch] ROLLBACK Token+LCS: ${validation.reason}`);
+                failedBlocks.push(`Token+LCS (rolled back): ${validation.reason}`);
+                failCount++;
+                continue; // Skip this patch, don't update currentSource
+            }
+            currentSource = candidateSource;
             successCount++;
             console.log(`Patch applied successfully using Token+LCS matching.`);
         } else {
@@ -1019,6 +1214,34 @@ function validateAndFixSyntax(code: string): string {
     const lines = fixedCode.split('\n');
     const lastLine = lines[lines.length - 1];
 
+    // 0. Fix unbalanced script tags (critical for HTML)
+    const scriptOpenCount = (fixedCode.match(/<script/gi) || []).length;
+    const scriptCloseCount = (fixedCode.match(/<\/script>/gi) || []).length;
+    
+    if (scriptOpenCount > scriptCloseCount) {
+        const diff = scriptOpenCount - scriptCloseCount;
+        console.warn(`[Patch] Detected ${diff} unclosed <script> tags. Attempting repair...`);
+        // Find where to insert </script> - usually at the end before </body> or </html>
+        if (fixedCode.includes('</body>')) {
+            fixedCode = fixedCode.replace('</body>', '</script>\n'.repeat(diff) + '</body>');
+        } else if (fixedCode.includes('</html>')) {
+            fixedCode = fixedCode.replace('</html>', '</script>\n'.repeat(diff) + '</html>');
+        } else {
+            // Just append at the end
+            fixedCode += '\n</script>'.repeat(diff);
+        }
+    } else if (scriptCloseCount > scriptOpenCount) {
+        // More closing than opening - remove extra closing tags from the end
+        const diff = scriptCloseCount - scriptOpenCount;
+        console.warn(`[Patch] Detected ${diff} extra </script> tags. Attempting repair...`);
+        for (let i = 0; i < diff; i++) {
+            const lastCloseIdx = fixedCode.lastIndexOf('</script>');
+            if (lastCloseIdx !== -1) {
+                fixedCode = fixedCode.slice(0, lastCloseIdx) + fixedCode.slice(lastCloseIdx + 9);
+            }
+        }
+    }
+
     // 1. Check for unclosed backticks (template literals)
     const backtickCount = (fixedCode.match(/`/g) || []).length;
     if (backtickCount % 2 !== 0) {
@@ -1198,13 +1421,20 @@ function validateWholeFileOrThrow(code: string): void {
     let contentToCheck = code;
 
     if (isHtml) {
-        const match = code.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+        // Match Babel script tag specifically (where React code lives)
+        const match = code.match(/<script[^>]*type=["']text\/babel["'][^>]*>([\s\S]*?)<\/script>/i);
         if (match) {
             contentToCheck = match[1];
         } else {
-            // If HTML but no script, maybe just validate HTML structure?
-            // For now, we focus on JS syntax safety.
-            return;
+            // Fallback: try to match any script tag
+            const fallbackMatch = code.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+            if (fallbackMatch) {
+                contentToCheck = fallbackMatch[1];
+            } else {
+                // If HTML but no script, maybe just validate HTML structure?
+                // For now, we focus on JS syntax safety.
+                return;
+            }
         }
     }
 
@@ -1216,6 +1446,185 @@ function validateWholeFileOrThrow(code: string): void {
         });
     } catch (e: any) {
         throw new Error(`Syntax Error in patched file: ${e.message} (${e.loc?.line}:${e.loc?.column})`);
+    }
+}
+
+/**
+ * Safety Net 2b: Undefined Reference Detection
+ * Detects JSX components and function calls that reference undefined identifiers.
+ * This catches cases where AI accidentally deleted component definitions.
+ * Returns array of undefined references found.
+ */
+function detectUndefinedReferences(code: string): string[] {
+    const isHtml = /^\s*<!DOCTYPE|^\s*<html/i.test(code);
+    let contentToCheck = code;
+
+    if (isHtml) {
+        const match = code.match(/<script[^>]*type=["']text\/babel["'][^>]*>([\s\S]*?)<\/script>/i);
+        if (match) {
+            contentToCheck = match[1];
+        } else {
+            return []; // No babel script to check
+        }
+    }
+
+    try {
+        const ast = parse(contentToCheck, {
+            sourceType: 'module',
+            plugins: ['jsx', 'typescript'],
+            errorRecovery: true
+        });
+
+        // Collect defined identifiers (top-level declarations)
+        const definedIdentifiers = new Set<string>();
+        
+        // Built-in React and browser globals
+        const builtinGlobals = new Set([
+            // React
+            'React', 'ReactDOM', 'useState', 'useEffect', 'useRef', 'useMemo', 'useCallback',
+            'useContext', 'useReducer', 'useLayoutEffect', 'useId', 'useTransition', 'useDeferredValue',
+            'createContext', 'forwardRef', 'memo', 'lazy', 'Suspense', 'Fragment',
+            // Browser
+            'window', 'document', 'console', 'fetch', 'localStorage', 'sessionStorage',
+            'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'requestAnimationFrame',
+            'Promise', 'JSON', 'Math', 'Date', 'Array', 'Object', 'String', 'Number', 'Boolean',
+            'Map', 'Set', 'WeakMap', 'WeakSet', 'Symbol', 'Proxy', 'Reflect',
+            'Error', 'TypeError', 'SyntaxError', 'ReferenceError',
+            'URL', 'URLSearchParams', 'FormData', 'Blob', 'File', 'FileReader',
+            'Image', 'Audio', 'Video', 'Canvas',
+            'atob', 'btoa', 'encodeURIComponent', 'decodeURIComponent', 'encodeURI', 'decodeURI',
+            'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'Infinity', 'NaN', 'undefined', 'null',
+            'navigator', 'location', 'history', 'screen', 'alert', 'confirm', 'prompt',
+            'crypto', 'performance', 'TextEncoder', 'TextDecoder',
+            'Intl', 'RegExp', 'eval', 'Function',
+            // Common libraries (often loaded via CDN)
+            'confetti', 'html2canvas', 'QRCode', 'Chart', 'moment', 'dayjs', 'axios',
+            'Babel', '_', 'lodash', '$', 'jQuery',
+            // Spark platform globals
+            'SPARK_APP_ID', 'SPARK_API_BASE', 'SPARK_USER_ID', 'SPARK_PUBLIC_KEY', 'SparkCrypto', 'SparkCMS',
+            // HTML Elements (JSX intrinsic elements will be lowercase)
+            'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'button', 'input', 'form',
+            'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot',
+            'img', 'video', 'audio', 'canvas', 'svg', 'path', 'circle', 'rect', 'line',
+            'section', 'article', 'header', 'footer', 'nav', 'aside', 'main',
+            'label', 'select', 'option', 'textarea', 'fieldset', 'legend',
+            'pre', 'code', 'blockquote', 'em', 'strong', 'i', 'b', 'u', 's', 'br', 'hr',
+        ]);
+
+        // First pass: collect all top-level definitions
+        for (const node of ast.program.body) {
+            if (node.type === 'VariableDeclaration') {
+                for (const decl of node.declarations) {
+                    if (decl.id?.type === 'Identifier') {
+                        definedIdentifiers.add(decl.id.name);
+                    }
+                }
+            } else if (node.type === 'FunctionDeclaration' && node.id?.name) {
+                definedIdentifiers.add(node.id.name);
+            } else if (node.type === 'ClassDeclaration' && node.id?.name) {
+                definedIdentifiers.add(node.id.name);
+            } else if (node.type === 'ImportDeclaration') {
+                for (const spec of node.specifiers || []) {
+                    if (spec.local?.name) {
+                        definedIdentifiers.add(spec.local.name);
+                    }
+                }
+            }
+        }
+
+        // Second pass: collect all JSX component references (PascalCase)
+        const referencedComponents = new Set<string>();
+        const undefinedReferences: string[] = [];
+
+        simpleWalk(ast, (node: any) => {
+            // JSX Element opening tag
+            if (node.type === 'JSXOpeningElement' && node.name) {
+                let componentName: string | null = null;
+                
+                if (node.name.type === 'JSXIdentifier') {
+                    componentName = node.name.name;
+                } else if (node.name.type === 'JSXMemberExpression') {
+                    // e.g., React.Fragment - check the object
+                    if (node.name.object?.type === 'JSXIdentifier') {
+                        componentName = node.name.object.name;
+                    }
+                }
+
+                // Only check PascalCase components (not intrinsic HTML elements)
+                if (componentName && /^[A-Z]/.test(componentName)) {
+                    referencedComponents.add(componentName);
+                }
+            }
+
+            // Function calls that might be component invocations
+            if (node.type === 'CallExpression' && node.callee?.type === 'Identifier') {
+                const funcName = node.callee.name;
+                // Check if it's a PascalCase function (likely a component or class)
+                if (/^[A-Z][a-zA-Z0-9]*$/.test(funcName)) {
+                    referencedComponents.add(funcName);
+                }
+            }
+        });
+
+        // Check for undefined components
+        Array.from(referencedComponents).forEach(comp => {
+            if (!definedIdentifiers.has(comp) && !builtinGlobals.has(comp)) {
+                undefinedReferences.push(comp);
+            }
+        });
+
+        return undefinedReferences;
+
+    } catch (e) {
+        // If parsing fails, we can't detect undefined references
+        console.warn('[Patch] Unable to detect undefined references:', e);
+        return [];
+    }
+}
+
+/**
+ * Helper: Extract top-level PascalCase definitions (components/classes)
+ * Used to compare before/after patch to detect accidentally deleted components
+ */
+function extractTopLevelDefinitions(code: string): string[] {
+    const isHtml = /^\s*<!DOCTYPE|^\s*<html/i.test(code);
+    let contentToCheck = code;
+
+    if (isHtml) {
+        const match = code.match(/<script[^>]*type=["']text\/babel["'][^>]*>([\s\S]*?)<\/script>/i);
+        if (match) {
+            contentToCheck = match[1];
+        } else {
+            return [];
+        }
+    }
+
+    try {
+        const ast = parse(contentToCheck, {
+            sourceType: 'module',
+            plugins: ['jsx', 'typescript'],
+            errorRecovery: true
+        });
+
+        const definitions: string[] = [];
+
+        for (const node of ast.program.body) {
+            if (node.type === 'VariableDeclaration') {
+                for (const decl of node.declarations) {
+                    if (decl.id?.type === 'Identifier' && /^[A-Z]/.test(decl.id.name)) {
+                        definitions.push(decl.id.name);
+                    }
+                }
+            } else if (node.type === 'FunctionDeclaration' && node.id?.name && /^[A-Z]/.test(node.id.name)) {
+                definitions.push(node.id.name);
+            } else if (node.type === 'ClassDeclaration' && node.id?.name && /^[A-Z]/.test(node.id.name)) {
+                definitions.push(node.id.name);
+            }
+        }
+
+        return definitions;
+    } catch (e) {
+        return [];
     }
 }
 

@@ -54,3 +54,15 @@ export function getFingerprint(): string {
   
   return fp;
 }
+
+// Check if code contains Spark platform backend integration
+export function detectSparkBackendCode(htmlContent: string): boolean {
+  const sparkBackendPatterns = [
+    /\/api\/mailbox\/submit/i,
+    /window\.SPARK_APP_ID/i,
+    /SPARK_APP_ID/i,
+    /SparkCrypto/i,
+    /sparkvertex\.vercel\.app\/api/i,
+  ];
+  return sparkBackendPatterns.some(pattern => pattern.test(htmlContent));
+}
