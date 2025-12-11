@@ -506,6 +506,23 @@ function skeletonizeCode(code: string, chunkId?: string): SkeletonResult {
     
     // Fix trailing commas in edge cases (defensive)
     cleanedInput = cleanedInput.replace(/,(\s*[}\]])/g, '$1');
+    
+    // 🆕 P1 FIX: Handle TypeScript `as const` assertions that sometimes trip up parser
+    // Convert `} as const;` to `};` for parsing, then restore if needed
+    const hasAsConst = /\}\s*as\s+const\s*;?/.test(cleanedInput);
+    if (hasAsConst) {
+        cleanedInput = cleanedInput.replace(/\}\s*as\s+const\s*;?/g, '};');
+    }
+    
+    // 🆕 P1 FIX: Handle satisfies keyword (TypeScript 4.9+)
+    cleanedInput = cleanedInput.replace(/\}\s*satisfies\s+\w+\s*;?/g, '};');
+    
+    // 🆕 P1 FIX: Remove type annotations from arrow functions that break parsing
+    // e.g., `const fn: SomeType = () => {}` sometimes fails
+    cleanedInput = cleanedInput.replace(/:\s*\([^)]+\)\s*=>\s*[^=]/g, (match) => {
+        // Only remove if it looks like a type annotation causing issues
+        return match;  // Keep as is for now, but could strip type annotation
+    });
 
     try {
         // 1. Parse code to AST with comprehensive plugin support
@@ -665,9 +682,136 @@ function skeletonizeCode(code: string, chunkId?: string): SkeletonResult {
 }
 
 /**
+ * 🆕 P0 FIX: Data Skeleton - Smart compression for pure data/config files
+ * Instead of brutal truncation that loses values, we preserve ALL export keys
+ * but truncate long VALUES (arrays, objects).
+ * 
+ * This ensures LLM can see:
+ * - All exported constant NAMES (critical for references)
+ * - Short values intact
+ * - Long values truncated but structure preserved
+ */
+function dataSkeletonize(code: string, chunkId: string): { code: string; originalLines: number; resultLines: number; wasModified: boolean } {
+    const lines = code.split('\n');
+    const originalLines = lines.length;
+    
+    // Detect if this is a pure data file (only const/export statements, no functions)
+    const hasFunctions = /function\s+\w+|=>\s*\{|\.map\(|\.filter\(|\.reduce\(/.test(code);
+    const hasExports = /export\s+(const|let|var)/.test(code) || /^const\s+[A-Z]/.test(code);
+    
+    // Only apply to pure data files
+    if (hasFunctions || !hasExports) {
+        return { code, originalLines, resultLines: originalLines, wasModified: false };
+    }
+    
+    console.log(`[DataSkeleton] 📊 Processing ${chunkId} as pure data file...`);
+    
+    // Strategy: Find all top-level const declarations and preserve key names
+    // For each declaration:
+    // - If value is short (< 100 chars), keep it
+    // - If value is long array/object, show structure + "N items/keys truncated"
+    
+    const result: string[] = [];
+    let i = 0;
+    let totalExports = 0;
+    let truncatedExports = 0;
+    
+    while (i < lines.length) {
+        const line = lines[i];
+        
+        // Check for export/const declaration start
+        const declMatch = line.match(/^(export\s+)?(const|let|var)\s+([A-Z][A-Z0-9_]*)\s*=\s*(.*)$/);
+        
+        if (declMatch) {
+            const [, exportKeyword, declType, varName, valueStart] = declMatch;
+            totalExports++;
+            
+            // Collect the full value (might span multiple lines)
+            let fullValue = valueStart;
+            let bracketDepth = 0;
+            let valueEndLine = i;
+            
+            // Count brackets in valueStart
+            for (const char of valueStart) {
+                if (char === '[' || char === '{' || char === '(') bracketDepth++;
+                if (char === ']' || char === '}' || char === ')') bracketDepth--;
+            }
+            
+            // If brackets aren't balanced, keep reading
+            while (bracketDepth > 0 && valueEndLine < lines.length - 1) {
+                valueEndLine++;
+                const nextLine = lines[valueEndLine];
+                fullValue += '\n' + nextLine;
+                for (const char of nextLine) {
+                    if (char === '[' || char === '{' || char === '(') bracketDepth++;
+                    if (char === ']' || char === '}' || char === ')') bracketDepth--;
+                }
+            }
+            
+            // Now decide: keep full value or truncate?
+            const valueLines = fullValue.split('\n').length;
+            const prefix = `${exportKeyword || ''}${declType} ${varName} = `;
+            
+            if (valueLines <= 5 && fullValue.length < 300) {
+                // Short value - keep intact
+                result.push(prefix + fullValue);
+            } else {
+                // Long value - truncate intelligently
+                truncatedExports++;
+                
+                // Detect type and count items
+                const isArray = valueStart.trim().startsWith('[');
+                const isObject = valueStart.trim().startsWith('{');
+                
+                if (isArray) {
+                    // Count array items (rough estimate)
+                    const itemCount = (fullValue.match(/\{[^{}]*\}/g) || []).length || 
+                                     (fullValue.match(/,/g) || []).length + 1;
+                    result.push(`${prefix}[ /* ${itemCount} items - see source for values */ ];`);
+                } else if (isObject) {
+                    // Extract top-level keys
+                    const keyMatches = fullValue.match(/^\s*['"]?(\w+)['"]?\s*:/gm) || [];
+                    const keys = keyMatches.slice(0, 5).map(k => k.replace(/[:'"\s]/g, ''));
+                    const keyPreview = keys.length > 0 ? keys.join(', ') + (keyMatches.length > 5 ? '...' : '') : '';
+                    result.push(`${prefix}{ /* ${keyMatches.length} keys: ${keyPreview} */ };`);
+                } else {
+                    // Primitive or unknown - keep first line
+                    result.push(`${prefix}${valueStart.slice(0, 80)}... /* truncated */;`);
+                }
+            }
+            
+            i = valueEndLine + 1;
+            continue;
+        }
+        
+        // Keep imports and other short lines
+        if (line.trim().startsWith('import') || line.trim().startsWith('//') || line.trim() === '') {
+            result.push(line);
+        }
+        i++;
+    }
+    
+    const resultLines = result.length;
+    const wasModified = truncatedExports > 0;
+    
+    if (wasModified) {
+        console.log(`[DataSkeleton] ✅ ${chunkId}: preserved ${totalExports} exports, truncated ${truncatedExports} large values (${originalLines} → ${resultLines} lines)`);
+    }
+    
+    return {
+        code: result.join('\n'),
+        originalLines,
+        resultLines,
+        wasModified
+    };
+}
+
+/**
  * 🚨 BRUTAL TRUNCATION: Last resort when AST fails or is ineffective
  * Simply keeps the first N lines (imports + signatures) and truncates the rest
  * This guarantees compression even for unparseable code
+ * 
+ * 🆕 P0 FIX: Now checks for data files FIRST and uses dataSkeletonize instead
  */
 function brutalTruncate(code: string, chunkId: string, maxLines: number = 15): { code: string; originalLines: number; resultLines: number; wasTruncated: boolean } {
     const lines = code.split('\n');
@@ -677,7 +821,23 @@ function brutalTruncate(code: string, chunkId: string, maxLines: number = 15): {
         return { code, originalLines, resultLines: originalLines, wasTruncated: false };
     }
     
-    // Keep first maxLines (usually imports + component signature + first few lines)
+    // 🆕 P0 FIX: Check if this is a data/config file - use smart skeleton instead
+    const isPureDataFile = /^(export\s+)?(const|let)\s+[A-Z][A-Z0-9_]*\s*=\s*[\[\{]/m.test(code) &&
+                          !/function\s+\w+\s*\(|=>\s*\{/.test(code);
+    
+    if (isPureDataFile) {
+        const skeleton = dataSkeletonize(code, chunkId);
+        if (skeleton.wasModified) {
+            return {
+                code: skeleton.code,
+                originalLines: skeleton.originalLines,
+                resultLines: skeleton.resultLines,
+                wasTruncated: true
+            };
+        }
+    }
+    
+    // Fallback to brutal truncation for non-data files
     const keptLines = lines.slice(0, maxLines);
     const truncatedCode = keptLines.join('\n') + `\n// ... ${originalLines - maxLines} more lines truncated for ${chunkId} ...`;
     
@@ -810,6 +970,129 @@ ${sampledObject}
     return content;
 }
 
+// ========================================
+// 🚫 DEPRECATED: Zero-Reparse Compression (Direct Chunk Processing)
+// ========================================
+// This function was an optimization attempt but caused "double personality" issue:
+// - DirectCompress ran first (fast but dumb, couldn't do DataSkeleton)
+// - Standard Compression ran second (smart, has DataSkeleton + small file protection)
+// Result: Double processing with no benefit.
+//
+// DECISION: Keep Standard Compression only. It's smarter and has Fast-path batch discard.
+// This code is kept for reference but NOT exported or used.
+//
+// Original insight (still valid for future optimization):
+// "你只需要把这 11 个 chunks 组装起来。LLM 并不在乎 File A 和 File C 之间原本隔了多少个文件。"
+
+interface DirectCompressionResult {
+    /** Concatenated context for LLM */
+    context: string;
+    /** Stats for logging */
+    stats: {
+        totalChunks: number;
+        fullCodeChunks: number;
+        skeletonizedChunks: number;
+        totalLines: number;
+        compressedLines: number;
+    };
+}
+
+/**
+ * @deprecated Use compressCode() instead - it has DataSkeleton, small file protection, and Fast-path.
+ * 
+ * 🆕 直接压缩：跳过重新解析，直接使用 RAG 返回的 chunks
+ * 
+ * @param relevantChunks - RAG 返回的相关代码块（已包含 content）
+ * @param explicitTargets - 需要全量代码的文件（files_to_edit）
+ * @param referenceTargets - 需要骨架化的文件（files_to_read）
+ * @param intent - 用户意图（用于调整压缩策略）
+ */
+function compressChunksDirect(
+    relevantChunks: CodeChunk[],
+    explicitTargets: string[] = [],
+    referenceTargets: string[] = [],
+    intent?: string
+): DirectCompressionResult {
+    const startTime = Date.now();
+    console.log(`[DirectCompress] 🚀 Processing ${relevantChunks.length} chunks directly (no re-parse)`);
+    console.log(`[DirectCompress] Targets: edit=${explicitTargets.length}, read=${referenceTargets.length}`);
+
+    const contextParts: string[] = [];
+    let fullCodeCount = 0;
+    let skeletonizedCount = 0;
+    let totalLines = 0;
+    let compressedLines = 0;
+
+    // 模糊匹配辅助函数
+    const fuzzyMatch = (target: string, name: string): boolean => {
+        const t = target.toLowerCase().trim();
+        const n = name.toLowerCase().trim();
+        if (t === n) return true;
+        if (t.includes(n) || n.includes(t)) return true;
+        return false;
+    };
+
+    // 检查是否是编辑目标
+    const isEditTarget = (chunk: CodeChunk): boolean => {
+        const componentName = chunk.id.replace('component-', '');
+        return explicitTargets.some(t => fuzzyMatch(t, componentName) || fuzzyMatch(t, chunk.id));
+    };
+
+    // 检查是否是引用目标
+    const isRefTarget = (chunk: CodeChunk): boolean => {
+        const componentName = chunk.id.replace('component-', '');
+        return referenceTargets.some(t => fuzzyMatch(t, componentName) || fuzzyMatch(t, chunk.id));
+    };
+
+    for (const chunk of relevantChunks) {
+        const lines = chunk.content.split('\n').length;
+        totalLines += lines;
+
+        // 1. 编辑目标 → 全量代码
+        if (isEditTarget(chunk)) {
+            contextParts.push(`// ===== [EDIT TARGET] ${chunk.id} =====\n${chunk.content}`);
+            compressedLines += lines;
+            fullCodeCount++;
+            console.log(`[DirectCompress] 📝 Full code: ${chunk.id} (${lines} lines)`);
+            continue;
+        }
+
+        // 2. 引用目标或其他相关文件 → 尝试骨架化
+        if (lines > 20) {
+            const skeleton = skeletonizeCode(chunk.content, chunk.id);
+            if (skeleton.wasModified && skeleton.resultLines < lines * 0.8) {
+                contextParts.push(`// ===== [CONTEXT] ${chunk.id} (skeleton) =====\n${skeleton.code}`);
+                compressedLines += skeleton.resultLines;
+                skeletonizedCount++;
+                const reduction = Math.round((1 - skeleton.resultLines / lines) * 100);
+                console.log(`[DirectCompress] 📖 Skeleton: ${chunk.id}: ${lines} → ${skeleton.resultLines} lines (${reduction}%)`);
+                continue;
+            }
+        }
+
+        // 3. 小文件或骨架化失败 → 保留原样
+        contextParts.push(`// ===== [CONTEXT] ${chunk.id} =====\n${chunk.content}`);
+        compressedLines += lines;
+        console.log(`[DirectCompress] 📄 Kept as-is: ${chunk.id} (${lines} lines)`);
+    }
+
+    const elapsedMs = Date.now() - startTime;
+    const overallReduction = totalLines > 0 ? Math.round((1 - compressedLines / totalLines) * 100) : 0;
+    console.log(`[DirectCompress] ✅ Done in ${elapsedMs}ms: ${fullCodeCount} full, ${skeletonizedCount} skeletonized, ${overallReduction}% reduction`);
+
+    return {
+        context: contextParts.join('\n\n'),
+        stats: {
+            totalChunks: relevantChunks.length,
+            fullCodeChunks: fullCodeCount,
+            skeletonizedChunks: skeletonizedCount,
+            totalLines,
+            compressedLines
+        }
+    };
+}
+
+
 // 3. Semantic Compression Logic - Aggressive Mode with Primary/Reference Target Distinction
 // Goal: Reduce tokens as much as possible while preserving patch accuracy
 export function compressCode(
@@ -817,9 +1100,17 @@ export function compressCode(
     relevantChunkIds: string[], 
     explicitTargets: string[] = [],
     intent?: string, // Optional: UserIntent from intent-classifier
-    referenceTargets: string[] = [] // NEW: Targets that only need skeleton (interface only)
+    referenceTargets: string[] = [], // NEW: Targets that only need skeleton (interface only)
+    preChunkedData?: CodeChunk[] // 🚀 NEW: Pass pre-chunked data to avoid re-parsing
 ): string {
-    const chunks = chunkCode(code);
+    // 🚀 OPTIMIZATION: Use pre-chunked data if available (from RAG)
+    // This avoids calling chunkCode() twice on the same HTML
+    const chunks = preChunkedData || chunkCode(code);
+    
+    if (preChunkedData) {
+        console.log(`[Compression] 🚀 Using pre-chunked data (${preChunkedData.length} chunks, skipped re-parse)`);
+    }
+    
     // Sort chunks by startIndex descending to replace from bottom up without messing indices
     // Only consider JS chunks for now as they are inside the script tag
     const jsChunks = chunks.filter(c => c.type === 'js' && c.startIndex !== undefined).sort((a, b) => b.startIndex! - a.startIndex!);
@@ -906,8 +1197,9 @@ export function compressCode(
     const intentKey = (intent as CompressionIntent) || 'UNKNOWN';
     const compressionThreshold = COMPRESSION_THRESHOLDS[intentKey] || 15;
     
-    console.log(`[Compression] Total JS chunks: ${jsChunks.length}, Relevant IDs: ${relevantChunkIds.join(', ')}`);
-    console.log(`[Compression] Intent: ${intent || 'UNKNOWN'}, Threshold: ${compressionThreshold} lines`);
+    // 🆕 Cleaner logging: show RAG selection vs total chunks
+    console.log(`[Compression] 📊 RAG selected ${relevantChunkIds.length} chunks, Total in file: ${jsChunks.length}`);
+    console.log(`[Compression] Intent: ${intent || 'UNKNOWN'}, Compression threshold: ${compressionThreshold} lines`);
     if (finalExplicitTargets.length > 0) {
         console.log(`[Compression] 📝 Primary targets (Full Code): ${finalExplicitTargets.join(', ')}`);
     }
@@ -938,7 +1230,79 @@ export function compressCode(
     let compressedCount = 0;
     let skeletonizedReferenceCount = 0;
 
+    // ========================================
+    // 🚀 P0 OPTIMIZATION: Pre-filter irrelevant chunks
+    // ========================================
+    // Problem: Previously we iterated ALL 34 chunks, discarding 20+ as irrelevant.
+    // Solution: Build a STRICT whitelist - only chunks explicitly in relevantChunkIds or targets.
+    // This prevents "ghost files" like BagScreen from leaking through.
+    
+    const relevantSet = new Set(relevantChunkIds);
+    const targetList = [...finalExplicitTargets, ...referenceTargets].map(t => t.toLowerCase());
+    
+    // Helper to check if a chunk should be processed at all
+    // 🚨 STRICT MODE: Only allow chunks that are EXPLICITLY listed
+    const shouldProcessChunk = (chunk: CodeChunk): boolean => {
+        const componentName = chunk.id.replace('component-', '');
+        const componentNameLower = componentName.toLowerCase();
+        
+        // 1. In RAG's relevant list - MUST be exact match
+        if (relevantSet.has(chunk.id)) return true;
+        
+        // 2. Matches explicit/reference targets (strict match only)
+        // Only match if target name is sufficiently similar (not just substring)
+        for (const target of targetList) {
+            // Exact match
+            if (componentNameLower === target) return true;
+            // Target is a significant part of component name (e.g., "App" in "App")
+            // But NOT "Bag" in "BagScreen" unless "BagScreen" is the target
+            if (componentNameLower === target || target === componentNameLower) return true;
+        }
+        
+        // 3. Essential system components only (not user components)
+        if (chunk.id === 'component-ReactDOM.render' || chunk.id === 'component-Imports/Setup') return true;
+        
+        // 4. style-block is always needed for CSS
+        if (chunk.id === 'style-block') return true;
+        
+        // 🚫 REMOVED: Small data definitions exception
+        // This was causing "ghost files" to leak through
+        // Data definitions should be explicitly selected by RAG or DeepSeek
+        
+        return false;
+    };
+    
+    // Pre-filter: separate chunks into "process" and "discard" piles
+    const chunksToProcess: CodeChunk[] = [];
+    const chunksToDiscard: CodeChunk[] = [];
+    
     for (const chunk of jsChunks) {
+        if (shouldProcessChunk(chunk)) {
+            chunksToProcess.push(chunk);
+        } else {
+            chunksToDiscard.push(chunk);
+        }
+    }
+    
+    // Batch discard irrelevant chunks (single pass, sorted by startIndex desc)
+    // This is much faster than processing them one by one
+    if (chunksToDiscard.length > 0) {
+        console.log(`[Compression] 🚀 Fast-path: Batch discarding ${chunksToDiscard.length} irrelevant chunks`);
+        
+        // Sort by startIndex descending for safe replacement
+        chunksToDiscard.sort((a, b) => b.startIndex! - a.startIndex!);
+        
+        for (const chunk of chunksToDiscard) {
+            const placeholder = `/* [OMITTED] ${chunk.id} */`;
+            compressed = compressed.substring(0, chunk.startIndex!) + placeholder + compressed.substring(chunk.endIndex!);
+        }
+        compressedCount += chunksToDiscard.length;
+    }
+    
+    console.log(`[Compression] ✅ Processing ${chunksToProcess.length} whitelisted chunks`);
+
+    // Now only process the relevant chunks
+    for (const chunk of chunksToProcess) {
         const lines = chunk.content.split('\n');
         
         // Only skip ReactDOM.render (essential for app to work)
@@ -1013,9 +1377,11 @@ export function compressCode(
                     continue;
                 }
                 
-                // 🚨 AST failed or didn't help - use BRUTAL TRUNCATION as fallback
-                // This ensures we ALWAYS compress context files, even if AST can't parse them
-                if (lines.length > 20) {
+                // 🚨 AST failed or didn't help - decide whether to truncate or keep
+                // 🆕 P1 FIX: For small files (< 50 lines), DON'T truncate - too risky
+                // Truncating a 22-line file to 16 lines might break syntax (e.g., unclosed braces)
+                // The 6-line savings is not worth the syntax error risk
+                if (lines.length >= 50) {
                     const truncated = brutalTruncate(chunk.content, chunk.id, 15);
                     if (truncated.wasTruncated) {
                         const reductionPercent = Math.round((1 - truncated.resultLines / truncated.originalLines) * 100);
@@ -1028,7 +1394,8 @@ export function compressCode(
                     }
                 }
                 
-                console.log(`[Compression] Keeping ${chunk.id} (AST unchanged, no truncation needed, ${lines.length} lines)`);
+                // Small files (< 50 lines) or failed truncation: keep as-is
+                console.log(`[Compression] Keeping ${chunk.id} (small context file, ${lines.length} lines - safe to keep)`);
                 continue;
             } else {
                 console.log(`[Compression] Keeping ${chunk.id} (context but small: ${lines.length} lines)`);
@@ -1036,79 +1403,29 @@ export function compressCode(
             }
         }
         
-        // 3. Irrelevant Files: Compress/Remove
-        // (Logic continues below for truly irrelevant chunks)
+        // ========================================
+        // 🛡️ SAFETY NET: Handle any chunks that slipped through pre-filtering
+        // ========================================
+        // With STRICT pre-filtering, this should NEVER execute.
+        // If it does, it means there's a bug in the filtering logic.
         
-        // Data Definitions: Sample them instead of full expansion
+        // Small data definitions - check if they're in relevant list
         const isDataDefinition = /const\s+[A-Z0-9_]+\s*=\s*[\[\{]/.test(chunk.content);
-        
-        if (isDataDefinition) {
-            // Data definitions get sampled - show first few items + structure
-            const sampled = sampleDataDefinition(chunk.content, chunk.id);
-            if (sampled !== chunk.content) {
-                const originalLines = chunk.content.split('\n').length;
-                const sampledLines = sampled.split('\n').length;
-                const reductionPercent = Math.round((1 - sampledLines / originalLines) * 100);
-                console.log(`[Compression] 📊 Sampled data: ${chunk.id}: ${originalLines} → ${sampledLines} lines (${reductionPercent}% reduction)`);
-                
-                compressed = compressed.substring(0, chunk.startIndex!) + sampled + compressed.substring(chunk.endIndex!);
-                compressedCount++;
-                continue;
-            }
-            // If sampling didn't help (small data), keep it
+        if (isDataDefinition && lines.length <= 10 && relevantSet.has(chunk.id)) {
             console.log(`[Compression] Keeping ${chunk.id} (small data definition, ${lines.length} lines)`);
             continue;
         }
-
-        // Everything else (including "relevant" chunks) gets skeletonized if large enough
-        // The only exception is explicitTargets which are handled above
-        if (lines.length <= 8) {
-            // Very small chunks - not worth skeletonizing
-            console.log(`[Compression] Keeping ${chunk.id} (too small: ${lines.length} lines)`);
-            continue;
-        }
         
-        // Apply AST skeletonization ONLY to truly irrelevant chunks
-        // (At this point, isRelevant=false because relevant chunks are handled above)
-        const skeleton = skeletonizeCode(chunk.content, chunk.id);
-        
-        // 🚨 AST succeeded and modified code
-        if (skeleton.wasModified) {
-            const reductionPercent = Math.round((1 - skeleton.resultLines / skeleton.originalLines) * 100);
-            console.log(`[AST] 🗜️ Compressed irrelevant: ${chunk.id}: ${skeleton.originalLines} → ${skeleton.resultLines} lines (${reductionPercent}% reduction)`);
-            
-            let replacement: string;
-            if (reductionPercent >= 10) {
-                replacement = `/** @irrelevant ${chunk.id} [DO NOT EDIT] */\n${skeleton.code}`;
-            } else {
-                replacement = skeleton.code;
-            }
-
-            compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
-            compressedCount++;
-            continue;
-        }
-        
-        // 🚨 AST failed or didn't help - use BRUTAL TRUNCATION
-        // For irrelevant files, be even more aggressive (keep only 10 lines)
-        if (lines.length > 15) {
-            const truncated = brutalTruncate(chunk.content, chunk.id, 10);
-            if (truncated.wasTruncated) {
-                const reductionPercent = Math.round((1 - truncated.resultLines / truncated.originalLines) * 100);
-                console.log(`[Truncate] 🗜️ Irrelevant truncated: ${chunk.id}: ${truncated.originalLines} → ${truncated.resultLines} lines (${reductionPercent}% reduction)`);
-                
-                const replacement = `/** @irrelevant-truncated ${chunk.id} */\n${truncated.code}`;
-                compressed = compressed.substring(0, chunk.startIndex!) + replacement + compressed.substring(chunk.endIndex!);
-                compressedCount++;
-                continue;
-            }
-        }
-        
-        console.log(`[Compression] Keeping ${chunk.id} (AST unchanged, small file, ${lines.length} lines)`);
+        // 🚨 STRICT: If a chunk reaches here, it should NOT have passed pre-filtering
+        // Discard it to maintain consistency with RAG's selection
+        const placeholder = `/* [OMITTED] ${chunk.id} - not in RAG selection */`;
+        console.log(`[Compression] 🧹 Discarding unfiltered chunk: ${chunk.id} (${lines.length} lines)`);
+        compressed = compressed.substring(0, chunk.startIndex!) + placeholder + compressed.substring(chunk.endIndex!);
+        compressedCount++;
     }
     
     if (compressedCount > 0 || skeletonizedReferenceCount > 0) {
-        console.log(`[Compression] Summary: ${compressedCount} irrelevant compressed, ${skeletonizedReferenceCount} references skeletonized`);
+        console.log(`[Compression] Summary: ${compressedCount} discarded (batch), ${skeletonizedReferenceCount} skeletonized`);
     }
     
     return compressed;
@@ -1127,6 +1444,7 @@ export interface RAGOptions {
     intent?: string;             // User intent for filtering (LOGIC_FIX, UI_MODIFICATION, etc.)
     trustMode?: boolean;         // 🆕 信任模式：DeepSeek 指定的文件直接使用，不做向量搜索
     forceDeepSeek?: boolean;     // 🆕 是否启用 DeepSeek Only 模式
+    preChunkedData?: CodeChunk[]; // 🚀 NEW: Pre-chunked data to avoid re-parsing (shared with route.ts)
 }
 
 /**
@@ -1226,7 +1544,7 @@ export async function findRelevantCodeChunks(
     supabaseKey: string,
     options?: RAGOptions
 ) {
-    const { explicitTargets = [], referenceTargets = [], isGlobalReview = false, intent } = options || {};
+    const { explicitTargets = [], referenceTargets = [], isGlobalReview = false, intent, preChunkedData } = options || {};
     
     // 🆕 动态计算 chunk 限制
     const userExplicitFileCount = explicitTargets.length + referenceTargets.length;
@@ -1265,10 +1583,36 @@ export async function findRelevantCodeChunks(
         console.log(`[CodeRAG] User explicitly named ${userExplicitFileCount} files, dynamic max chunks: ${dynamicMaxChunks}`);
     }
     
+    // 🆕 预处理 Prompt：如果包含完整代码上下文，必须截断，否则 Embedding 会被淹没
+    let processedPrompt = userPrompt;
+    const userRequestMarker = '# USER REQUEST';
+    const markerIndex = userPrompt.lastIndexOf(userRequestMarker);
+    
+    if (markerIndex !== -1) {
+        // 提取 # USER REQUEST 之后的内容
+        const extracted = userPrompt.substring(markerIndex + userRequestMarker.length).trim();
+        if (extracted.length > 0) {
+            processedPrompt = extracted;
+            console.log('[CodeRAG] Extracted user request from full context prompt for embedding');
+        }
+    } else {
+        // 兜底：如果太长且没有标记，只取最后 2000 字符
+        const MAX_PROMPT_LENGTH = 2000;
+        if (userPrompt.length > MAX_PROMPT_LENGTH) {
+            processedPrompt = userPrompt.slice(-MAX_PROMPT_LENGTH);
+            console.log('[CodeRAG] Truncated long prompt to last 2000 chars for embedding');
+        }
+    }
+
     try {
-        // A. Chunk the code
-        const chunks = chunkCode(code);
+        // A. Chunk the code (or use pre-chunked data)
+        // 🚀 OPTIMIZATION: Use pre-chunked data if available (shared with route.ts)
+        const chunks = preChunkedData || chunkCode(code);
         if (chunks.length === 0) return null;
+        
+        if (preChunkedData) {
+            console.log(`[CodeRAG] 🚀 Using pre-chunked data (${chunks.length} chunks, skipped re-parse)`);
+        }
 
         // B. Prepare inputs for embedding (Prompt + All Chunks)
         // We need to embed the prompt AND the chunks to compare them.
@@ -1276,7 +1620,7 @@ export async function findRelevantCodeChunks(
         // Optimization: If code hasn't changed, we could cache these embeddings? 
         // For now, we assume we re-calculate.
         
-        const inputs = [userPrompt, ...chunks.map(c => `[${c.type}] ${c.content.substring(0, 1000)}`)]; // Truncate for embedding to save tokens/limits
+        const inputs = [processedPrompt, ...chunks.map(c => `[${c.type}] ${c.content.substring(0, 1000)}`)]; // Truncate for embedding to save tokens/limits
 
         // C. Call Edge Function (Batch) with Retry
         let response;
@@ -1383,7 +1727,9 @@ export async function findRelevantCodeChunks(
         // Step 3: Prompt mention detection (CRITICAL for accuracy)
         // If user mentions a component name, force include it
         // OPTIMIZATION: Avoid "multi-word trap" - only match if component name is specific enough
-        const promptLower = userPrompt.toLowerCase();
+        // 🆕 P2 FIX: Use processedPrompt (extracted user request) instead of full userPrompt
+        // This prevents matching component names that appear in the code context, not the user's actual request
+        const promptLower = processedPrompt.toLowerCase();
         const chineseKeywords = extractChineseKeywords(promptLower);
         
         // 🆕 ERROR-DRIVEN RETRIEVAL: If prompt contains error messages, prioritize related files
@@ -1410,7 +1756,16 @@ export async function findRelevantCodeChunks(
         }
 
         let promptMatchCount = 0;
-        const MAX_PROMPT_MATCHES = 5; // Increased from 3 to 5 to catch more relevant components (e.g. Map, Grid, Screen)
+        const MAX_PROMPT_MATCHES = 3; // Reduced from 5 to 3 - rely more on DeepSeek targets
+        
+        // 🆕 P0 OPTIMIZATION: Disable aggressive "mentioned in prompt" matching
+        // Trust DeepSeek's files_to_edit and files_to_read instead of string matching
+        // This prevents "screen" matching "LaunchScreen", "DexScreen", etc.
+        const TRUST_DEEPSEEK_ONLY = explicitTargets.length > 0 || referenceTargets.length > 0;
+        
+        if (TRUST_DEEPSEEK_ONLY) {
+            console.log(`[CodeRAG] 🛡️ Using STRICT mode: trusting DeepSeek targets only (${explicitTargets.length} edit, ${referenceTargets.length} read)`);
+        }
         
         for (const chunk of scoredChunks) {
             if (promptMatchCount >= MAX_PROMPT_MATCHES) break;
@@ -1422,65 +1777,59 @@ export async function findRelevantCodeChunks(
             // This allows Map, Tab, Nav, API while still preventing noise
             if (!isSignificant(componentName)) continue;
             
-            // 🔍 STRICTER MATCHING LOGIC
-            // Prevent "phantom mentions" (e.g. "index" matching "DexScreen", "bitmap" matching "Map")
+            // 🔍 P0 FIX: ULTRA-STRICT MATCHING LOGIC
+            // If DeepSeek provided targets, ONLY match if component is explicitly mentioned as a whole word
             let shouldInclude = false;
 
-            // Helper: Check if word exists in prompt as a whole word
-            const isWordInPrompt = (word: string) => {
-                if (!word || word.length < 2) return false;
-                const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            // Helper: Check if EXACT component name exists in prompt as a whole word
+            const isExactMatchInPrompt = (name: string) => {
+                if (!name || name.length < 2) return false;
+                const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                // Must be surrounded by word boundaries (not partial match)
                 return new RegExp(`\\b${escaped}\\b`, 'i').test(promptLower);
             };
 
-            // 1. Direct match (exact word in prompt)
-            if (isWordInPrompt(componentNameLower)) {
+            // 1. Direct EXACT match only (e.g. "MapScreen" must appear as "MapScreen")
+            // NOT "screen" matching "MapScreen" or "DexScreen"
+            if (isExactMatchInPrompt(componentName)) {
                 shouldInclude = true;
             }
-            // 2. 🚨 STRICT MATCHING ONLY: Removed loose suffix matching
-            // User reported that "Ensure the screen doesn't scroll" was matching "LaunchScreen" etc.
-            // because "screen" was stripped and "Launch" might have been matched or similar issues.
-            // We now require the FULL component name to appear in the prompt.
-            /*
-            else {
-                const shortName = componentNameLower.replace(/screen|component/g, '');
-                // Only if short name is significant enough (avoid matching "ui" or "id")
-                if (shortName.length >= 3 && isWordInPrompt(shortName)) {
-                    shouldInclude = true;
+            
+            // 2. 🆕 If DeepSeek is trusted, skip fuzzy Chinese keyword matching entirely
+            // This is the key change - we don't want "地图" to match every *Screen component
+            if (TRUST_DEEPSEEK_ONLY) {
+                // Skip fuzzy matching - DeepSeek already told us what to edit
+                // Only include if it's an exact match found above
+            } else {
+                // Fallback: When DeepSeek didn't provide targets, use careful keyword matching
+                if (!shouldInclude && chineseKeywords.length > 0) {
+                    // Split PascalCase/camelCase into parts
+                    // e.g. "MapScreen" -> ["map", "screen"]
+                    const parts = componentName
+                        .split(/(?=[A-Z])|[-_]/)
+                        .map(p => p.toLowerCase())
+                        .filter(p => p.length > 0);
+                    
+                    // 🆕 Only match if the FIRST part matches (the semantic core)
+                    // e.g. "地图" should match "Map" in "MapScreen", not "Screen"
+                    const corePart = parts[0];
+                    if (corePart && corePart.length >= 3) {
+                        shouldInclude = chineseKeywords.some(kw => {
+                            // Only exact match on core part
+                            if (corePart === kw) return true;
+                            // Very strict prefix: keyword must be 80%+ of core
+                            if (corePart.startsWith(kw) && kw.length >= corePart.length * 0.8) return true;
+                            return false;
+                        });
+                    }
                 }
-            }
-            */
-
-            // 3. Chinese keyword matching (safer approach)
-            // Instead of loose substring match, check if keyword matches a semantic part of the name
-            if (!shouldInclude && chineseKeywords.length > 0) {
-                // Split PascalCase/camelCase into parts
-                // e.g. "MapScreen" -> ["map", "screen"]
-                // "Bitmap" -> ["bitmap"]
-                const parts = componentName
-                    .split(/(?=[A-Z])|[-_]/) // Split by Capital, hyphen, underscore
-                    .map(p => p.toLowerCase())
-                    .filter(p => p.length > 0);
-                
-                shouldInclude = chineseKeywords.some(kw => {
-                    return parts.some(part => {
-                        // Exact match
-                        if (part === kw) return true;
-                        // Plural match (setting -> settings)
-                        if (part === kw + 's') return true;
-                        // Prefix match (map -> mapper), but NOT suffix match (map -> bitmap)
-                        // This prevents "map" from matching "bitmap"
-                        if (part.startsWith(kw) && part.length <= kw.length + 3) return true;
-                        return false;
-                    });
-                });
             }
             
             // Boost score for data definitions (MAP_GRID, etc.) if they are somewhat relevant
-            // This helps them survive the threshold cut even if semantic similarity is slightly lower
             // Data definitions are critical for game/app logic, use lower threshold (0.50)
+            // 🆕 But only if DeepSeek didn't provide targets (avoid noise)
             const isDataDefinition = /const\s+[A-Z0-9_]+\s*=\s*[\[\{]/.test(chunk.content);
-            if (isDataDefinition && chunk.score > 0.50) { // Lower threshold for data
+            if (!TRUST_DEEPSEEK_ONLY && isDataDefinition && chunk.score > 0.55) {
                  if (!relevantChunks.find(c => c.id === chunk.id)) {
                     console.log(`[CodeRAG] Boosting data definition ${chunk.id} (score=${chunk.score.toFixed(3)})`);
                     relevantChunks.push(chunk);
@@ -1489,7 +1838,7 @@ export async function findRelevantCodeChunks(
             }
 
             if (shouldInclude && !relevantChunks.find(c => c.id === chunk.id)) {
-                console.log(`[CodeRAG] Force including ${chunk.id} (mentioned in prompt)`);
+                console.log(`[CodeRAG] Force including ${chunk.id} (exact match in prompt)`);
                 relevantChunks.push(chunk);
                 promptMatchCount++;
             }
@@ -1917,5 +2266,299 @@ export function generateFileTreeFromChunks(chunks: CodeChunk[]): string {
     }
     
     return tree;
+}
+
+/**
+ * 🆕 智能架构摘要生成器
+ * 从 CodeChunk 数组提取所有组件/函数/常量的签名，生成紧凑的架构概览
+ * 让 DeepSeek 能够看到完整的项目结构而不超时
+ * 
+ * 输出格式:
+ * ┌─ Components ─┐
+ * MapScreen(props) - React component
+ * BattleScene({player, enemy}) - React component  
+ * 
+ * ┌─ Constants ─┐
+ * MONSTERS: Array[12] - Monster definitions
+ * TILE_CLASSES: Object{6 keys} - Tile type mappings
+ * 
+ * ┌─ Functions ─┐
+ * calculateDamage(attacker, defender, move) → number
+ * saveGame(state) → void
+ */
+export function generateArchitectureSummary(chunks: CodeChunk[]): string {
+    const components: string[] = [];
+    const constants: string[] = [];
+    const functions: string[] = [];
+    const hooks: string[] = [];
+    const types: string[] = [];
+    
+    for (const chunk of chunks) {
+        const name = chunk.id.replace('component-', '');
+        const content = chunk.content;
+        
+        // Skip style blocks and imports
+        if (chunk.type === 'style' || name === 'Imports/Setup' || name === 'style-block') continue;
+        
+        try {
+            // 🔍 分析代码签名
+            const signature = extractCodeSignature(name, content);
+            
+            if (signature.type === 'component') {
+                components.push(signature.summary);
+            } else if (signature.type === 'constant') {
+                constants.push(signature.summary);
+            } else if (signature.type === 'function') {
+                functions.push(signature.summary);
+            } else if (signature.type === 'hook') {
+                hooks.push(signature.summary);
+            } else if (signature.type === 'type') {
+                types.push(signature.summary);
+            }
+        } catch (e) {
+            // Fallback: just use the name
+            if (/^[A-Z][a-z]/.test(name)) {
+                components.push(`${name} - component`);
+            } else if (/^[A-Z_]+$/.test(name)) {
+                constants.push(`${name} - constant`);
+            } else {
+                functions.push(`${name}()`);
+            }
+        }
+    }
+    
+    // 🎨 生成紧凑的架构摘要
+    let summary = `📐 Architecture Summary (${chunks.length} modules)\n\n`;
+    
+    if (components.length > 0) {
+        summary += `┌─ React Components (${components.length}) ─┐\n`;
+        summary += components.join('\n') + '\n\n';
+    }
+    
+    if (constants.length > 0) {
+        summary += `┌─ Constants & Data (${constants.length}) ─┐\n`;
+        summary += constants.join('\n') + '\n\n';
+    }
+    
+    if (functions.length > 0) {
+        summary += `┌─ Functions (${functions.length}) ─┐\n`;
+        summary += functions.join('\n') + '\n\n';
+    }
+    
+    if (hooks.length > 0) {
+        summary += `┌─ Custom Hooks (${hooks.length}) ─┐\n`;
+        summary += hooks.join('\n') + '\n\n';
+    }
+    
+    if (types.length > 0) {
+        summary += `┌─ Types & Interfaces (${types.length}) ─┐\n`;
+        summary += types.join('\n') + '\n\n';
+    }
+    
+    return summary.trim();
+}
+
+/**
+ * 🔍 提取代码签名
+ * 分析代码块，提取有意义的签名信息
+ */
+function extractCodeSignature(name: string, content: string): { type: string; summary: string } {
+    const lines = content.split('\n');
+    const firstLine = lines[0]?.trim() || '';
+    
+    // 1️⃣ React Component Detection
+    // Patterns: const X = () => {, function X(, const X = ({props}) =>
+    const componentPatterns = [
+        /^(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*\(?\s*\{?([^}=]*)\}?\s*\)?\s*=>/,  // Arrow function
+        /^(?:export\s+)?function\s+(\w+)\s*\(\s*\{?([^}]*)\}?\s*\)/,  // Function declaration
+        /^(?:export\s+)?const\s+(\w+)\s*:\s*(?:React\.)?FC/,  // TypeScript FC
+    ];
+    
+    for (const pattern of componentPatterns) {
+        const match = firstLine.match(pattern) || content.slice(0, 500).match(pattern);
+        if (match) {
+            const componentName = match[1] || name;
+            const propsStr = match[2]?.trim();
+            
+            // Check if it returns JSX (React component indicator)
+            const hasJSX = content.includes('return (') && (content.includes('<') || content.includes('/>'));
+            const hasHooks = /use[A-Z]\w+\(/.test(content);
+            
+            if (hasJSX || hasHooks) {
+                const props = propsStr ? `{${propsStr.split(',').slice(0, 3).map(p => p.trim().split(':')[0].split('=')[0].trim()).filter(Boolean).join(', ')}}` : '';
+                const hooksUsed = extractHooksUsed(content);
+                const hookInfo = hooksUsed.length > 0 ? ` [uses: ${hooksUsed.slice(0, 3).join(', ')}${hooksUsed.length > 3 ? '...' : ''}]` : '';
+                return {
+                    type: 'component',
+                    summary: `${componentName}(${props})${hookInfo}`
+                };
+            }
+        }
+    }
+    
+    // 2️⃣ Constant/Data Detection
+    // Patterns: const UPPER_CASE = [...], const UPPER_CASE = {...}
+    if (/^[A-Z][A-Z0-9_]*$/.test(name)) {
+        const arrayMatch = content.match(/=\s*\[([\s\S]*?)\]/);
+        const objectMatch = content.match(/=\s*\{([\s\S]*?)\}/);
+        
+        if (arrayMatch) {
+            // Count array items
+            const items = arrayMatch[1].split(',').filter(s => s.trim()).length;
+            const preview = extractArrayPreview(arrayMatch[1]);
+            return {
+                type: 'constant',
+                summary: `${name}: Array[${items}] ${preview}`
+            };
+        } else if (objectMatch) {
+            // Count object keys
+            const keys = extractObjectKeys(objectMatch[1]);
+            return {
+                type: 'constant',
+                summary: `${name}: Object{${keys.slice(0, 4).join(', ')}${keys.length > 4 ? '...' : ''}}`
+            };
+        } else {
+            // Simple constant
+            const valueMatch = content.match(/=\s*(['"`]?)([^'"`\n;]+)\1/);
+            const valuePreview = valueMatch ? valueMatch[2].slice(0, 30) : 'value';
+            return {
+                type: 'constant',
+                summary: `${name} = ${valuePreview}${valuePreview.length >= 30 ? '...' : ''}`
+            };
+        }
+    }
+    
+    // 3️⃣ Custom Hook Detection
+    if (name.startsWith('use') && /^use[A-Z]/.test(name)) {
+        const paramsMatch = content.match(/(?:function|const)\s+\w+\s*[=]?\s*\(([^)]*)\)/);
+        const params = paramsMatch ? paramsMatch[1].split(',').slice(0, 3).map(p => p.trim().split(':')[0].trim()).filter(Boolean) : [];
+        const returns = extractHookReturn(content);
+        return {
+            type: 'hook',
+            summary: `${name}(${params.join(', ')}) → ${returns}`
+        };
+    }
+    
+    // 4️⃣ Regular Function Detection
+    const funcMatch = content.match(/(?:export\s+)?(?:async\s+)?(?:function|const)\s+(\w+)\s*[=]?\s*(?:async\s*)?\(([^)]*)\)/);
+    if (funcMatch) {
+        const funcName = funcMatch[1] || name;
+        const params = funcMatch[2].split(',').slice(0, 4).map(p => p.trim().split(':')[0].split('=')[0].trim()).filter(Boolean);
+        const isAsync = content.includes('async') && content.includes('await');
+        const returnType = extractReturnType(content);
+        return {
+            type: 'function',
+            summary: `${isAsync ? 'async ' : ''}${funcName}(${params.join(', ')}) → ${returnType}`
+        };
+    }
+    
+    // 5️⃣ Type/Interface Detection
+    if (content.includes('interface ') || content.includes('type ')) {
+        const typeMatch = content.match(/(?:export\s+)?(?:interface|type)\s+(\w+)/);
+        if (typeMatch) {
+            return {
+                type: 'type',
+                summary: `${typeMatch[1]}`
+            };
+        }
+    }
+    
+    // Fallback
+    return {
+        type: 'unknown',
+        summary: name
+    };
+}
+
+/**
+ * 提取组件中使用的 Hooks
+ */
+function extractHooksUsed(content: string): string[] {
+    const hooks: string[] = [];
+    const hookPattern = /\b(use[A-Z]\w+)\s*\(/g;
+    let match;
+    while ((match = hookPattern.exec(content)) !== null) {
+        if (!hooks.includes(match[1])) {
+            hooks.push(match[1]);
+        }
+    }
+    return hooks;
+}
+
+/**
+ * 提取数组预览（前几个元素的关键信息）
+ */
+function extractArrayPreview(arrayContent: string): string {
+    // Try to extract meaningful preview
+    const items = arrayContent.split(',').slice(0, 2);
+    const previews: string[] = [];
+    
+    for (const item of items) {
+        // Object in array: extract first key
+        const keyMatch = item.match(/(\w+)\s*:/);
+        if (keyMatch) {
+            previews.push(keyMatch[1]);
+        } else {
+            // Simple value
+            const valueMatch = item.match(/['"`]?(\w+)['"`]?/);
+            if (valueMatch) previews.push(valueMatch[1]);
+        }
+    }
+    
+    return previews.length > 0 ? `(${previews.join(', ')}...)` : '';
+}
+
+/**
+ * 提取对象的键名
+ */
+function extractObjectKeys(objectContent: string): string[] {
+    const keys: string[] = [];
+    const keyPattern = /['"`]?(\w+)['"`]?\s*:/g;
+    let match;
+    while ((match = keyPattern.exec(objectContent)) !== null) {
+        if (!keys.includes(match[1])) {
+            keys.push(match[1]);
+        }
+    }
+    return keys;
+}
+
+/**
+ * 提取 Hook 返回值类型
+ */
+function extractHookReturn(content: string): string {
+    // Look for return statement pattern
+    const returnMatch = content.match(/return\s*\[([^\]]+)\]/);
+    if (returnMatch) {
+        const items = returnMatch[1].split(',').map(s => s.trim().split(':')[0].trim());
+        return `[${items.slice(0, 3).join(', ')}${items.length > 3 ? '...' : ''}]`;
+    }
+    
+    const returnObjMatch = content.match(/return\s*\{([^}]+)\}/);
+    if (returnObjMatch) {
+        const keys = returnObjMatch[1].split(',').map(s => s.trim().split(':')[0].trim());
+        return `{${keys.slice(0, 3).join(', ')}${keys.length > 3 ? '...' : ''}}`;
+    }
+    
+    return 'unknown';
+}
+
+/**
+ * 提取函数返回类型
+ */
+function extractReturnType(content: string): string {
+    // TypeScript return type annotation
+    const tsReturnMatch = content.match(/\)\s*:\s*(\w+(?:<[^>]+>)?)/);
+    if (tsReturnMatch) return tsReturnMatch[1];
+    
+    // Infer from return statements
+    if (content.includes('return true') || content.includes('return false')) return 'boolean';
+    if (/return\s+\d+/.test(content)) return 'number';
+    if (/return\s+['"`]/.test(content)) return 'string';
+    if (/return\s*\[/.test(content)) return 'Array';
+    if (/return\s*\{/.test(content)) return 'Object';
+    if (content.includes('async')) return 'Promise';
+    
+    return 'void';
 }
 

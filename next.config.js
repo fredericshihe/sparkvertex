@@ -164,7 +164,12 @@ const nextConfig = {
     '192.168.3.151:3000',
     'localhost:3000',
     '0.0.0.0:3000'
-  ]
+  ],
+  experimental: {
+    serverActions: {
+      allowedOrigins: ['192.168.3.151:3000', 'localhost:3000', '0.0.0.0:3000'],
+    },
+  },
 };
 
 module.exports = withPWA(nextConfig);

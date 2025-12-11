@@ -74,13 +74,17 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
 export const GET_SYSTEM_PROMPT = (language: string, isDiffMode: boolean) => {
     const summaryLang = language === 'zh' ? 'Chinese' : 'English';
+    const langInstruction = language === 'zh' 
+        ? '**语言要求**: ANALYSIS 和 SUMMARY 必须使用中文输出，不要使用英文。'
+        : '**Language**: ANALYSIS and SUMMARY must be in English.';
     
     if (isDiffMode) {
         return `You are an expert React Refactoring Engineer.
 Your task is to modify the provided React code based on the user's request.
 
 ### Output Format
-1. **Analysis**: Start with \`/// ANALYSIS: ... ///\` describing the target code signature.
+${langInstruction}
+1. **Analysis**: Start with \`/// ANALYSIS: ... ///\` describing the target code signature in ${summaryLang}.
 2. **Summary**: Brief summary in \`/// SUMMARY: ... ///\` (${summaryLang}).
 3. **Patch**: Use this strict format:
 <<<<SEARCH
@@ -476,6 +480,9 @@ ${HTML_TEMPLATE}
 export const GET_BACKEND_CONFIG_PROMPT = (language: string) => {
   const summaryLang = language === 'zh' ? 'Chinese' : 'English';
   const summaryText = language === 'zh' ? '后端表单收集已配置' : 'Backend form collection is configured';
+  const langInstruction = language === 'zh' 
+      ? '**语言要求**: ANALYSIS 和 SUMMARY 必须使用中文输出，不要使用英文。'
+      : '**Language**: ANALYSIS and SUMMARY must be in English.';
 
   return `You are an expert React Refactoring Engineer.
 Your task is to analyze the provided React code and add backend integration capabilities using DIFF PATCHES.
@@ -539,7 +546,8 @@ Your task is to analyze the provided React code and add backend integration capa
    - **Integration**: Immediately wire it up to the \`/api/mailbox/submit\` endpoint as described above.
 
 ### Output Format (Strict Diff Mode)
-1. **Analysis**: Start with \`/// ANALYSIS: ... ///\` describing the target code signature.
+${langInstruction}
+1. **Analysis**: Start with \`/// ANALYSIS: ... ///\` describing the target code signature in ${summaryLang}.
 2. **Summary**: You MUST output exactly this summary: \`/// SUMMARY: ${summaryText} ///\`.
 3. **Patch**: Use this strict format:
 <<<<SEARCH
@@ -565,6 +573,9 @@ Your task is to analyze the provided React code and add backend integration capa
 
 export const GET_LOCAL_FIRST_CONFIG_PROMPT = (language: string) => {
   const summaryLang = language === 'zh' ? 'Chinese' : 'English';
+  const langInstruction = language === 'zh' 
+      ? '**语言要求**: ANALYSIS 和 SUMMARY 必须使用中文输出，不要使用英文。'
+      : '**Language**: ANALYSIS and SUMMARY must be in English.';
   return `You are an expert Local-First Architecture Developer.
 Your task is to transform the provided React code into a **Hybrid Local-First Application**.
 
@@ -715,7 +726,8 @@ const localService = {
 5. **Ensure** \`initDB()\` is called on mount.
 
 ### Output Format (Strict Diff Mode)
-1. **Analysis**: Start with \`/// ANALYSIS: ... ///\`. Explain which data is Private (PGLite) and which is Public (Inbox).
+${langInstruction}
+1. **Analysis**: Start with \`/// ANALYSIS: ... ///\`. Explain which data is Private (PGLite) and which is Public (Inbox) in ${summaryLang}.
 2. **Summary**: Brief summary in \`/// SUMMARY: ... ///\` (${summaryLang}).
 3. **Patch**: Use \`<<<<SEARCH ... ==== ... >>>>\` format to apply changes.
 `;

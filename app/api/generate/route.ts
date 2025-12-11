@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getRAGContext } from '@/lib/rag';
-import { findRelevantCodeChunks, compressCode, chunkCode } from '@/lib/code-rag';
+import { findRelevantCodeChunks, compressCode, chunkCode, generateArchitectureSummary } from '@/lib/code-rag';
 import { logRAGRequest, detectQueryLanguage, type RAGLogEntry } from '@/lib/rag-logger';
 import { classifyUserIntent, UserIntent, generateFileSummary } from '@/lib/intent-classifier';
 
@@ -215,13 +215,14 @@ async function handleSSERequest(request: Request) {
           
           // Step 1: 意图分类
           const chunks = chunkCode(body.current_code);
-          const fileSummaries = chunks.slice(0, 15).map(chunk => 
-            generateFileSummary(chunk.id.replace('component-', ''), chunk.content)
-          );
+          
+          // 🆕 使用智能架构摘要，让 DeepSeek 看到完整项目结构
+          const architectureSummary = generateArchitectureSummary(chunks);
+          console.log(`[ArchitectureSummary] Generated ${architectureSummary.length} chars summary for ${chunks.length} chunks`);
 
           // 🚀 DeepSeek Only 模式：强制使用 DeepSeek，跳过本地分类器
           const intentRes = await classifyUserIntent(body.user_prompt, { 
-            fileSummaries,
+            fileTree: architectureSummary,  // 🆕 使用架构摘要作为 fileTree
             forceDeepSeek: true  // 🔧 强制调用 DeepSeek，确保 100% 准确率
           });
           intentResult = intentRes;
@@ -249,6 +250,7 @@ async function handleSSERequest(request: Request) {
             (body.user_prompt.includes('检查') && body.user_prompt.includes('全部')) ||
             (body.user_prompt.toLowerCase().includes('review') && body.user_prompt.toLowerCase().includes('all'));
           
+          // 🚀 OPTIMIZATION: Pass pre-chunked data to avoid re-parsing in findRelevantCodeChunks
           const relevantChunks = await findRelevantCodeChunks(
             body.user_prompt, 
             body.current_code,
@@ -257,7 +259,8 @@ async function handleSSERequest(request: Request) {
             {
               explicitTargets: intentResult?.targets || [],
               referenceTargets: intentResult?.referenceTargets || [],
-              isGlobalReview
+              isGlobalReview,
+              preChunkedData: chunks // 🚀 Reuse chunks from L217
             }
           );
           ragLatencyMs = Date.now() - ragStartTime - intentLatencyMs;
@@ -266,13 +269,10 @@ async function handleSSERequest(request: Request) {
             codeContext += `\n\n### 🚀 OPTIMIZATION HINT\nI have detected that you likely need to modify these specific components: ${intentResult.targets.join(', ')}.\nPlease consider using the \`<<<<AST_REPLACE: TargetName>>>>\` format for these to ensure precision and avoid truncation.`;
           }
 
-          chunksTotal = body.current_code.split(/\n(?=(?:const|function|class|export)\s)/).length;
+          chunksTotal = chunks.length; // 🚀 Use pre-chunked count
           chunksSelected = relevantChunks?.length || 0;
 
           if (relevantChunks && relevantChunks.length > 0) {
-            codeContext = `\n\n### RELEVANT CODE CONTEXT (RAG)\nThe following code sections are most relevant to the user's request. Focus your changes here if possible:\n\n`;
-            codeContext += relevantChunks.map(c => `// --- Section: ${c.id} ---\n${c.content}\n`).join('\n');
-            
             const relevantIds = relevantChunks.map(c => c.id);
             console.log(`[CodeRAG] Found ${relevantChunks.length} relevant chunks: ${relevantIds.join(', ')}`);
             
@@ -286,8 +286,13 @@ async function handleSSERequest(request: Request) {
               const referenceTargets = intentResult?.referenceTargets || [];
               const detectedIntent = intentResult?.intent || UserIntent.UNKNOWN;
               
-              compressedCode = compressCode(body.current_code, relevantIds, explicitTargets, detectedIntent, referenceTargets);
+              // 🚀 Smart Compression: Pass pre-chunked data to avoid re-parsing
+              compressedCode = compressCode(body.current_code, relevantIds, explicitTargets, detectedIntent, referenceTargets, chunks);
               compressionLatencyMs = Date.now() - compressionStartTime;
+              
+              // 同时生成 codeContext 供 LLM 参考（使用 RAG chunks）
+              codeContext = `\n\n### RELEVANT CODE CONTEXT (RAG)\nThe following code sections are most relevant to the user's request:\n\n`;
+              codeContext += relevantChunks.map(c => `// --- Section: ${c.id} ---\n${c.content}\n`).join('\n');
               
               const compressionRate = ((1 - compressedCode.length / body.current_code.length) * 100).toFixed(1);
               console.log(`[CodeRAG] Compressed: ${body.current_code.length} → ${compressedCode.length} chars (${compressionRate}% reduction, ${compressionLatencyMs}ms)`);
@@ -309,7 +314,14 @@ async function handleSSERequest(request: Request) {
             } else if (skipCompression && body.current_code) {
               // 🆕 全量修复模式：直接使用完整代码，不压缩
               console.log(`[CodeRAG] Full Repair mode - using full code: ${body.current_code.length} chars`);
+              // 生成 codeContext 作为参考
+              codeContext = `\n\n### RELEVANT CODE CONTEXT (RAG)\nThe following code sections are most relevant to the user's request:\n\n`;
+              codeContext += relevantChunks.map(c => `// --- Section: ${c.id} ---\n${c.content}\n`).join('\n');
               // 不设置 compressedCode，后续会使用 body.current_code
+            } else {
+              // 小文件不压缩，直接生成 codeContext
+              codeContext = `\n\n### RELEVANT CODE CONTEXT (RAG)\nThe following code sections are most relevant to the user's request:\n\n`;
+              codeContext += relevantChunks.map(c => `// --- Section: ${c.id} ---\n${c.content}\n`).join('\n');
             }
           }
         } else if (body.type === 'modification' && body.user_prompt) {
@@ -501,17 +513,17 @@ async function handleJSONRequest(request: Request) {
         if (body.type === 'modification' && body.user_prompt && body.current_code) {
             console.log('[Parallel] Starting Intent Classification and Code RAG...');
             
-            // 🆕 Step 0: Quick chunking to generate file summaries for better Intent Classification
+            // 🆕 Step 0: Quick chunking to generate architecture summary for better Intent Classification
             const chunks = chunkCode(body.current_code);
-            const fileSummaries = chunks.slice(0, 15).map(chunk => 
-                generateFileSummary(chunk.id.replace('component-', ''), chunk.content)
-            );
-            console.log(`[FileSummaries] Generated ${fileSummaries.length} summaries for DeepSeek context`);
             
-            // Pass file summaries to Intent Classification for better recall
+            // 🆕 使用智能架构摘要，让 DeepSeek 看到完整项目结构
+            const architectureSummary = generateArchitectureSummary(chunks);
+            console.log(`[ArchitectureSummary] Generated ${architectureSummary.length} chars summary for ${chunks.length} chunks`);
+            
+            // Pass architecture summary to Intent Classification for better recall
             // 🚀 DeepSeek Only 模式：强制使用 DeepSeek，跳过本地分类器
             const intentRes = await classifyUserIntent(body.user_prompt, {
-                fileSummaries,
+                fileTree: architectureSummary,  // 🆕 使用架构摘要作为 fileTree
                 forceDeepSeek: true  // 🔧 强制调用 DeepSeek，确保 100% 准确率
             });
             
@@ -529,6 +541,9 @@ async function handleJSONRequest(request: Request) {
               (body.user_prompt.includes('检查') && body.user_prompt.includes('全部')) ||
               (body.user_prompt.toLowerCase().includes('review') && body.user_prompt.toLowerCase().includes('all'));
             
+            // 🚀 OPTIMIZATION: Pre-chunk once, share with RAG and compression
+            const allChunks = chunkCode(body.current_code);
+            
             // 然后并行执行 RAG (传入 Intent Classifier 结果以动态调整限制)
             const ragPromise = findRelevantCodeChunks(
                  body.user_prompt, 
@@ -538,7 +553,8 @@ async function handleJSONRequest(request: Request) {
                  {
                    explicitTargets: intentResult?.targets || [],
                    referenceTargets: intentResult?.referenceTargets || [],
-                   isGlobalReview
+                   isGlobalReview,
+                   preChunkedData: allChunks // 🚀 Reuse chunks
                  }
             );
 
@@ -556,13 +572,10 @@ async function handleJSONRequest(request: Request) {
             }
 
             // Process RAG Results
-             chunksTotal = body.current_code.split(/\n(?=(?:const|function|class|export)\s)/).length;
+             chunksTotal = allChunks.length; // 🚀 Use pre-chunked count
              chunksSelected = relevantChunks?.length || 0;
 
              if (relevantChunks && relevantChunks.length > 0) {
-                 codeContext = `\n\n### RELEVANT CODE CONTEXT (RAG)\nThe following code sections are most relevant to the user's request. Focus your changes here if possible:\n\n`;
-                 codeContext += relevantChunks.map(c => `// --- Section: ${c.id} ---\n${c.content}\n`).join('\n');
-                 
                  const relevantIds = relevantChunks.map(c => c.id);
                  console.log(`[CodeRAG] Found ${relevantChunks.length} relevant chunks: ${relevantIds.join(', ')}`);
                  
@@ -571,19 +584,24 @@ async function handleJSONRequest(request: Request) {
                      console.log('[CodeRAG] Code is large, applying Smart Compression...');
                      const compressionStartTime = Date.now();
                      
-                     // Pass explicit targets from intent classification to force expansion
                      const explicitTargets = intentResult?.targets || [];
-                     
-                     // NEW: Pass reference targets (skeleton only, not full code)
                      const referenceTargets = intentResult?.referenceTargets || [];
-                     
-                     // Pass intent to compressCode for dynamic threshold adjustment
                      const detectedIntent = intentResult?.intent || UserIntent.UNKNOWN;
-                     compressedCode = compressCode(body.current_code, relevantIds, explicitTargets, detectedIntent, referenceTargets);
+                     
+                     // 🚀 Smart Compression: Pass pre-chunked data to avoid re-parsing
+                     compressedCode = compressCode(body.current_code, relevantIds, explicitTargets, detectedIntent, referenceTargets, allChunks);
+                     
+                     // 同时生成 codeContext 供 LLM 参考
+                     codeContext = `\n\n### RELEVANT CODE CONTEXT (RAG)\nThe following code sections are most relevant to the user's request:\n\n`;
+                     codeContext += relevantChunks.map(c => `// --- Section: ${c.id} ---\n${c.content}\n`).join('\n');
                      
                      compressionLatencyMs = Date.now() - compressionStartTime;
                      const compressionRate = ((1 - compressedCode.length / body.current_code.length) * 100).toFixed(1);
                      console.log(`[CodeRAG] Compressed: ${body.current_code.length} → ${compressedCode.length} chars (${compressionRate}% reduction, ${compressionLatencyMs}ms)`);
+                 } else {
+                     // 小文件不压缩
+                     codeContext = `\n\n### RELEVANT CODE CONTEXT (RAG)\nThe following code sections are most relevant to the user's request:\n\n`;
+                     codeContext += relevantChunks.map(c => `// --- Section: ${c.id} ---\n${c.content}\n`).join('\n');
                  }
              }
         } else if (body.type === 'modification' && body.user_prompt) {

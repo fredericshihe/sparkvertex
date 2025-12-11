@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { X } from 'lucide-react';
+import { useModal } from '@/context/ModalContext';
 import BackendDataPanel from './BackendDataPanel';
 
 interface CreationPreviewProps {
@@ -136,8 +137,13 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
   appId,
   handleConfigureBackend
 }) => {
+  const { openConfirmModal } = useModal();
   // 后端数据面板状态
   const [showBackendPanel, setShowBackendPanel] = useState(false);
+  // 解释弹窗状态
+  const [showBackendExplanation, setShowBackendExplanation] = useState(false);
+  // iframe 刷新 Key
+  const [iframeKey, setIframeKey] = useState(0);
 
   // 检测是否已配置后端（支持新的 data-cms 属性和旧的 SparkCMS 调用）
   const hasBackend = generatedCode.includes('window.SparkCMS') || 
@@ -145,6 +151,47 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                      generatedCode.includes('data-cms-src=') ||
                      generatedCode.includes('/api/mailbox/submit') || 
                      generatedCode.includes('action="/api/mailbox/submit"');
+
+  // 提取清除缓存逻辑
+  const clearAppCache = () => {
+    if (iframeRef.current?.contentWindow) {
+      try {
+        const win = iframeRef.current.contentWindow;
+        // 1. 清除 LocalStorage (保留系统关键 Key)
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < win.localStorage.length; i++) {
+          const key = win.localStorage.key(i);
+          // 保护 Supabase Auth, i18n, 和 E2E 密钥
+          if (key && !key.startsWith('sb-') && key !== 'i18nextLng' && !key.startsWith('spark_e2e_')) {
+             keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(k => win.localStorage.removeItem(k));
+        
+        // 2. 清除 SessionStorage
+        win.sessionStorage.clear();
+      } catch (e) {
+        console.error('Cache clear failed:', e);
+      }
+    }
+  };
+
+  // 重置应用并清除缓存
+  const handleResetApp = () => {
+    openConfirmModal({
+      title: language === 'zh' ? '清除缓存并重启' : 'Clear Cache & Restart',
+      message: language === 'zh' 
+        ? '确定要清除该应用的所有本地数据（如游戏进度、设置等）并重新启动吗？此操作无法撤销。' 
+        : 'Are you sure you want to clear all local data (game progress, settings, etc.) and restart? This cannot be undone.',
+      confirmText: language === 'zh' ? '清除并重启' : 'Clear & Restart',
+      onConfirm: () => {
+        clearAppCache();
+        setRuntimeError(null);
+        // 3. 强制刷新 iframe
+        setIframeKey(prev => prev + 1);
+      }
+    });
+  };
 
   return (
     <div className={`flex-1 bg-slate-950 relative flex flex-col group 
@@ -355,10 +402,12 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
              )}
              
              <iframe
+               key={iframeKey}
                ref={iframeRef}
                srcDoc={getPreviewContent(generatedCode, { raw: true, userId: userId || undefined, appId: appId, apiBaseUrl: typeof window !== 'undefined' ? window.location.origin : '' })}
                className="w-full h-full bg-slate-900"
                sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads allow-same-origin"
+               allow="autoplay; fullscreen"
              />
           </div>
           
@@ -398,6 +447,15 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
 
             <div className="w-px h-8 bg-slate-700/50 mx-1"></div>
 
+            {/* Reset App Button */}
+            <button 
+                onClick={handleResetApp}
+                className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group" 
+                title={language === 'zh' ? '清除缓存并重启' : 'Clear Cache & Restart'}
+            >
+                <i className="fa-solid fa-rotate text-sm group-hover:rotate-180 transition duration-500"></i>
+            </button>
+
             <button 
                 onClick={handleMobilePreview}
                 className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group" 
@@ -408,7 +466,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
 
             {/* Configure Backend Button */}
             <button 
-                onClick={handleConfigureBackend}
+                onClick={() => setShowBackendExplanation(true)}
                 className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group relative" 
                 title={language === 'zh' ? '一键配置表单' : 'Configure Form Collection'}
             >
@@ -723,7 +781,10 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                       </div>
                     </div>
                     <button
-                      onClick={() => applyQuickColorEdit(quickEditColor)}
+                      onClick={() => {
+                        clearAppCache();
+                        applyQuickColorEdit(quickEditColor);
+                      }}
                       disabled={!quickEditColor.match(/^#[0-9A-Fa-f]{6}$/)}
                       className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
                     >
@@ -757,7 +818,10 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                       autoFocus
                     />
                     <button
-                      onClick={() => applyQuickTextEdit(quickEditText)}
+                      onClick={() => {
+                        clearAppCache();
+                        applyQuickTextEdit(quickEditText);
+                      }}
                       disabled={!quickEditText.trim()}
                       className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
                     >
@@ -845,7 +909,10 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                 {t.common.cancel}
               </button>
               <button
-                onClick={handleElementEditSubmit}
+                onClick={() => {
+                  clearAppCache();
+                  handleElementEditSubmit();
+                }}
                 disabled={!editRequest.trim()}
                 className="flex-[2] px-3 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition-all shadow-lg shadow-brand-900/20 flex items-center justify-center gap-2 group"
               >
@@ -884,6 +951,109 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             
             <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full">
               <i className="fa-solid fa-clock"></i> {t.create.link_validity}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Backend Explanation Modal */}
+      {showBackendExplanation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-0 max-w-md w-full shadow-2xl flex flex-col relative overflow-hidden">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-800 bg-slate-900/50">
+                <button 
+                  onClick={() => setShowBackendExplanation(false)}
+                  className="absolute top-4 right-4 text-slate-400 hover:text-white transition"
+                >
+                  <X size={20} />
+                </button>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-4 shadow-lg shadow-emerald-900/20">
+                    <i className="fa-solid fa-server text-xl text-white"></i>
+                </div>
+                <h3 className="text-xl font-bold text-white mb-1">
+                    {language === 'zh' ? '一键配置后端' : 'One-click Backend Config'}
+                </h3>
+                <p className="text-sm text-slate-400">
+                    {language === 'zh' ? '为你的应用注入灵魂，让它“活”起来' : 'Inject soul into your app, make it alive'}
+                </p>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+                {/* Feature 1 */}
+                <div className="flex gap-4">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                        <i className="fa-solid fa-database text-blue-400 text-sm"></i>
+                    </div>
+                    <div>
+                        <h4 className="text-sm font-bold text-slate-200 mb-1">
+                            {language === 'zh' ? '自动数据存储' : 'Auto Data Storage'}
+                        </h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                            {language === 'zh' 
+                                ? '无需编写后端代码，自动创建数据库表，保存用户提交的表单、留言、投票等数据。' 
+                                : 'No backend code needed. Automatically creates database tables to save forms, comments, votes, etc.'}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Feature 2 */}
+                <div className="flex gap-4">
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                        <i className="fa-solid fa-bolt text-purple-400 text-sm"></i>
+                    </div>
+                    <div>
+                        <h4 className="text-sm font-bold text-slate-200 mb-1">
+                            {language === 'zh' ? '用户交互收集' : 'User Interaction'}
+                        </h4>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                            {language === 'zh' 
+                                ? '连接你与用户。轻松收集用户反馈、游戏分数、预约申请，在后台统一管理。' 
+                                : 'Connect with users. Collect feedback, game scores, and reservations, managed in one place.'}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Use Cases */}
+                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">
+                        {language === 'zh' ? '适用场景' : 'USE CASES'}
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                        {[
+                            { icon: 'fa-clipboard-list', label: language === 'zh' ? '问卷/报名' : 'Surveys/Sign-ups' },
+                            { icon: 'fa-paper-plane', label: language === 'zh' ? '意见/反馈' : 'Feedback/Suggestions' },
+                            { icon: 'fa-bullseye', label: language === 'zh' ? '成绩/分数' : 'Game Scores' },
+                            { icon: 'fa-calendar-check', label: language === 'zh' ? '预约/登记' : 'Reservations' }
+                        ].map((item, i) => (
+                            <div key={i} className="flex items-center gap-2 text-xs text-slate-300">
+                                <i className={`fa-solid ${item.icon} text-slate-500`}></i>
+                                {item.label}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 pt-0 flex gap-3">
+                <button
+                    onClick={() => setShowBackendExplanation(false)}
+                    className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm transition border border-slate-700"
+                >
+                    {language === 'zh' ? '我再想想' : 'Cancel'}
+                </button>
+                <button
+                    onClick={() => {
+                        setShowBackendExplanation(false);
+                        handleConfigureBackend();
+                    }}
+                    className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm transition shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2"
+                >
+                    <i className="fa-solid fa-wand-magic-sparkles"></i>
+                    {language === 'zh' ? '开始配置' : 'Start Configuration'}
+                </button>
             </div>
           </div>
         </div>

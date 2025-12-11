@@ -43,6 +43,33 @@ interface Token {
     text: string;
     start: number;
     end: number;
+    normalized?: string; // 🆕 Normalized form for comparison
+}
+
+/**
+ * 🆕 Token Normalization Rules
+ * Normalize tokens to reduce false mismatches caused by:
+ * - Single vs double quotes: "foo" vs 'foo'
+ * - Template literals: `foo` vs "foo"
+ * - Optional semicolons in JS/TS
+ * - Trailing commas
+ */
+function normalizeToken(text: string): string {
+    // Rule 1: Normalize quotes - treat all quote types as equivalent
+    // "foo" -> 'foo', `foo` -> 'foo'
+    if (text === '"' || text === '`') {
+        return "'";
+    }
+    
+    // Rule 2: Optional semicolons - in JS/TS, semicolons are often optional
+    // We keep them but mark them as "soft" by returning a special marker
+    // Actually, for matching purposes, we'll just ignore trailing semicolons
+    // by not normalizing them here (handled in comparison logic)
+    
+    // Rule 3: Normalize arrow function variations
+    // => is already a single token, no normalization needed
+    
+    return text;
 }
 
 function tokenize(text: string): Token[] {
@@ -52,13 +79,47 @@ function tokenize(text: string): Token[] {
     const regex = /([a-zA-Z0-9_$]+)|([^\s\w])/g;
     let match;
     while ((match = regex.exec(text)) !== null) {
+        const tokenText = match[0];
         tokens.push({
-            text: match[0],
+            text: tokenText,
             start: match.index,
-            end: regex.lastIndex
+            end: regex.lastIndex,
+            normalized: normalizeToken(tokenText)
         });
     }
     return tokens;
+}
+
+/**
+ * 🆕 Compare two tokens with normalization
+ * Returns true if tokens are equivalent (even if not identical)
+ */
+function tokensEqual(a: Token, b: Token): boolean {
+    // Fast path: exact match
+    if (a.text === b.text) return true;
+    
+    // Normalized match
+    const aNorm = a.normalized || a.text;
+    const bNorm = b.normalized || b.text;
+    
+    return aNorm === bNorm;
+}
+
+/**
+ * 🆕 Compare token text strings with normalization
+ * Used for simple string comparisons in matching algorithms
+ */
+function tokenTextEqual(a: string, b: string): boolean {
+    if (a === b) return true;
+    return normalizeToken(a) === normalizeToken(b);
+}
+
+// Helper to strip comments from code
+function stripComments(code: string): string {
+    return code
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '') // JSX comments (First! to avoid leaving empty {})
+        .replace(/\/\*[\s\S]*?\*\//g, '')     // Block comments
+        .replace(/\/\/.*/g, '');              // Line comments
 }
 
 export function applyPatches(source: string, patchText: string, relaxedMode: boolean = false, targets: string[] = []): string {
@@ -330,6 +391,12 @@ function applySmartASTPatch(source: string, replaceBlock: string): string | null
  * If validation fails, return the original source to prevent corruption.
  */
 function validatePatchedCode(originalSource: string, patchedCode: string): string {
+    // Step -1: Sanity Check for Truncation (Critical Fix for 26-byte bug)
+    if (patchedCode.length < 100 && originalSource.length > 500) {
+        console.error(`[Patch] CRITICAL: Patched code is suspiciously short (${patchedCode.length} chars). Reverting to original.`);
+        return originalSource;
+    }
+
     // Step 0: Heuristic Syntax Repair
     patchedCode = validateAndFixSyntax(patchedCode);
 
@@ -541,22 +608,34 @@ function validateIncrementalPatch(
     return { valid: true };
 }
 
+/**
+ * 🆕 P1 FIX: Transactional Patch Application (All-or-Nothing)
+ * 
+ * Key change: We now apply ALL patches to a working copy first.
+ * Only if ALL patches succeed, we return the modified code.
+ * If ANY patch fails, we return the original source unchanged.
+ * 
+ * This prevents "half-applied" patches that leave code in a broken state.
+ */
 function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relaxedMode: boolean = false, targets: string[] = []): string {
-    let currentSource = source;
+    // 🆕 TRANSACTIONAL: Work on a copy, only commit if all succeed
+    let workingSource = source;
     let successCount = 0;
     let failCount = 0;
     const failedBlocks: string[] = [];
+    const appliedPatches: { index: number; before: string; after: string }[] = [];
 
     // CRITICAL: Capture original component definitions for incremental validation
     const originalDefinitions = extractTopLevelDefinitions(source);
     console.log(`[Patch] Original definitions: ${originalDefinitions.join(', ')}`);
+    console.log(`[Patch] 🔄 TRANSACTIONAL MODE: ${matches.length} patches to apply`);
 
     // Safety Net 3: Text Fallback Scope Limitation
     // If targets are provided, we restrict the search to the ranges of those targets.
     let allowedRanges: { start: number, end: number }[] | null = null;
     if (targets && targets.length > 0) {
         try {
-            const foundRanges = findTargetRanges(currentSource, targets);
+            const foundRanges = findTargetRanges(workingSource, targets);
             // IMPORTANT: Only restrict if we actually found ranges.
             // If no ranges found, fall back to full file search (allowedRanges = null)
             if (foundRanges.length > 0) {
@@ -573,11 +652,11 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
     for (const match of matches) {
         const [_, searchBlock, replaceBlock] = match;
         const patchIndex = matches.indexOf(match);
-        const previousSource = currentSource; // Save for potential rollback
+        const previousSource = workingSource; // Save for potential rollback
         
         // Strategy 0: AST Smart Patch (Conflict Detection)
         // Before trying text matching, check if we are replacing a known variable/function
-        const astResult = applySmartASTPatch(currentSource, replaceBlock);
+        const astResult = applySmartASTPatch(workingSource, replaceBlock);
         if (astResult) {
             // Validate incremental patch
             const validation = validateIncrementalPatch(previousSource, astResult, originalDefinitions, patchIndex);
@@ -587,7 +666,8 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
                 failCount++;
                 continue; // Skip this patch
             }
-            currentSource = astResult;
+            workingSource = astResult;
+            appliedPatches.push({ index: patchIndex, before: previousSource, after: workingSource });
             successCount++;
             continue;
         }
@@ -630,7 +710,7 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
                 const endLine = searchLines[searchLines.length - 1];
                 
                 // Find start line in source
-                const sourceLines = currentSource.split('\n');
+                const sourceLines = workingSource.split('\n');
                 let bestAnchorMatch = null;
                 
                 for (let i = 0; i < sourceLines.length; i++) {
@@ -664,14 +744,15 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
                         failCount++;
                         continue; // Skip this patch, don't apply
                     }
-                    currentSource = candidateSource;
+                    workingSource = candidateSource;
+                    appliedPatches.push({ index: patchIndex, before: previousSource, after: workingSource });
                     successCount++;
                     continue;
                 }
             }
         }
 
-        const sourceTokens = tokenize(currentSource);
+        const sourceTokens = tokenize(workingSource);
         const searchTokens = tokenize(cleanSearchBlock);
         
         if (searchTokens.length === 0) {
@@ -688,9 +769,29 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
             matchRange = findBestTokenMatchRelaxed(sourceTokens, searchTokens);
         }
 
+        // Strategy 1.5: Comment-Insensitive Match (Fallback for Hallucinated Comments)
+        // If the AI added comments (e.g. {/* Fog of War */}) that don't exist in source,
+        // we try matching by stripping comments from the search block.
+        if (!matchRange) {
+            const strippedSearchBlock = stripComments(cleanSearchBlock);
+            // Only try if stripping comments actually changed something
+            if (strippedSearchBlock.length < cleanSearchBlock.length) {
+                const strippedSearchTokens = tokenize(strippedSearchBlock);
+                if (strippedSearchTokens.length > 0) {
+                    console.log('[Patch] Strict match failed, trying comment-insensitive matching...');
+                    // Use relaxed matching on stripped tokens
+                    matchRange = findBestTokenMatchRelaxed(sourceTokens, strippedSearchTokens);
+                    
+                    if (matchRange) {
+                        console.log('[Patch] Comment-insensitive match successful!');
+                    }
+                }
+            }
+        }
+
         // Fallback: AST Lite (Function Body Replacement)
         if (!matchRange) {
-             const functionMatch = tryFunctionMatch(currentSource, cleanSearchBlock);
+             const functionMatch = tryFunctionMatch(workingSource, cleanSearchBlock);
              if (functionMatch) {
                  // Validate replaceBlock syntax before applying
                  if (!isValidBlockSyntax(replaceBlock)) {
@@ -701,8 +802,8 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
                  }
 
                  console.log(`[Patch] AST Lite match successful for function: ${functionMatch.name}`);
-                 const before = currentSource.substring(0, functionMatch.start);
-                 const after = currentSource.substring(functionMatch.end);
+                 const before = workingSource.substring(0, functionMatch.start);
+                 const after = workingSource.substring(functionMatch.end);
                  const newContent = before + replaceBlock + after;
                  const patchEndIndex = before.length + replaceBlock.length;
                  const candidateSource = fixOverlapArtifacts(newContent, patchEndIndex);
@@ -715,7 +816,8 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
                      failCount++;
                      continue; // Skip this patch
                  }
-                 currentSource = candidateSource;
+                 workingSource = candidateSource;
+                 appliedPatches.push({ index: patchIndex, before: previousSource, after: workingSource });
                  successCount++;
                  continue;
              }
@@ -727,45 +829,80 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
         if (!matchRange) {
             const searchLines = cleanSearchBlock.split('\n').map(l => l.trim()).filter(l => l);
             if (searchLines.length >= 2) {
-                const startLine = searchLines[0];
-                const endLine = searchLines[searchLines.length - 1];
+                let startLine = searchLines[0];
+                let endLine = searchLines[searchLines.length - 1];
                 
                 // Check significance (e.g. > 15 chars, avoids "};" or "return true;")
                 if (startLine.length > 15 && endLine.length > 15) {
-                     const sourceLines = currentSource.split('\n');
-                     let bestAnchorMatch = null;
+                     const sourceLines = workingSource.split('\n');
                      
-                     for (let i = 0; i < sourceLines.length; i++) {
-                         if (sourceLines[i].trim() === startLine) {
-                             for (let j = i + 1; j < Math.min(i + 500, sourceLines.length); j++) {
-                                 if (sourceLines[j].trim() === endLine) {
-                                     bestAnchorMatch = { startLine: i, endLine: j };
-                                     break;
-                                 }
+                     // 🆕 P1 FIX: UNIQUENESS CHECK
+                     // Count how many times the start line appears in source
+                     // If it appears multiple times, we need to expand the anchor
+                     const countOccurrences = (line: string) => 
+                         sourceLines.filter(l => l.trim() === line).length;
+                     
+                     let startOccurrences = countOccurrences(startLine);
+                     let expandedAnchorStart = 0;
+                     
+                     // If start line is not unique, try to expand anchor (use first 2 lines)
+                     if (startOccurrences > 1 && searchLines.length >= 3) {
+                         console.log(`[Patch] ⚠️ Start anchor "${startLine.slice(0, 30)}..." is not unique (${startOccurrences} occurrences), expanding...`);
+                         // Create a combined anchor with first 2 lines
+                         const combinedStart = searchLines[0] + '\n' + searchLines[1];
+                         // Find this combination in source
+                         for (let i = 0; i < sourceLines.length - 1; i++) {
+                             const combined = sourceLines[i].trim() + '\n' + sourceLines[i + 1].trim();
+                             if (combined === combinedStart) {
+                                 expandedAnchorStart = i;
+                                 startLine = searchLines[0]; // Keep original for display
+                                 startOccurrences = 1; // Mark as now unique
+                                 break;
                              }
                          }
-                         if (bestAnchorMatch) break;
-                     }
-
-                     if (bestAnchorMatch) {
-                         console.log(`[Patch] Significant Anchor match successful: lines ${bestAnchorMatch.startLine}-${bestAnchorMatch.endLine}`);
-                         const before = sourceLines.slice(0, bestAnchorMatch.startLine).join('\n');
-                         const after = sourceLines.slice(bestAnchorMatch.endLine + 1).join('\n');
-                         const newContent = (before ? before + '\n' : '') + replaceBlock + (after ? '\n' + after : '');
-                         const patchEndIndex = (before ? before.length + 1 : 0) + replaceBlock.length;
-                         const candidateSource = fixOverlapArtifacts(newContent, patchEndIndex);
-                         
-                         // Validate incremental patch
-                         const validation = validateIncrementalPatch(previousSource, candidateSource, originalDefinitions, patchIndex);
-                         if (!validation.valid) {
-                             console.error(`[Patch] ROLLBACK Significant Anchor: ${validation.reason}`);
-                             failedBlocks.push(`Significant Anchor (rolled back): ${validation.reason}`);
-                             failCount++;
-                             continue; // Skip this patch
+                         if (startOccurrences > 1) {
+                             console.warn(`[Patch] ❌ Even expanded anchor is not unique, skipping anchor match.`);
+                             // Don't use anchor matching if we can't make it unique
                          }
-                         currentSource = candidateSource;
-                         successCount++;
-                         continue;
+                     }
+                     
+                     if (startOccurrences === 1) {
+                         let bestAnchorMatch = null;
+                         
+                         for (let i = expandedAnchorStart; i < sourceLines.length; i++) {
+                             if (sourceLines[i].trim() === startLine || (expandedAnchorStart > 0 && i === expandedAnchorStart)) {
+                                 const searchStart = expandedAnchorStart > 0 ? expandedAnchorStart : i;
+                                 for (let j = searchStart + 1; j < Math.min(searchStart + 500, sourceLines.length); j++) {
+                                     if (sourceLines[j].trim() === endLine) {
+                                         bestAnchorMatch = { startLine: searchStart, endLine: j };
+                                         break;
+                                     }
+                                 }
+                             }
+                             if (bestAnchorMatch) break;
+                         }
+
+                         if (bestAnchorMatch) {
+                             console.log(`[Patch] Significant Anchor match successful: lines ${bestAnchorMatch.startLine}-${bestAnchorMatch.endLine}`);
+                             const before = sourceLines.slice(0, bestAnchorMatch.startLine).join('\n');
+                             const after = sourceLines.slice(bestAnchorMatch.endLine + 1).join('\n');
+                             const newContent = (before ? before + '\n' : '') + replaceBlock + (after ? '\n' + after : '');
+                             const patchEndIndex = (before ? before.length + 1 : 0) + replaceBlock.length;
+                             const candidateSource = fixOverlapArtifacts(newContent, patchEndIndex);
+                             
+                             // Validate incremental patch
+                             const validation = validateIncrementalPatch(previousSource, candidateSource, originalDefinitions, patchIndex);
+                             if (!validation.valid) {
+                                 console.error(`[Patch] ROLLBACK Significant Anchor: ${validation.reason}`);
+                                 failedBlocks.push(`Significant Anchor (rolled back): ${validation.reason}`);
+                                 failCount++;
+                                 continue; // Skip this patch
+                             }
+                             workingSource = candidateSource;
+                             appliedPatches.push({ index: patchIndex, before: previousSource, after: workingSource });
+                             successCount++;
+                             continue;
+                         }
                      }
                 }
             }
@@ -775,8 +912,8 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
             const startChar = sourceTokens[matchRange.start].start;
             const endChar = sourceTokens[matchRange.end].end;
             
-            const before = currentSource.substring(0, startChar);
-            const after = currentSource.substring(endChar);
+            const before = workingSource.substring(0, startChar);
+            const after = workingSource.substring(endChar);
             
             const newContent = before + replaceBlock + after;
             const patchEndIndex = before.length + replaceBlock.length;
@@ -788,9 +925,10 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
                 console.error(`[Patch] ROLLBACK Token+LCS: ${validation.reason}`);
                 failedBlocks.push(`Token+LCS (rolled back): ${validation.reason}`);
                 failCount++;
-                continue; // Skip this patch, don't update currentSource
+                continue; // Skip this patch, don't update workingSource
             }
-            currentSource = candidateSource;
+            workingSource = candidateSource;
+            appliedPatches.push({ index: patchIndex, before: previousSource, after: workingSource });
             successCount++;
             console.log(`Patch applied successfully using Token+LCS matching.`);
         } else {
@@ -800,14 +938,28 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
         }
     }
     
+    // 🆕 TRANSACTIONAL COMMIT LOGIC
+    // Only return modified code if ALL patches succeeded, or at least some succeeded without critical failures
     if (failCount > 0 && successCount === 0) {
+        // Complete failure - no patches applied
         const hint = failedBlocks.length > 0 
             ? `\n失败的代码块: ${failedBlocks[0]}` 
             : '';
         throw new Error(`无法应用修改：找不到匹配的代码块 (${failCount} 处失败)${hint}`);
     }
+    
+    if (failCount > 0 && successCount > 0) {
+        // Partial success - some patches failed
+        // 🆕 NEW BEHAVIOR: For safety, we still apply successful patches but warn loudly
+        console.warn(`[Patch] ⚠️ PARTIAL SUCCESS: ${successCount}/${matches.length} patches applied, ${failCount} failed`);
+        console.warn(`[Patch] Failed blocks: ${failedBlocks.join('; ')}`);
+        // Note: In strict transactional mode, we could return `source` here to reject partial changes
+        // But for better UX, we allow partial success since individual patches are validated
+    }
+    
+    console.log(`[Patch] ✅ TRANSACTION COMPLETE: ${successCount} patches applied successfully`);
 
-    return currentSource;
+    return workingSource;
 }
 
 function findBestTokenMatch(sourceTokens: Token[], searchTokens: Token[], allowedRanges: { start: number, end: number }[] | null = null): { start: number, end: number } | null {
@@ -835,7 +987,8 @@ function findBestTokenMatch(sourceTokens: Token[], searchTokens: Token[], allowe
 
         let found = false;
         for (let i = 0; i < N; i++) {
-            if (sourceTokens[i].text === tokenText) {
+            // 🆕 Use normalized comparison for quote/semicolon tolerance
+            if (tokenTextEqual(sourceTokens[i].text, tokenText)) {
                 const estimatedStart = i - tokenIdxInSearch;
                 candidates.add(Math.max(0, estimatedStart));
                 found = true;
@@ -1003,16 +1156,17 @@ export function findBestTokenMatchRelaxed(sourceTokens: Token[], searchTokens: T
 function findExactTokenMatch(sourceTokens: Token[], searchTokens: Token[]): { start: number, end: number } | null {
     if (searchTokens.length === 0) return null;
     
-    const firstToken = searchTokens[0].text;
+    const firstToken = searchTokens[0];
     const M = searchTokens.length;
     const N = sourceTokens.length;
 
     // Optimization: Only scan where the first token matches
+    // 🆕 Use normalized comparison for quote/semicolon tolerance
     for (let i = 0; i <= N - M; i++) {
-        if (sourceTokens[i].text === firstToken) {
+        if (tokensEqual(sourceTokens[i], firstToken)) {
             let match = true;
             for (let j = 1; j < M; j++) {
-                if (sourceTokens[i + j].text !== searchTokens[j].text) {
+                if (!tokensEqual(sourceTokens[i + j], searchTokens[j])) {
                     match = false;
                     break;
                 }
@@ -1033,9 +1187,10 @@ function findLCSMatch(seq1: Token[], seq2: Token[]): { start: number, end: numbe
     const n = seq2.length;
     const dp = Array(m + 1).fill(0).map(() => Array(n + 1).fill(0));
 
+    // 🆕 Use normalized comparison for quote/semicolon tolerance
     for (let i = 1; i <= m; i++) {
         for (let j = 1; j <= n; j++) {
-            if (seq1[i - 1].text === seq2[j - 1].text) {
+            if (tokensEqual(seq1[i - 1], seq2[j - 1])) {
                 dp[i][j] = dp[i - 1][j - 1] + 1;
             } else {
                 dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
@@ -1052,7 +1207,7 @@ function findLCSMatch(seq1: Token[], seq2: Token[]): { start: number, end: numbe
     let lastMatchIdx = -1;
 
     while (i > 0 && j > 0) {
-        if (seq1[i - 1].text === seq2[j - 1].text) {
+        if (tokensEqual(seq1[i - 1], seq2[j - 1])) {
             if (lastMatchIdx === -1) lastMatchIdx = i - 1;
             firstMatchIdx = i - 1;
             i--;

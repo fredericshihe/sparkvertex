@@ -561,8 +561,8 @@ export interface DeepSeekConfig {
   forceDeepSeek?: boolean;  // 🆕 强制使用 DeepSeek，跳过本地分类
 }
 
-// 默认超时时间：45秒 (DeepSeek V3/R1 推理时间可能较长)
-const DEFAULT_DEEPSEEK_TIMEOUT = 45000;
+// 默认超时时间：60秒 (DeepSeek V3/R1 推理时间可能较长，尤其是大型项目)
+const DEFAULT_DEEPSEEK_TIMEOUT = 60000;
 
 /**
  * 使用 DeepSeek API 进行意图分类（通过 Supabase Edge Function）
@@ -599,12 +599,46 @@ export async function classifyIntentWithDeepSeek(
     return { intent: UserIntent.UNKNOWN, confidence: 0, latencyMs: Date.now() - startTime, source: 'timeout_fallback', targets: [], referenceTargets: [] };
   }
 
+  // 🆕 预处理 Query：如果包含完整代码上下文，必须截断，否则 DeepSeek 会被淹没
+  // 这里的 Query 可能是 "dbPrompt"，包含了 # EXISTING CODE ... # USER REQUEST ...
+  let processedQuery = query;
+  const userRequestMarker = '# USER REQUEST';
+  const markerIndex = query.lastIndexOf(userRequestMarker);
+  
+  if (markerIndex !== -1) {
+      // 提取 # USER REQUEST 之后的内容
+      const extracted = query.substring(markerIndex + userRequestMarker.length).trim();
+      if (extracted.length > 0) {
+          processedQuery = extracted;
+          console.log('[IntentClassifier] Extracted user request from full context prompt');
+      }
+  } else {
+      // 兜底：如果太长且没有标记，只取最后 2000 字符
+      const MAX_QUERY_LENGTH = 2000;
+      if (query.length > MAX_QUERY_LENGTH) {
+          processedQuery = query.slice(-MAX_QUERY_LENGTH);
+          console.log('[IntentClassifier] Truncated long query to last 2000 chars');
+      }
+  }
+
   // 🆕 优先使用文件树，否则使用文件摘要
+  // 限制上下文大小以避免 DeepSeek 超时
   let contextSection = '';
+  const MAX_CONTEXT_LENGTH = 3000; // 限制上下文长度
+  
   if (fileTree) {
-    contextSection = `\n\n📁 Project File Tree:\n\`\`\`\n${fileTree}\n\`\`\``;
+    // 如果文件树太长，截断但保留结构
+    let truncatedTree = fileTree;
+    if (fileTree.length > MAX_CONTEXT_LENGTH) {
+        // 保留前 2500 字符 + 提示还有更多
+        truncatedTree = fileTree.slice(0, MAX_CONTEXT_LENGTH - 100) + '\n... (truncated, more components exist)';
+        console.log(`[IntentClassifier] Truncated fileTree from ${fileTree.length} to ${MAX_CONTEXT_LENGTH} chars`);
+    }
+    contextSection = `\n\n📁 Project Architecture:\n\`\`\`\n${truncatedTree}\n\`\`\``;
   } else if (fileSummaries && fileSummaries.length > 0) {
-    contextSection = `\n\n可用文件 (带依赖关系):\n${fileSummaries.slice(0, 15).join('\n')}`;
+    // 限制文件摘要数量
+    const limitedSummaries = fileSummaries.slice(0, 20);
+    contextSection = `\n\n可用文件 (${fileSummaries.length} total, showing top 20):\n${limitedSummaries.join('\n')}`;
   }
 
   // 🧠 架构师模式 Prompt：深度分析依赖关系
@@ -657,7 +691,7 @@ Analyze the user's request and the file tree to determine:
 - **PERFORMANCE**: Speed, caching, optimization
 - **REFACTOR**: Code cleanup, restructuring`;
 
-  const userPrompt = `User Request: "${query}"
+  const userPrompt = `User Request: "${processedQuery}"
 
 Analyze this request and return the JSON response.`;
 

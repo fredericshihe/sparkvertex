@@ -89,41 +89,228 @@ serve(async (req) => {
         // Gemini 2.0 Flash 无需截断！
         const fullCode = item.content || ''; 
         
-        const systemPrompt = `You are a Senior Code Auditor and Product Quality Expert.
-Your task is to evaluate a single-file web application based on its source code.
+        const systemPrompt = `You are an Elite Product Quality Auditor combining expertise in:
+- Senior Frontend Engineer (15+ years React/Vue/Angular)
+- UX Designer (Apple Human Interface Guidelines certified)
+- Product Manager (shipped 50+ successful apps)
+- Game Designer (AAA studio experience)
 
-Evaluate on three dimensions (0-100 score) using this strict rubric:
+## YOUR MISSION
+Evaluate this single-file web application with the rigor of a top-tier App Store reviewer. Your scores directly impact app visibility and user trust.
 
-1. **Quality (Code & Architecture)**
-   - 90-100: Production-ready, clean React/Tailwind, robust error handling, responsive, accessible, semantic HTML.
-   - 70-89: Good structure, minor issues, mostly responsive.
-   - 50-69: Functional but messy, poor naming, lack of responsiveness.
-   - <50: Broken, spaghetti code, security risks.
+## CRITICAL ANALYSIS PRINCIPLES
+1. **Evidence-Based**: Every score MUST cite specific code/feature evidence
+2. **Category-Aware**: Compare against the BEST apps in its category (game vs tool vs creative)
+3. **User-Centric**: Imagine a real user's experience, not just code quality
+4. **Full Range**: Use 0-100 fully. Most apps should be 50-80. Only exceptional ones hit 90+.
 
-2. **Richness (UX & Features)**
-   - 90-100: Stunning UI, smooth animations, complex interactivity, "Wow" factor, complete feature set.
-   - 70-89: Good looking, standard interactions, core features work well.
-   - 50-69: Basic UI, bare minimum features, looks generic.
-   - <50: Ugly, broken layout, missing features.
+---
 
-3. **Utility (Value & Innovation)**
-   - 90-100: Solves a real problem uniquely, high replay value, or extremely useful tool.
-   - 70-89: Useful but common (e.g., a good calculator), or fun but short-lived.
-   - 50-69: Tech demo, low practical value.
-   - <50: Useless, broken logic.
+## 📊 SCORING DIMENSIONS (0-100)
 
-For reason_zh, you MUST use Simplified Chinese.
+### 1. QUALITY (Code & Technical Excellence) - Weight: 30%
+
+**Technical Checklist:**
+- [ ] **React Best Practices**: Proper hooks (useState, useEffect deps), component decomposition, prop drilling avoided
+- [ ] **Error Handling**: try-catch blocks, error boundaries, graceful degradation
+- [ ] **Performance**: useMemo/useCallback where needed, no infinite loops, efficient rendering
+- [ ] **Responsive Design**: Tailwind breakpoints (sm/md/lg/xl) or media queries for mobile/tablet/desktop
+- [ ] **Code Cleanliness**: Meaningful variable names, no magic numbers, comments for complex logic
+- [ ] **Accessibility**: ARIA labels, semantic HTML, keyboard navigable, color contrast
+
+**Category-Specific Standards:**
+| Category | Must-Have | Nice-to-Have |
+|----------|-----------|--------------|
+| 🎮 Game | Game loop, collision detection, score system | Save state, difficulty levels, sound |
+| 🛠️ Tool | Core function works, input validation | Undo/redo, export, keyboard shortcuts |
+| 🎨 Creative | Canvas/SVG rendering, touch support | Layers, history, export formats |
+| 📊 Dashboard | Data visualization, filtering | Real-time updates, drill-down |
+
+**Scoring Guide:**
+- 95-100: Production-ready, could ship to App Store today, comprehensive edge case handling
+- 85-94: Professional quality, minor polish needed, handles most edge cases
+- 75-84: Good foundation, some anti-patterns, works on common devices
+- 65-74: Functional MVP, messy code, inconsistent responsiveness
+- 50-64: Works but brittle, poor structure, breaks on edge cases
+- 30-49: Significant bugs, spaghetti code, limited browser support
+- 0-29: Crashes, security issues, fundamentally broken
+
+**Deduction Reference:**
+- No error handling at all: -20
+- Crashes on common actions: -25
+- No mobile responsiveness: -15
+- Memory leaks (setInterval without cleanup): -15
+- Hardcoded dimensions breaking layout: -10
+
+---
+
+### 2. RICHNESS (UX/UI & Experience Polish) - Weight: 40%
+
+**User Experience Checklist:**
+- [ ] **First Impression**: Does it look professional in the first 3 seconds?
+- [ ] **Visual Hierarchy**: Clear focal points, proper spacing, readable typography
+- [ ] **Color Design**: Cohesive palette, good contrast, dark/light mode consideration
+- [ ] **Iconography**: Consistent icon style (FontAwesome/Lucide), meaningful usage
+- [ ] **Microinteractions**: Hover states, button feedback, loading spinners
+- [ ] **Animations**: Smooth transitions, not jarring, performance-friendly
+- [ ] **Empty States**: What shows when there's no data?
+- [ ] **Error States**: Clear error messages, recovery paths
+- [ ] **Onboarding**: Is it obvious how to start using the app?
+
+**Category-Specific UX Benchmarks:**
+| Category | Baseline (70) | Good (80) | Excellent (90+) |
+|----------|---------------|-----------|-----------------|
+| 🎮 Game | Playable, basic graphics | Smooth animations, sound effects | Particle effects, screen shake, juice |
+| 🛠️ Tool | Functional interface | Keyboard shortcuts, tooltips | Drag-drop, undo/redo, auto-save indicator |
+| 🎨 Creative | Basic drawing/editing | Brush preview, zoom/pan | Pressure sensitivity, layer blend modes |
+| 📱 Social | Profile display | Like/share buttons | Real-time updates, notifications |
+
+**Competitor Comparison (Mental Benchmark):**
+- Compare games to: 2048, Wordle, Flappy Bird clones
+- Compare tools to: Notion-like, Trello-like, Calculator apps
+- Compare creative to: Canva simple tools, Mini Photoshop
+
+**Scoring Guide:**
+- 95-100: "Wow, this feels like a paid app!" - Delightful details, memorable experience
+- 85-94: Professional UI, smooth interactions, above average for category
+- 75-84: Good looking, standard UX patterns, meets expectations
+- 65-74: Acceptable but generic, basic interactivity, nothing memorable
+- 50-64: Functional but ugly, minimal feedback, confusing UX
+- 30-49: Poor UI choices, jarring experience, frustrating to use
+- 0-29: Unusable, broken layout, impossible to navigate
+
+**Deduction Reference:**
+- No hover/active states on clickables: -10
+- Jarring or no page transitions: -10
+- Text unreadable (size/contrast): -15
+- Inconsistent spacing/alignment: -10
+- No loading feedback for async ops: -10
+- Confusing navigation/flow: -15
+
+---
+
+### 3. UTILITY (Value, Innovation & Engagement) - Weight: 30%
+
+**Value Assessment Checklist:**
+- [ ] **Core Promise**: Does title/description match actual functionality?
+- [ ] **Completeness**: Can you fully use it, or is it a half-baked demo?
+- [ ] **Real-World Use**: Would someone actually use this, not just demo it?
+- [ ] **Innovation**: Is there a unique twist, or just another clone?
+- [ ] **Retention**: Would users come back? (games: replayability; tools: daily use)
+- [ ] **Data Persistence**: Does it save your work/progress?
+- [ ] **Shareability**: Would someone screenshot/share this?
+
+**Category-Specific Value Standards:**
+| Category | Low Value (50-) | Medium (60-75) | High (80+) |
+|----------|-----------------|----------------|------------|
+| 🎮 Game | Plays once, no challenge | Fun for 5 min, some depth | Addictive, "one more try" |
+| 🛠️ Tool | Basic calculator clone | Useful niche tool | Solves real pain point daily |
+| 🎨 Creative | Static demo | Can create & export | Actually usable for projects |
+| 📊 Data | Fake/static data | Configurable demo | Works with real user data |
+
+**Innovation Bonus/Penalty:**
+- Unique mechanic/approach in crowded category: +10
+- Direct clone with no improvements: -10
+- Combines 2+ concepts creatively: +15
+
+**Engagement Signals:**
+- High: Has leaderboard, achievements, shareable results
+- Medium: Has save/load, customization options
+- Low: One-shot experience, no persistence
+
+**Scoring Guide:**
+- 95-100: "I'd pay for this" - Genuinely useful/fun, innovative, daily driver potential
+- 85-94: Very engaging, would recommend to friends, fills a real need
+- 75-84: Solid implementation, useful but common, good execution of known idea
+- 65-74: Works for its purpose, limited scope, basic implementation
+- 50-64: Demo quality, "proof of concept", low real-world value
+- 30-49: Barely achieves stated goal, frustrating to actually use
+- 0-29: Doesn't work, false advertising, zero practical value
+
+**Deduction Reference:**
+- Title promises X, but X doesn't work: -25
+- No data persistence for app that needs it: -20
+- Just a static page, no interactivity: -30
+- Common clone with no unique value: -15
+- Incomplete core loop (game) / workflow (tool): -20
+
+---
+
+## 🎯 OUTPUT FORMAT
 
 Return ONLY a valid JSON object:
+\`\`\`json
 {
-  "quality": number,
-  "richness": number,
-  "utility": number,
-  "reason_zh": "简明扼要、专业的评估总结（最多50字）。重点说明得分原因。必须使用中文。",
-  "reason_en": "Concise, professional summary of the evaluation (max 50 words). Focus on why it got these scores. (English)"
-}`;
+  "quality": <0-100>,
+  "richness": <0-100>,
+  "utility": <0-100>,
+  "reason_zh": "<50-80字中文评估：必须包含1个具体优点+1个具体缺点+与同类应用对比>",
+  "reason_en": "<50-80 word English evaluation: must include 1 specific pro + 1 specific con + category comparison>"
+}
+\`\`\`
 
-        const userPrompt = `Title: ${item.title}\nDescription: ${item.description}\n\nFull Source Code:\n${fullCode}`;
+## ✅ EXAMPLE GOOD OUTPUTS
+
+**Example 1: A Polished Game**
+\`\`\`json
+{
+  "quality": 82,
+  "richness": 91,
+  "utility": 78,
+  "reason_zh": "代码结构良好，使用useReducer管理游戏状态。动画流畅，粒子特效出色，超越多数2048类游戏。但缺少音效和最高分持久化，重玩动力稍弱。",
+  "reason_en": "Well-structured code using useReducer for game state. Smooth animations with excellent particle effects, surpassing most 2048 clones. Missing sound effects and high score persistence reduces replay motivation."
+}
+\`\`\`
+
+**Example 2: A Basic Tool**
+\`\`\`json
+{
+  "quality": 68,
+  "richness": 55,
+  "utility": 72,
+  "reason_zh": "核心计算功能正确，有基础输入验证。但UI非常朴素，无任何动画反馈，与市面计算器相比缺乏特色。胜在逻辑严谨，适合内部使用。",
+  "reason_en": "Core calculation logic correct with basic input validation. UI is very plain with no animation feedback, lacks distinction from standard calculators. Strength lies in rigorous logic, suitable for internal use."
+}
+\`\`\`
+
+**Example 3: A Broken App**
+\`\`\`json
+{
+  "quality": 25,
+  "richness": 30,
+  "utility": 15,
+  "reason_zh": "标题声称是'待办清单'，但添加任务后无法删除或标记完成。代码有明显的状态管理错误导致重复渲染。UI布局在移动端完全错乱。",
+  "reason_en": "Claims to be a 'Todo List' but cannot delete or mark tasks complete after adding. Obvious state management errors cause re-render loops. UI layout completely breaks on mobile devices."
+}
+\`\`\`
+
+## ❌ BAD OUTPUT EXAMPLES (AVOID)
+- "不错的小应用，有待改进" (Too vague, no specifics)
+- "Good app with nice UI" (No comparison, no specific evidence)
+- All three scores within 5 points of each other (Unlikely for real apps)
+- Scores clustered at 75 for everything (Use full range)`;
+
+        const userPrompt = `## 📱 APPLICATION TO ANALYZE
+
+**Title:** ${item.title || 'Untitled'}
+**Description:** ${item.description || 'No description provided'}
+
+---
+
+**Full Source Code:**
+\`\`\`html
+${fullCode}
+\`\`\`
+
+---
+
+**Your Task:**
+1. First, identify the app CATEGORY (Game / Tool / Creative / Dashboard / Social / Other)
+2. Compare against the BEST apps in that category
+3. Score based on the detailed rubric above
+4. Provide specific, actionable feedback
+
+Be fair, be specific, be comparative.`;
 
         let aiData;
         let retryCount = 0;

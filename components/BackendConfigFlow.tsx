@@ -119,19 +119,35 @@ export const BackendConfigFlow: React.FC<BackendConfigFlowProps> = ({
 
     // Generation finished - add a delay to ensure code state is updated
     const checkCompletion = setTimeout(() => {
-      // Check if code actually changed
-      const hasBackendNow = generatedCode.includes('window.SparkCMS') || 
-                            generatedCode.includes('/api/mailbox/submit') ||
-                            generatedCode.includes('fetch(');
+      // 🆕 P2 优化: 更精确的后端集成检测
+      // 检查是否包含后端集成的关键特征
+      const hasMailboxSubmit = generatedCode.includes('/api/mailbox/submit');
+      const hasSparkAppId = generatedCode.includes('window.SPARK_APP_ID') || generatedCode.includes('SPARK_APP_ID');
+      const hasFormSubmitHandler = generatedCode.includes('handleSubmit') && generatedCode.includes('fetch(');
+      const hasIsSubmitting = generatedCode.includes('isSubmitting') || generatedCode.includes('submitting');
+      
+      // 至少需要满足两个条件才认为配置成功
+      const backendIndicators = [hasMailboxSubmit, hasSparkAppId, hasFormSubmitHandler, hasIsSubmitting];
+      const indicatorCount = backendIndicators.filter(Boolean).length;
+      const hasBackendNow = indicatorCount >= 2 || hasMailboxSubmit;
+      
+      // 或者代码长度明显增加（至少增加 200 字符）
+      const codeGrew = generatedCode.length > initialCodeLength + 200;
       
       console.log('[BackendConfigFlow] Checking completion:', { 
-        hasBackendNow, 
+        hasBackendNow,
+        indicatorCount,
+        hasMailboxSubmit,
+        hasSparkAppId,
+        hasFormSubmitHandler,
+        hasIsSubmitting,
+        codeGrew,
         codeLength: generatedCode.length, 
         initialLength: initialCodeLength,
         isGenerating 
       });
       
-      if (hasBackendNow || generatedCode.length !== initialCodeLength) {
+      if (hasBackendNow || codeGrew) {
         setProgress(100);
         setStep('complete');
         setLogs(prev => [...prev.slice(-6), language === 'zh' ? '✅ 后端集成完成！' : '✅ Backend integration complete!']);

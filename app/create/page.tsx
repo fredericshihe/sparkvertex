@@ -390,6 +390,20 @@ function CreateContent() {
   const timeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const channelRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const taskVisibilityHandlerRef = useRef<(() => void) | null>(null); // 🚀 任务可见性监听器
+  
+  // 🚀 Refs for visibility change handler (to avoid stale closure)
+  const currentTaskIdRef = useRef<string | null>(null);
+  const isGeneratingRef = useRef(false);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    currentTaskIdRef.current = currentTaskId;
+  }, [currentTaskId]);
+  
+  useEffect(() => {
+    isGeneratingRef.current = isGenerating;
+  }, [isGenerating]);
 
   // Click outside to close history panel
   useEffect(() => {
@@ -1116,11 +1130,12 @@ function CreateContent() {
     const sessionRefreshInterval = setInterval(checkAndRefreshSession, 1000 * 60 * 45);
 
     // Handle visibility change - refresh session when user returns to tab
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (!document.hidden) {
         console.log('Tab became visible, checking session...');
         checkAndRefreshSession();
         checkAuth(); // Also re-check credits and profile
+        // 🚀 任务状态检查已移至 subscribeToTask 内部的专用监听器
       }
     };
 
@@ -1235,6 +1250,12 @@ function CreateContent() {
         clearTimeout(timeoutTimerRef.current);
         timeoutTimerRef.current = null;
     }
+    
+    // 🚀 移除任务可见性监听器
+    if (taskVisibilityHandlerRef.current) {
+        document.removeEventListener('visibilitychange', taskVisibilityHandlerRef.current);
+        taskVisibilityHandlerRef.current = null;
+    }
 
     // 2. Unsubscribe Channel
     if (channelRef.current) {
@@ -1282,14 +1303,14 @@ function CreateContent() {
 
   const handleTimeoutWait = () => {
       setShowTimeoutModal(false);
-      // Reset timeout timer for another 60 seconds (longer interval after user chose to wait)
+      // Reset timeout timer for another 45 seconds (shorter interval after user chose to wait)
       if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
       timeoutTimerRef.current = setTimeout(() => {
           // Only show again if we are still generating and still haven't received code
           if (isGenerating && !streamingCode) {
               setShowTimeoutModal(true);
           }
-      }, 60000);
+      }, 45000);
   };
 
   // --- Wizard Handlers ---
@@ -1554,6 +1575,31 @@ ${description}
     `;
   };
 
+  // 🆕 清除应用缓存（保留系统关键 Key）
+  const clearAppCache = () => {
+    if (iframeRef.current?.contentWindow) {
+      try {
+        const win = iframeRef.current.contentWindow;
+        // 1. 清除 LocalStorage (保留系统关键 Key)
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < win.localStorage.length; i++) {
+          const key = win.localStorage.key(i);
+          // 保护 Supabase Auth, i18n, 和 E2E 密钥
+          if (key && !key.startsWith('sb-') && key !== 'i18nextLng' && !key.startsWith('spark_e2e_')) {
+             keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(k => win.localStorage.removeItem(k));
+        
+        // 2. 清除 SessionStorage
+        win.sessionStorage.clear();
+        console.log('[App] Cache cleared successfully');
+      } catch (e) {
+        console.error('Cache clear failed:', e);
+      }
+    }
+  };
+
   const monitorTask = async (taskId: string, isModification = false, useDiffMode = false, fullPromptLength = 0, fullPromptText = '', relaxedMode = false, targets: string[] = []) => {
       let isFinished = false;
       let lastUpdateTimestamp = Date.now();
@@ -1573,13 +1619,13 @@ ${description}
       if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
       if (channelRef.current) supabase.removeChannel(channelRef.current);
 
-      // Set Timeout Timer (90 seconds)
+      // Set Timeout Timer (60 seconds) - 配合后端 DeepSeek 45s + Gemini Fallback 15s
       timeoutTimerRef.current = setTimeout(() => {
           // Only show timeout if we haven't received ANY code yet
           if (!hasStartedStreaming) {
               setShowTimeoutModal(true);
           }
-      }, 90000);
+      }, 60000);
 
       // Add a "slow connection" hint after 8 seconds
       const slowConnectionTimer = setTimeout(() => {
@@ -1710,6 +1756,11 @@ ${description}
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
             if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
+            // 🚀 移除任务可见性监听器
+            if (taskVisibilityHandlerRef.current) {
+                document.removeEventListener('visibilitychange', taskVisibilityHandlerRef.current);
+                taskVisibilityHandlerRef.current = null;
+            }
             // Do NOT remove channel immediately, wait for broadcast to arrive with cost
             // if (channelRef.current) supabase.removeChannel(channelRef.current);
 
@@ -1980,6 +2031,10 @@ ${description}
 
                                      setGeneratedCode(finalCode);
                                      resetQuickEditHistory();
+                                     // 🆕 Clear app cache to ensure clean state
+                                     clearAppCache();
+                                     // 🆕 Reset runtime error state to prevent false positives
+                                     setRuntimeError(null);
                                      toastSuccess(t.create.success_edit);
                                      
                                      let finalContent = summary || (language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.');
@@ -2007,9 +2062,19 @@ ${description}
                         throw new Error(language === 'zh' ? '修改后的代码为空' : 'Patched code is empty');
                     }
 
+                    // 🆕 Critical Bug Fix: Prevent truncation to garbage strings
+                    if (finalCode.length < 100 && generatedCode.length > 500) {
+                         console.error('[Critical] Patched code is suspiciously short:', finalCode);
+                         throw new Error(language === 'zh' ? '修改后的代码异常短，已自动拦截错误' : 'Patched code is suspiciously short, modification cancelled');
+                    }
+
                     setGeneratedCode(finalCode);
                     // Clear quick edit history when AI generates new content
                     resetQuickEditHistory();
+                    // 🆕 Clear app cache to ensure clean state
+                    clearAppCache();
+                    // 🆕 Reset runtime error state to prevent false positives
+                    setRuntimeError(null);
                     toastSuccess(t.create.success_edit);
                     
                     let finalContent = summary || (language === 'zh' ? '已根据您的要求更新了代码。' : 'Updated the code based on your request.');
@@ -2429,6 +2494,34 @@ ${description}
         .subscribe();
 
       let isPolling = false;
+      
+      // 🚀 立即轮询函数（页面可见时调用）
+      const triggerImmediatePoll = async () => {
+        if (isFinished || isPolling) return;
+        isPolling = true;
+        console.log('[ImmediatePoll] Tab became visible, checking task status...');
+        try {
+          const { data, error } = await supabase.from('generation_tasks').select('*').eq('id', taskId).single();
+          if (data && !error) {
+            console.log('[ImmediatePoll] Task status:', data.status);
+            handleTaskUpdate(data);
+          }
+        } catch (e) {
+          console.warn('[ImmediatePoll] Failed:', e);
+        } finally {
+          isPolling = false;
+        }
+      };
+      
+      // 🚀 监听页面可见性变化，立即触发轮询
+      const visibilityHandler = () => {
+        if (!document.hidden) {
+          triggerImmediatePoll();
+        }
+      };
+      document.addEventListener('visibilitychange', visibilityHandler);
+      taskVisibilityHandlerRef.current = visibilityHandler; // 保存引用以便清理
+      
       pollIntervalRef.current = setInterval(async () => {
         if (isFinished || isPolling) return;
         
@@ -2455,8 +2548,14 @@ ${description}
 
     // Explicitly rely on the argument to determine if it's a modification or a new generation (regenerate)
     const isModification = isModificationArg;
-    // 🆕 fullCodeMode 开关也会禁用 Diff 模式
-    const useDiffMode = isModification && !forceFull && !fullCodeMode;
+    
+    // 🆕 backend_config 强制使用 Diff 模式（全量模式会导致大文件 AI 崩溃）
+    const isBackendConfig = explicitType === 'backend_config';
+    const useDiffMode = isModification && !forceFull && (!fullCodeMode || isBackendConfig);
+    
+    if (isBackendConfig && fullCodeMode) {
+        console.log('[BackendConfig] Force using Diff mode (ignoring fullCodeMode setting)');
+    }
     
     // Determine operation type for the NEXT generation
     let nextOperationType: 'init' | 'upload' | 'chat' | 'click' | 'regenerate' | 'fix' | 'rollback' | 'backend_config' = 'init';
@@ -3184,6 +3283,12 @@ Remember: You're building for production. Code must be clean, performant, and er
       // Inject RAG Context if available
       let finalSystemPrompt = SYSTEM_PROMPT;
       
+      // 🆕 P0 Fix: 后端配置模式使用专用 System Prompt
+      if (nextOperationType === 'backend_config') {
+          console.log('[BackendConfig] Using dedicated backend configuration prompt');
+          finalSystemPrompt = GET_BACKEND_CONFIG_PROMPT(language);
+      }
+      
       // Apply Smart Context Compression (跳过全量修复模式)
       // 全量修改模式下，不进行任何压缩
       const skipCompressionForThisRequest = fullCodeMode || forceFull;
@@ -3820,6 +3925,7 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
     }]);
     
     // Save to quick edit history for undo/redo within session
+    setRuntimeError(null);
     const description = language === 'zh' ? `颜色: ${tailwindColor}` : `Color: ${tailwindColor}`;
     const isFirstEdit = quickEditHistory.length === 0;
     const currentLength = quickEditHistory.length;
@@ -4060,6 +4166,7 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
     }]);
     
     // Save to quick edit history for undo/redo within session
+    setRuntimeError(null);
     const shortOldText = oldText.length > 15 ? oldText.substring(0, 15) + '...' : oldText;
     const shortNewText = newText.length > 15 ? newText.substring(0, 15) + '...' : newText;
     const description = language === 'zh' ? `文字: "${shortOldText}" → "${shortNewText}"` : `Text: "${shortOldText}" → "${shortNewText}"`;
@@ -4128,6 +4235,12 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       setStreamingCode(prevState.code);
       setQuickEditHistoryIndex(prevIndex);
       
+      // 🆕 Clear cache before restoring state
+      clearAppCache();
+      
+      // 🆕 Reset runtime error state to prevent false positives
+      setRuntimeError(null);
+      
       // Update iframe
       if (iframeRef.current?.contentWindow) {
         iframeRef.current.contentWindow.postMessage({ 
@@ -4162,6 +4275,12 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       setGeneratedCode(nextState.code);
       setStreamingCode(nextState.code);
       setQuickEditHistoryIndex(nextIndex);
+      
+      // 🆕 Clear cache before restoring state
+      clearAppCache();
+      
+      // 🆕 Reset runtime error state to prevent false positives
+      setRuntimeError(null);
       
       // Update iframe
       if (iframeRef.current?.contentWindow) {
@@ -4640,13 +4759,37 @@ Please fix the code to make the app display properly.`;
     setGenerationPhase('starting');
     setStep('preview'); // Ensure we are in preview mode
     
-    // Use a special prompt for backend configuration
-    const systemPrompt = GET_BACKEND_CONFIG_PROMPT(language);
+    // 🆕 P1 优化: 构造更详细的 User Prompt，帮助 AI 理解上下文
     const userPrompt = language === 'zh' 
-      ? `一键配置表单`
-      : `Configure Form Collection`;
+      ? `请为此应用添加表单收集后端功能：
+
+### 任务目标
+1. 识别应用中的主要表单（如提交按钮、输入框组合）
+2. 如果没有表单，在页面底部创建一个"联系我们"或"意见反馈"表单
+3. 修改表单提交逻辑，将数据发送到 /api/mailbox/submit
+4. 添加提交中的加载状态
+
+### 重要约束
+- 不要修改现有 UI 设计（颜色、字体、布局）
+- 只修改表单提交的逻辑部分
+- 确保 payload 包含所有表单字段`
+      : `Please add form collection backend functionality to this app:
+
+### Task Goals
+1. Identify main forms in the app (submit buttons, input groups)
+2. If no form exists, create a "Contact Us" or "Feedback" form at the bottom
+3. Modify form submission logic to send data to /api/mailbox/submit
+4. Add loading state during submission
+
+### Important Constraints
+- Do NOT modify existing UI design (colors, fonts, layout)
+- Only modify form submission logic
+- Ensure payload includes all form fields`;
     
-    await startGeneration(true, userPrompt, systemPrompt, false, 'backend_config');
+    // 🆕 修正参数: displayPrompt 应该是用户可见的简短描述
+    const displayPrompt = language === 'zh' ? '配置表单收集后端' : 'Configure form collection backend';
+    
+    await startGeneration(true, userPrompt, displayPrompt, false, 'backend_config');
   };
 
   const renderGenerating = () => {
