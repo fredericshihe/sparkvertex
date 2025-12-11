@@ -1422,12 +1422,59 @@ export async function findRelevantCodeChunks(
             // This allows Map, Tab, Nav, API while still preventing noise
             if (!isSignificant(componentName)) continue;
             
-            const shouldInclude = 
-                promptLower.includes(componentNameLower) || 
-                promptLower.includes(componentNameLower.replace('screen', '')) ||
-                promptLower.includes(componentNameLower.replace('component', '')) ||
-                // Chinese keyword matching
-                chineseKeywords.some(kw => componentNameLower.includes(kw));
+            // 🔍 STRICTER MATCHING LOGIC
+            // Prevent "phantom mentions" (e.g. "index" matching "DexScreen", "bitmap" matching "Map")
+            let shouldInclude = false;
+
+            // Helper: Check if word exists in prompt as a whole word
+            const isWordInPrompt = (word: string) => {
+                if (!word || word.length < 2) return false;
+                const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                return new RegExp(`\\b${escaped}\\b`, 'i').test(promptLower);
+            };
+
+            // 1. Direct match (exact word in prompt)
+            if (isWordInPrompt(componentNameLower)) {
+                shouldInclude = true;
+            }
+            // 2. 🚨 STRICT MATCHING ONLY: Removed loose suffix matching
+            // User reported that "Ensure the screen doesn't scroll" was matching "LaunchScreen" etc.
+            // because "screen" was stripped and "Launch" might have been matched or similar issues.
+            // We now require the FULL component name to appear in the prompt.
+            /*
+            else {
+                const shortName = componentNameLower.replace(/screen|component/g, '');
+                // Only if short name is significant enough (avoid matching "ui" or "id")
+                if (shortName.length >= 3 && isWordInPrompt(shortName)) {
+                    shouldInclude = true;
+                }
+            }
+            */
+
+            // 3. Chinese keyword matching (safer approach)
+            // Instead of loose substring match, check if keyword matches a semantic part of the name
+            if (!shouldInclude && chineseKeywords.length > 0) {
+                // Split PascalCase/camelCase into parts
+                // e.g. "MapScreen" -> ["map", "screen"]
+                // "Bitmap" -> ["bitmap"]
+                const parts = componentName
+                    .split(/(?=[A-Z])|[-_]/) // Split by Capital, hyphen, underscore
+                    .map(p => p.toLowerCase())
+                    .filter(p => p.length > 0);
+                
+                shouldInclude = chineseKeywords.some(kw => {
+                    return parts.some(part => {
+                        // Exact match
+                        if (part === kw) return true;
+                        // Plural match (setting -> settings)
+                        if (part === kw + 's') return true;
+                        // Prefix match (map -> mapper), but NOT suffix match (map -> bitmap)
+                        // This prevents "map" from matching "bitmap"
+                        if (part.startsWith(kw) && part.length <= kw.length + 3) return true;
+                        return false;
+                    });
+                });
+            }
             
             // Boost score for data definitions (MAP_GRID, etc.) if they are somewhat relevant
             // This helps them survive the threshold cut even if semantic similarity is slightly lower
@@ -1473,7 +1520,19 @@ export async function findRelevantCodeChunks(
         
         // ✅ SAFETY: Create snapshot of initial chunks to iterate
         // This physically prevents infinite loops even if relevantChunks gets modified
-        const initialQueue = [...relevantChunks];
+        // 🆕 OPTIMIZATION: Sort queue to prioritize Explicit Targets -> High Score -> Mentioned
+        // This ensures dependencies of critical files are processed before we hit the chunk limit
+        const initialQueue = [...relevantChunks].sort((a, b) => {
+            // Check if A or B are explicit targets
+            const aIsExplicit = explicitTargets.some(t => a.id.toLowerCase().includes(t.toLowerCase()));
+            const bIsExplicit = explicitTargets.some(t => b.id.toLowerCase().includes(t.toLowerCase()));
+            
+            if (aIsExplicit && !bIsExplicit) return -1; // A comes first
+            if (!aIsExplicit && bIsExplicit) return 1;  // B comes first
+            
+            // If both or neither are explicit, keep original order
+            return 0;
+        });
         
         for (const chunk of initialQueue) {
             // initialQueue is frozen, no need for originalChunkIds check
