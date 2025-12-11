@@ -152,9 +152,8 @@ export const BackendConfigFlow: React.FC<BackendConfigFlowProps> = ({
         setStep('complete');
         setLogs(prev => [...prev.slice(-6), language === 'zh' ? '✅ 后端集成完成！' : '✅ Backend integration complete!']);
       } else {
-        // No change detected, but generation is done - might be an error
-        // Add a message and still allow user to complete
-        setLogs(prev => [...prev.slice(-6), language === 'zh' ? '⚠️ 代码可能未更新，请检查结果' : '⚠️ Code may not have changed, please check result']);
+        // No form detected in the app
+        setLogs(prev => [...prev.slice(-6), language === 'zh' ? '⚠️ 检测到您的应用暂时没有表单收集的功能，无法完成配置' : '⚠️ No form collection feature detected in your app, cannot complete configuration']);
         setProgress(100);
         setStep('complete');
       }
