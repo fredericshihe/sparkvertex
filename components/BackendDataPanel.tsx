@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { X, Search, Download, RefreshCw, Trash2, Eye, ChevronRight, Database, Table as TableIcon, LayoutList, CheckCircle, Circle, BarChart3, Filter } from 'lucide-react';
 import { detectSparkBackendCode } from '@/lib/utils';
 import * as XLSX from 'xlsx';
+import { useModal } from '@/context/ModalContext';
+import { useToast } from '@/context/ToastContext';
 
 interface InboxMessage {
   id: string;
@@ -139,6 +141,8 @@ export default function BackendDataPanel({
   mode = 'test',
 }: BackendDataPanelProps) {
   const t = TRANSLATIONS[language] || TRANSLATIONS.en;
+  const { openConfirmModal } = useModal();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -214,28 +218,34 @@ export default function BackendDataPanel({
 
   const handleUpgradeStorage = async () => {
     if (!userId) return;
-    if (!confirm(t.confirmUpgradeDesc)) return;
+    
+    openConfirmModal({
+      title: t.confirmUpgradeTitle,
+      message: t.confirmUpgradeDesc,
+      confirmText: language === 'zh' ? '确认升级' : 'Confirm Upgrade',
+      onConfirm: async () => {
+        setUpgrading(true);
+        try {
+          const { data, error } = await supabase.rpc('purchase_permanent_storage', {
+            p_user_id: userId
+          });
 
-    setUpgrading(true);
-    try {
-      const { data, error } = await supabase.rpc('purchase_permanent_storage', {
-        p_user_id: userId
-      });
+          if (error) throw error;
 
-      if (error) throw error;
-
-      if (data && data.success) {
-        setHasPermanentStorage(true);
-        alert(t.upgradeSuccess);
-      } else {
-        alert(data?.message || t.upgradeFail);
+          if (data && data.success) {
+            setHasPermanentStorage(true);
+            toastSuccess(t.upgradeSuccess);
+          } else {
+            toastError(data?.message || t.upgradeFail);
+          }
+        } catch (err: any) {
+          console.error('Upgrade failed:', err);
+          toastError(t.upgradeFail);
+        } finally {
+          setUpgrading(false);
+        }
       }
-    } catch (err: any) {
-      console.error('Upgrade failed:', err);
-      alert(t.upgradeFail);
-    } finally {
-      setUpgrading(false);
-    }
+    });
   };
 
   const fetchMessages = useCallback(async () => {
@@ -327,19 +337,26 @@ export default function BackendDataPanel({
   }, [isOpen, effectiveAppId, fetchMessages]);
 
   const deleteMessage = async (messageId: string) => {
-    if (!confirm(t.deleteConfirm)) return;
-    
-    try {
-      await supabase
-        .from('inbox_messages')
-        .delete()
-        .eq('id', messageId);
-      
-      setMessages(prev => prev.filter(m => m.id !== messageId));
-      if (selectedMessage?.id === messageId) setSelectedMessage(null);
-    } catch (err) {
-      console.error('Delete failed:', err);
-    }
+    openConfirmModal({
+      title: language === 'zh' ? '删除记录' : 'Delete Record',
+      message: t.deleteConfirm,
+      confirmText: language === 'zh' ? '删除' : 'Delete',
+      onConfirm: async () => {
+        try {
+          await supabase
+            .from('inbox_messages')
+            .delete()
+            .eq('id', messageId);
+          
+          setMessages(prev => prev.filter(m => m.id !== messageId));
+          if (selectedMessage?.id === messageId) setSelectedMessage(null);
+          toastSuccess(language === 'zh' ? '记录已删除' : 'Record deleted');
+        } catch (err) {
+          console.error('Delete failed:', err);
+          toastError(language === 'zh' ? '删除失败' : 'Delete failed');
+        }
+      }
+    });
   };
 
   const formatDate = (dateStr: string) => {
