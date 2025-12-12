@@ -7,8 +7,8 @@ import Showcase from '@/components/landing/Showcase';
 import CTASection from '@/components/landing/CTASection';
 import Galaxy from '@/components/Galaxy';
 
-// 使用边缘运行时，降低延迟
-export const runtime = 'edge';
+// 使用默认 Node.js 运行时，避免 Edge Runtime 兼容性问题
+// export const runtime = 'edge';
 // ISR: 缓存 120 秒（2分钟）
 export const revalidate = 120;
 

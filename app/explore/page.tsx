@@ -5,7 +5,7 @@ import { Item } from '@/types/supabase';
 import { KNOWN_CATEGORIES, CORE_CATEGORY_KEYS } from '@/lib/categories';
 import Galaxy from '@/components/Galaxy';
 
-export const runtime = 'edge'; // 使用边缘运行时，降低延迟
+// export const runtime = 'edge'; // 使用边缘运行时，降低延迟
 export const revalidate = 60;  // ISR: 缓存 60 秒
 
 export default async function ExplorePage() {
