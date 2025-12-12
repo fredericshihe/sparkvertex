@@ -15,6 +15,11 @@ npm install
 
 # 3. 构建项目
 echo "mb 正在构建 Next.js 项目..."
+# 尝试加载环境变量 (解决 supabaseUrl is required 错误)
+if [ -f .env.local ]; then
+  export $(grep -v '^#' .env.local | xargs)
+fi
+
 # 注意：如果服务器内存较小，确保 Swap 已经启用
 npm run build
 
