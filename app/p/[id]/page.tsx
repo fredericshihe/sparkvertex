@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { supabase } from '@/lib/supabase';
+import { createSafeAnonClient } from '@/lib/supabase-server-safe';
 import ProductDetailClient from '@/components/ProductDetailClient';
 import { notFound } from 'next/navigation';
 import { Suspense, cache } from 'react';
@@ -16,6 +16,7 @@ interface Props {
 // 使用 React cache 对请求进行去重
 // 这样 generateMetadata 和 ProductPage 会共享同一个请求结果，避免重复查询数据库
 const getItem = cache(async (id: string) => {
+  const supabase = createSafeAnonClient();
   const { data: item } = await supabase
     .from('items')
     .select(`
