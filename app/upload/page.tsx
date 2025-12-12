@@ -1565,7 +1565,7 @@ function UploadContent() {
 
         if (countError) {
           console.error('Error checking daily limit:', countError);
-        } else if (count !== null && count >= 10) {
+        } else if (count !== null && count >= 1000) { // 临时解除限制：从 10 改为 1000
           setShowLimitModal(true);
           setLoading(false);
           return;
