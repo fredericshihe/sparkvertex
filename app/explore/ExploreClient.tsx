@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useLayoutEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Item } from '@/types/supabase';
 import ProjectCard from '@/components/ProjectCard';
@@ -28,6 +29,8 @@ interface ExploreClientProps {
 export default function ExploreClient({ initialItems, initialCategories, initialTopItem }: ExploreClientProps) {
   // Use cache if available, otherwise use server props
   const hasCache = exploreCache.hasLoaded && exploreCache.items.length > 0;
+  const searchParams = useSearchParams();
+  const urlCategory = searchParams.get('category');
   
   const [items, setItems] = useState<Item[]>(hasCache ? exploreCache.items : initialItems);
   const [topItems, setTopItems] = useState<Item[]>(initialTopItem ? [initialTopItem] : []);
@@ -36,11 +39,46 @@ export default function ExploreClient({ initialItems, initialCategories, initial
   const [myLikes, setMyLikes] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(exploreCache.page || 0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [category, setCategory] = useState(exploreCache.category || 'all');
+  const [category, setCategory] = useState(urlCategory || exploreCache.category || 'all');
+  const [showAIBadgeInfo, setShowAIBadgeInfo] = useState(false);
   const { openLoginModal, openDetailModal } = useModal();
   const { language } = useLanguage();
   const t = translations[language] as typeof translations['zh'];
   const ITEMS_PER_PAGE = 12;
+  const mainRef = useRef<HTMLDivElement>(null);
+  
+  // Use useLayoutEffect to prevent visual scroll jump
+  const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+  // Scroll to top when category changes or on mount
+  useIsomorphicLayoutEffect(() => {
+    // Disable browser scroll restoration to prevent jumping
+    if (typeof window !== 'undefined' && window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+    
+    // Ensure it stays at top even if browser tries to restore later
+    const timer1 = setTimeout(() => {
+       if (mainRef.current) {
+         mainRef.current.scrollTop = 0;
+       }
+    }, 10);
+    
+    const timer2 = setTimeout(() => {
+       if (mainRef.current) {
+         mainRef.current.scrollTop = 0;
+       }
+    }, 100);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, [category]);
 
   useEffect(() => {
     // If we don't have categories (e.g. server failed or something), fetch them. 
@@ -239,7 +277,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
   };
 
   return (
-    <div className="flex h-[100dvh] pt-16 bg-transparent overflow-hidden">
+    <div className="flex h-[100dvh] pt-20 md:pt-16 bg-transparent overflow-hidden">
       {/* Sidebar Navigation */}
       <aside className="w-64 flex-shrink-0 border-r border-white/10 bg-black/20 backdrop-blur-xl hidden md:flex flex-col">
         <div className="p-6">
@@ -311,12 +349,12 @@ export default function ExploreClient({ initialItems, initialCategories, initial
           ))}
         </div>
 
-        <main className="flex-1 overflow-y-auto custom-scrollbar relative">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main ref={mainRef} className="flex-1 overflow-y-auto custom-scrollbar relative" style={{ scrollBehavior: 'auto' }}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-32 md:pb-8">
           
           {/* Header & Search */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-            <div>
+            <div className="hidden md:block">
               <h1 className="text-3xl font-bold text-white mb-2">
                 {getCategoryLabel(categories.find(c => c.id === category) || categories[0])}
               </h1>
@@ -346,8 +384,80 @@ export default function ExploreClient({ initialItems, initialCategories, initial
                 </div>
               </div>
             </div>
+
+            {/* Mobile: AI badges + Search in one row */}
+            <div className="flex md:hidden items-stretch gap-2 w-full relative">
+              {/* Simplified AI badges for mobile - clickable */}
+              <button 
+                onClick={() => setShowAIBadgeInfo(!showAIBadgeInfo)}
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-slate-900/40 backdrop-blur-md border border-white/10 flex-shrink-0 hover:bg-white/10 active:scale-95 transition-all"
+              >
+                <i className="fa-solid fa-microchip text-purple-400 text-sm"></i>
+                <i className="fa-solid fa-shield-halved text-green-400 text-sm"></i>
+                <i className="fa-solid fa-bolt text-yellow-400 text-sm"></i>
+                <i className="fa-solid fa-copyright text-blue-400 text-sm"></i>
+              </button>
+              
+              <div className="flex-1"></div>
+              
+              {/* Compact search input - icon only on the right */}
+              <button 
+                onClick={handleSearch}
+                className="flex items-center justify-center w-10 h-10 rounded-lg bg-slate-900/40 backdrop-blur-md border border-white/10 hover:bg-white/10 active:scale-95 transition-all flex-shrink-0"
+              >
+                <i className="fa-solid fa-search text-slate-400 text-sm"></i>
+              </button>
+              
+              {searchQuery && (
+                <input
+                  type="text"
+                  className="absolute right-12 top-0 w-40 h-10 px-3 border border-white/10 rounded-lg bg-slate-900/40 backdrop-blur-md text-slate-300 focus:outline-none focus:bg-slate-900/60 focus:border-white/20 text-xs transition-all"
+                  placeholder=""
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  autoFocus
+                />
+              )}
+
+              {/* AI Badge Info Popup */}
+              {showAIBadgeInfo && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowAIBadgeInfo(false)} />
+                  <div className="absolute top-full left-0 mt-2 z-50 w-64 p-4 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/20 shadow-2xl">
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-2">
+                        <i className="fa-solid fa-microchip text-purple-400 text-sm mt-0.5"></i>
+                        <div>
+                          <div className="text-white text-xs font-bold">{t.explore.ai_badge_driven}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <i className="fa-solid fa-shield-halved text-green-400 text-sm mt-0.5"></i>
+                        <div>
+                          <div className="text-white text-xs font-bold">{t.explore.ai_badge_security}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <i className="fa-solid fa-bolt text-yellow-400 text-sm mt-0.5"></i>
+                        <div>
+                          <div className="text-white text-xs font-bold">{t.explore.ai_badge_recommendation}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <i className="fa-solid fa-copyright text-blue-400 text-sm mt-0.5"></i>
+                        <div>
+                          <div className="text-white text-xs font-bold">{t.explore.ai_badge_copyright}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             
-            <div className="relative w-full md:w-80 group">
+            {/* Desktop search */}
+            <div className="relative w-full md:w-80 group hidden md:block">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <i className="fa-solid fa-search text-slate-500 group-focus-within:text-white transition-colors"></i>
               </div>
@@ -364,62 +474,62 @@ export default function ExploreClient({ initialItems, initialCategories, initial
 
           {/* Top 1 Featured Hero (App Store Style) */}
           {!searchQuery && topItems.length > 0 && topItems[0] && (
-            <div className="mb-16 mt-8">
+            <div className="mb-8 md:mb-16 mt-6 md:mt-8">
                {/* Hero Card */}
-               <div className="relative group rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 overflow-hidden shadow-2xl transition-all hover:shadow-white/5 hover:border-white/20">
+               <div className="relative group rounded-2xl md:rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 overflow-hidden shadow-2xl transition-all hover:shadow-white/5 hover:border-white/20">
                   {/* Background Gradient Mesh */}
                   <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-white/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
                   
-                  <div className="flex flex-col md:flex-row min-h-[450px]">
+                  <div className="flex flex-row min-h-[200px] md:min-h-[350px]">
                     {/* Left: Content */}
-                    <div className="flex-1 p-8 md:p-12 flex flex-col justify-center relative z-10">
-                       <div className="flex items-center gap-3 mb-4">
+                    <div className="w-1/2 md:flex-1 p-4 md:p-8 lg:p-10 flex flex-col justify-center relative z-10">
+                       <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
                           <img 
                             src={topItems[0]?.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${topItems[0]?.author}`} 
-                            className="w-8 h-8 rounded-full border border-white/10" 
+                            className="w-5 h-5 md:w-7 md:h-7 rounded-full border border-white/10" 
                             alt={topItems[0]?.author} 
                             onError={(e) => {
                               e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${topItems[0]?.author}`;
                             }}
                           />
-                          <span className="text-slate-400 text-sm font-medium">{topItems[0]?.author}</span>
+                          <span className="text-slate-400 text-xs md:text-sm font-medium truncate">{topItems[0]?.author}</span>
                           {(topItems[0]?.total_score || 0) > 0 && (
-                            <span className="px-2 py-0.5 rounded-full bg-white/10 text-white text-xs font-bold border border-white/10">
-                              {topItems[0]?.total_score} 分
+                            <span className="px-1.5 py-0.5 rounded-full bg-white/10 text-white text-[10px] md:text-xs font-bold border border-white/10">
+                              {topItems[0]?.total_score}
                             </span>
                           )}
                        </div>
                        
-                       <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 leading-tight">
+                       <h2 className="text-base md:text-2xl lg:text-3xl font-bold text-white mb-2 md:mb-4 leading-tight line-clamp-2">
                          {topItems[0]?.title}
                        </h2>
                        
-                       <p className="text-slate-400 text-lg mb-8 line-clamp-3 leading-relaxed max-w-xl">
+                       <p className="text-slate-400 text-xs md:text-sm lg:text-base mb-3 md:mb-6 line-clamp-2 md:line-clamp-3 leading-relaxed">
                          {topItems[0]?.description}
                        </p>
                        
-                       <div className="flex items-center gap-4 mt-auto">
+                       <div className="flex items-center gap-2 md:gap-3 mt-auto">
                           <button 
                             onClick={() => topItems[0] && openDetailModal(topItems[0].id, topItems[0])}
-                            className="px-8 py-4 bg-white text-black rounded-xl font-bold hover:bg-slate-200 transition shadow-lg shadow-white/5 flex items-center gap-2"
+                            className="px-3 py-1.5 md:px-6 md:py-3 bg-white text-black rounded-lg md:rounded-xl text-xs md:text-sm font-bold hover:bg-slate-200 transition shadow-lg shadow-white/5 flex items-center gap-1.5"
                           >
-                            {t.explore.try_now || '立即体验'} <i className="fa-solid fa-arrow-right"></i>
+                            {t.explore.try_now || '体验'} <i className="fa-solid fa-arrow-right text-xs"></i>
                           </button>
                           <button 
                              onClick={() => topItems[0] && handleLike(topItems[0].id)}
-                             className={`w-14 h-14 rounded-xl flex items-center justify-center border transition ${
+                             className={`w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl flex items-center justify-center border transition ${
                                topItems[0] && myLikes.has(topItems[0].id) 
                                  ? 'bg-rose-500/10 border-rose-500/50 text-rose-500' 
                                  : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
                              }`}
                           >
-                             <i className={`fa-solid fa-heart ${topItems[0] && myLikes.has(topItems[0].id) ? 'fa-beat' : ''}`}></i>
+                             <i className={`fa-solid fa-heart text-xs md:text-sm ${topItems[0] && myLikes.has(topItems[0].id) ? 'fa-beat' : ''}`}></i>
                           </button>
                        </div>
                     </div>
 
                     {/* Right: Preview Visual */}
-                    <div className="w-full md:w-[55%] h-64 md:h-auto relative bg-black/20 border-t md:border-t-0 md:border-l border-white/5 overflow-hidden group-hover:bg-black/30 transition-colors">
+                    <div className="w-1/2 md:w-[45%] relative bg-black/20 border-l border-white/5 overflow-hidden group-hover:bg-black/30 transition-colors">
                        <div className="absolute inset-0 flex items-center justify-center bg-transparent">
                           {topItems[0]?.content ? (
                             <iframe 
@@ -459,7 +569,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
               <p>{t.explore.no_apps_desc}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
               {items.map(item => (
                 <ProjectCard 
                   key={item.id} 

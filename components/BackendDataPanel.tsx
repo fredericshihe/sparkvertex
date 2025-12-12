@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { X, Search, Download, RefreshCw, Trash2, Eye, ChevronRight, Database, Table as TableIcon, LayoutList, CheckCircle, Circle, BarChart3, Filter } from 'lucide-react';
-import { detectSparkBackendCode } from '@/lib/utils';
+import { detectSparkPlatformFeatures } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
@@ -148,6 +148,13 @@ export default function BackendDataPanel({
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'json' | 'analysis'>('table');
   const [selectedMessage, setSelectedMessage] = useState<InboxMessage | null>(null);
+
+  // Auto-switch to JSON view on mobile
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setViewMode('json');
+    }
+  }, []);
   
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -201,12 +208,13 @@ export default function BackendDataPanel({
       
       if (error) throw error;
       
-      // 过滤出包含后端代码的应用
-      const backendApps = (data || []).filter(app => detectSparkBackendCode(app.content));
+      // 过滤出包含平台后端代码的应用 (仅显示使用了平台表单/CMS功能的应用)
+      const backendApps = (data || []).filter(app => detectSparkPlatformFeatures(app.content));
       setApps(backendApps);
       
-      // 如果没有选中的应用，默认选第一个
-      if (backendApps.length > 0 && !selectedAppId) {
+      // 如果没有选中的应用，默认选第一个 (仅在桌面端自动选择，移动端保持在列表页)
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      if (backendApps.length > 0 && !selectedAppId && !isMobile) {
         setSelectedAppId(backendApps[0].id);
       }
     } catch (err: any) {
@@ -522,114 +530,70 @@ export default function BackendDataPanel({
               {t.howToCollectExample}
             </div>
           </div>
-
-          {/* Storage Policy Info (Empty State) */}
-          <div className="mt-8 max-w-md w-full bg-zinc-900/30 border border-zinc-800 rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${hasPermanentStorage ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'}`}>
-                  <i className={`fa-solid ${hasPermanentStorage ? 'fa-infinity' : 'fa-clock'}`}></i>
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-white">{t.storagePolicy}</div>
-                  <div className="text-xs text-slate-400">{hasPermanentStorage ? t.permanentStorage : t.storagePolicyDesc}</div>
-                </div>
-              </div>
-              {!hasPermanentStorage && (
-                <button 
-                  onClick={handleUpgradeStorage}
-                  disabled={upgrading}
-                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5"
-                >
-                  {upgrading ? <i className="fa-solid fa-circle-notch fa-spin"></i> : <i className="fa-solid fa-arrow-up"></i>}
-                  {t.upgradeStorage}
-                </button>
-              )}
-            </div>
-          </div>
         </div>
       );
     }
 
     return (
       <div className="flex h-full flex-col">
-        {/* Storage Policy Banner (List State) */}
-        <div className={`mx-6 mt-3 p-3 rounded-lg border flex items-center justify-between ${hasPermanentStorage ? 'bg-green-500/5 border-green-500/20' : 'bg-amber-500/5 border-amber-500/20'}`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-6 h-6 rounded flex items-center justify-center ${hasPermanentStorage ? 'text-green-400' : 'text-amber-400'}`}>
-              <i className={`fa-solid ${hasPermanentStorage ? 'fa-infinity' : 'fa-clock'}`}></i>
-            </div>
-            <span className="text-xs text-slate-300">
-              {hasPermanentStorage ? t.permanentStorage : t.storagePolicyDesc}
-            </span>
-          </div>
-          {!hasPermanentStorage && (
-            <button 
-              onClick={handleUpgradeStorage}
-              disabled={upgrading}
-              className="px-3 py-1 rounded bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-xs font-medium transition"
-            >
-              {upgrading ? '...' : t.upgradeStorage}
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-1 min-h-0">
+        <div className="flex flex-1 min-h-0 relative">
         {/* Main Data View (Table/List) */}
-        <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${selectedMessage ? 'w-2/3 border-r border-zinc-800' : 'w-full'}`}>
+        <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${selectedMessage ? 'w-full md:flex-1 border-r border-zinc-800' : 'w-full'}`}>
           
           {/* Toolbar */}
-          <div className="px-6 py-3 border-b border-zinc-800 flex flex-col gap-3 bg-zinc-900/30">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+          <div className="px-4 md:px-6 py-3 border-b border-zinc-800 flex flex-col gap-3 bg-zinc-900/30">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                 <button 
                   onClick={() => setViewMode('table')}
-                  className={`p-2 rounded-lg transition ${viewMode === 'table' ? 'bg-zinc-800 text-white' : 'text-slate-400 hover:text-white hover:bg-zinc-800/50'}`}
+                  className={`p-2 rounded-lg transition shrink-0 ${viewMode === 'table' ? 'bg-zinc-800 text-white' : 'text-slate-400 hover:text-white hover:bg-zinc-800/50'}`}
                   title={t.viewTable}
                 >
                   <TableIcon size={16} />
                 </button>
                 <button 
                   onClick={() => setViewMode('json')}
-                  className={`p-2 rounded-lg transition ${viewMode === 'json' ? 'bg-zinc-800 text-white' : 'text-slate-400 hover:text-white hover:bg-zinc-800/50'}`}
+                  className={`p-2 rounded-lg transition shrink-0 ${viewMode === 'json' ? 'bg-zinc-800 text-white' : 'text-slate-400 hover:text-white hover:bg-zinc-800/50'}`}
                   title={t.viewJson}
                 >
                   <LayoutList size={16} />
                 </button>
                 <button 
                   onClick={() => setViewMode('analysis')}
-                  className={`p-2 rounded-lg transition ${viewMode === 'analysis' ? 'bg-zinc-800 text-white' : 'text-slate-400 hover:text-white hover:bg-zinc-800/50'}`}
+                  className={`p-2 rounded-lg transition shrink-0 ${viewMode === 'analysis' ? 'bg-zinc-800 text-white' : 'text-slate-400 hover:text-white hover:bg-zinc-800/50'}`}
                   title={t.viewAnalysis}
                 >
                   <BarChart3 size={16} />
                 </button>
-                <div className="h-4 w-px bg-zinc-800 mx-2"></div>
-                <span className="text-xs text-slate-500">
+                <div className="h-4 w-px bg-zinc-800 mx-2 shrink-0"></div>
+                <span className="text-xs text-slate-500 shrink-0">
                   {filteredMessages.length} {t.records}
                 </span>
               </div>
               
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 self-end sm:self-auto">
                 <button 
                   onClick={exportData}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition border border-zinc-700"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition border border-zinc-700 whitespace-nowrap"
                 >
                   <Download size={14} />
-                  {t.exportJson}
+                  <span className="hidden sm:inline">{t.exportJson}</span>
+                  <span className="sm:hidden">JSON</span>
                 </button>
                 <button 
                   onClick={exportToExcel}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 hover:text-emerald-300 rounded-lg text-xs font-medium transition border border-emerald-900/50"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 hover:text-emerald-300 rounded-lg text-xs font-medium transition border border-emerald-900/50 whitespace-nowrap"
                 >
                   <TableIcon size={14} />
-                  {t.exportExcel}
+                  <span className="hidden sm:inline">{t.exportExcel}</span>
+                  <span className="sm:hidden">Excel</span>
                 </button>
               </div>
             </div>
 
             {/* Filters */}
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-xs">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                 <input 
                   type="text"
@@ -639,10 +603,10 @@ export default function BackendDataPanel({
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
                 />
               </div>
-              <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
+              <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 overflow-x-auto no-scrollbar">
                 <button
                   onClick={() => setStatusFilter('all')}
-                  className={`px-3 py-1 rounded-md text-xs font-medium transition ${statusFilter === 'all' ? 'bg-zinc-800 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition whitespace-nowrap ${statusFilter === 'all' ? 'bg-zinc-800 text-white' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   {t.statusAll}
                 </button>
@@ -664,8 +628,8 @@ export default function BackendDataPanel({
 
           {/* Analysis View */}
           {viewMode === 'analysis' && (
-            <div className="flex-1 overflow-auto p-6">
-              <div className="grid grid-cols-3 gap-4 mb-8">
+            <div className="flex-1 overflow-auto p-4 md:p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                 <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                   <div className="text-slate-500 text-xs font-medium mb-1">{t.totalSubmissions}</div>
                   <div className="text-2xl font-bold text-white">{stats.total}</div>
@@ -829,8 +793,8 @@ export default function BackendDataPanel({
 
         {/* Detail Panel (Right Side) */}
         {selectedMessage && (
-          <div className="w-[400px] bg-zinc-900 border-l border-zinc-800 flex flex-col animate-slide-in-right shadow-2xl z-20">
-            <div className="p-6 border-b border-zinc-800 flex items-center justify-between bg-zinc-900">
+          <div className="fixed inset-0 md:static md:inset-auto w-full md:w-[400px] bg-zinc-900 border-l border-zinc-800 flex flex-col animate-slide-in-right shadow-2xl z-50 md:z-20">
+            <div className="p-4 md:p-6 border-b border-zinc-800 flex items-center justify-between bg-zinc-900">
               <h3 className="font-bold text-white text-lg">
                 {language === 'zh' ? '数据详情' : 'Submission Details'}
               </h3>
@@ -842,7 +806,7 @@ export default function BackendDataPanel({
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6">
               <div className="space-y-6">
                 {/* Metadata Card */}
                 <div className="bg-black/30 rounded-xl p-4 border border-zinc-800">
@@ -935,39 +899,15 @@ export default function BackendDataPanel({
         
         {/* Sidebar (App List) - Only in production mode */}
         {mode === 'production' && (
-          <div className="w-72 border-r border-zinc-800 flex flex-col bg-zinc-900/50">
-            <div className="p-6 border-b border-zinc-800">
+          <div className={`
+            border-r border-zinc-800 flex flex-col bg-zinc-900/50 transition-all duration-300
+            ${selectedAppId ? 'hidden md:flex w-72' : 'w-full md:w-72'}
+          `}>
+            <div className="p-4 md:p-6 border-b border-zinc-800">
               <h3 className="font-bold text-white text-lg flex items-center gap-2">
                 <i className="fa-solid fa-layer-group text-indigo-500"></i>
                 {t.myApps}
               </h3>
-            </div>
-            
-            {/* Storage Policy Info in Sidebar */}
-            <div className="px-4 pt-4 pb-2">
-              <div className={`p-3 rounded-xl border ${hasPermanentStorage ? 'bg-green-500/5 border-green-500/20' : 'bg-amber-500/5 border-amber-500/20'}`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <div className={`w-6 h-6 rounded flex items-center justify-center ${hasPermanentStorage ? 'text-green-400' : 'text-amber-400'}`}>
-                    <i className={`fa-solid ${hasPermanentStorage ? 'fa-infinity' : 'fa-clock'}`}></i>
-                  </div>
-                  <span className={`text-xs font-bold ${hasPermanentStorage ? 'text-green-400' : 'text-amber-400'}`}>
-                    {hasPermanentStorage ? t.permanentStorage : t.storagePolicy}
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-400 leading-relaxed mb-2">
-                  {hasPermanentStorage ? t.upgradeSuccess : t.storagePolicyDesc}
-                </p>
-                {!hasPermanentStorage && (
-                  <button 
-                    onClick={handleUpgradeStorage}
-                    disabled={upgrading}
-                    className="w-full py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center justify-center gap-1.5"
-                  >
-                    {upgrading ? <i className="fa-solid fa-circle-notch fa-spin"></i> : <i className="fa-solid fa-arrow-up"></i>}
-                    {t.upgradeStorage}
-                  </button>
-                )}
-              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
@@ -1017,44 +957,54 @@ export default function BackendDataPanel({
         )}
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 bg-zinc-950 relative">
+        <div className={`
+          flex-1 flex flex-col min-w-0 bg-zinc-950 relative transition-all duration-300
+          ${mode === 'production' && !selectedAppId ? 'hidden md:flex' : 'flex'}
+        `}>
           {/* Header */}
-          <div className="flex items-center justify-between px-8 py-5 border-b border-zinc-800 bg-zinc-900/30 backdrop-blur-sm">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <Database className="text-white w-6 h-6" />
+          <div className="flex items-center justify-between px-4 md:px-8 py-4 md:py-5 border-b border-zinc-800 bg-zinc-900/30 backdrop-blur-sm">
+            <div className="flex items-center gap-3 md:gap-4">
+              {/* Back button for mobile */}
+              {mode === 'production' && (
+                <button 
+                  onClick={() => setSelectedAppId(null)}
+                  className="md:hidden w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center text-slate-400"
+                >
+                  <i className="fa-solid fa-arrow-left"></i>
+                </button>
+              )}
+              <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
+                <Database className="text-white w-5 h-5 md:w-6 md:h-6" />
               </div>
-              <div>
-                <h2 className="text-2xl font-bold text-white tracking-tight">
+              <div className="min-w-0">
+                <h2 className="text-lg md:text-2xl font-bold text-white tracking-tight truncate">
                   {t.title}
                 </h2>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                  <span className="text-xs text-slate-400 flex items-center gap-1.5 shrink-0">
                     <span className={`w-2 h-2 rounded-full ${loading ? 'bg-yellow-400 animate-pulse' : 'bg-emerald-400'}`}></span>
-                    {loading 
-                      ? t.syncing 
-                      : t.connected}
+                    <span className="hidden sm:inline">{loading ? t.syncing : t.connected}</span>
                   </span>
-                  <span className="text-zinc-700 text-xs">|</span>
-                  <code className="text-xs text-slate-500 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
+                  <span className="text-zinc-700 text-xs hidden sm:inline">|</span>
+                  <code className="text-xs text-slate-500 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 hidden sm:inline">
                     ID: {effectiveAppId || 'N/A'}
                   </code>
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
               <button
                 onClick={fetchMessages}
-                className="w-10 h-10 rounded-xl bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-slate-400 hover:text-white transition border border-zinc-700"
+                className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-slate-400 hover:text-white transition border border-zinc-700"
                 title={t.refresh}
               >
-                <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                <RefreshCw size={16} className={`md:w-[18px] md:h-[18px] ${loading ? 'animate-spin' : ''}`} />
               </button>
               <button
                 onClick={onClose}
-                className="w-10 h-10 rounded-xl bg-zinc-800 hover:bg-red-500/20 flex items-center justify-center text-slate-400 hover:text-red-400 transition border border-zinc-700 hover:border-red-500/30"
+                className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-zinc-800 hover:bg-red-500/20 flex items-center justify-center text-slate-400 hover:text-red-400 transition border border-zinc-700 hover:border-red-500/30"
               >
-                <X size={20} />
+                <X size={18} className="md:w-5 md:h-5" />
               </button>
             </div>
           </div>

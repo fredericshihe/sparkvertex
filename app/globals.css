@@ -32,6 +32,28 @@ body {
     -webkit-user-select: none;
     -webkit-touch-callout: none;
     -webkit-font-smoothing: antialiased;
+    
+    /* Safe Area Variables */
+    --sat: env(safe-area-inset-top);
+    --sar: env(safe-area-inset-right);
+    --sab: env(safe-area-inset-bottom);
+    --sal: env(safe-area-inset-left);
+}
+
+/* Safe Area Utilities */
+.pt-safe { padding-top: var(--sat); }
+.pb-safe { padding-bottom: var(--sab); }
+.pl-safe { padding-left: var(--sal); }
+.pr-safe { padding-right: var(--sar); }
+.mb-safe { margin-bottom: var(--sab); }
+.mt-safe { margin-top: var(--sat); }
+.h-safe-screen { height: calc(100vh - var(--sat) - var(--sab)); }
+.min-h-safe-screen { min-height: calc(100vh - var(--sat) - var(--sab)); }
+
+/* Mobile Active State */
+.active-scale:active {
+    transform: scale(0.95);
+    transition: transform 0.1s;
 }
 
 /* Re-enable selection for inputs */
@@ -312,4 +334,22 @@ input, textarea, [contenteditable] {
     background: rgba(56, 189, 248, 0.2);
     box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
     border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+.animate-blink {
+  animation: blink 1s step-end infinite;
 }

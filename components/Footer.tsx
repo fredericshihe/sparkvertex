@@ -13,7 +13,7 @@ export default function Footer() {
   if (pathname?.startsWith('/p/') || pathname === '/' || pathname === '/create') return null;
 
   return (
-    <footer className="w-full py-6 mt-0 text-center relative z-10 bg-transparent">
+    <footer className="w-full py-6 pb-24 md:pb-6 mt-0 text-center relative z-10 bg-transparent">
       <div className="max-w-7xl mx-auto px-4 flex flex-col items-center">
         
 

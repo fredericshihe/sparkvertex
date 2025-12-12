@@ -9,7 +9,7 @@ import { useLanguage } from '@/context/LanguageContext';
 export default function PaymentModal() {
   const { t } = useLanguage();
   const { isPaymentModalOpen, closePaymentModal, paymentItem } = useModal();
-  const { info } = useToast();
+  const { info, error: toastError } = useToast();
   const [qrUrl, setQrUrl] = useState('');
   const [orderId, setOrderId] = useState<string | null>(null);
   const [remarkCode, setRemarkCode] = useState<string>('');
@@ -57,7 +57,7 @@ export default function PaymentModal() {
         .single();
 
       if (!sellerProfile?.payment_qr) {
-        alert(t.payment_modal.no_qr_code);
+        toastError(t.payment_modal.no_qr_code);
         closePaymentModal();
         return;
       }
@@ -146,7 +146,7 @@ export default function PaymentModal() {
       setStatus('paid_waiting');
     } catch (error) {
       console.error('Failed to confirm payment:', error);
-      alert(t.payment_modal.confirm_fail);
+      toastError(t.payment_modal.confirm_fail);
     }
   };
 

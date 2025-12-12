@@ -40,28 +40,28 @@ const DEVICES = [
 ];
 
 const STYLES = [
-  { id: 'cyberpunk', color: 'from-pink-500 to-cyan-500' },
-  { id: 'minimalist', color: 'from-slate-200 to-slate-400' },
-  { id: 'cute', color: 'from-pink-300 to-purple-300' },
-  { id: 'business', color: 'from-blue-600 to-indigo-700' },
-  { id: 'retro', color: 'from-yellow-400 to-orange-500' },
-  { id: 'native', color: 'from-blue-500 to-blue-600' },
-  { id: 'glassmorphism', color: 'from-white/20 to-white/10' },
-  { id: 'neobrutalism', color: 'from-yellow-300 to-red-500' },
-  { id: 'cartoon', color: 'from-orange-300 to-yellow-300' },
-  { id: 'lowpoly', color: 'from-indigo-400 to-purple-500' },
-  { id: 'dark_fantasy', color: 'from-slate-900 to-purple-900' },
-  { id: 'neumorphism', color: 'from-gray-200 to-gray-300' },
-  { id: 'industrial', color: 'from-slate-700 to-slate-800' },
-  { id: 'swiss', color: 'from-red-500 to-white' },
-  { id: 'editorial', color: 'from-stone-100 to-stone-200' },
-  { id: 'card', color: 'from-gray-100 to-gray-200' },
-  { id: 'bubble', color: 'from-blue-300 to-pink-300' },
-  { id: 'material', color: 'from-blue-500 to-indigo-500' },
-  { id: 'paper', color: 'from-yellow-50 to-orange-50' },
-  { id: 'gamified', color: 'from-purple-400 to-pink-400' },
-  { id: 'dark_mode', color: 'from-gray-900 to-black' },
-  { id: 'kanban', color: 'from-yellow-100 to-blue-100' }
+  { id: 'cyberpunk', color: 'from-pink-500 to-cyan-500', icon: 'fa-bolt' },
+  { id: 'minimalist', color: 'from-slate-200 to-slate-400', icon: 'fa-minus' },
+  { id: 'cute', color: 'from-pink-300 to-purple-300', icon: 'fa-face-smile' },
+  { id: 'business', color: 'from-blue-600 to-indigo-700', icon: 'fa-briefcase' },
+  { id: 'retro', color: 'from-yellow-400 to-orange-500', icon: 'fa-ghost' },
+  { id: 'native', color: 'from-blue-500 to-blue-600', icon: 'fa-mobile-screen' },
+  { id: 'glassmorphism', color: 'from-white/20 to-white/10', icon: 'fa-layer-group' },
+  { id: 'neobrutalism', color: 'from-yellow-300 to-red-500', icon: 'fa-shapes' },
+  { id: 'cartoon', color: 'from-orange-300 to-yellow-300', icon: 'fa-pen-nib' },
+  { id: 'lowpoly', color: 'from-indigo-400 to-purple-500', icon: 'fa-cubes' },
+  { id: 'dark_fantasy', color: 'from-slate-900 to-purple-900', icon: 'fa-dragon' },
+  { id: 'neumorphism', color: 'from-gray-200 to-gray-300', icon: 'fa-circle' },
+  { id: 'industrial', color: 'from-slate-700 to-slate-800', icon: 'fa-gears' },
+  { id: 'swiss', color: 'from-red-500 to-white', icon: 'fa-font' },
+  { id: 'editorial', color: 'from-stone-100 to-stone-200', icon: 'fa-heading' },
+  { id: 'card', color: 'from-gray-100 to-gray-200', icon: 'fa-table-cells-large' },
+  { id: 'bubble', color: 'from-blue-300 to-pink-300', icon: 'fa-comments' },
+  { id: 'material', color: 'from-blue-500 to-indigo-500', icon: 'fa-layer-group' },
+  { id: 'paper', color: 'from-yellow-50 to-orange-50', icon: 'fa-note-sticky' },
+  { id: 'gamified', color: 'from-purple-400 to-pink-400', icon: 'fa-trophy' },
+  { id: 'dark_mode', color: 'from-gray-900 to-black', icon: 'fa-moon' },
+  { id: 'kanban', color: 'from-yellow-100 to-blue-100', icon: 'fa-table-columns' }
 ];
 
 const CATEGORY_STYLES: Record<string, string[]> = {
@@ -76,29 +76,41 @@ const CATEGORY_STYLES: Record<string, string[]> = {
   lifestyle: ['cute', 'bubble', 'minimalist', 'native', 'paper', 'material']
 };
 
+const CATEGORY_PROMPTS: Record<string, string> = {
+  game: "Category: Casual Game. Focus on engaging gameplay loops, clear win/loss conditions, and responsive controls. Use canvas or DOM-based rendering for performance. Include sound effects (optional) and score tracking.",
+  portfolio: "Category: Personal Portfolio. Focus on visual impact, showcasing work, and personal branding. Use high-quality typography, smooth transitions, and a clear 'About Me' section. Include a contact form or links.",
+  appointment: "Category: Service Appointment/Booking. Focus on trust, clarity, and ease of scheduling. Include a calendar view, time slot selection, and service details. Ensure the booking flow is intuitive.",
+  productivity: "Category: Productivity Tool. Focus on efficiency, data organization, and quick interactions. Use clear lists, boards, or charts. Ensure local data persistence (localStorage) for user data.",
+  tool: "Category: Utility Tool. Focus on single-purpose functionality, speed, and accuracy. Input should be easy, output should be clear. Minimize friction.",
+  devtool: "Category: Developer Tool. Focus on technical accuracy, code formatting, and data visualization. Use monospace fonts for code. Support copy-paste and file inputs.",
+  education: "Category: Educational App. Focus on learning retention, clear explanations, and interactive quizzes. Use progress tracking and encouraging feedback.",
+  visualization: "Category: Data Visualization. Focus on clarity, data density, and interactivity. Use charts (SVG/Canvas) to represent data. Allow filtering and sorting.",
+  lifestyle: "Category: Lifestyle App. Focus on daily habits, health, or finance. Use friendly UI, encouraging messages, and simple data entry."
+};
+
 const STYLE_PROMPTS: Record<string, string> = {
-  cyberpunk: "Design Style: Cyberpunk. Use a dark background (black or very dark blue). Use neon colors like hot pink (#ff00ff), cyan (#00ffff), and bright yellow. Use glitch effects, high contrast, and angular shapes. Font should be futuristic or monospace. Add glowing effects (box-shadow).",
-  minimalist: "Design Style: Minimalist. Use plenty of whitespace. Colors should be strictly black, white, and shades of gray. Typography should be clean and sans-serif. No heavy shadows or gradients. Focus on content and layout.",
-  cute: "Design Style: Cute/Kawaii. Use pastel colors (soft pink, baby blue, mint green). Use large rounded corners (rounded-3xl). Buttons should be pill-shaped. Add soft, fluffy shadows. Font should be rounded if possible. Use playful icons.",
-  business: "Design Style: Business/Corporate. Use a professional color palette (navy blue, dark gray, white). Design should be clean, structured, and trustworthy. Use standard border radii (rounded-md or rounded-lg). Typography should be standard sans-serif (Inter/Roboto).",
-  retro: "Design Style: Retro/Pixel Art. Use a limited color palette (CGA/EGA colors). Use a pixelated font (Press Start 2P or similar if available via Google Fonts, otherwise monospace). UI elements should look like 8-bit or 16-bit game interfaces. sharp corners, thick borders.",
-  native: "Design Style: Native iOS/Android Replica. Mimic the look and feel of a native mobile app. Use standard system colors (systemBlue, systemGray). Use standard navigation bars, tab bars, and list views. Animations should be smooth (60fps). Use 'San Francisco' style typography.",
-  glassmorphism: "Design Style: Glassmorphism. Use semi-transparent backgrounds with backdrop-blur (backdrop-blur-md or backdrop-blur-lg). Use white with low opacity (bg-white/10 or bg-white/20) for cards. Add subtle white borders (border-white/20). Background should be colorful or gradient to show through the glass.",
-  neobrutalism: "Design Style: Neo-Brutalism. Use high saturation colors (bright yellow, red, blue). Use thick black borders (border-2 border-black). Use hard shadows (shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]). No border radius or very slight. Typography should be bold and quirky.",
-  cartoon: "Design Style: Cartoon/Hand-drawn. Use vibrant, cheerful colors. Use thick, slightly irregular outlines to mimic hand-drawing. Fonts should be playful (like Comic Sans or similar rounded fonts). Buttons should look 'squishy' with bounce animations.",
-  lowpoly: "Design Style: Low Poly/Geometric. Use a palette of flat, faceted colors (like a diamond). Backgrounds should use geometric patterns or triangles. Use sharp angles and gradients. Typography should be modern and geometric.",
-  dark_fantasy: "Design Style: Dark Fantasy. Use deep purples, crimsons, and blacks. Use serif fonts with a magical feel. Add subtle particle effects or fog animations. UI elements should look like ancient runes or magical artifacts. Borders should be ornate.",
-  neumorphism: "Design Style: Neumorphism (Soft UI). Use a light gray or off-white background (#e0e5ec). Buttons and cards should have two shadows: a light one on the top-left and a dark one on the bottom-right, creating a soft, extruded plastic look. No hard borders. Rounded corners are essential.",
-  industrial: "Design Style: Industrial/Technical. Use a palette of slate, charcoal, and safety orange/yellow. Use monospaced fonts. UI elements should look like machine controls or blueprints. Use grid lines and technical markings. High contrast.",
-  swiss: "Design Style: Swiss Style (International Typographic Style). Use a strict grid system. Use large, bold, sans-serif typography (Helvetica-style). High contrast colors (often red, black, white). Asymmetric layouts. Focus on readability and objectivity.",
-  editorial: "Design Style: Editorial/Magazine. Use a sophisticated serif font for headings and a clean sans-serif for body text. Use plenty of whitespace and large margins. Images should be high quality. Layout should feel like a printed fashion or lifestyle magazine. Elegant lines and dividers.",
-  card: "Design Style: Card UI/Pinterest-style. Use a masonry or grid layout of cards. Each card should have a subtle shadow and rounded corners. Background should be neutral to let the content shine. Focus on images and visual hierarchy.",
-  bubble: "Design Style: Bubble/Chat. Use circular or highly rounded shapes for everything. Use gradients that look like bubbles (blue/pink/purple). Animations should be floaty and smooth. Very friendly and approachable interface.",
-  material: "Design Style: Material Design 3. Use the latest Google Material Design guidelines. Use dynamic color extraction (pastel tones). Use the 'surface' system for elevation. Ripple effects on click. FAB (Floating Action Button) is a must.",
-  paper: "Design Style: Paper/Sketchbook. Background should look like paper (texture). UI elements should look like sticky notes or sketches. Use a handwriting-style font if possible. Shadows should look like paper lifting off the desk.",
-  gamified: "Design Style: Gamified. Use progress bars, badges, and confetti everywhere. Colors should be bright and rewarding (gold, green, purple). Use bouncy animations for feedback. UI should feel like a game HUD.",
-  dark_mode: "Design Style: Developer/Dark Mode. Use a pure black or very dark gray background. Syntax highlighting colors for accents. Monospace fonts. Minimalist icons. Focus on data density and clarity. No eye strain.",
-  kanban: "Design Style: Kanban/Productivity. Use a board layout with columns. Cards should look like physical sticky notes (yellow, blue, pink). Drag-and-drop affordances (dots). Clean, functional typography."
+  cyberpunk: "Design Style: Cyberpunk. Aesthetic: High-tech low-life. Colors: Neon pink (#ff00ff), cyan (#00ffff), bright yellow on deep black/navy backgrounds. Typography: Futuristic, glitch effects, monospace. UI Elements: Angular shapes, glowing borders, HUD-like overlays.",
+  minimalist: "Design Style: Minimalist. Aesthetic: Less is more. Colors: Monochromatic (black, white, grays) with one accent color. Typography: Clean sans-serif (Inter/Helvetica), large headings. UI Elements: Generous whitespace, no shadows, flat design.",
+  cute: "Design Style: Soft/Playful. Aesthetic: Friendly and approachable. Colors: Pastels (soft pink, mint, baby blue). Typography: Rounded sans-serif (Quicksand/Varela Round). UI Elements: Large border-radius (pill shapes), soft drop shadows, bouncy animations.",
+  business: "Design Style: Professional/Corporate. Aesthetic: Trustworthy and established. Colors: Navy blue, slate gray, white. Typography: Standard sans-serif (Roboto/System). UI Elements: Subtle shadows, standard border-radius (4-8px), structured grid layout.",
+  retro: "Design Style: Retro Pixel. Aesthetic: 8-bit/16-bit nostalgia. Colors: Limited palette (CGA/EGA). Typography: Pixel fonts (Press Start 2P). UI Elements: Blocky borders, no anti-aliasing, scanline effects.",
+  native: "Design Style: Native Mobile. Aesthetic: System-native look (iOS/Android). Colors: System colors (blue, gray, white). Typography: System fonts (San Francisco/Roboto). UI Elements: Standard navigation bars, tab bars, and list views, smooth transitions.",
+  glassmorphism: "Design Style: Glassmorphism. Aesthetic: Frosted glass realism. Colors: Vivid gradients behind semi-transparent white layers. Typography: Modern sans-serif. UI Elements: Backdrop-blur, white borders with low opacity, floating cards.",
+  neobrutalism: "Design Style: Neo-Brutalism. Aesthetic: Raw, bold, and quirky. Colors: High saturation (yellow, red, blue) with black. Typography: Bold, large, sometimes clashing. UI Elements: Thick black borders, hard shadows (no blur), geometric shapes.",
+  cartoon: "Design Style: Hand-drawn/Cartoon. Aesthetic: Organic and sketchy. Colors: Vibrant and warm. Typography: Handwritten style (Comic Neue/Patrick Hand). UI Elements: Wobbly borders, sketch-like icons, paper textures.",
+  lowpoly: "Design Style: Geometric/Low Poly. Aesthetic: Faceted and sharp. Colors: Gradients, polygon patterns. Typography: Modern geometric. UI Elements: Triangular shapes, sharp angles, crystal-like backgrounds.",
+  dark_fantasy: "Design Style: Dark Theme/Fantasy. Aesthetic: Mysterious and immersive. Colors: Deep purple, crimson, charcoal. Typography: Serif or decorative. UI Elements: Glow effects, particle animations, ornate borders.",
+  neumorphism: "Design Style: Neumorphism (Soft UI). Aesthetic: Extruded plastic realism. Colors: Light gray/off-white (#e0e5ec). Typography: Clean sans-serif. UI Elements: Double shadows (light top-left, dark bottom-right) creating depth, rounded corners.",
+  industrial: "Design Style: Technical/Industrial. Aesthetic: Functional and rugged. Colors: Safety orange, yellow, slate, charcoal. Typography: Monospace/Technical. UI Elements: Grid lines, warning stripes, blueprint aesthetics.",
+  swiss: "Design Style: International/Swiss. Aesthetic: Objective and grid-based. Colors: Red, black, white, high contrast. Typography: Large, bold sans-serif (Helvetica style). UI Elements: Asymmetric layouts, strong alignment, negative space.",
+  editorial: "Design Style: Elegant/Editorial. Aesthetic: Print magazine feel. Colors: Cream, beige, black, serif fonts. Typography: High-contrast serif headings, clean body text. UI Elements: Fine lines, large images, sophisticated layout.",
+  card: "Design Style: Card UI. Aesthetic: Organized and modular. Colors: Light gray backgrounds, white cards. Typography: Standard. UI Elements: Masonry or grid layout, distinct cards with shadows, content-focused.",
+  bubble: "Design Style: Rounded/Bubble. Aesthetic: Soft and fluid. Colors: Gradients, bright colors. Typography: Rounded. UI Elements: Circles, extreme border-radius, floating elements.",
+  material: "Design Style: Material Design. Aesthetic: Paper and ink. Colors: Dynamic color extraction, pastel tones. Typography: Roboto. UI Elements: Elevation (shadows), ripple effects, FAB (Floating Action Button).",
+  paper: "Design Style: Sketch/Paper. Aesthetic: Physical notebook. Colors: Paper texture, ink blue/black. Typography: Handwriting. UI Elements: Sticky notes, tape effects, doodle-like borders.",
+  gamified: "Design Style: Interactive/Gamified. Aesthetic: Rewarding and fun. Colors: Gold, bright green, purple. Typography: Bold. UI Elements: Progress bars, badges, confetti, bouncy feedback.",
+  dark_mode: "Design Style: Dark Mode. Aesthetic: Eye comfort and focus. Colors: Pure black (#000000) or dark gray (#121212). Typography: High contrast text. UI Elements: Subtle borders, dark surfaces.",
+  kanban: "Design Style: Board/Kanban. Aesthetic: Organized workflow. Colors: Post-it note colors. Typography: Clean. UI Elements: Columns, draggable cards, visual status indicators."
 };
 
 const DEVICE_PROMPTS: Record<string, string> = {
@@ -1475,10 +1487,12 @@ ${wizardData.description}`;
     const deviceLabel = t.devices[wizardData.device as keyof typeof t.devices] || 'Mobile';
     const stylePrompt = STYLE_PROMPTS[wizardData.style] || '';
     const devicePrompt = DEVICE_PROMPTS[wizardData.device] || DEVICE_PROMPTS['mobile'];
+    const categoryPrompt = CATEGORY_PROMPTS[wizardData.category] || '';
     
     // Compact description
     let description = `Type:${categoryLabel}, Device:${deviceLabel}, Style:${styleLabel}. 
     
+    ${categoryPrompt}
     ${stylePrompt}
     ${devicePrompt}
     
@@ -2135,10 +2149,6 @@ ${description}
                     const cost = await getCost();
                     console.log(`[Patch Failed] Cost to refund: ${cost}`);
                     
-                    const confirmMessage = language === 'zh' 
-                        ? `智能修改遇到困难。是否尝试全量修复？\n\n注意：全量修复将消耗更多积分。\n${cost > 0 ? `本次修改消耗的 ${cost} 积分将自动退回。` : ''}`
-                        : `Smart edit encountered difficulties. Do you want to try a full repair?\n\nNote: Full repair will consume more credits.\n${cost > 0 ? `The ${cost} credits consumed for this edit will be automatically refunded.` : ''}`;
-                    
                     // Helper to process refund
                     const processRefund = async () => {
                         console.log('Processing refund. Cost:', cost);
@@ -2172,6 +2182,34 @@ ${description}
                         }
                     };
 
+                    // 🆕 Special handling for backend config failure
+                    if (lastOperationType === 'backend_config') {
+                        const errorMsg = language === 'zh'
+                            ? '未找到可配置的表单入口。请确保您的应用中包含标准的 提交表单按钮，然后重试。'
+                            : 'No configurable form entry found. Please ensure your app contains a standard HTML form structure (<form>) and try again.';
+                        
+                        // Refund automatically
+                        await processRefund();
+                        
+                        openConfirmModal({
+                            title: language === 'zh' ? '配置失败' : 'Configuration Failed',
+                            message: errorMsg,
+                            confirmText: language === 'zh' ? '知道了' : 'Got it',
+                            cancelText: null, // Hide cancel button
+                            onConfirm: () => {}
+                        });
+                        
+                        setIsGenerating(false);
+                        setWorkflowStage('error');
+                        setCurrentTaskId(null);
+                        currentTaskReasoningRef.current = null;
+                        return;
+                    }
+
+                    const confirmMessage = language === 'zh' 
+                        ? `智能修改遇到困难。是否尝试全量修复？\n\n注意：全量修复将消耗更多积分。\n${cost > 0 ? `本次修改消耗的 ${cost} 积分将自动退回。` : ''}`
+                        : `Smart edit encountered difficulties. Do you want to try a full repair?\n\nNote: Full repair will consume more credits.\n${cost > 0 ? `The ${cost} credits consumed for this edit will be automatically refunded.` : ''}`;
+                    
                     openConfirmModal({
                       title: language === 'zh' ? '尝试全量修复' : 'Try Full Repair',
                       message: confirmMessage,
@@ -4554,7 +4592,7 @@ Please fix the code to make the app display properly.`;
   };
 
   const renderWizard = () => (
-    <div className="max-w-4xl mx-auto pt-12 pb-12 px-4 min-h-screen flex flex-col">
+    <div className="max-w-4xl mx-auto pt-20 md:pt-12 pb-12 px-4 min-h-screen flex flex-col">
       <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-3xl p-8 shadow-2xl animate-fade-in relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -4584,87 +4622,105 @@ Please fix the code to make the app display properly.`;
 
         <div className="relative z-10 min-h-[400px] flex flex-col justify-center">
           {step === 'category' && (
-            <div className="space-y-8 animate-fade-in">
-              <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold text-white">{t.create.category_title}</h2>
-                <p className="text-slate-400">{t.create.category_subtitle}</p>
+            <div className="space-y-4 md:space-y-6 animate-fade-in">
+              <div className="text-center space-y-1">
+                <h2 className="text-xl md:text-3xl font-bold text-white">{t.create.category_title}</h2>
+                <p className="text-slate-400 text-sm md:text-base">{t.create.category_subtitle}</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto pt-2">
+              <div className="grid grid-cols-3 md:grid-cols-3 gap-2 md:gap-4 px-1">
                 {CATEGORIES.map(cat => (
                   <button
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat.id)}
-                    className="relative p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl transition-all group text-left hover:shadow-lg hover:-translate-y-1 hover:z-10"
+                    className="relative p-2 md:p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl transition-all group text-center md:text-left hover:shadow-lg hover:-translate-y-0.5 hover:z-10"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-black/40 flex items-center justify-center mb-3 group-hover:scale-110 transition shadow-inner border border-white/5">
-                      <i className={`fa-solid ${cat.icon} text-xl text-white`}></i>
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-black/40 flex items-center justify-center mb-1.5 md:mb-3 group-hover:scale-105 transition shadow-inner border border-white/5 mx-auto md:mx-0">
+                      <i className={`fa-solid ${cat.icon} text-base md:text-xl text-white`}></i>
                     </div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">{t.categories[cat.id as keyof typeof t.categories]}</h3>
-                    <p className="text-xs text-slate-400 leading-snug">{t.categories[`${cat.id}_desc` as keyof typeof t.categories]}</p>
+                    <h3 className="text-xs md:text-lg font-bold text-white mb-0.5 md:mb-1.5 truncate">{t.categories[cat.id as keyof typeof t.categories]}</h3>
+                    <p className="hidden md:block text-xs text-slate-400 leading-snug">{t.categories[`${cat.id}_desc` as keyof typeof t.categories]}</p>
                   </button>
                 ))}
+              </div>
+              {/* Skip Button */}
+              <div className="flex justify-center pt-2">
+                <button 
+                  onClick={() => {
+                    setWizardData(prev => ({ ...prev, category: 'tool' }));
+                    setStep('device');
+                  }}
+                  className="text-slate-400 hover:text-white text-xs md:text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 transition"
+                >
+                  {language === 'zh' ? '跳过，稍后选择' : 'Skip for now'} <i className="fa-solid fa-arrow-right text-[10px]"></i>
+                </button>
               </div>
             </div>
           )}
 
           {step === 'device' && (
-            <div className="space-y-8 animate-fade-in">
-              <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold text-white">{t.create.device_title}</h2>
-                <p className="text-slate-400">{t.create.device_subtitle}</p>
+            <div className="space-y-4 md:space-y-6 animate-fade-in">
+              <div className="text-center space-y-1">
+                <h2 className="text-xl md:text-3xl font-bold text-white">{t.create.device_title}</h2>
+                <p className="text-slate-400 text-sm md:text-base">{t.create.device_subtitle}</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-3 gap-2 md:gap-4">
                 {DEVICES.map(dev => (
                   <button
                     key={dev.id}
                     onClick={() => handleDeviceSelect(dev.id)}
-                    className="p-6 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-2xl transition-all group text-left hover:shadow-lg hover:-translate-y-1"
+                    className="p-3 md:p-6 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl md:rounded-2xl transition-all group text-center hover:shadow-lg hover:-translate-y-0.5"
                   >
-                    <div className="w-14 h-14 rounded-2xl bg-black/40 flex items-center justify-center mb-4 group-hover:scale-110 transition shadow-inner border border-white/5">
-                      <i className={`fa-solid ${dev.icon} text-2xl text-white`}></i>
+                    <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-black/40 flex items-center justify-center mb-2 md:mb-4 group-hover:scale-105 transition shadow-inner border border-white/5 mx-auto">
+                      <i className={`fa-solid ${dev.icon} text-lg md:text-2xl text-white`}></i>
                     </div>
-                    <h3 className="text-xl font-bold text-white mb-2">{t.devices[dev.id as keyof typeof t.devices]}</h3>
-                    <p className="text-sm text-slate-400 leading-relaxed">{t.devices[`${dev.id}_desc` as keyof typeof t.devices]}</p>
+                    <h3 className="text-sm md:text-xl font-bold text-white mb-0.5 md:mb-2">{t.devices[dev.id as keyof typeof t.devices]}</h3>
+                    <p className="hidden md:block text-sm text-slate-400 leading-relaxed">{t.devices[`${dev.id}_desc` as keyof typeof t.devices]}</p>
                   </button>
                 ))}
               </div>
-              <div className="flex justify-center pt-4">
-                <button onClick={() => setStep('category')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-white/5 transition">
-                  <i className="fa-solid fa-arrow-left"></i> {t.create.btn_back}
+              <div className="flex justify-center pt-2">
+                <button onClick={() => setStep('category')} className="text-slate-400 hover:text-white text-xs md:text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 transition">
+                  <i className="fa-solid fa-arrow-left text-[10px]"></i> {t.create.btn_back}
                 </button>
               </div>
             </div>
           )}
 
           {step === 'style' && (
-            <div className="space-y-8 animate-fade-in">
-              <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold text-white">{t.create.style_title}</h2>
-                <p className="text-slate-400">{t.create.style_subtitle}</p>
+            <div className="space-y-4 md:space-y-6 animate-fade-in">
+              <div className="text-center space-y-1">
+                <h2 className="text-xl md:text-3xl font-bold text-white">{t.create.style_title}</h2>
+                <p className="text-slate-400 text-sm md:text-base">{t.create.style_subtitle}</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {STYLES.filter(s => {
-                  const allowed = CATEGORY_STYLES[wizardData.category] || [];
-                  if (allowed.length === 0) return STYLES.indexOf(s) < 8;
-                  return allowed.includes(s.id);
-                }).map(style => (
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-3 max-h-[50vh] overflow-y-auto px-1">
+                {STYLES.map(style => (
                   <button
                     key={style.id}
                     onClick={() => handleStyleSelect(style.id)}
-                    className="p-6 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-2xl transition-all group relative overflow-hidden hover:shadow-lg hover:-translate-y-1"
+                    className="p-2 md:p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl transition-all group relative overflow-hidden hover:shadow-lg hover:-translate-y-0.5"
                   >
                     <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${style.color} transition duration-500`}></div>
-                    <div className="flex items-center justify-between mb-3 relative z-10">
-                      <h3 className="text-xl font-bold text-white">{t.styles[style.id as keyof typeof t.styles]}</h3>
-                      <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${style.color} shadow-lg`}></div>
+                    <div className="relative z-10 flex flex-col items-center text-center">
+                      <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl bg-gradient-to-br ${style.color} shadow-lg mb-1.5 md:mb-2 group-hover:scale-110 transition flex items-center justify-center`}>
+                        <i className={`fa-solid ${style.icon} text-white/90 text-sm md:text-base drop-shadow-md`}></i>
+                      </div>
+                      <h3 className="text-[10px] md:text-sm font-bold text-white leading-tight">{t.styles[style.id as keyof typeof t.styles]}</h3>
                     </div>
-                    <p className="text-sm text-slate-400 relative z-10">{t.styles[`${style.id}_desc` as keyof typeof t.styles]}</p>
                   </button>
                 ))}
               </div>
-              <div className="flex justify-center pt-4">
-                <button onClick={() => setStep('device')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-white/5 transition">
-                  <i className="fa-solid fa-arrow-left"></i> {t.create.btn_back}
+              <div className="flex items-center justify-center gap-4 pt-2">
+                <button onClick={() => setStep('device')} className="text-slate-400 hover:text-white text-xs md:text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 transition">
+                  <i className="fa-solid fa-arrow-left text-[10px]"></i> {t.create.btn_back}
+                </button>
+                <button 
+                  onClick={() => {
+                    setWizardData(prev => ({ ...prev, style: 'minimalist' }));
+                    setStep('concept');
+                  }}
+                  className="text-slate-400 hover:text-white text-xs md:text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 transition"
+                >
+                  {language === 'zh' ? '跳过，稍后选择' : 'Skip for now'} <i className="fa-solid fa-arrow-right text-[10px]"></i>
                 </button>
               </div>
             </div>

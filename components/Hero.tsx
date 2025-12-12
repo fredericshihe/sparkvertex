@@ -11,7 +11,7 @@ interface HeroProps {
 
 export default function Hero({ initialItems = [] }: HeroProps) {
   const { t, language } = useLanguage();
-  const [typingText, setTypingText] = useState(t.home.typing_texts[0]);
+  const [typingText, setTypingText] = useState('');
 
   useEffect(() => {
     const texts = t.home.typing_texts;
@@ -19,6 +19,10 @@ export default function Hero({ initialItems = [] }: HeroProps) {
     let index = 0;
     let currentText = '';
     let letter = '';
+    let timeoutId: NodeJS.Timeout;
+
+    // 立即重置并开始新的打字动画
+    setTypingText('');
 
     const type = () => {
       if (count === texts.length) {
@@ -32,18 +36,22 @@ export default function Hero({ initialItems = [] }: HeroProps) {
       if (letter.length === currentText.length) {
         count++;
         index = 0;
-        setTimeout(type, 2000);
+        timeoutId = setTimeout(type, 2000);
       } else {
-        setTimeout(type, 150);
+        timeoutId = setTimeout(type, 150);
       }
     };
 
-    const timer = setTimeout(type, 2000);
-    return () => clearTimeout(timer);
-  }, [language]);
+    // 立即开始第一个字符的打字
+    timeoutId = setTimeout(type, 150);
+    
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [t.home.typing_texts, language]);
 
   return (
-    <div className="relative w-full h-screen flex flex-col items-center justify-center overflow-hidden bg-transparent">
+    <div className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden bg-transparent py-20 pb-32 md:pb-20">
       
       {/* Content Overlay */}
       <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
@@ -65,7 +73,7 @@ export default function Hero({ initialItems = [] }: HeroProps) {
             </div>
         </div>
 
-        <h1 className="text-5xl md:text-7xl font-bold tracking-tighter leading-tight mb-6 text-white drop-shadow-2xl">
+        <h1 className="text-4xl md:text-7xl font-bold tracking-tighter leading-tight mb-6 text-white drop-shadow-2xl">
           {t.home.hero_title_1}
           <span className="block mt-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
             {t.home.hero_title_2}
@@ -84,28 +92,27 @@ export default function Hero({ initialItems = [] }: HeroProps) {
             <i className="fa-solid fa-wand-magic-sparkles"></i>
             {t.home.hero_create_cta || t.nav.create}
           </Link>
-          
-          <Link 
-            href="/explore"
-            className="px-8 py-4 rounded-full bg-white/10 text-white font-bold text-lg border border-white/20 hover:bg-white/20 transition-all backdrop-blur-sm flex items-center gap-2"
-          >
-            <i className="fa-solid fa-compass"></i>
-            {t.home.explore_ideas}
-          </Link>
         </div>
 
         {/* Use Cases Tags */}
-        <div className="mt-12 flex flex-wrap justify-center gap-3 opacity-80">
+        <div className="mt-16 grid grid-cols-2 md:flex md:flex-row justify-center gap-4 max-w-2xl mx-auto px-4">
             {[
-                { icon: 'fa-gamepad', text: t.home.use_cases?.games || '原创网页小游戏' },
-                { icon: 'fa-user-tie', text: t.home.use_cases?.personal || '个人作品集网站' },
-                { icon: 'fa-store', text: t.home.use_cases?.storefront || '超级个体预约门面' },
-                { icon: 'fa-graduation-cap', text: t.home.use_cases?.courseware || '教学课件' }
+                { icon: 'fa-gamepad', text: t.home.use_cases?.games || '网页游戏', category: 'game', color: 'from-purple-500 to-indigo-500' },
+                { icon: 'fa-user-tie', text: t.home.use_cases?.personal || '个人主页', category: 'portfolio', color: 'from-blue-500 to-cyan-500' },
+                { icon: 'fa-store', text: t.home.use_cases?.storefront || '服务预约', category: 'appointment', color: 'from-emerald-500 to-teal-500' },
+                { icon: 'fa-graduation-cap', text: t.home.use_cases?.courseware || '教学课件', category: 'education', color: 'from-orange-500 to-amber-500' }
             ].map((item, i) => (
-                <div key={i} className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-slate-300 text-sm backdrop-blur-sm">
-                <i className={`fa-solid ${item.icon} text-brand-400`}></i>
-                <span>{item.text}</span>
-                </div>
+                <Link 
+                  key={i} 
+                  href={`/explore?category=${item.category}`} 
+                  className="group relative flex items-center justify-center gap-3 px-5 py-3 rounded-2xl bg-zinc-900/40 border border-white/5 hover:border-white/20 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-500/10 overflow-hidden"
+                >
+                  <div className={`absolute inset-0 bg-gradient-to-br ${item.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500`}></div>
+                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${item.color} flex items-center justify-center text-white shadow-lg`}>
+                    <i className={`fa-solid ${item.icon} text-xs`}></i>
+                  </div>
+                  <span className="text-slate-300 font-medium text-sm group-hover:text-white transition-colors">{item.text}</span>
+                </Link>
             ))}
         </div>
 

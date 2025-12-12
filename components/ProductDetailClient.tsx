@@ -373,39 +373,6 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
 
   return (
     <div className={`h-[100dvh] bg-slate-900 flex flex-col overflow-hidden ${viewMode === 'app' ? 'pt-0' : 'pt-16'}`}>
-      {/* Add to Home Screen Hint - Only show on mobile browser (not standalone) */}
-      {showInstallHint && viewMode === 'app' && !isWeChat && (
-        <div 
-            className="md:hidden fixed bottom-8 left-4 right-4 z-[10000] animate-slide-up"
-            style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
-        >
-            <div className="bg-slate-900/90 backdrop-blur-md border border-brand-500/30 rounded-2xl p-4 shadow-2xl flex items-center gap-4 relative overflow-hidden">
-                {/* Glow effect */}
-                <div className="absolute top-0 left-0 w-1 h-full bg-brand-500"></div>
-                
-                <div className="w-12 h-12 bg-brand-500/20 rounded-xl flex items-center justify-center flex-shrink-0 shadow-inner">
-                    <i className="fa-solid fa-mobile-screen-button text-brand-400 text-xl"></i>
-                </div>
-                
-                <div className="flex-grow min-w-0 flex flex-col">
-                    <div className="font-bold text-white text-base">{t.detail.add_to_home}</div>
-                    <div className="text-xs text-slate-400 flex items-center flex-wrap gap-1 mt-1">
-                        <span>{t.detail.click_bottom}</span>
-                        <span className="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700"><i className="fa-solid fa-arrow-up-from-bracket text-[10px]"></i></span>
-                        <span>{t.detail.select_add_home}</span>
-                    </div>
-                </div>
-
-                <button 
-                    onClick={dismissHint} 
-                    className="w-10 h-10 flex items-center justify-center text-slate-500 hover:text-white transition bg-slate-800/50 rounded-full flex-shrink-0 touch-manipulation active:scale-90"
-                >
-                    <i className="fa-solid fa-xmark text-lg"></i>
-                </button>
-            </div>
-        </div>
-      )}
-
       {/* Content */}
       <div className="flex-grow flex flex-col md:flex-row overflow-hidden relative w-full">
         {/* Preview Area / App Mode Container */}
@@ -480,12 +447,6 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button 
-                  onClick={handleReward}
-                  className="text-xs bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1.5 rounded-full font-bold transition shadow-lg shadow-orange-500/20 flex items-center gap-1 hover:from-yellow-600 hover:to-orange-600"
-                >
-                  <i className="fa-solid fa-gift"></i> {t.detail.reward}
-                </button>
                 <button 
                   onClick={handleShare}
                   className="text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-full font-bold transition border border-slate-700 flex items-center gap-1"
@@ -621,12 +582,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
 
           {/* Bottom Action Bar */}
           <div className="p-6 border-t border-slate-800 bg-slate-900/95 backdrop-blur relative">
-            <div className="absolute -top-5 right-6 bg-slate-900 border border-slate-700 px-4 py-1 rounded-full shadow-lg flex items-center gap-2">
-              <span className="text-xs text-slate-400">{t.detail.price}</span>
-              <span className="font-bold text-lg text-white">{item.price && item.price > 0 ? `¥${item.price}` : t.detail.free}</span>
-            </div>
-
-            <div className="flex gap-3 mt-2">
+            <div className="flex gap-3">
               <button 
                 onClick={handleLike}
                 className={`w-12 h-12 rounded-xl border flex items-center justify-center transition group ${isLiked ? 'bg-rose-500/10 text-rose-500 border-rose-500/50' : 'bg-slate-800 text-slate-400 hover:text-rose-500 border-slate-700 hover:bg-slate-700'}`}
@@ -655,18 +611,18 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
       {/* Share Modal Overlay */}
       {showShareModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={closeShareModal}></div>
+            <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={closeShareModal}></div>
             
-            <div className="relative z-10 bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full flex flex-col items-center animate-float-up shadow-2xl">
+            <div className="relative z-10 bg-zinc-900 border border-white/10 rounded-2xl p-5 max-w-sm w-full flex flex-col items-center animate-float-up shadow-2xl">
                 <div className="flex justify-between items-center w-full mb-4">
-                    <h3 className="text-lg font-bold text-white">{t.detail.share_modal_title}</h3>
-                    <button onClick={closeShareModal} className="text-slate-400 hover:text-white transition">
-                        <i className="fa-solid fa-xmark text-xl"></i>
+                    <h3 className="text-base font-bold text-white">{t.detail.share_modal_title}</h3>
+                    <button onClick={closeShareModal} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition">
+                        <i className="fa-solid fa-xmark"></i>
                     </button>
                 </div>
 
                 {isLocalhost && (
-                    <div className="w-full mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-200 text-xs flex items-start gap-2">
+                    <div className="w-full mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-200 text-xs flex items-start gap-2">
                         <i className="fa-solid fa-triangle-exclamation mt-0.5"></i>
                         <span dangerouslySetInnerHTML={{ __html: t.detail.localhost_warning }} />
                     </div>
@@ -728,45 +684,26 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                                 </div>
                             </div>
 
-                            {/* QR Section - Split Layout */}
-                            <div className="mt-auto grid grid-cols-2 gap-4">
-                                {/* Detail QR */}
-                                <div className="flex flex-col items-center text-center p-3 rounded-xl bg-white/5 border border-white/5">
-                                    <div className="bg-white p-1.5 rounded-lg mb-3 shadow-lg">
-                                        <QRCodeCanvas 
-                                            value={getDetailUrl()} 
-                                            size={80}
-                                            level={"M"}
-                                            bgColor="#ffffff"
-                                            fgColor="#000000"
-                                        />
-                                    </div>
-                                    <span className="text-xs font-bold text-white mb-0.5">{t.detail.product_details}</span>
-                                    <span className="text-[10px] text-slate-500 scale-90">{t.detail.view_intro}</span>
+                            {/* QR Section - Centered Single QR */}
+                            <div className="mt-auto flex flex-col items-center">
+                                <div className="bg-white p-3 rounded-2xl shadow-xl mb-4">
+                                    <QRCodeCanvas 
+                                        value={getAppUrl()} 
+                                        size={140}
+                                        level={"H"}
+                                        bgColor="#ffffff"
+                                        fgColor="#000000"
+                                        imageSettings={{
+                                            src: qrIconDataUrl || "/logo.png",
+                                            x: undefined,
+                                            y: undefined,
+                                            height: 28,
+                                            width: 28,
+                                            excavate: true,
+                                        }}
+                                    />
                                 </div>
-
-                                {/* App QR */}
-                                <div className="flex flex-col items-center text-center p-3 rounded-xl bg-brand-500/10 border border-brand-500/20 relative overflow-hidden">
-                                    <div className="bg-white p-1.5 rounded-lg mb-3 shadow-lg relative">
-                                        <QRCodeCanvas 
-                                            value={getAppUrl()} 
-                                            size={80}
-                                            level={"M"}
-                                            bgColor="#ffffff"
-                                            fgColor="#000000"
-                                            imageSettings={{
-                                                src: qrIconDataUrl || "/logo.png",
-                                                x: undefined,
-                                                y: undefined,
-                                                height: 20,
-                                                width: 20,
-                                                excavate: true,
-                                            }}
-                                        />
-                                    </div>
-                                    <span className="text-xs font-bold text-brand-300 mb-0.5">{t.detail.full_screen}</span>
-                                    <span className="text-[10px] text-brand-500/60 scale-90">{t.detail.add_to_home}</span>
-                                </div>
+                                <span className="text-sm text-slate-400">{language === 'zh' ? '扫码体验作品' : 'Scan to experience'}</span>
                             </div>
                         </div>
                     </div>
@@ -798,7 +735,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                             link.click();
                         }}
                         disabled={!shareImageUrl}
-                        className="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+                        className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white py-3.5 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm border border-white/5"
                     >
                         <i className="fa-solid fa-download"></i> {t.detail.save_image}
                     </button>
@@ -807,7 +744,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                             const url = `${window.location.origin}/p/${item.id}`;
                             copyToClipboard(url).then(() => alert(t.detail.link_copied));
                         }}
-                        className="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm"
+                        className="flex-1 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white py-3.5 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-indigo-500/20"
                     >
                         <i className="fa-regular fa-copy"></i> {t.detail.copy_link}
                     </button>

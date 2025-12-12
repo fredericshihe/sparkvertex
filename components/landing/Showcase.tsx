@@ -1,12 +1,27 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
 import ProjectCard from '@/components/ProjectCard';
+import { useEffect, useState } from 'react';
 
 interface ShowcaseProps {
   items: any[];
 }
 
 export default function Showcase({ items }: ShowcaseProps) {
+  const [displayCount, setDisplayCount] = useState(6);
+
+  useEffect(() => {
+    const updateDisplayCount = () => {
+      setDisplayCount(window.innerWidth < 768 ? 4 : 6);
+    };
+    
+    updateDisplayCount();
+    window.addEventListener('resize', updateDisplayCount);
+    return () => window.removeEventListener('resize', updateDisplayCount);
+  }, []);
+
   if (!items || items.length === 0) return null;
 
   return (
@@ -28,8 +43,8 @@ export default function Showcase({ items }: ShowcaseProps) {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {items.map((item) => (
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+          {items.slice(0, displayCount).map((item) => (
             <ProjectCard 
               key={item.id} 
               item={item} 

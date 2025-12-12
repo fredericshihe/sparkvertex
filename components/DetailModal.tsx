@@ -319,7 +319,7 @@ export default function DetailModal() {
   const handleDownload = async () => {
     if (!item) return;
     
-    // Check Login
+    // Check Login - all logged-in users can download source code
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       openLoginModal();
@@ -329,6 +329,7 @@ export default function DetailModal() {
     // Increment download count
     incrementDownloads(item.id);
 
+    // All users can download - no price check needed
     const blob = new Blob([item.content || ''], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -462,12 +463,6 @@ export default function DetailModal() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <button 
-                        onClick={handleReward}
-                        className="flex-1 sm:flex-none justify-center text-xs bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1.5 rounded-full font-bold transition shadow-lg shadow-orange-500/20 flex items-center gap-1 hover:from-yellow-600 hover:to-orange-600 whitespace-nowrap"
-                      >
-                        <i className="fa-solid fa-gift"></i> {t.detail.reward}
-                      </button>
                       <button 
                         onClick={handleShare}
                         className="flex-1 sm:flex-none justify-center text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-full font-bold transition border border-slate-700 flex items-center gap-1 whitespace-nowrap"
@@ -637,18 +632,18 @@ export default function DetailModal() {
       {/* Share Modal Overlay */}
       {showShareModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeShareModal}></div>
+            <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={closeShareModal}></div>
             
-            <div className="relative z-10 bg-black/60 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 max-w-sm w-full flex flex-col items-center animate-in zoom-in fade-in duration-300 shadow-[0_8px_32px_rgba(0,0,0,0.4)] ring-1 ring-white/5">
+            <div className="relative z-10 bg-zinc-900 border border-white/10 rounded-2xl p-5 max-w-sm w-full flex flex-col items-center animate-in zoom-in fade-in duration-300 shadow-2xl">
                 <div className="flex justify-between items-center w-full mb-4">
-                    <h3 className="text-lg font-bold text-white">{t.detail.share_modal_title}</h3>
+                    <h3 className="text-base font-bold text-white">{t.detail.share_modal_title}</h3>
                     <button onClick={closeShareModal} className="text-slate-400 hover:text-white transition w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10">
-                        <i className="fa-solid fa-xmark text-xl"></i>
+                        <i className="fa-solid fa-xmark"></i>
                     </button>
                 </div>
 
                 {isLocalhost && (
-                    <div className="w-full mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-200 text-xs flex items-start gap-2">
+                    <div className="w-full mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-200 text-xs flex items-start gap-2">
                         <i className="fa-solid fa-triangle-exclamation mt-0.5"></i>
                         <span dangerouslySetInnerHTML={{ __html: t.detail.localhost_warning }}></span>
                     </div>
@@ -711,45 +706,26 @@ export default function DetailModal() {
                                 </div>
                             </div>
 
-                            {/* QR Section - Split Layout */}
-                            <div className="mt-auto grid grid-cols-2 gap-4">
-                                {/* Detail QR */}
-                                <div className="flex flex-col items-center text-center p-3 rounded-xl bg-white/5 border border-white/5">
-                                    <div className="bg-white p-1.5 rounded-lg mb-3 shadow-lg">
-                                        <QRCodeCanvas 
-                                            value={getShareUrl()} 
-                                            size={80}
-                                            level={"M"}
-                                            bgColor="#ffffff"
-                                            fgColor="#000000"
-                                        />
-                                    </div>
-                                    <span className="text-xs font-bold text-white mb-0.5">{t.detail.product_details}</span>
-                                    <span className="text-[10px] text-slate-500 scale-90">{t.detail.view_intro}</span>
+                            {/* QR Section - Centered Single QR */}
+                            <div className="mt-auto flex flex-col items-center">
+                                <div className="bg-white p-3 rounded-2xl shadow-xl mb-4">
+                                    <QRCodeCanvas 
+                                        value={getAppUrl()} 
+                                        size={140}
+                                        level={"H"}
+                                        bgColor="#ffffff"
+                                        fgColor="#000000"
+                                        imageSettings={{
+                                            src: qrIconDataUrl || "/logo.png",
+                                            x: undefined,
+                                            y: undefined,
+                                            height: 28,
+                                            width: 28,
+                                            excavate: true,
+                                        }}
+                                    />
                                 </div>
-
-                                {/* App QR */}
-                                <div className="flex flex-col items-center text-center p-3 rounded-xl bg-brand-500/10 border border-brand-500/20 relative overflow-hidden">
-                                    <div className="bg-white p-1.5 rounded-lg mb-3 shadow-lg relative">
-                                        <QRCodeCanvas 
-                                            value={getAppUrl()} 
-                                            size={80}
-                                            level={"M"}
-                                            bgColor="#ffffff"
-                                            fgColor="#000000"
-                                            imageSettings={{
-                                                src: qrIconDataUrl || "/logo.png",
-                                                x: undefined,
-                                                y: undefined,
-                                                height: 20,
-                                                width: 20,
-                                                excavate: true,
-                                            }}
-                                        />
-                                    </div>
-                                    <span className="text-xs font-bold text-brand-300 mb-0.5">{t.detail.full_screen}</span>
-                                    <span className="text-[10px] text-brand-500/60 scale-90">{t.detail.add_to_home}</span>
-                                </div>
+                                <span className="text-sm text-slate-400">{language === 'zh' ? '扫码体验作品' : 'Scan to experience'}</span>
                             </div>
                         </div>
                     </div>
@@ -772,7 +748,7 @@ export default function DetailModal() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex flex-wrap gap-3 w-full">
+                <div className="flex gap-3 w-full">
                     <button 
                         onClick={() => {
                             const link = document.createElement('a');
@@ -781,7 +757,7 @@ export default function DetailModal() {
                             link.click();
                         }}
                         disabled={!shareImageUrl}
-                        className="flex-1 min-w-[120px] bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm whitespace-nowrap border border-white/10"
+                        className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white py-3.5 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm border border-white/5"
                     >
                         <i className="fa-solid fa-download"></i> {t.detail.save_image}
                     </button>
@@ -792,7 +768,7 @@ export default function DetailModal() {
                                 copyToClipboard(url).then(() => alert(t.detail.link_copied));
                             }
                         }}
-                        className="flex-1 min-w-[120px] bg-brand-600 hover:bg-brand-500 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm whitespace-nowrap shadow-lg shadow-brand-500/20"
+                        className="flex-1 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white py-3.5 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-indigo-500/20"
                     >
                         <i className="fa-regular fa-copy"></i> {t.detail.copy_link}
                     </button>

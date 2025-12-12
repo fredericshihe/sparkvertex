@@ -31,7 +31,7 @@ export default function FeatureBackend() {
 
             {/* Left: Visual */}
             <div className="w-full md:w-1/2">
-              <div className="w-full h-[320px]">
+              <div className="w-full h-[280px] md:h-[320px]">
                 <TiltedCard
                     imageHeight="100%"
                     imageWidth="100%"
@@ -114,7 +114,7 @@ export default function FeatureBackend() {
 
             {/* Left: Visual */}
             <div className="w-full md:w-1/2">
-              <div className="w-full h-[320px]">
+              <div className="w-full h-[280px] md:h-[320px]">
                 <TiltedCard
                     imageHeight="100%"
                     imageWidth="100%"
@@ -213,7 +213,7 @@ export default function FeatureBackend() {
           <div className="w-full md:w-1/2 flex flex-col gap-8">
             
             {/* Simulation Card */}
-            <div className="w-full h-[280px]">
+            <div className="w-full h-[280px] md:h-[320px]">
                 <TiltedCard
                     imageHeight="100%"
                     imageWidth="100%"
@@ -323,7 +323,7 @@ export default function FeatureBackend() {
 
             {/* Left: Visual */}
             <div className="w-full md:w-1/2">
-              <div className="w-full h-[320px]">
+              <div className="w-full h-[280px] md:h-[320px]">
                 <TiltedCard
                     imageHeight="100%"
                     imageWidth="100%"

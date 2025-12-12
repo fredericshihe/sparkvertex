@@ -90,7 +90,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   return (
     <div 
       ref={cardRef}
-      className={`flip-card group cursor-pointer transition-transform duration-200 active:scale-95 touch-manipulation ${isFlipped ? 'flipped' : ''} ${className || 'h-[360px] md:h-80'}`} 
+      className={`flip-card group cursor-pointer transition-transform duration-200 active:scale-95 touch-manipulation ${isFlipped ? 'flipped' : ''} ${className || 'h-72 md:h-80'}`} 
       onClick={() => !isFlipped && onClick(item.id)}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -120,7 +120,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
             <i className="fa-solid fa-qrcode mr-1"></i> {t.project_card.scan_experience}
           </div>
 
-          <div className="h-[220px] md:h-44 relative bg-black/20 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
+          <div className="h-40 md:h-44 relative bg-black/20 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
             {/* Iframe Preview */}
             {showPreview && item.content && (
                <iframe
@@ -190,9 +190,9 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
               )}
             </div>
           </div>
-          <div className="p-3 text-left flex flex-col flex-grow min-h-0">
-            <h3 className="font-bold text-white text-sm mb-1 truncate w-full">{item.title}</h3>
-            <p className="text-slate-400 text-xs line-clamp-2 mb-2 w-full break-words">{item.description || 'No description'}</p>
+          <div className="p-2 md:p-3 text-left flex flex-col flex-grow min-h-0">
+            <h3 className="font-bold text-white text-xs md:text-sm mb-1 truncate w-full">{item.title}</h3>
+            <p className="text-slate-400 text-[10px] md:text-xs line-clamp-2 mb-2 w-full break-words">{item.description || 'No description'}</p>
             
             <div className="flex-grow"></div>
             
@@ -220,9 +220,6 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                     <i className={`fa-solid fa-heart ${isLiked ? 'text-rose-500' : ''}`}></i> {item.likes || 0}
                   </button>
                 </div>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex-shrink-0 ${item.price > 0 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-green-500/20 text-green-400 border border-green-500/30'}`}>
-                  {item.price > 0 ? '¥' + item.price : t.project_card.free}
-                </span>
               </div>
             </div>
           </div>
@@ -237,7 +234,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
               {isClient && (
                 <QRCodeSVG 
                   value={`${window.location.origin}/p/${item.id}?mode=app`}
-                  size={120}
+                  size={100}
                   level="M"
                   fgColor="#000000"
                   bgColor="#ffffff"

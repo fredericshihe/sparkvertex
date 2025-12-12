@@ -4,10 +4,12 @@ import { useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
+import { useToast } from '@/context/ToastContext';
 
 export default function FeedbackModal() {
   const { t } = useLanguage();
   const { isFeedbackModalOpen, closeFeedbackModal, openLoginModal } = useModal();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [type, setType] = useState('bug');
   const [content, setContent] = useState('');
   const [contact, setContact] = useState('');
@@ -30,7 +32,7 @@ export default function FeedbackModal() {
 
   const handleSubmit = async () => {
     if (!content) {
-      alert(t.feedback_modal.fill_content);
+      toastError(t.feedback_modal.fill_content);
       return;
     }
 
@@ -56,14 +58,14 @@ export default function FeedbackModal() {
 
       if (error) throw error;
 
-      alert(t.feedback_modal.submit_success);
+      toastSuccess(t.feedback_modal.submit_success);
       closeFeedbackModal();
       setContent('');
       setContact('');
       setScreenshot(null);
     } catch (error: any) {
       console.error('Feedback error:', error);
-      alert(t.feedback_modal.submit_fail + error.message);
+      toastError(t.feedback_modal.submit_fail + error.message);
     } finally {
       setLoading(false);
     }

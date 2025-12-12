@@ -133,13 +133,13 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
   let containerClasses = "";
   switch (variant) {
     case 'floating':
-      containerClasses = "fixed bottom-8 right-8 z-50 w-[400px] max-h-[75vh] bg-black/60 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] text-white transition-all duration-500 animate-in slide-in-from-bottom-10 fade-in overflow-hidden ring-1 ring-white/5";
+      containerClasses = "fixed bottom-8 right-8 z-50 w-[400px] max-h-[75vh] bg-black/70 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] text-white transition-all duration-500 animate-in slide-in-from-bottom-10 fade-in overflow-hidden";
       break;
     case 'centered':
-      containerClasses = "w-full max-w-2xl bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl text-white transition-all duration-500 animate-in fade-in overflow-hidden";
+      containerClasses = "w-full max-w-2xl bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl text-white transition-all duration-500 animate-in fade-in overflow-hidden";
       break;
     case 'chat':
-      containerClasses = "w-full bg-white/5 rounded-2xl border border-white/10 text-white transition-all duration-300 animate-in fade-in overflow-hidden";
+      containerClasses = "w-full bg-black/50 backdrop-blur-xl rounded-2xl border border-white/10 text-white transition-all duration-300 animate-in fade-in overflow-hidden";
       break;
   }
 

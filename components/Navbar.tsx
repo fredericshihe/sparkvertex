@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
 import { useLanguage } from '@/context/LanguageContext';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -27,6 +28,18 @@ export default function Navbar() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // 控制移动端菜单打开时禁止body滚动
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobileMenuOpen]);
 
   useEffect(() => {
     // Check for email verification hash
@@ -171,40 +184,108 @@ export default function Navbar() {
               )}
             </div>
           </div>
-          <div className="md:hidden flex items-center gap-4">
+          <div className="md:hidden flex items-center gap-3">
             <button onClick={toggleLanguage} className="text-white/50 hover:text-white px-2 py-1 rounded-md text-xs font-bold border border-white/10 hover:bg-white/5 transition">
               {language === 'zh' ? 'EN' : '中'}
             </button>
-            <button onClick={toggleMobileMenu} className="text-white/60 hover:text-white p-2"><i className="fa-solid fa-bars text-xl"></i></button>
+            <button onClick={toggleMobileMenu} className="text-white/60 hover:text-white p-2 active-scale">
+              <i className={`fa-solid ${isMobileMenuOpen ? 'fa-xmark' : 'fa-bars'} text-lg`}></i>
+            </button>
           </div>
         </div>
       </div>
 
       {/* Mobile Menu Overlay */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 top-16 z-40 md:hidden" onClick={toggleMobileMenu}>
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"></div>
-          <div 
-            className="absolute top-0 left-0 w-full bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-white/10 shadow-2xl animate-slide-down origin-top"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="px-4 pt-2 pb-4 space-y-1">
-              <Link href="/" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-home w-6 text-center text-white/50"></i> {t.nav.home}</Link>
-              <Link href="/explore" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-lightbulb w-6 text-center text-white/50"></i> {t.nav.explore}</Link>
-              <Link href="/create" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-wand-magic-sparkles w-6 text-center text-white/50"></i> {t.nav.create}</Link>
-              <button onClick={() => { toggleMobileMenu(); openFeedbackModal(); }} className="block w-full text-left px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-comment-dots w-6 text-center text-white/50"></i> {t.nav.feedback}</button>
-              <Link href="/upload" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-cloud-arrow-up w-6 text-center text-white/50"></i> {t.nav.upload}</Link>
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            {/* 背景遮罩层 */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+            {/* 菜单内容 */}
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="md:hidden bg-black/95 backdrop-blur-xl border-b border-white/10 overflow-hidden absolute top-16 left-0 w-full shadow-2xl z-50"
+            >
+            <div className="px-4 pt-4 pb-6 space-y-2">
+              <Link 
+                href="/" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`block px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive('/')}`}
+              >
+                <i className="fa-solid fa-home mr-2 text-brand-400"></i> {t.nav.home}
+              </Link>
+              <Link 
+                href="/explore" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`block px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive('/explore')}`}
+              >
+                <i className="fa-solid fa-compass mr-2 text-brand-400"></i> {t.nav.explore}
+              </Link>
+              <Link 
+                href="/create" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`block px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive('/create')}`}
+              >
+                <i className="fa-solid fa-wand-magic-sparkles mr-2 text-brand-400"></i> {t.nav.create}
+              </Link>
+              <Link 
+                href="/upload" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`block px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive('/upload')}`}
+              >
+                <i className="fa-solid fa-cloud-arrow-up mr-2 text-brand-400"></i> {t.nav.upload}
+              </Link>
+              
               <div className="border-t border-white/10 my-2 pt-2">
                 {user ? (
-                   <Link href="/profile" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-user w-6 text-center text-white/50"></i> {t.nav.profile}</Link>
+                  <Link 
+                    href="/profile" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium text-white/80 hover:bg-white/5 transition-all"
+                  >
+                    <img 
+                      src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
+                      className="w-8 h-8 rounded-full border border-white/10 object-cover" 
+                      alt="Avatar"
+                    />
+                    <span>{language === 'zh' ? '个人中心' : 'Profile'}</span>
+                  </Link>
                 ) : (
-                   <button onClick={() => { toggleMobileMenu(); openLoginModal(); }} className="w-full text-left px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-user w-6 text-center text-white/50"></i> {t.nav.login_register}</button>
+                  <button 
+                    onClick={() => {
+                      openLoginModal();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-3 rounded-xl text-base font-medium text-white/80 hover:bg-white/5 transition-all"
+                  >
+                    {t.nav.login}
+                  </button>
                 )}
+                <button 
+                  onClick={() => {
+                    openFeedbackModal();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-3 rounded-xl text-base font-medium text-white/80 hover:bg-white/5 transition-all flex items-center gap-2"
+                >
+                  <i className="fa-solid fa-comment-dots"></i> {t.nav.feedback}
+                </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </nav>
   );
 }

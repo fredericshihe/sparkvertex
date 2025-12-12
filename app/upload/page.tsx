@@ -1,22 +1,44 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
+import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { getPreviewContent } from '@/lib/preview';
-import { copyToClipboard, detectSparkBackendCode } from '@/lib/utils';
+import { copyToClipboard, detectSparkBackendCode, removeSparkBackendCode } from '@/lib/utils';
 import { sha256 } from '@/lib/sha256';
 import BackendDataPanel from '@/components/BackendDataPanel';
 
 // --- Helper Functions (Ported from SparkWorkbench.html) ---
 
 async function calculateContentHash(content: string) {
+  // First, strip out SparkVertex watermark content that contains random IDs
+  // This ensures the same source content always produces the same hash
+  let stripped = content;
+  
+  // Remove SparkVertex header comment block (contains random ID and date)
+  stripped = stripped.replace(/<!--\s*={50,}[\s\S]*?SparkVertex[\s\S]*?={50,}\s*-->/gi, '');
+  
+  // Remove spark-vertex-id meta tag
+  stripped = stripped.replace(/<meta\s+name=["']spark-vertex-id["'][^>]*>/gi, '');
+  stripped = stripped.replace(/<meta\s+name=["']generator["']\s+content=["']SparkVertex["'][^>]*>/gi, '');
+  
+  // Remove SPARK_VERTEX_ID protection script
+  stripped = stripped.replace(/<script>\s*\(function\(\)\{[\s\S]*?SPARK_VERTEX_ID[\s\S]*?\}\)\(\);\s*<\/script>/gi, '');
+  
+  // Remove PUBLIC VERSION comment
+  stripped = stripped.replace(/<!--\s*PUBLIC VERSION[\s\S]*?-->/gi, '');
+
+  // Remove charset meta tag (injectWatermark enforces UTF-8, causing mismatch with original)
+  stripped = stripped.replace(/<meta[^>]*charset=[^>]*>/gi, '');
+  
   // Normalize: remove all whitespace, newlines, and convert to lowercase
-  const normalized = content.replace(/\s+/g, '').toLowerCase();
+  const normalized = stripped.replace(/\s+/g, '').toLowerCase();
   return await sha256(normalized);
 }
 
@@ -512,6 +534,14 @@ function UploadContent() {
         const generatedCode = localStorage.getItem('spark_generated_code');
         
         if (generatedCode) {
+          // Validate content structure
+          if (generatedCode.includes('<<<<AST_REPLACE:') || generatedCode.trim().startsWith('STEP:')) {
+             console.error('Invalid generated code detected');
+             // Don't load invalid code
+             localStorage.removeItem('spark_generated_code');
+             return;
+          }
+
           setFileContent(generatedCode);
           setStep(2); // Skip upload step
           
@@ -607,7 +637,31 @@ function UploadContent() {
           window.addEventListener('load', function() {
             setTimeout(function() {
               try {
-                  var hasContent = document.body.innerText.trim().length > 0 || document.body.children.length > 0;
+                  var bodyText = document.body.innerText;
+                  var hasContent = bodyText.trim().length > 0 || document.body.children.length > 0;
+                  
+                  // Check for leaked code patterns in visible text (indicates broken HTML/Script)
+                  var codePatterns = [
+                    '<<<<AST_REPLACE', 
+                    '<<<<<<< HEAD',
+                    'import React',
+                    'export default function',
+                    'const [',
+                    'useEffect(()',
+                    'console.log(',
+                    'STEP: '
+                  ];
+                  
+                  var leakedCode = codePatterns.find(function(p) { return bodyText.includes(p); });
+                  
+                  if (leakedCode) {
+                     window.parent.postMessage({ 
+                        type: 'spark-app-error', 
+                        error: { message: 'Detected leaked source code in UI: ' + leakedCode } 
+                     }, '*');
+                     return;
+                  }
+
                   // Check for common "empty" react roots
                   var root = document.getElementById('root');
                   if (root && root.innerHTML.trim().length === 0) hasContent = false;
@@ -756,14 +810,45 @@ function UploadContent() {
     }
   };
 
+  const isValidHtmlContent = (content: string) => {
+    // Check for SparkVertex internal patch markers
+    if (content.includes('<<<<AST_REPLACE:') || content.includes('<<<<AST_REPLACE_END>>>>')) {
+      return false;
+    }
+    // Check for Step markers
+    if (content.trim().startsWith('STEP:')) {
+      return false;
+    }
+    // Check for Git conflict markers
+    if (content.includes('<<<<<<< HEAD') || content.includes('>>>>>>>')) {
+      return false;
+    }
+    // Check for common AI placeholders indicating incomplete code
+    if (content.includes('// ... existing code') || content.includes('/* ... existing code') || content.includes('// ... rest of code')) {
+      return false;
+    }
+    return true;
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       if (selectedFile.name.endsWith('.html') || selectedFile.type === 'text/html') {
-        setFile(selectedFile);
         const reader = new FileReader();
-        reader.onload = (e) => {
-          const content = e.target?.result as string;
+        reader.onload = (progressEvent) => {
+          const content = progressEvent.target?.result as string;
+          
+          if (!isValidHtmlContent(content)) {
+            console.error('Invalid HTML content detected in handleFileSelect');
+            toastError(language === 'zh' ? '上传的文件似乎是代码片段而非完整的 HTML 应用' : 'Uploaded file appears to be a code snippet, not a full HTML app');
+            // Reset file input
+            if (fileInputRef.current) {
+              fileInputRef.current.value = '';
+            }
+            return;
+          }
+
+          setFile(selectedFile);
           setFileContent(content);
           setStep(2);
           // Trigger Validation first, then Analysis
@@ -788,10 +873,17 @@ function UploadContent() {
     const selectedFile = e.dataTransfer.files?.[0];
     if (selectedFile) {
       if (selectedFile.name.endsWith('.html') || selectedFile.type === 'text/html') {
-        setFile(selectedFile);
         const reader = new FileReader();
         reader.onload = (e) => {
           const content = e.target?.result as string;
+
+          if (!isValidHtmlContent(content)) {
+            console.error('Invalid HTML content detected in handleDrop');
+            toastError(language === 'zh' ? '上传的文件似乎是代码片段而非完整的 HTML 应用' : 'Uploaded file appears to be a code snippet, not a full HTML app');
+            return;
+          }
+
+          setFile(selectedFile);
           setFileContent(content);
           setStep(2);
           // Trigger Validation first, then Analysis
@@ -910,6 +1002,10 @@ function UploadContent() {
   const checkDuplicateEarly = async (content: string) => {
     console.log('🔍 [Duplicate Check] Starting early detection...');
     setIsCheckingDuplicate(true);
+    
+    // Add a small delay to make the check visible to user (UX)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -920,13 +1016,21 @@ function UploadContent() {
 
       // 1. Hash Check (Fast)
       const contentHash = await calculateContentHash(content);
+      
+      // Also calculate hash for "cleaned" version (in case the original was published as public/cleaned)
+      const cleanedContent = removeSparkBackendCode(content);
+      const cleanedHash = await calculateContentHash(cleanedContent);
+      
       console.log('🔍 [Duplicate Check] Content Hash:', contentHash);
+      console.log('🔍 [Duplicate Check] Cleaned Hash:', cleanedHash);
 
-      // Build query to check for hash duplicates
+      // Build query to check for hash duplicates (check both original and cleaned hashes)
       let hashQuery = supabase
         .from('items')
-        .select('id, author_id')
-        .eq('content_hash', contentHash);
+        .select('id, author_id, content_hash, is_public')
+        .in('content_hash', [contentHash, cleanedHash])
+        .eq('is_public', true) // Only check against public items
+        .limit(10);  // Get multiple results to handle edge cases
       
       // If editing or updating, exclude the current item
       const currentItemId = editId || updateId;
@@ -935,9 +1039,15 @@ function UploadContent() {
         hashQuery = hashQuery.neq('id', currentItemId);
       }
       
-      const { data: existing } = await hashQuery.maybeSingle();
+      const { data: existingItems, error: hashError } = await hashQuery;
+      
+      if (hashError) {
+        console.error('🔍 [Duplicate Check] Hash Query Error:', hashError);
+      }
+      
+      const existing = existingItems && existingItems.length > 0 ? existingItems[0] : null;
 
-      console.log('🔍 [Duplicate Check] Hash Match Found:', existing ? 'YES' : 'NO', existing?.id, '(isEditing:', isEditing, 'editId:', editId, 'isUpdating:', isUpdating, 'updateId:', updateId, ')');
+      console.log('🔍 [Duplicate Check] Hash Match Found:', existing ? 'YES' : 'NO', existing?.id, '(matches:', existingItems?.length || 0, ', isEditing:', isEditing, 'editId:', editId, 'isUpdating:', isUpdating, 'updateId:', updateId, ')');
 
       if (existing) {
         // Get the matched item's title
@@ -1003,13 +1113,31 @@ function UploadContent() {
               // Filter out the current item being edited or updated
               const excludeId = editId || updateId;
               console.log('🔍 [Duplicate Check] Vector results before filter:', similarItems.map((i: any) => ({ id: i.id, similarity: i.similarity })));
-              const filteredItems = ((isEditing && editId) || (isUpdating && updateId))
-                ? similarItems.filter((item: any) => {
-                    const isMatch = String(item.id) !== String(excludeId);
-                    console.log('🔍 [Duplicate Check] Comparing:', item.id, '!==', excludeId, '=', isMatch);
-                    return isMatch;
-                  })
-                : similarItems;
+              
+              // Fetch details for all candidates to check is_public status
+              const candidateIds = similarItems.map((i: any) => i.id);
+              const { data: candidates } = await supabase
+                .from('items')
+                .select('id, is_public, author_id, title')
+                .in('id', candidateIds);
+                
+              const publicCandidatesMap = new Map();
+              if (candidates) {
+                candidates.forEach((c: any) => {
+                  if (c.is_public) {
+                    publicCandidatesMap.set(c.id, c);
+                  }
+                });
+              }
+
+              const filteredItems = similarItems.filter((item: any) => {
+                // 1. Exclude current item
+                if ((isEditing && editId) || (isUpdating && updateId)) {
+                   if (String(item.id) === String(excludeId)) return false;
+                }
+                // 2. Only include public items
+                return publicCandidatesMap.has(item.id);
+              });
               
               console.log('🔍 [Duplicate Check] Filtered items count:', filteredItems.length, '(original:', similarItems.length, ')');
               
@@ -1017,11 +1145,7 @@ function UploadContent() {
                 const bestMatch = filteredItems[0];
                 console.log('🔍 [Duplicate Check] Vector Similarity:', bestMatch.similarity, 'ID:', bestMatch.id);
                 
-                const { data: matchOwner } = await supabase
-                  .from('items')
-                  .select('author_id, title')
-                  .eq('id', bestMatch.id)
-                  .single();
+                const matchOwner = publicCandidatesMap.get(bestMatch.id);
                   
                 const isSelf = matchOwner && matchOwner.author_id === session.user.id;
 
@@ -1087,7 +1211,7 @@ function UploadContent() {
       return;
     }
 
-    // Rate limit check: Max 10 analysis per hour per user
+    // Rate limit check: Max 30 analysis per hour per user
     const rateLimitKey = `ai_analysis_${session.user.id}`;
     const rateLimitData = localStorage.getItem(rateLimitKey);
     
@@ -1097,10 +1221,10 @@ function UploadContent() {
         const oneHourAgo = Date.now() - 60 * 60 * 1000;
         
         if (timestamp > oneHourAgo) {
-          if (count >= 10) {
+          if (count >= 30) {
             toastError(language === 'zh' 
-              ? '操作过于频繁，请稍后再试（每小时最多 10 次分析）' 
-              : 'Too many requests. Please try again later (10 analyses per hour).');
+              ? '操作过于频繁，请稍后再试（每小时最多 30 次分析）' 
+              : 'Too many requests. Please try again later (30 analyses per hour).');
             setAnalysisState({
               status: 'error',
               message: language === 'zh' ? '频率限制' : 'Rate limit exceeded'
@@ -1457,7 +1581,16 @@ function UploadContent() {
       }, 500);
 
       // Inject Watermark
-      const watermarkedContent = injectWatermark(fileContent);
+      let watermarkedContent = injectWatermark(fileContent);
+
+      // If public publish with backend code, strip the backend code for safety
+      if (isPublic && hasBackendCode) {
+        watermarkedContent = removeSparkBackendCode(watermarkedContent);
+      }
+      
+      // Recalculate hash based on the final content to be stored
+      // This ensures the hash in DB matches the content in DB (important for duplicate detection)
+      const finalContentHash = await calculateContentHash(watermarkedContent);
 
       // Upload Icon if exists
       let iconUrl = null;
@@ -1508,7 +1641,7 @@ function UploadContent() {
         if (finalEmbedding) updateData.embedding = finalEmbedding;
         
         // Update hash as well
-        updateData.content_hash = contentHash;
+        updateData.content_hash = finalContentHash;
 
         let result = await supabase.from('items').update(updateData).eq('id', itemIdToUpdate).select().single();
         
@@ -1545,7 +1678,7 @@ function UploadContent() {
           page_views: 0,
           downloads: 0,
           icon_url: iconUrl,
-          content_hash: contentHash,
+          content_hash: finalContentHash,
           embedding: finalEmbedding
         };
 
@@ -1643,7 +1776,7 @@ function UploadContent() {
   };
 
   return (
-    <div className="min-h-screen bg-black pt-24 px-4 pb-20">
+    <div className="min-h-screen bg-black pt-24 px-4 pb-32 md:pb-20">
       <div className="max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold text-white mb-8 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
@@ -1871,9 +2004,26 @@ function UploadContent() {
                   <i className="fa-solid fa-shield-halved fa-pulse"></i>
                 </div>
                 <div className="flex-grow">
-                  <div className="font-bold">{language === 'zh' ? '正在检测重复内容...' : 'Checking for duplicates...'}</div>
+                  <div className="font-bold">{t.upload.checking_duplicates}</div>
                   <div className="text-xs text-orange-400/60 mt-1">
-                    {language === 'zh' ? '正在进行全网原创性比对，请稍候...' : 'Checking for originality across the platform...'}
+                    {t.upload.checking_originality}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Duplicate Detected Warning */}
+          {!isCheckingDuplicate && isDuplicateRestricted && (
+            <div className="rounded-2xl p-6 mb-6 border border-red-500/20 bg-red-500/5 backdrop-blur-sm animate-in fade-in slide-in-from-top-2 duration-500">
+              <div className="flex items-center gap-4 text-red-400">
+                <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0 border border-red-500/20">
+                  <i className="fa-solid fa-triangle-exclamation text-xl"></i>
+                </div>
+                <div className="flex-grow">
+                  <div className="font-bold text-lg">{t.upload.duplicate_detected}</div>
+                  <div className="text-sm text-red-400/80 mt-1">
+                    {t.upload.duplicate_desc}
                   </div>
                 </div>
               </div>
@@ -1884,31 +2034,158 @@ function UploadContent() {
           <div className="rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl p-8 mb-8">
             <div id="ai-analysis-status" className="text-sm">
               {analysisState.status === 'analyzing' && (
-                <>
-                  <div className="flex items-center gap-4 text-indigo-400 mb-6">
-                    <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center flex-shrink-0 border border-indigo-500/20">
-                      <i className="fa-solid fa-brain fa-pulse text-xl"></i>
-                    </div>
-                    <div className="flex-grow">
-                      <div className="font-bold text-lg text-white mb-2">{t.upload.ai_analyzing} {analysisState.progress}%</div>
-                      <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
-                        <div className="bg-gradient-to-r from-indigo-500 to-violet-500 h-full transition-all duration-300 shadow-[0_0_10px_rgba(99,102,241,0.5)]" style={{ width: `${analysisState.progress}%` }}></div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {analysisState.tasks?.map(task => (
-                      <div key={task.id} className="flex items-center gap-3 text-sm p-3 rounded-xl bg-zinc-900/50 border border-white/5">
-                        <div className="w-6 h-6 flex items-center justify-center rounded-full bg-white/5">
-                          {task.status === 'pending' 
-                            ? <i className="fa-solid fa-circle-notch fa-spin text-slate-500 text-xs"></i> 
-                            : <i className="fa-solid fa-check text-emerald-400 text-xs"></i>}
+                <div className="relative overflow-hidden">
+                  {/* Background Grid Animation */}
+                  <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_100%)] pointer-events-none"></div>
+                  
+                  <div className="relative z-10 pt-2">
+                    {/* Header with Pulse */}
+                    <div className="flex items-center justify-between mb-8">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.3)]">
+                            <i className="fa-solid fa-microchip text-2xl text-indigo-400 animate-pulse"></i>
+                          </div>
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-black animate-ping"></div>
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-black"></div>
                         </div>
-                        <span className={task.status === 'pending' ? 'text-slate-400' : 'text-slate-200 font-medium'}>{task.label}</span>
+                        <div>
+                          <div className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
+                            {t.upload.ai_analyzing}
+                            <span className="text-indigo-400 font-mono">{analysisState.progress}%</span>
+                          </div>
+                          <div className="text-xs text-indigo-300/60 font-mono uppercase tracking-wider">
+                            {t.upload.neural_engine_active}
+                          </div>
+                        </div>
                       </div>
-                    ))}
+                      
+                      {/* Tech Decoration */}
+                      <div className="hidden md:flex gap-1">
+                        {[1,2,3].map(i => (
+                          <div key={i} className={`w-1 h-6 rounded-full ${i === 1 ? 'bg-indigo-500' : 'bg-indigo-500/20'} animate-pulse`} style={{animationDelay: `${i * 0.2}s`}}></div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Main Progress Bar */}
+                    <div className="mb-8 relative">
+                      <div className="flex justify-between text-xs text-slate-400 mb-2 font-mono">
+                        <span>{t.upload.initializing}</span>
+                        <span>{t.upload.processing}</span>
+                        <span>{t.upload.completing}</span>
+                      </div>
+                      <div className="w-full bg-zinc-900/80 h-3 rounded-full overflow-hidden border border-white/5 relative">
+                        {/* Moving Gradient Bar */}
+                        <div 
+                          className="absolute top-0 left-0 h-full bg-gradient-to-r from-indigo-600 via-violet-500 to-indigo-400 transition-all duration-500 ease-out shadow-[0_0_20px_rgba(99,102,241,0.5)]" 
+                          style={{ width: `${analysisState.progress}%` }}
+                        >
+                          {/* Shimmer Effect */}
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full -translate-x-full animate-shimmer"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dynamic Task Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                      {analysisState.tasks?.map((task, index) => {
+                        const isCompleted = task.status !== 'pending';
+                        const firstPendingIndex = analysisState.tasks?.findIndex(t => t.status === 'pending');
+                        const isProcessing = index === firstPendingIndex;
+                        
+                        return (
+                        <div 
+                          key={task.id} 
+                          className={`relative overflow-hidden rounded-xl border transition-all duration-500 ${
+                            isCompleted 
+                              ? 'bg-emerald-500/5 border-emerald-500/20' 
+                              : isProcessing
+                                ? 'bg-indigo-500/5 border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.1)]'
+                                : 'bg-zinc-900/30 border-white/5 opacity-50'
+                          }`}
+                        >
+                          <div className="p-4 flex items-center gap-4">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-colors ${
+                              isCompleted ? 'bg-emerald-500/20 text-emerald-400' : 
+                              isProcessing ? 'bg-indigo-500/20 text-indigo-400' : 
+                              'bg-white/5 text-slate-500'
+                            }`}>
+                              {isCompleted ? <i className="fa-solid fa-check"></i> :
+                               isProcessing ? <i className="fa-solid fa-circle-notch fa-spin"></i> :
+                               <span className="font-mono text-xs">{index + 1}</span>}
+                            </div>
+                            <div className="flex-grow">
+                              <div className={`font-medium text-sm ${
+                                isCompleted ? 'text-emerald-200' :
+                                isProcessing ? 'text-indigo-200' :
+                                'text-slate-500'
+                              }`}>
+                                {t.upload[`task_${task.id}` as keyof typeof t.upload] || task.label}
+                              </div>
+                              {isProcessing && (
+                                <div className="text-[10px] text-indigo-400/60 font-mono mt-1 animate-pulse">
+                                  &gt; {t.upload.executing_module}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          {/* Progress Line for active task */}
+                          {isProcessing && (
+                            <div className="absolute bottom-0 left-0 h-0.5 bg-indigo-500 animate-pulse w-full"></div>
+                          )}
+                        </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Terminal / Log Section */}
+                    <div className="bg-black/40 rounded-xl border border-white/10 p-4 font-mono text-xs h-32 overflow-hidden relative">
+                      <div className="absolute top-2 right-2 flex gap-1.5">
+                        <div className="w-2 h-2 rounded-full bg-red-500/50"></div>
+                        <div className="w-2 h-2 rounded-full bg-yellow-500/50"></div>
+                        <div className="w-2 h-2 rounded-full bg-emerald-500/50"></div>
+                      </div>
+                      <div className="space-y-1.5 text-slate-400">
+                        <div className="text-emerald-500/80">
+                          <span className="mr-2">[{new Date().toLocaleTimeString()}]</span>
+                          <span>{t.upload.system_initialized}</span>
+                        </div>
+                        <div className="text-indigo-400/80">
+                          <span className="mr-2">[{new Date().toLocaleTimeString()}]</span>
+                          <span>{t.upload.loading_modules}</span>
+                        </div>
+                        {analysisState.tasks?.filter(t => t.status !== 'pending').map(task => (
+                           <div key={task.id} className="text-slate-300">
+                             <span className="mr-2 text-slate-600">[{new Date().toLocaleTimeString()}]</span>
+                             <span>{t.upload.completed_task}{t.upload[`task_${task.id}` as keyof typeof t.upload] || task.label}</span>
+                           </div>
+                        ))}
+                        {(() => {
+                           const processingTask = analysisState.tasks?.find(t => t.status === 'pending');
+                           if (processingTask) {
+                             return (
+                               <div className="text-indigo-300 animate-pulse">
+                                 <span className="mr-2 text-indigo-500/50">[{new Date().toLocaleTimeString()}]</span>
+                                 <span>&gt; {t.upload[`task_${processingTask.id}` as keyof typeof t.upload] || processingTask.label}...</span>
+                                 <span className="inline-block w-1.5 h-3 bg-indigo-500 ml-1 animate-blink"></span>
+                               </div>
+                             );
+                           }
+                           return null;
+                        })()}
+                      </div>
+                      {/* Scanline effect */}
+                      <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[size:100%_4px] pointer-events-none opacity-20"></div>
+                    </div>
+
+                    {/* Fun Fact / Tip */}
+                    <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-500 bg-white/5 py-2 rounded-full border border-white/5">
+                      <i className="fa-solid fa-lightbulb text-yellow-500/50"></i>
+                      <span>{t.upload.ai_deep_analysis_tip}</span>
+                    </div>
                   </div>
-                </>
+                </div>
               )}
 
               {analysisState.status === 'success' && analysisState.data && (
@@ -2265,164 +2542,263 @@ function UploadContent() {
         </div>
       )}
 
-      {/* Step 3: Pricing & Publish */}
+      {/* Step 3: Publish Confirmation */}
       {step === 3 && (
-        <div className="rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl p-8 space-y-8">
-          {/* Visibility Settings */}
-          <div>
-            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <i className="fa-solid fa-eye text-indigo-500"></i> {t.upload.publish_settings}
-            </h3>
-            <div className="bg-zinc-900/50 rounded-2xl p-6 border border-white/5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-white font-bold text-lg mb-1">
-                    {isPublic ? t.upload.public_work : t.upload.private_work}
-                  </h4>
-                  <p className="text-sm text-slate-400">
-                    {hasBackendCode 
-                      ? (language === 'zh' ? '含后端代码的作品只能私有分享' : 'Works with backend code can only be shared privately')
-                      : isDuplicateRestricted
-                        ? (language === 'zh' ? '重复内容只能私有分享' : 'Duplicate content can only be shared privately')
-                        : (isPublic 
-                          ? t.upload.public_hint 
-                          : t.upload.private_hint)}
-                  </p>
-                </div>
-                <button 
-                  onClick={() => !hasBackendCode && !isDuplicateRestricted && setIsPublic(!isPublic)}
-                  disabled={hasBackendCode || isDuplicateRestricted}
-                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none ${
-                    hasBackendCode || isDuplicateRestricted
-                      ? 'bg-zinc-700 cursor-not-allowed opacity-50' 
-                      : (isPublic ? 'bg-indigo-500' : 'bg-zinc-700')
-                  }`}
-                >
-                  <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform shadow-md ${isPublic ? 'translate-x-7' : 'translate-x-1'}`} />
-                </button>
-              </div>
-              {hasBackendCode && (
-                <div className="mt-4 flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 p-3 rounded-lg border border-amber-500/20">
-                  <i className="fa-solid fa-server"></i>
-                  <span>{language === 'zh' ? '检测到后端集成代码，为保护数据安全，仅支持私有分享' : 'Backend integration detected. Private sharing only for data security.'}</span>
-                </div>
-              )}
-              {isDuplicateRestricted && (
-                <div className="mt-4 flex items-center gap-2 text-orange-400 text-xs bg-orange-500/10 p-3 rounded-lg border border-orange-500/20">
-                  <i className="fa-solid fa-shield-halved"></i>
-                  <span>{language === 'zh' ? '检测到重复内容，为保护原创，仅支持私有分享' : 'Duplicate content detected. Private sharing only to protect originality.'}</span>
-                </div>
-              )}
-            </div>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-3xl mx-auto"
+        >
+          {/* Header */}
+          <div className="text-center mb-12">
+             <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-3xl mx-auto flex items-center justify-center shadow-[0_0_30px_rgba(99,102,241,0.3)] mb-6 relative group">
+                <div className="absolute inset-0 bg-white/20 rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <i className="fa-solid fa-rocket text-4xl text-white relative z-10"></i>
+             </div>
+             <h2 className="text-3xl font-bold text-white mb-2 tracking-tight">{language === 'zh' ? '准备发布' : 'Ready to Launch'}</h2>
+             <p className="text-slate-400">{language === 'zh' ? '最后确认您的作品信息与设置' : 'Final confirmation of your work settings'}</p>
           </div>
 
-          <div>
-            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-              <i className="fa-solid fa-tag text-indigo-500"></i> {t.upload.set_price}
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Free Option */}
-              <div 
-                className={`border rounded-2xl p-8 cursor-pointer transition-all duration-300 relative group ${
-                  priceType === 'free' 
-                    ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10' 
-                    : 'border-white/10 bg-zinc-900/30 hover:border-indigo-500/50 hover:bg-zinc-900/50'
-                }`}
-                onClick={() => setPriceType('free')}
-              >
-                <div className="absolute top-6 right-6 w-6 h-6 rounded-full border-2 border-slate-500 flex items-center justify-center transition-colors group-hover:border-indigo-400">
-                  {priceType === 'free' && <div className="w-3 h-3 bg-indigo-500 rounded-full shadow-sm"></div>}
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-6 border border-emerald-500/20">
-                  <i className="fa-solid fa-gift text-3xl text-emerald-400"></i>
-                </div>
-                <h4 className="text-xl font-bold text-white mb-2">{t.upload.free_share}</h4>
-                <p className="text-sm text-slate-400 leading-relaxed">{t.upload.free_desc}</p>
-              </div>
-
-              {/* Paid Option */}
-              <div 
-                className={`border rounded-2xl p-8 cursor-pointer transition-all duration-300 relative group ${
-                  priceType === 'paid' 
-                    ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10' 
-                    : 'border-white/10 bg-zinc-900/30 hover:border-indigo-500/50 hover:bg-zinc-900/50'
-                }`}
-                onClick={() => setPriceType('paid')}
-              >
-                <div className="absolute top-6 right-6 w-6 h-6 rounded-full border-2 border-slate-500 flex items-center justify-center transition-colors group-hover:border-indigo-400">
-                  {priceType === 'paid' && <div className="w-3 h-3 bg-indigo-500 rounded-full shadow-sm"></div>}
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-6 border border-amber-500/20">
-                  <i className="fa-solid fa-sack-dollar text-3xl text-amber-400"></i>
-                </div>
-                <h4 className="text-xl font-bold text-white mb-2">{t.upload.paid_download}</h4>
-                <p className="text-sm text-slate-400 leading-relaxed mb-4">{t.upload.paid_desc}</p>
-                
-                {priceType === 'paid' && (
-                  <div className="mt-4 animate-fade-in" onClick={(e) => e.stopPropagation()}>
-                    <label className="text-xs text-indigo-300 font-bold uppercase tracking-wider mb-1.5 block">{t.upload.price_cny}</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
-                      <input 
-                        type="number" 
-                        value={price}
-                        onChange={(e) => setPrice(parseFloat(e.target.value))}
-                        step="0.5"
-                        min="1"
-                        className="w-full bg-zinc-900 border border-white/10 rounded-xl pl-8 pr-4 py-2.5 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 outline-none transition-all font-bold"
-                      />
-                    </div>
+          {/* App Card */}
+          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 mb-8 flex flex-col md:flex-row gap-6 items-center md:items-start backdrop-blur-sm">
+             <div className="w-24 h-24 rounded-2xl overflow-hidden border border-white/10 shadow-lg flex-shrink-0 bg-zinc-800">
+                {iconPreview ? (
+                  <img src={iconPreview} alt="App Icon" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <i className="fa-solid fa-cube text-3xl text-slate-600"></i>
                   </div>
                 )}
-              </div>
-            </div>
+             </div>
+             <div className="flex-1 text-center md:text-left min-w-0">
+                <h3 className="text-xl font-bold text-white mb-2 truncate">{title || 'Untitled App'}</h3>
+                <p className="text-slate-400 text-sm line-clamp-2 mb-3">{description || 'No description'}</p>
+                <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                   {tags.map(tag => (
+                      <span key={tag} className="px-2.5 py-1 bg-white/5 rounded-lg text-xs text-slate-300 border border-white/5">{tag}</span>
+                   ))}
+                </div>
+             </div>
           </div>
 
-          <div className="pt-8 flex gap-4 border-t border-white/5">
-            <button onClick={() => setStep(2)} className="flex-1 py-3.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition border border-white/5">{t.upload.prev_step}</button>
+          {/* Settings Panel */}
+          <div className="bg-zinc-900 border border-white/10 rounded-3xl overflow-hidden mb-8 shadow-2xl">
+             {/* Visibility Setting */}
+             <div className="p-6 border-b border-white/5">
+                <div className="flex items-center justify-between mb-4">
+                   <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${isPublic ? 'bg-indigo-500/20 text-indigo-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                         <i className={`fa-solid ${isPublic ? 'fa-globe' : 'fa-lock'} text-xl`}></i>
+                      </div>
+                      <div>
+                         <h4 className="text-white font-bold text-lg">{language === 'zh' ? '发布范围' : 'Visibility'}</h4>
+                         <p className="text-sm text-slate-400">{isPublic ? (language === 'zh' ? '公开在 Spark 商店' : 'Public on Spark Store') : (language === 'zh' ? '仅通过链接访问' : 'Private Link Only')}</p>
+                      </div>
+                   </div>
+                   
+                   {/* Toggle Switch */}
+                   <button 
+                      onClick={() => !isDuplicateRestricted && setIsPublic(!isPublic)}
+                      disabled={isDuplicateRestricted}
+                      className={`relative w-16 h-9 rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-900 focus:ring-indigo-500 flex-shrink-0 ${isPublic ? 'bg-indigo-600' : 'bg-zinc-700'} ${isDuplicateRestricted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                   >
+                      <div className={`absolute top-1 left-1 w-7 h-7 bg-white rounded-full shadow-sm transition-transform duration-300 ${isPublic ? 'translate-x-7' : 'translate-x-0'}`}></div>
+                   </button>
+                </div>
+
+                {/* Backend Warning (if applicable) */}
+                <AnimatePresence>
+                  {hasBackendCode && isPublic && (
+                     <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                     >
+                       <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 flex gap-3">
+                          <i className="fa-solid fa-info-circle text-indigo-400 mt-0.5 flex-shrink-0"></i>
+                          <div className="text-sm text-indigo-200">
+                             {language === 'zh' ? '公开版本将自动移除后端代码以保护安全。如需测试后端功能，请选择私密发布。' : 'Backend code will be removed in public version for security. Choose Private to test backend features.'}
+                          </div>
+                       </div>
+                     </motion.div>
+                  )}
+                </AnimatePresence>
+                
+                {/* Duplicate Warning */}
+                {isDuplicateRestricted && (
+                   <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex gap-3 mt-3">
+                      <i className="fa-solid fa-triangle-exclamation text-amber-400 mt-0.5 flex-shrink-0"></i>
+                      <div className="text-sm text-amber-200">
+                         {language === 'zh' ? '检测到重复内容，为保护原创，仅支持私有分享' : 'Duplicate content detected. Private sharing only.'}
+                      </div>
+                   </div>
+                )}
+             </div>
+
+             {/* Version Info (Static for now) */}
+             <div className="p-6 flex items-center justify-between bg-black/20">
+                <div className="flex items-center gap-4">
+                   <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                      <i className="fa-solid fa-code-branch text-xl"></i>
+                   </div>
+                   <div>
+                      <h4 className="text-white font-bold text-lg">{language === 'zh' ? '版本' : 'Version'}</h4>
+                      <p className="text-sm text-slate-400">{language === 'zh' ? '初始版本' : 'Initial Release'}</p>
+                   </div>
+                </div>
+                <span className="font-mono text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">v1.0.0</span>
+             </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-4">
+            <button 
+               onClick={() => setStep(2)} 
+               className="px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl font-bold transition border border-white/5"
+            >
+               {t.upload.prev_step}
+            </button>
             <button 
               onClick={handlePublish} 
               disabled={loading}
-              className="flex-[2] py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-2xl font-bold transition shadow-[0_0_30px_rgba(99,102,241,0.3)] hover:shadow-[0_0_50px_rgba(99,102,241,0.5)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg group relative overflow-hidden"
             >
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
               {loading ? (
                 <><i className="fa-solid fa-circle-notch fa-spin"></i> {t.upload.publishing}</>
               ) : (
-                <>{(isEditing || isUpdating) ? t.upload.confirm_modify : t.upload.confirm_publish} <i className="fa-solid fa-rocket"></i></>
+                <>
+                   <span className="relative">{(isEditing || isUpdating) ? t.upload.confirm_modify : t.upload.confirm_publish}</span>
+                   <i className="fa-solid fa-rocket group-hover:translate-x-1 transition-transform relative"></i>
+                </>
               )}
             </button>
           </div>
-        </div>
+        </motion.div>
       )}
 
-      {/* Step 4: Success */}
+      {/* Step 4: Success - Share Card */}
       {step === 4 && (
-        <div className="rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl p-12 text-center animate-float-up relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none"></div>
-          
-          <div className="relative z-10">
-            <div className="w-28 h-28 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-8 border border-emerald-500/20 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
-              <i className="fa-solid fa-check text-6xl text-emerald-500"></i>
-            </div>
-            <h2 className="text-4xl font-bold text-white mb-4 tracking-tight">{(isEditing || isUpdating) ? t.upload.modify_success : t.upload.publish_success}</h2>
-            <p className="text-slate-400 mb-10 text-lg">{(isEditing || isUpdating) ? t.upload.modify_success_desc : t.upload.publish_success_desc}</p>
-            
-            <div className="bg-zinc-900/80 rounded-2xl p-8 border border-white/10 flex flex-col items-center justify-center gap-4 mb-10 max-w-xl mx-auto shadow-inner">
-              <div className="text-slate-500 text-sm font-medium uppercase tracking-wider">{t.upload.work_link}</div>
-              <div className="flex items-center gap-3 bg-black/50 px-5 py-3.5 rounded-xl border border-white/10 w-full">
-                <span className="text-indigo-400 truncate flex-1 text-left font-mono text-sm">{`${typeof window !== 'undefined' ? window.location.origin : ''}/explore?work=${publishedId}`}</span>
-                <button onClick={copyShareLink} className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"><i className="fa-regular fa-copy"></i></button>
+        <div className="animate-float-up">
+          {/* Share Card Container */}
+          <div className="max-w-md mx-auto">
+            {/* Share Card - 可保存的分享图片 */}
+            <div 
+              id="share-card"
+              className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 rounded-3xl p-6 border border-white/10 shadow-2xl"
+            >
+              {/* App Header */}
+              <div className="flex items-center gap-4 mb-6">
+                {/* Icon */}
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg overflow-hidden flex-shrink-0">
+                  {iconPreview ? (
+                    <img src={iconPreview} alt="App Icon" className="w-full h-full object-cover" />
+                  ) : (
+                    <i className="fa-solid fa-cube text-3xl text-white"></i>
+                  )}
+                </div>
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-xl font-bold text-white truncate mb-1">{title || 'My App'}</h2>
+                  <p className="text-slate-400 text-sm line-clamp-2">{description || (language === 'zh' ? '一个精彩的应用' : 'An amazing app')}</p>
+                </div>
+              </div>
+
+              {/* Success Badge */}
+              <div className="flex items-center justify-center gap-2 mb-6 py-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                <i className="fa-solid fa-circle-check text-emerald-400"></i>
+                <span className="text-emerald-400 font-medium">
+                  {(isEditing || isUpdating) ? t.upload.modify_success : t.upload.publish_success}
+                </span>
+              </div>
+
+              {/* QR Code Section */}
+              <div className="bg-white rounded-2xl p-4 mb-4">
+                <div className="flex items-center justify-center">
+                  <QRCodeCanvas
+                    value={`${typeof window !== 'undefined' ? window.location.origin : 'https://sparkvertex.com'}/p/${publishedId}`}
+                    size={180}
+                    level="H"
+                    marginSize={0}
+                    imageSettings={iconPreview ? {
+                      src: iconPreview,
+                      height: 36,
+                      width: 36,
+                      excavate: true,
+                    } : undefined}
+                  />
+                </div>
+              </div>
+
+              {/* Scan Hint */}
+              <p className="text-center text-slate-400 text-sm mb-4">
+                {language === 'zh' ? '扫码查看作品' : 'Scan to view'}
+              </p>
+
+              {/* Branding */}
+              <div className="flex items-center justify-center gap-2 pt-4 border-t border-white/5">
+                <div className="w-5 h-5 rounded bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+                  <i className="fa-solid fa-bolt text-[10px] text-white"></i>
+                </div>
+                <span className="text-slate-500 text-xs font-medium">SparkVertex</span>
               </div>
             </div>
 
-            <div className="flex gap-4 justify-center">
-              <button onClick={() => router.push('/explore')} className="px-8 py-3.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition border border-white/5">
-                {t.upload.return_explore}
+            {/* Action Buttons */}
+            <div className="mt-6 space-y-3">
+              {/* Save to Album */}
+              <button 
+                onClick={async () => {
+                  const card = document.getElementById('share-card');
+                  if (!card) return;
+                  try {
+                    const html2canvas = (await import('html2canvas')).default;
+                    const canvas = await html2canvas(card, {
+                      backgroundColor: '#000',
+                      scale: 2,
+                      useCORS: true,
+                    });
+                    const link = document.createElement('a');
+                    link.download = `${title || 'sparkvertex'}-share.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    toastSuccess(language === 'zh' ? '图片已保存' : 'Image saved');
+                  } catch (err) {
+                    console.error('Save image error:', err);
+                    toastError(language === 'zh' ? '保存失败' : 'Save failed');
+                  }
+                }}
+                className="w-full py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2"
+              >
+                <i className="fa-solid fa-download"></i>
+                {language === 'zh' ? '保存分享图片' : 'Save Share Image'}
               </button>
-              <button onClick={goToDetail} className="px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-500/30">
-                {t.upload.view_work}
+
+              {/* Copy Link */}
+              <button 
+                onClick={copyShareLink}
+                className="w-full py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition border border-white/10 flex items-center justify-center gap-2"
+              >
+                <i className="fa-solid fa-link"></i>
+                {language === 'zh' ? '复制链接' : 'Copy Link'}
               </button>
+
+              {/* Secondary Actions */}
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => router.push('/explore')} 
+                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl font-medium transition text-sm"
+                >
+                  {t.upload.return_explore}
+                </button>
+                <button 
+                  onClick={goToDetail} 
+                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl font-medium transition text-sm"
+                >
+                  {t.upload.view_work}
+                </button>
+              </div>
             </div>
           </div>
         </div>

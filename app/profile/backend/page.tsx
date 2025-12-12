@@ -474,11 +474,11 @@ export default function BackendDashboard() {
         .slice(0, 2);
         
       return (
-        <div className="flex items-center gap-4 text-xs text-slate-400">
+        <div className="flex items-center gap-2 sm:gap-4 text-xs text-slate-400 overflow-hidden">
           {previewFields.map(([key, value]) => (
-            <span key={key} className="truncate max-w-[150px]">
-              <span className="text-slate-500 mr-1">{formatFieldName(key)}:</span>
-              {typeof value === 'object' ? '...' : String(value)}
+            <span key={key} className="truncate max-w-[100px] sm:max-w-[150px]">
+              <span className="text-slate-500 mr-1 hidden sm:inline">{formatFieldName(key)}:</span>
+              <span className="text-slate-300 sm:text-slate-400">{typeof value === 'object' ? '...' : String(value)}</span>
             </span>
           ))}
           {entries.length > 2 && <span>...</span>}
@@ -508,7 +508,7 @@ export default function BackendDashboard() {
       const entries = Object.entries(data);
       
       return (
-        <div className="space-y-2">
+        <>
           {entries.map(([key, value]) => {
             // Skip internal fields
             if (key.startsWith('_') || key === 'timestamp') return null;
@@ -521,7 +521,7 @@ export default function BackendDashboard() {
             const isLongText = displayValue.length > 100 || key.toLowerCase().includes('message') || key.toLowerCase().includes('note');
             
             return (
-              <div key={key} className={`${isLongText ? 'col-span-2' : ''}`}>
+              <div key={key} className={`${isLongText ? 'col-span-1 md:col-span-2' : ''}`}>
                 <div className="text-xs text-slate-500 mb-0.5 font-medium">
                   {formatFieldName(key)}
                 </div>
@@ -531,7 +531,7 @@ export default function BackendDashboard() {
               </div>
             );
           })}
-        </div>
+        </>
       );
     } catch {
       // If not valid JSON, show as plain text
@@ -889,51 +889,53 @@ export default function BackendDashboard() {
                             >
                               {/* Header */}
                               <div 
-                                className="flex items-center justify-between px-4 py-3 bg-slate-800/30 border-b border-slate-700/30 cursor-pointer hover:bg-slate-800/50 transition"
+                                className="flex items-center justify-between px-3 sm:px-4 py-3 bg-slate-800/30 border-b border-slate-700/30 cursor-pointer hover:bg-slate-800/50 transition"
                                 onClick={() => toggleExpand(message.id)}
                               >
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-center mt-0.5 sm:mt-0">
                                     <i className={`fa-solid fa-chevron-right text-slate-500 transition-transform duration-200 ${expandedMessages.has(message.id) ? 'rotate-90' : ''}`}></i>
                                     {!message.processed && (
-                                      <span className="w-2.5 h-2.5 bg-brand-500 rounded-full animate-pulse"></span>
+                                      <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-brand-500 rounded-full animate-pulse"></span>
                                     )}
                                   </div>
                                   
-                                  <span className="text-sm text-slate-300 shrink-0">
-                                    {formatDate(message.created_at)}
-                                  </span>
-                                  
-                                  {message.app_id && (
-                                    <span className="px-2 py-0.5 bg-slate-700/50 rounded text-xs text-slate-400 shrink-0">
-                                      #{message.app_id}
-                                    </span>
-                                  )}
+                                  <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4 flex-1 min-w-0">
+                                    {/* Summary (Mobile: Top, Desktop: Right) */}
+                                    {!expandedMessages.has(message.id) && (
+                                      <div className="order-1 sm:order-2 flex-1 min-w-0">
+                                        {renderSummary(message.encrypted_payload, message.decrypted)}
+                                      </div>
+                                    )}
 
-                                  {/* Summary in header when collapsed */}
-                                  {!expandedMessages.has(message.id) && (
-                                    <div className="ml-4 flex-1 min-w-0 hidden sm:block">
-                                      {renderSummary(message.encrypted_payload, message.decrypted)}
+                                    {/* Meta (Mobile: Bottom, Desktop: Left) */}
+                                    <div className="order-2 sm:order-1 flex items-center gap-2 text-[10px] sm:text-sm text-slate-500 sm:text-slate-300 shrink-0">
+                                      <span>{formatDate(message.created_at)}</span>
+                                      {message.app_id && (
+                                        <span className="px-1.5 py-0.5 bg-slate-700/50 rounded text-[10px] sm:text-xs text-slate-400">
+                                          #{message.app_id}
+                                        </span>
+                                      )}
                                     </div>
-                                  )}
+                                  </div>
                                 </div>
                                 
-                                <div className="flex items-center gap-1 ml-4 shrink-0" onClick={e => e.stopPropagation()}>
+                                <div className="flex items-center gap-0 sm:gap-1 ml-2 shrink-0" onClick={e => e.stopPropagation()}>
                                   {!message.processed && (
                                     <button
                                       onClick={() => markAsRead(message.id)}
-                                      className="p-2 hover:bg-slate-700 rounded-lg transition"
+                                      className="p-1.5 sm:p-2 hover:bg-slate-700 rounded-lg transition"
                                       title={language === 'zh' ? '标记已读' : 'Mark as read'}
                                     >
-                                      <i className="fa-solid fa-check text-slate-400 hover:text-green-400"></i>
+                                      <i className="fa-solid fa-check text-slate-400 hover:text-green-400 text-sm sm:text-base"></i>
                                     </button>
                                   )}
                                   <button
                                     onClick={() => deleteMessage(message.id)}
-                                    className="p-2 hover:bg-red-500/20 rounded-lg transition"
+                                    className="p-1.5 sm:p-2 hover:bg-red-500/20 rounded-lg transition"
                                     title={language === 'zh' ? '删除' : 'Delete'}
                                   >
-                                    <i className="fa-solid fa-trash text-slate-400 hover:text-red-400"></i>
+                                    <i className="fa-solid fa-trash text-slate-400 hover:text-red-400 text-sm sm:text-base"></i>
                                   </button>
                                 </div>
                               </div>

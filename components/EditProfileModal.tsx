@@ -4,10 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
+import { useToast } from '@/context/ToastContext';
 
 export default function EditProfileModal() {
   const { isEditProfileModalOpen, closeEditProfileModal, openLoginModal } = useModal();
   const { t } = useLanguage();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -63,7 +65,7 @@ export default function EditProfileModal() {
       setAvatarUrl(publicUrl);
     } catch (error: any) {
       console.error('Error uploading avatar:', error);
-      alert(t.edit_profile.upload_fail + error.message);
+      toastError(t.edit_profile.upload_fail + error.message);
     } finally {
       setLoading(false);
     }
@@ -89,13 +91,13 @@ export default function EditProfileModal() {
       const { error } = await supabase.from('profiles').upsert(updates);
       if (error) throw error;
 
-      alert(t.edit_profile.update_success);
+      toastSuccess(t.edit_profile.update_success);
       closeEditProfileModal();
       // Trigger a reload or update context if needed
       window.location.reload(); 
     } catch (error: any) {
       console.error('Error updating profile:', error);
-      alert(t.edit_profile.update_fail + error.message);
+      toastError(t.edit_profile.update_fail + error.message);
     } finally {
       setLoading(false);
     }
