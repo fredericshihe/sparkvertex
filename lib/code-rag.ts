@@ -523,10 +523,43 @@ function skeletonizeCode(code: string, chunkId?: string): SkeletonResult {
         // Only remove if it looks like a type annotation causing issues
         return match;  // Keep as is for now, but could strip type annotation
     });
+    
+    // 🆕 P2 FIX: Handle styled-components template literals
+    // styled.div`...` or styled(Component)`...`
+    cleanedInput = cleanedInput.replace(/styled\s*\([^)]+\)\s*`[^`]*`/g, 'styled.div``');
+    cleanedInput = cleanedInput.replace(/styled\.\w+`[^`]*`/g, 'styled.div``');
+    
+    // 🆕 P2 FIX: Handle CSS-in-JS with complex template literals
+    cleanedInput = cleanedInput.replace(/css`[^`]*`/g, 'css``');
 
     try {
         // 1. Parse code to AST with comprehensive plugin support
-        const ast = parse(cleanedInput, BABEL_PARSER_CONFIG);
+        // 🆕 Enhanced: Try multiple parser configurations if first fails
+        let ast;
+        try {
+            ast = parse(cleanedInput, BABEL_PARSER_CONFIG);
+        } catch (firstError: any) {
+            // 🆕 Fallback 1: Try with Flow plugin instead of TypeScript
+            console.warn(`[AST] Primary parse failed: ${firstError.message}, trying Flow fallback...`);
+            try {
+                const flowConfig = {
+                    ...BABEL_PARSER_CONFIG,
+                    plugins: [...(BABEL_PARSER_CONFIG.plugins as any[]).filter(p => p !== 'typescript'), 'flow']
+                };
+                ast = parse(cleanedInput, flowConfig);
+            } catch (flowError: any) {
+                // 🆕 Fallback 2: Minimal config for plain JavaScript
+                console.warn(`[AST] Flow parse failed: ${flowError.message}, trying minimal JS config...`);
+                const minimalConfig = {
+                    sourceType: "module" as const,
+                    plugins: ["jsx"] as any,
+                    errorRecovery: true,
+                    allowReturnOutsideFunction: true,
+                    allowAwaitOutsideFunction: true
+                };
+                ast = parse(cleanedInput, minimalConfig);
+            }
+        }
 
         // Helper: Estimate the "size" of a node by counting its source characters
         const estimateNodeSize = (node: any): number => {
@@ -1445,6 +1478,7 @@ export interface RAGOptions {
     trustMode?: boolean;         // 🆕 信任模式：DeepSeek 指定的文件直接使用，不做向量搜索
     forceDeepSeek?: boolean;     // 🆕 是否启用 DeepSeek Only 模式
     preChunkedData?: CodeChunk[]; // 🚀 NEW: Pre-chunked data to avoid re-parsing (shared with route.ts)
+    modelName?: string;          // 🆕 P3 FIX: 模型名称，用于动态调整 chunk 上限
 }
 
 /**
@@ -1544,7 +1578,7 @@ export async function findRelevantCodeChunks(
     supabaseKey: string,
     options?: RAGOptions
 ) {
-    const { explicitTargets = [], referenceTargets = [], isGlobalReview = false, intent, preChunkedData } = options || {};
+    const { explicitTargets = [], referenceTargets = [], isGlobalReview = false, intent, preChunkedData, modelName } = options || {};
     
     // 🆕 动态计算 chunk 限制
     const userExplicitFileCount = explicitTargets.length + referenceTargets.length;
@@ -1558,6 +1592,18 @@ export async function findRelevantCodeChunks(
                              userPrompt.length > 200 ? 'medium' : 'low';
     const codeKeywordsCount = (userPrompt.match(/\b(function|component|class|hook|screen|modal|page|error|undefined|bug|fix)\b/gi) || []).length;
     const hasMultipleKeywords = codeKeywordsCount >= 3;
+    
+    // 🆕 P3 FIX: 根据模型能力动态调整 chunk 基数
+    // DeepSeek V3 (8K output): 基数较低，防止超出 token 限制
+    // Gemini 2.5 Flash (64K): 可以处理更多上下文
+    // Gemini 2.5 Pro (64K): 最强，可以处理最多上下文
+    const MODEL_CHUNK_MULTIPLIER: Record<string, number> = {
+        'deepseek-v3': 0.8,       // DeepSeek 输出限制，减少上下文
+        'gemini-2.5-flash': 1.2,  // Flash 模型可以处理更多
+        'gemini-2.5-pro': 1.5,    // Pro 模型上下文窗口最大
+        'gemini-3-pro-preview': 1.5
+    };
+    const chunkMultiplier = MODEL_CHUNK_MULTIPLIER[modelName || ''] || 1.0;
     
     let dynamicMaxChunks: number;
     
@@ -1577,6 +1623,12 @@ export async function findRelevantCodeChunks(
     } else {
         // 默认限制
         dynamicMaxChunks = 10;
+    }
+    
+    // 🆕 P3 FIX: 应用模型乘数调整
+    dynamicMaxChunks = Math.round(dynamicMaxChunks * chunkMultiplier);
+    if (modelName) {
+        console.log(`[CodeRAG] 📊 Model-aware chunk limit: ${dynamicMaxChunks} (model: ${modelName}, multiplier: ${chunkMultiplier})`);
     }
     
     if (userExplicitFileCount > 0) {

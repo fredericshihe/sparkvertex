@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { AIWorkflowProgress, WorkflowStage, StageDetails } from './AIWorkflowProgress';
-import { RefreshCw, Wand2 } from 'lucide-react';
+import { RefreshCw, Wand2, Info, X } from 'lucide-react';
 import { useModal } from '@/context/ModalContext';
 
 interface Message {
@@ -74,6 +74,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
   generatedCode
 }) => {
   const { openConfirmModal } = useModal();
+  const [showModelInfo, setShowModelInfo] = useState(false);
 
   // Resize logic
   const [sidebarWidth, setSidebarWidth] = useState(450);
@@ -358,15 +359,31 @@ export const CreationChat: React.FC<CreationChatProps> = ({
                   disabled={isGenerating}
                   className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1.5 whitespace-nowrap ${
                     selectedModel === key
-                      ? 'bg-white text-black shadow-lg shadow-white/20 font-medium'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                      ? config.isFree 
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30 font-medium'
+                        : 'bg-white text-black shadow-lg shadow-white/20 font-medium'
+                      : config.isFree
+                        ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
                   } disabled:opacity-50`}
                 >
                   <span>{config.icon}</span>
                   <span className="hidden sm:inline">{config.description}</span>
+                  {config.isFree && selectedModel !== key && (
+                    <span className="text-[8px] px-1 py-0.5 bg-green-500/20 text-green-400 rounded border border-green-500/30">FREE</span>
+                  )}
                 </button>
               ))}
             </div>
+            
+            {/* Model Info Button */}
+            <button
+              onClick={() => setShowModelInfo(true)}
+              className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-colors border border-white/10"
+              title={language === 'zh' ? '模型说明' : 'Model Info'}
+            >
+              <Info size={14} />
+            </button>
           </div>
           
           {/* 🆕 全量修改模式开关 */}
@@ -438,6 +455,105 @@ export const CreationChat: React.FC<CreationChatProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Model Info Modal */}
+      {showModelInfo && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+              <h3 className="font-bold text-white flex items-center gap-2">
+                <Info size={16} className="text-blue-400" />
+                {language === 'zh' ? '模型选择指南' : 'Model Selection Guide'}
+              </h3>
+              <button 
+                onClick={() => setShowModelInfo(false)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              {/* Free Model */}
+              <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-bold text-green-400 flex items-center gap-2">
+                    <span>🆓</span> {language === 'zh' ? '免费 (DeepSeek V3)' : 'Free (DeepSeek V3)'}
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded border border-green-500/30">
+                    {language === 'zh' ? '0 积分' : '0 Credits'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mb-2 leading-relaxed">
+                  {language === 'zh' ? '适合初次生成、简单问答或非代码类任务。' : 'Best for initial generation, simple Q&A, or non-code tasks.'}
+                </p>
+                <div className="flex items-start gap-2 text-[10px] text-amber-400 bg-amber-500/10 p-2 rounded border border-amber-500/20">
+                  <i className="fa-solid fa-triangle-exclamation mt-0.5"></i>
+                  <span>
+                    {language === 'zh' 
+                      ? '注意：处理超过 60KB 的文件时会失效（上下文限制）。' 
+                      : 'Warning: Fails when processing files larger than 60KB (context limit).'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Daily Model */}
+              <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-bold text-blue-400 flex items-center gap-2">
+                    <span>⚡</span> {language === 'zh' ? '日常 (Gemini 2.5 Flash)' : 'Daily (Gemini 2.5 Flash)'}
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded border border-blue-500/30">
+                    {language === 'zh' ? '低消耗' : 'Low Cost'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {language === 'zh' ? '速度快，消耗低。适合日常的小修小改、文案调整或简单逻辑修复。' : 'Fast and cheap. Best for daily small edits, text changes, or simple logic fixes.'}
+                </p>
+              </div>
+
+              {/* Complex Model */}
+              <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-bold text-purple-400 flex items-center gap-2">
+                    <span>🚀</span> {language === 'zh' ? '复杂 (Gemini 2.5 Pro)' : 'Complex (Gemini 2.5 Pro)'}
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded border border-purple-500/30">
+                    {language === 'zh' ? '中等消耗' : 'Medium Cost'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {language === 'zh' ? '性能均衡。适合大多数功能开发、逻辑修改和中等难度的重构。' : 'Balanced performance. Best for most feature development, logic changes, and moderate refactoring.'}
+                </p>
+              </div>
+
+              {/* Advanced Model */}
+              <div className="bg-white/5 rounded-lg p-3 border border-white/5">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-bold text-amber-400 flex items-center gap-2">
+                    <span>🧠</span> {language === 'zh' ? '高级 (Gemini 3 Pro)' : 'Advanced (Gemini 3 Pro)'}
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded border border-amber-500/30">
+                    {language === 'zh' ? '高消耗' : 'High Cost'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {language === 'zh' ? '最强推理能力。适合极其复杂的逻辑、算法实现或当其他模型无法解决问题时使用。' : 'Strongest reasoning. Best for extremely complex logic, algorithms, or when other models fail.'}
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-white/10 bg-white/5 flex justify-end">
+              <button 
+                onClick={() => setShowModelInfo(false)}
+                className="px-4 py-2 bg-white text-black rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors"
+              >
+                {language === 'zh' ? '知道了' : 'Got it'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

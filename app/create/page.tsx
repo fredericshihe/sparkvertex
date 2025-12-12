@@ -164,31 +164,40 @@ function CreateContent() {
 
   // Model Configuration
   // Token汇率说明：
+  // - DeepSeek V3: 免费模型，不消耗积分
   // - Gemini 2.5 Flash: 1积分 = 15000 tokens（便宜）
   // - Gemini 2.5 Pro: 1积分 = 4000 tokens（均衡）
   // - Gemini 3 Pro: 1积分 = 3000 tokens（强大）
   // 注意：上下文 > 200k tokens 时，价格自动翻倍
-  type ModelType = 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'gemini-3-pro-preview';
-  const MODEL_CONFIG = {
+  type ModelType = 'deepseek-v3' | 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'gemini-3-pro-preview';
+  const MODEL_CONFIG: Record<ModelType, { name: string; tokensPerCredit: number; icon: string; description: string; subtitle: string; isFree?: boolean }> = {
+    'deepseek-v3': {
+      name: 'DeepSeek V3',
+      tokensPerCredit: 0, // 免费模型
+      icon: '🆓',
+      description: language === 'zh' ? '免费' : 'Free',
+      subtitle: language === 'zh' ? '免费使用，不消耗积分' : 'Free to use, no credits needed',
+      isFree: true
+    },
     'gemini-2.5-flash': { 
       name: 'Gemini 2.5 Flash', 
       tokensPerCredit: 15000, 
       icon: '⚡', 
-      description: language === 'zh' ? '日常修改' : 'Daily edits',
+      description: language === 'zh' ? '日常' : 'Daily',
       subtitle: language === 'zh' ? '便宜快速，适合简单任务' : 'Fast & cheap for simple tasks'
     },
     'gemini-2.5-pro': { 
       name: 'Gemini 2.5 Pro', 
       tokensPerCredit: 4000, 
       icon: '🚀', 
-      description: language === 'zh' ? '复杂任务' : 'Complex tasks',
+      description: language === 'zh' ? '复杂' : 'Complex',
       subtitle: language === 'zh' ? '均衡性能，适合较复杂需求' : 'Balanced for moderate complexity'
     },
     'gemini-3-pro-preview': { 
       name: 'Gemini 3 Pro', 
       tokensPerCredit: 3000, 
       icon: '🧠', 
-      description: language === 'zh' ? '高质量' : 'High quality',
+      description: language === 'zh' ? '高级' : 'Advanced',
       subtitle: language === 'zh' ? '最强智能，复杂逻辑首选' : 'Most powerful for complex logic'
     }
   };

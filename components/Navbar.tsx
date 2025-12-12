@@ -13,11 +13,12 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [avatarUrl, setAvatarUrl] = useState<string>('');
+  const [credits, setCredits] = useState<number | null>(null);
   const [isLoadingAvatar, setIsLoadingAvatar] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { openLoginModal, openFeedbackModal } = useModal();
+  const { openLoginModal, openFeedbackModal, openCreditPurchaseModal } = useModal();
   const { success } = useToast();
   const { t, language, setLanguage } = useLanguage();
 
@@ -47,24 +48,27 @@ export default function Navbar() {
       success(t.nav.email_verified_success, 5000);
     }
 
-    const fetchUserAvatar = async (userId: string) => {
+    const fetchUserProfile = async (userId: string) => {
       try {
         const { data, error } = await supabase
           .from('profiles')
-          .select('avatar_url')
+          .select('avatar_url, credits')
           .eq('id', userId)
           .maybeSingle();
         
         if (error) {
-          console.error('Error fetching avatar:', error);
+          console.error('Error fetching profile:', error);
           return;
         }
   
         if (data?.avatar_url) {
           setAvatarUrl(data.avatar_url);
         }
+        if (data?.credits !== undefined) {
+          setCredits(data.credits);
+        }
       } catch (error) {
-        console.error('Unexpected error fetching avatar:', error);
+        console.error('Unexpected error fetching profile:', error);
       } finally {
         setIsLoadingAvatar(false);
       }
@@ -77,14 +81,15 @@ export default function Navbar() {
         if (metadataAvatar) {
           setAvatarUrl(metadataAvatar);
           // Background update check
-          fetchUserAvatar(session.user.id);
+          fetchUserProfile(session.user.id);
         } else {
           setAvatarUrl('');
           setIsLoadingAvatar(true);
-          fetchUserAvatar(session.user.id);
+          fetchUserProfile(session.user.id);
         }
       } else {
         setAvatarUrl('');
+        setCredits(null);
         setIsLoadingAvatar(false);
       }
     };
@@ -104,6 +109,7 @@ export default function Navbar() {
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setAvatarUrl('');
+        setCredits(null);
         // Clear any other local state if necessary
       }
       handleSession(session);
@@ -111,6 +117,34 @@ export default function Navbar() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // 订阅积分实时更新
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('navbar-credits')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${user.id}`
+        },
+        (payload) => {
+          const newCredits = (payload.new as any)?.credits;
+          if (newCredits !== undefined) {
+            setCredits(newCredits);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   // Hide Navbar in App Mode OR Create Page
   if (searchParams.get('mode') === 'app' || pathname === '/create') return null;
@@ -163,22 +197,39 @@ export default function Navbar() {
             <Link href="/upload" className="bg-white/5 hover:bg-white/10 border border-white/10 text-white/90 hover:text-white px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 backdrop-blur-sm">
               <i className="fa-solid fa-cloud-arrow-up mr-2 text-white/60"></i>{t.nav.upload}
             </Link>
-            <div id="nav-auth-container" className="pl-2 border-l border-white/10 ml-2">
+            <div id="nav-auth-container" className="pl-2 border-l border-white/10 ml-2 flex items-center gap-3">
               {user ? (
-                <Link href="/profile" className="flex items-center gap-2 text-white/60 hover:text-white font-medium text-sm transition-all duration-300">
-                   {isLoadingAvatar ? (
-                     <div className="w-8 h-8 rounded-full border border-white/10 bg-white/5 animate-pulse"></div>
-                   ) : (
-                     <img 
-                        src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
-                        className="w-8 h-8 rounded-full border border-white/10 object-cover hover:border-white/30 transition-colors" 
-                        alt="Avatar"
-                        onError={(e) => {
-                          e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`;
-                        }}
-                     />
-                   )}
-                </Link>
+                <>
+                  {/* 积分显示和充值按钮 */}
+                  <button 
+                    onClick={openCreditPurchaseModal}
+                    className="group flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-all duration-300"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <i className="fa-solid fa-coins text-amber-400 text-sm"></i>
+                      <span className="text-amber-300 font-semibold text-sm">
+                        {credits !== null ? (Number.isInteger(credits) ? credits : credits.toFixed(1)) : '--'}
+                      </span>
+                    </div>
+                    <div className="w-px h-4 bg-amber-500/20"></div>
+                    <i className="fa-solid fa-plus text-amber-400/60 group-hover:text-amber-300 text-xs transition-colors"></i>
+                  </button>
+                  {/* 头像 */}
+                  <Link href="/profile" className="flex items-center text-white/60 hover:text-white font-medium text-sm transition-all duration-300">
+                     {isLoadingAvatar ? (
+                       <div className="w-8 h-8 rounded-full border border-white/10 bg-white/5 animate-pulse"></div>
+                     ) : (
+                       <img 
+                          src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
+                          className="w-8 h-8 rounded-full border border-white/10 object-cover hover:border-white/30 transition-colors" 
+                          alt="Avatar"
+                          onError={(e) => {
+                            e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`;
+                          }}
+                       />
+                     )}
+                  </Link>
+                </>
               ) : (
                 <button onClick={openLoginModal} className="text-white/60 hover:text-white font-medium text-sm transition-all duration-300 px-3 py-2 hover:bg-white/5 rounded-full">{t.nav.login}</button>
               )}
@@ -248,18 +299,42 @@ export default function Navbar() {
               
               <div className="border-t border-white/10 my-2 pt-2">
                 {user ? (
-                  <Link 
-                    href="/profile" 
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium text-white/80 hover:bg-white/5 transition-all"
-                  >
-                    <img 
-                      src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
-                      className="w-8 h-8 rounded-full border border-white/10 object-cover" 
-                      alt="Avatar"
-                    />
-                    <span>{language === 'zh' ? '个人中心' : 'Profile'}</span>
-                  </Link>
+                  <>
+                    {/* 移动端积分显示和充值 */}
+                    <button 
+                      onClick={() => {
+                        openCreditPurchaseModal();
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-base font-medium hover:bg-white/5 transition-all mb-1"
+                    >
+                      <div className="flex items-center">
+                        <i className="fa-solid fa-coins mr-2 text-amber-400"></i>
+                        <span className="text-white/80">{language === 'zh' ? '我的积分' : 'Credits'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-amber-300 font-semibold">
+                          {credits !== null ? (Number.isInteger(credits) ? credits : credits.toFixed(1)) : '--'}
+                        </span>
+                        <span className="text-xs text-amber-400/60 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                          {language === 'zh' ? '充值' : 'Top up'}
+                        </span>
+                      </div>
+                    </button>
+                    {/* 个人中心 */}
+                    <Link 
+                      href="/profile" 
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center px-4 py-3 rounded-xl text-base font-medium text-white/80 hover:bg-white/5 transition-all"
+                    >
+                      <img 
+                        src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
+                        className="w-5 h-5 rounded-full border border-white/10 object-cover mr-2" 
+                        alt="Avatar"
+                      />
+                      <span>{language === 'zh' ? '个人中心' : 'Profile'}</span>
+                    </Link>
+                  </>
                 ) : (
                   <button 
                     onClick={() => {

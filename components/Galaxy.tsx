@@ -1,7 +1,44 @@
 'use client';
 
 import { Renderer, Program, Mesh, Color, Triangle } from 'ogl';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
+
+// 🆕 全局 WebGL 上下文管理器 - 防止创建过多上下文
+const MAX_WEBGL_CONTEXTS = 8;
+const activeContexts: WeakRef<WebGLRenderingContext>[] = [];
+
+function registerContext(gl: WebGLRenderingContext) {
+  // 清理已失效的引用
+  for (let i = activeContexts.length - 1; i >= 0; i--) {
+    if (!activeContexts[i].deref()) {
+      activeContexts.splice(i, 1);
+    }
+  }
+  
+  // 如果超过限制，强制释放最旧的上下文
+  while (activeContexts.length >= MAX_WEBGL_CONTEXTS) {
+    const oldest = activeContexts.shift()?.deref();
+    if (oldest) {
+      console.log('[Galaxy] Force releasing old WebGL context');
+      oldest.getExtension('WEBGL_lose_context')?.loseContext();
+    }
+  }
+  
+  activeContexts.push(new WeakRef(gl));
+}
+
+function unregisterContext(gl: WebGLRenderingContext) {
+  const index = activeContexts.findIndex(ref => ref.deref() === gl);
+  if (index !== -1) {
+    activeContexts.splice(index, 1);
+  }
+  // 确保释放上下文
+  try {
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+  } catch (e) {
+    // 忽略已释放的上下文
+  }
+}
 
 const vertexShader = `
 attribute vec2 uv;
@@ -214,17 +251,65 @@ export default function Galaxy({
   const smoothMousePos = useRef({ x: 0.5, y: 0.5 });
   const targetMouseActive = useRef(0.0);
   const smoothMouseActive = useRef(0.0);
+  
+  // 🆕 使用 ref 存储渲染器相关对象，避免重复创建
+  const rendererRef = useRef<Renderer | null>(null);
+  const programRef = useRef<Program | null>(null);
+  const animateIdRef = useRef<number | null>(null);
+  const isInitializedRef = useRef(false);
+
+  // 🆕 存储最新的 props 值，避免依赖数组变化导致重新创建上下文
+  const propsRef = useRef({
+    focal, rotation, starSpeed, density, hueShift, disableAnimation,
+    speed, mouseInteraction, glowIntensity, saturation, mouseRepulsion,
+    twinkleIntensity, rotationSpeed, repulsionStrength, autoCenterRepulsion, transparent
+  });
+  
+  // 更新 props ref
+  useEffect(() => {
+    propsRef.current = {
+      focal, rotation, starSpeed, density, hueShift, disableAnimation,
+      speed, mouseInteraction, glowIntensity, saturation, mouseRepulsion,
+      twinkleIntensity, rotationSpeed, repulsionStrength, autoCenterRepulsion, transparent
+    };
+    
+    // 更新已存在的 program uniforms（不重新创建上下文）
+    if (programRef.current) {
+      const p = programRef.current;
+      p.uniforms.uFocal.value = new Float32Array(focal);
+      p.uniforms.uRotation.value = new Float32Array(rotation);
+      p.uniforms.uDensity.value = density;
+      p.uniforms.uHueShift.value = hueShift;
+      p.uniforms.uSpeed.value = speed;
+      p.uniforms.uGlowIntensity.value = glowIntensity;
+      p.uniforms.uSaturation.value = saturation;
+      p.uniforms.uMouseRepulsion.value = mouseRepulsion;
+      p.uniforms.uTwinkleIntensity.value = twinkleIntensity;
+      p.uniforms.uRotationSpeed.value = rotationSpeed;
+      p.uniforms.uRepulsionStrength.value = repulsionStrength;
+      p.uniforms.uAutoCenterRepulsion.value = autoCenterRepulsion;
+    }
+  });
 
   useEffect(() => {
-    if (!ctnDom.current) return;
+    // 🆕 防止 React 严格模式下重复初始化
+    if (isInitializedRef.current || !ctnDom.current) return;
+    isInitializedRef.current = true;
+    
     const ctn = ctnDom.current;
+    const props = propsRef.current;
+    
     const renderer = new Renderer({
-      alpha: transparent,
+      alpha: props.transparent,
       premultipliedAlpha: false
     });
+    rendererRef.current = renderer;
     const gl = renderer.gl;
+    
+    // 🆕 注册上下文到全局管理器
+    registerContext(gl);
 
-    if (transparent) {
+    if (props.transparent) {
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       gl.clearColor(0, 0, 0, 0);
@@ -257,35 +342,38 @@ export default function Galaxy({
         uResolution: {
           value: new Color(gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height)
         },
-        uFocal: { value: new Float32Array(focal) },
-        uRotation: { value: new Float32Array(rotation) },
-        uStarSpeed: { value: starSpeed },
-        uDensity: { value: density },
-        uHueShift: { value: hueShift },
-        uSpeed: { value: speed },
+        uFocal: { value: new Float32Array(props.focal) },
+        uRotation: { value: new Float32Array(props.rotation) },
+        uStarSpeed: { value: props.starSpeed },
+        uDensity: { value: props.density },
+        uHueShift: { value: props.hueShift },
+        uSpeed: { value: props.speed },
         uMouse: {
           value: new Float32Array([smoothMousePos.current.x, smoothMousePos.current.y])
         },
-        uGlowIntensity: { value: glowIntensity },
-        uSaturation: { value: saturation },
-        uMouseRepulsion: { value: mouseRepulsion },
-        uTwinkleIntensity: { value: twinkleIntensity },
-        uRotationSpeed: { value: rotationSpeed },
-        uRepulsionStrength: { value: repulsionStrength },
+        uGlowIntensity: { value: props.glowIntensity },
+        uSaturation: { value: props.saturation },
+        uMouseRepulsion: { value: props.mouseRepulsion },
+        uTwinkleIntensity: { value: props.twinkleIntensity },
+        uRotationSpeed: { value: props.rotationSpeed },
+        uRepulsionStrength: { value: props.repulsionStrength },
         uMouseActiveFactor: { value: 0.0 },
-        uAutoCenterRepulsion: { value: autoCenterRepulsion },
-        uTransparent: { value: transparent }
+        uAutoCenterRepulsion: { value: props.autoCenterRepulsion },
+        uTransparent: { value: props.transparent }
       }
     });
+    // 🆕 存储 program 引用，用于在 props 变化时更新 uniforms
+    programRef.current = program;
 
     const mesh = new Mesh(gl, { geometry, program });
-    let animateId: number;
 
     function update(t: number) {
-      animateId = requestAnimationFrame(update);
-      if (!disableAnimation) {
+      animateIdRef.current = requestAnimationFrame(update);
+      const currentProps = propsRef.current;
+      
+      if (!currentProps.disableAnimation) {
         program.uniforms.uTime.value = t * 0.001;
-        program.uniforms.uStarSpeed.value = (t * 0.001 * starSpeed) / 10.0;
+        program.uniforms.uStarSpeed.value = (t * 0.001 * currentProps.starSpeed) / 10.0;
       }
 
       const lerpFactor = 0.05;
@@ -300,7 +388,7 @@ export default function Galaxy({
 
       renderer.render({ scene: mesh });
     }
-    animateId = requestAnimationFrame(update);
+    animateIdRef.current = requestAnimationFrame(update);
     ctn.appendChild(gl.canvas);
 
     function handleMouseMove(e: MouseEvent) {
@@ -315,39 +403,38 @@ export default function Galaxy({
       targetMouseActive.current = 0.0;
     }
 
-    if (mouseInteraction) {
+    // 使用 propsRef 获取初始值，后续鼠标事件始终监听
+    if (props.mouseInteraction) {
       ctn.addEventListener('mousemove', handleMouseMove);
       ctn.addEventListener('mouseleave', handleMouseLeave);
     }
 
     return () => {
-      cancelAnimationFrame(animateId);
-      window.removeEventListener('resize', resize);
-      if (mouseInteraction) {
-        ctn.removeEventListener('mousemove', handleMouseMove);
-        ctn.removeEventListener('mouseleave', handleMouseLeave);
+      // 🆕 清理动画帧
+      if (animateIdRef.current) {
+        cancelAnimationFrame(animateIdRef.current);
       }
-      ctn.removeChild(gl.canvas);
+      window.removeEventListener('resize', resize);
+      
+      // 清理事件监听器
+      ctn.removeEventListener('mousemove', handleMouseMove);
+      ctn.removeEventListener('mouseleave', handleMouseLeave);
+      
+      // 移除 canvas
+      if (gl.canvas.parentNode === ctn) {
+        ctn.removeChild(gl.canvas);
+      }
+      
+      // 🆕 从全局管理器注销并释放上下文
+      unregisterContext(gl);
       gl.getExtension('WEBGL_lose_context')?.loseContext();
+      
+      // 重置初始化标志，以便组件重新挂载时可以创建新上下文
+      isInitializedRef.current = false;
+      rendererRef.current = null;
+      programRef.current = null;
     };
-  }, [
-    focal,
-    rotation,
-    starSpeed,
-    density,
-    hueShift,
-    disableAnimation,
-    speed,
-    mouseInteraction,
-    glowIntensity,
-    saturation,
-    mouseRepulsion,
-    twinkleIntensity,
-    rotationSpeed,
-    repulsionStrength,
-    autoCenterRepulsion,
-    transparent
-  ]);
+  }, []); // 🆕 空依赖数组 - 只在挂载时初始化一次
 
   return <div ref={ctnDom} className="w-full h-full relative" {...rest} />;
 }

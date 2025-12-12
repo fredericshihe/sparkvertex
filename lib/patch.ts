@@ -69,7 +69,69 @@ function normalizeToken(text: string): string {
     // Rule 3: Normalize arrow function variations
     // => is already a single token, no normalization needed
     
+    // 🆕 Rule 4: Normalize whitespace in template literals
+    // Helps with AI generating slightly different formatting
+    
     return text;
+}
+
+/**
+ * 🆕 P4 FIX: Levenshtein Distance for fuzzy token matching
+ * Returns edit distance between two strings
+ */
+function levenshteinDistance(a: string, b: string): number {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    
+    const matrix: number[][] = [];
+    
+    for (let i = 0; i <= b.length; i++) {
+        matrix[i] = [i];
+    }
+    for (let j = 0; j <= a.length; j++) {
+        matrix[0][j] = j;
+    }
+    
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1,
+                    matrix[i][j - 1] + 1,
+                    matrix[i - 1][j] + 1
+                );
+            }
+        }
+    }
+    
+    return matrix[b.length][a.length];
+}
+
+/**
+ * 🆕 P4 FIX: Fuzzy token comparison
+ * Returns true if tokens are "close enough" to be considered equivalent
+ * Tolerance: max 1 edit for short tokens, 2 for longer ones
+ */
+function tokensFuzzyEqual(a: Token, b: Token): boolean {
+    // Fast path: exact match
+    if (a.text === b.text) return true;
+    
+    // Normalized match
+    const aNorm = a.normalized || a.text;
+    const bNorm = b.normalized || b.text;
+    if (aNorm === bNorm) return true;
+    
+    // Skip fuzzy match for short tokens (likely punctuation)
+    if (a.text.length < 3 || b.text.length < 3) return false;
+    
+    // Calculate edit distance tolerance based on token length
+    const maxLen = Math.max(a.text.length, b.text.length);
+    const tolerance = maxLen <= 5 ? 1 : 2;
+    
+    const distance = levenshteinDistance(a.text, b.text);
+    return distance <= tolerance;
 }
 
 function tokenize(text: string): Token[] {
@@ -789,6 +851,16 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
             }
         }
 
+        // 🆕 Strategy 1.6: Fuzzy Token Matching (Typo Tolerance)
+        // If AI generated tokens with small typos (1-2 char difference), try fuzzy matching
+        if (!matchRange) {
+            console.log('[Patch] Trying fuzzy token matching...');
+            matchRange = findBestTokenMatchFuzzy(sourceTokens, searchTokens, allowedRanges);
+            if (matchRange) {
+                console.log('[Patch] Fuzzy token match successful!');
+            }
+        }
+
         // Fallback: AST Lite (Function Body Replacement)
         if (!matchRange) {
              const functionMatch = tryFunctionMatch(workingSource, cleanSearchBlock);
@@ -1153,6 +1225,103 @@ export function findBestTokenMatchRelaxed(sourceTokens: Token[], searchTokens: T
     return null;
 }
 
+/**
+ * 🆕 P4 FIX: Fuzzy Token Matching
+ * Uses Levenshtein distance to tolerate small typos in tokens
+ * Useful when AI generates slightly different variable names or strings
+ */
+function findBestTokenMatchFuzzy(
+    sourceTokens: Token[], 
+    searchTokens: Token[], 
+    allowedRanges: { start: number, end: number }[] | null = null
+): { start: number, end: number } | null {
+    const M = searchTokens.length;
+    const N = sourceTokens.length;
+    if (M === 0 || N < M) return null;
+
+    let bestScore = 0;
+    let bestRange = null;
+
+    // Slide through source with moderate step
+    for (let i = 0; i <= N - M; i += 3) {
+        // Check allowed ranges
+        if (allowedRanges) {
+            const tokenStartChar = sourceTokens[i].start;
+            const isAllowed = allowedRanges.some(range => tokenStartChar >= range.start && tokenStartChar <= range.end);
+            if (!isAllowed) continue;
+        }
+
+        const windowEnd = Math.min(N, i + M + Math.max(15, M * 0.5));
+        const sourceWindow = sourceTokens.slice(i, windowEnd);
+        
+        // Use fuzzy LCS matching
+        const matchResult = findLCSMatchFuzzy(sourceWindow, searchTokens);
+        
+        if (matchResult) {
+            const { start, end, length } = matchResult;
+            const spanLength = end - start + 1;
+            const score = (2 * length) / (M + spanLength);
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestRange = { start: i + start, end: i + end };
+            }
+        }
+    }
+
+    // Fuzzy threshold: 0.70 (slightly higher than pure relaxed to avoid false positives)
+    if (bestScore > 0.70) {
+        console.log(`[Patch] Fuzzy match found with score ${bestScore.toFixed(2)}`);
+        return bestRange;
+    }
+
+    return null;
+}
+
+/**
+ * 🆕 P4 FIX: Fuzzy LCS Match
+ * Uses tokensFuzzyEqual for comparison instead of exact equality
+ */
+function findLCSMatchFuzzy(seq1: Token[], seq2: Token[]): { start: number, end: number, length: number } | null {
+    const m = seq1.length;
+    const n = seq2.length;
+    const dp = Array(m + 1).fill(0).map(() => Array(n + 1).fill(0));
+
+    // Use fuzzy comparison
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            if (tokensFuzzyEqual(seq1[i - 1], seq2[j - 1])) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+    }
+
+    const length = dp[m][n];
+    if (length === 0) return null;
+
+    // Backtrack to find the range of the match in seq1
+    let i = m, j = n;
+    let firstMatchIdx = -1;
+    let lastMatchIdx = -1;
+
+    while (i > 0 && j > 0) {
+        if (tokensFuzzyEqual(seq1[i - 1], seq2[j - 1])) {
+            if (lastMatchIdx === -1) lastMatchIdx = i - 1;
+            firstMatchIdx = i - 1;
+            i--;
+            j--;
+        } else if (dp[i - 1][j] > dp[i][j - 1]) {
+            i--;
+        } else {
+            j--;
+        }
+    }
+
+    return { start: firstMatchIdx, end: lastMatchIdx, length };
+}
+
 function findExactTokenMatch(sourceTokens: Token[], searchTokens: Token[]): { start: number, end: number } | null {
     if (searchTokens.length === 0) return null;
     
@@ -1241,48 +1410,52 @@ function tryFunctionMatch(source: string, searchBlock: string): { start: number,
     const closeBraces = (searchBlock.match(/\}/g) || []).length;
     if (openBraces === 0 || openBraces !== closeBraces) return null;
 
-    // 3. Find function start in source
-    const sourceLines = source.split('\n');
-    let startLineIdx = -1;
-    
-    for (let i = 0; i < sourceLines.length; i++) {
-        const line = sourceLines[i];
-        if (line.includes(funcName)) {
-             // Strict check for definition line
-             const defRegex = new RegExp(`(?:function|const|let|var|async\\s+function|export\\s+function|export\\s+const)\\s+${funcName}\\s*(=|\\()`);
-             if (defRegex.test(line)) {
-                 startLineIdx = i;
-                 break;
-             }
-        }
-    }
-    
-    if (startLineIdx === -1) return null;
+    // 3. Use AST to find the function in source (Robust)
+    try {
+        const ast = parse(source, BABEL_PARSER_CONFIG);
+        let foundNode: any = null;
 
-    // 4. Find function end in source (Brace Counting)
-    let currentOpen = 0;
-    let foundStart = false;
-    let endLineIdx = -1;
-    
-    for (let i = startLineIdx; i < sourceLines.length; i++) {
-        const line = sourceLines[i];
-        const opens = (line.match(/\{/g) || []).length;
-        const closes = (line.match(/\}/g) || []).length;
-        
-        if (opens > 0) foundStart = true;
-        currentOpen += opens;
-        currentOpen -= closes;
-        
-        if (foundStart && currentOpen === 0) {
-            endLineIdx = i;
-            break;
+        // Scan top-level nodes
+        for (const node of ast.program.body) {
+            // Function Declaration
+            if (node.type === 'FunctionDeclaration' && node.id?.name === funcName) {
+                foundNode = node;
+                break;
+            }
+            // Variable Declaration (const foo = () => ...)
+            else if (node.type === 'VariableDeclaration') {
+                for (const decl of node.declarations) {
+                    if (decl.id?.type === 'Identifier' && decl.id.name === funcName) {
+                        foundNode = node; // Replace the whole declaration
+                        break;
+                    }
+                }
+            }
+            // Export Named Declaration
+            else if (node.type === 'ExportNamedDeclaration' && node.declaration) {
+                const decl = node.declaration;
+                if (decl.type === 'FunctionDeclaration' && decl.id?.name === funcName) {
+                    foundNode = node; // Replace the export statement
+                    break;
+                } else if (decl.type === 'VariableDeclaration') {
+                    for (const d of decl.declarations) {
+                        if (d.id?.type === 'Identifier' && d.id.name === funcName) {
+                            foundNode = node;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (foundNode) break;
         }
-    }
-    
-    if (endLineIdx !== -1) {
-        const startChar = sourceLines.slice(0, startLineIdx).join('\n').length + (startLineIdx > 0 ? 1 : 0);
-        const endChar = sourceLines.slice(0, endLineIdx + 1).join('\n').length;
-        return { start: startChar, end: endChar, name: funcName };
+
+        if (foundNode && typeof foundNode.start === 'number' && typeof foundNode.end === 'number') {
+            console.log(`[Patch] AST Lite found ${funcName} at ${foundNode.start}-${foundNode.end}`);
+            return { start: foundNode.start, end: foundNode.end, name: funcName };
+        }
+
+    } catch (e) {
+        console.warn(`[Patch] AST Lite lookup failed for ${funcName}:`, e);
     }
     
     return null;
@@ -1313,6 +1486,12 @@ function fixOverlapArtifacts(fullCode: string, patchEndIndex: number): string {
       const tail = beforeLines.slice(-i).join('\n').trim();
       const head = afterLines.slice(0, i).join('\n').trim();
   
+      // SAFETY FIX: Do not dedup if the overlap is just closing braces/brackets
+      // This prevents accidental deletion of nested closing braces (e.g. } \n })
+      if (/^[\}\]\)]+[;,]?$/.test(tail)) {
+          continue;
+      }
+
       if (tail.length > 0 && tail === head) {
         console.log(`[Patch] Detected code duplication overlap (${i} lines). Fixing...`);
         // Remove the duplicated part from the 'after' section
@@ -1641,14 +1820,23 @@ function detectUndefinedReferences(code: string): string[] {
             'pre', 'code', 'blockquote', 'em', 'strong', 'i', 'b', 'u', 's', 'br', 'hr',
             // Common Component Names (often used as placeholders or generic components)
             'Header', 'Footer', 'Layout', 'Container', 'Button', 'Input', 'Card', 'Modal', 'Icon',
-            'Controls', 'Summary', 'Sidebar', 'Menu', 'MenuItem', 'List', 'ListItem', 'Grid', 'Row', 'Col',
+            'Controls', 'Summary', 'Sidebar', 'Menu', 'MenuItem', 'List', 'ListItem', 'Grid', 'Row', 'Col', 'Section',
             'Text', 'Title', 'Subtitle', 'Image', 'Avatar', 'Badge', 'Tag', 'Tooltip', 'Popover',
             'Tabs', 'Tab', 'Accordion', 'AccordionItem', 'Alert', 'Toast', 'Spinner', 'Loader',
             'Form', 'FormItem', 'Label', 'Select', 'Option', 'Checkbox', 'Radio', 'Switch', 'Slider',
             'Table', 'Thead', 'Tbody', 'Tr', 'Th', 'Td', 'Pagination', 'Breadcrumb', 'Dropdown',
             'Navbar', 'Nav', 'NavItem', 'Link', 'Router', 'Route', 'Switch', 'Redirect',
             'App', 'Main', 'Root', 'Wrapper', 'Provider', 'Context', 'Consumer',
-            'Suspense', 'ErrorBoundary', 'Portal', 'Fragment', 'StrictMode', 'Profiler'
+            'Suspense', 'ErrorBoundary', 'Portal', 'Fragment', 'StrictMode', 'Profiler',
+            // Card variants (commonly generated by AI)
+            'AppointmentCard', 'ProductCard', 'UserCard', 'ProfileCard', 'EventCard', 'TaskCard',
+            'ItemCard', 'ContentCard', 'InfoCard', 'DataCard', 'StatCard', 'FeatureCard',
+            // Item variants
+            'AppointmentItem', 'ProductItem', 'UserItem', 'TaskItem', 'ListItemContent',
+            // View/Panel variants
+            'DetailView', 'ListView', 'GridView', 'Panel', 'SidePanel', 'BottomPanel',
+            // Form variants
+            'SearchForm', 'FilterForm', 'EditForm', 'CreateForm', 'LoginForm', 'SignupForm'
         ]);
 
         // First pass: collect all top-level definitions

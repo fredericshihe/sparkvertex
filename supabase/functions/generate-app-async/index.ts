@@ -56,10 +56,13 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Task not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // 5. Check Credits (不扣费，只检查余额)
+    // 🆓 检查是否使用免费模型 (DeepSeek)
+    const isFreeModel = requestedModel === 'deepseek-v3';
+    
+    // 5. Check Credits (不扣费，只检查余额) - 免费模型跳过积分检查
     // const COST = type === 'modification' ? 5.0 : 15.0;
     // 改为基于 Token 计费，最低预留 1 积分
-    const MIN_REQUIRED = 1;
+    const MIN_REQUIRED = isFreeModel ? 0 : 1;
     
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
@@ -73,13 +76,17 @@ serve(async (req) => {
     }
     
     const currentCredits = Number(profile.credits || 0);
-    console.log(`User ${user.id} has ${currentCredits} credits. Min required: ${MIN_REQUIRED}`);
+    console.log(`User ${user.id} has ${currentCredits} credits. Min required: ${MIN_REQUIRED}. Free model: ${isFreeModel}`);
 
-    if (currentCredits < MIN_REQUIRED) {
+    if (!isFreeModel && currentCredits < MIN_REQUIRED) {
        return new Response(JSON.stringify({ error: 'Insufficient credits' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
-    console.log(`余额充足，生成完成后将根据实际 Token 扣除积分`);
+    if (isFreeModel) {
+        console.log(`🆓 使用免费模型 DeepSeek V3，不消耗积分`);
+    } else {
+        console.log(`余额充足，生成完成后将根据实际 Token 扣除积分`);
+    }
 
     // Update status to processing
     await supabaseAdmin
@@ -89,15 +96,18 @@ serve(async (req) => {
 
     // 6. Call LLM
     const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
+    const deepseekApiKey = Deno.env.get('DEEPSEEK_API_KEY');
     
     // 模型配置：支持用户选择的模型
     // 不同模型的积分汇率（基于 Gemini 官方定价）:
+    // - deepseek-v3: 免费模型，不消耗积分
     // - gemini-2.5-flash: 1积分 = 15000 tokens (最便宜，速度快)
     // - gemini-2.5-pro: 1积分 = 4000 tokens (均衡)
     // - gemini-3-pro-preview: 1积分 = 3000 tokens (最强，最贵)
     // 注意：上下文 > 200k tokens 时，价格自动翻倍（tokensPerCredit / 2）
-    const VALID_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-pro-preview'];
+    const VALID_MODELS = ['deepseek-v3', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-pro-preview'];
     const DEFAULT_TOKENS_PER_CREDIT: Record<string, number> = {
+        'deepseek-v3': 0, // 免费
         'gemini-2.5-flash': 15000,
         'gemini-2.5-pro': 4000,
         'gemini-3-pro-preview': 3000
@@ -120,7 +130,11 @@ serve(async (req) => {
         console.log(`环境变量覆盖模型为: ${envModel}`);
     }
 
-    if (!googleApiKey) {
+    // 检查 API Key
+    if (isFreeModel && !deepseekApiKey) {
+        throw new Error('缺少 DeepSeek API Key');
+    }
+    if (!isFreeModel && !googleApiKey) {
         throw new Error('缺少 Google API Key');
     }
 
@@ -131,7 +145,7 @@ serve(async (req) => {
 
     // 构建消息数组以支持隐式缓存
     // 对于修改操作，将现有代码作为缓存内容放在messages数组前面
-    const messages = [
+    const messages: any[] = [
         { role: 'system', content: finalSystemPrompt }
     ];
 
@@ -170,6 +184,7 @@ serve(async (req) => {
     const stream = new ReadableStream({
         async start(controller) {
             const encoder = new TextEncoder();
+            let clientDisconnected = false;  // 移到 try 外部，避免 catch 块引用错误
             
             try {
                 // Send initial keep-alive
@@ -185,8 +200,26 @@ serve(async (req) => {
                 const maxRetries = 3;
                 let currentModel = modelName;
 
+                // 🆓 调用 DeepSeek API (免费模型)
+                const fetchDeepSeekCompletion = async () => {
+                    console.log('🆓 调用 DeepSeek V3 免费模型...');
+                    return await fetch('https://api.deepseek.com/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${deepseekApiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: 'deepseek-chat',
+                            max_tokens: 8192,  // DeepSeek API 限制最大 8192
+                            messages: messages,
+                            stream: true
+                        })
+                    });
+                };
+
                 // 调用 Gemini API
-                const fetchCompletion = async (model: string) => {
+                const fetchGeminiCompletion = async (model: string) => {
                     return await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
                         method: 'POST',
                         headers: {
@@ -200,6 +233,14 @@ serve(async (req) => {
                             stream: true
                         })
                     });
+                };
+
+                // 根据模型选择调用不同的 API
+                const fetchCompletion = async (model: string) => {
+                    if (model === 'deepseek-v3') {
+                        return await fetchDeepSeekCompletion();
+                    }
+                    return await fetchGeminiCompletion(model);
                 };
 
                 while (true) {
@@ -266,7 +307,6 @@ serve(async (req) => {
                 let streamBuffer = ''; 
                 let lastUpdate = Date.now();
                 let lastBroadcastLength = fullContent.length;
-                let clientDisconnected = false;  // 标记前端连接是否断开（但不影响后台生成）
                 let userCancelled = false; // 标记用户是否主动取消
                 
                 const taskChannel = supabaseAdmin.channel(`task-${taskId}`);
@@ -494,18 +534,21 @@ serve(async (req) => {
                 const outputTokens = calculateTokens(fullContent || '');
                 const totalTokens = inputTokens + outputTokens;
                 
-                // 检查是否超过200k token阈值（超长上下文模式，价格翻倍）
-                const isLongContext = inputTokens > LONG_CONTEXT_THRESHOLD;
-                const effectiveTokensPerCredit = isLongContext ? Math.floor(tokensPerCredit / 2) : tokensPerCredit;
-                
-                if (isLongContext) {
-                    console.log(`⚠️ 超长上下文模式：输入 ${inputTokens} tokens > ${LONG_CONTEXT_THRESHOLD}，积分消耗翻倍`);
-                }
-                
-                // 根据用户选择的模型使用对应的积分汇率
-                // gemini-2.5-flash: 1积分=15000tokens, gemini-2.5-pro: 1积分=4000tokens, gemini-3-pro-preview: 1积分=3000tokens
-                // 超长上下文时，汇率减半（相当于价格翻倍）
-                const actualCost = Math.ceil(totalTokens / effectiveTokensPerCredit);
+                // 🆓 免费模型不扣费
+                const actualCost = isFreeModel ? 0 : (() => {
+                    // 检查是否超过200k token阈值（超长上下文模式，价格翻倍）
+                    const isLongContext = inputTokens > LONG_CONTEXT_THRESHOLD;
+                    const effectiveTokensPerCredit = isLongContext ? Math.floor(tokensPerCredit / 2) : tokensPerCredit;
+                    
+                    if (isLongContext) {
+                        console.log(`⚠️ 超长上下文模式：输入 ${inputTokens} tokens > ${LONG_CONTEXT_THRESHOLD}，积分消耗翻倍`);
+                    }
+                    
+                    // 根据用户选择的模型使用对应的积分汇率
+                    // gemini-2.5-flash: 1积分=15000tokens, gemini-2.5-pro: 1积分=4000tokens, gemini-3-pro-preview: 1积分=3000tokens
+                    // 超长上下文时，汇率减半（相当于价格翻倍）
+                    return Math.ceil(totalTokens / effectiveTokensPerCredit);
+                })();
 
                 // 保存结果和 cost 到数据库（cost 用于退款时查询）
                 await supabaseAdmin
@@ -514,39 +557,44 @@ serve(async (req) => {
                     .eq('id', taskId);
                 console.log('结果保存成功');
                 
-                // 生成成功，现在扣除积分
+                // 生成成功，现在扣除积分（免费模型跳过）
                 console.log(`生成成功，Token统计: 输入=${inputTokens}, 输出=${outputTokens}, 总计=${totalTokens}`);
-                console.log(`扣除 ${actualCost} 积分 (模型: ${modelName}, 汇率: 1积分=${effectiveTokensPerCredit}Tokens${isLongContext ? ' [超长上下文双倍扣费]' : ''})...`);
-
-                const { data: finalProfile } = await supabaseAdmin
-                    .from('profiles')
-                    .select('credits')
-                    .eq('id', user.id)
-                    .single();
-                    
-                if (finalProfile) {
-                    const newBalance = (Number(finalProfile.credits) || 0) - actualCost;
-                    await supabaseAdmin
-                        .from('profiles')
-                        .update({ credits: Math.max(0, newBalance) })
-                        .eq('id', user.id);
-                    console.log(`积分已扣除。剩余: ${Math.max(0, newBalance)}`);
-                    
-                    // 记录用户活动日志（用于分析）
-                    const actionType = type === 'modification' ? 'modify' : 'create';
-                    try {
-                        await supabaseAdmin.rpc('log_user_activity', {
-                            p_user_id: user.id,
-                            p_action_type: actionType,
-                            p_action_detail: { task_id: taskId, type: type, tokens: totalTokens },
-                            p_credits_consumed: actualCost
-                        });
-                        console.log(`活动日志已记录: ${actionType}, 消耗 ${actualCost} 积分`);
-                    } catch (logErr) {
-                        console.warn('活动日志记录失败:', logErr);
-                    }
+                
+                if (isFreeModel) {
+                    console.log(`🆓 使用免费模型 DeepSeek V3，不扣除积分`);
                 } else {
-                    console.warn('无法扣除积分：找不到用户档案');
+                    console.log(`扣除 ${actualCost} 积分 (模型: ${modelName})...`);
+
+                    const { data: finalProfile } = await supabaseAdmin
+                        .from('profiles')
+                        .select('credits')
+                        .eq('id', user.id)
+                        .single();
+                        
+                    if (finalProfile) {
+                        const newBalance = (Number(finalProfile.credits) || 0) - actualCost;
+                        await supabaseAdmin
+                            .from('profiles')
+                            .update({ credits: Math.max(0, newBalance) })
+                            .eq('id', user.id);
+                        console.log(`积分已扣除。剩余: ${Math.max(0, newBalance)}`);
+                        
+                        // 记录用户活动日志（用于分析）
+                        const actionType = type === 'modification' ? 'modify' : 'create';
+                        try {
+                            await supabaseAdmin.rpc('log_user_activity', {
+                                p_user_id: user.id,
+                                p_action_type: actionType,
+                                p_action_detail: { task_id: taskId, type: type, tokens: totalTokens, model: modelName },
+                                p_credits_consumed: actualCost
+                            });
+                            console.log(`活动日志已记录: ${actionType}, 消耗 ${actualCost} 积分`);
+                        } catch (logErr) {
+                            console.warn('活动日志记录失败:', logErr);
+                        }
+                    } else {
+                        console.warn('无法扣除积分：找不到用户档案');
+                    }
                 }
                 
                 // 通过 Realtime 广播完成状态
