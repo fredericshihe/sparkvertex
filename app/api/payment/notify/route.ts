@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createSafeClient } from '@/lib/supabase-server-safe';
 import { NextResponse } from 'next/server';
 import { getAlipaySdk } from '@/lib/alipay';
 import { createLogger } from '@/lib/logger';
@@ -35,16 +35,7 @@ export async function POST(request: Request) {
       }
 
       // 初始化 Supabase Admin 客户端
-      const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
-      );
+      const supabaseAdmin = createSafeClient();
       
       // 4. 查询订单
       const { data: order, error: fetchError } = await supabaseAdmin

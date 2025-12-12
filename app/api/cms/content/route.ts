@@ -1,11 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { createSafeClient } from '@/lib/supabase-server-safe';
 import { NextResponse } from 'next/server';
 
-// 确保在构建时即使没有环境变量也不会报错
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-key';
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createSafeClient();
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);

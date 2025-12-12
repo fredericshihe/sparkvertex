@@ -1,5 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
+import { createSafeClient } from '@/lib/supabase-server-safe';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { getRAGContext } from '@/lib/rag';
@@ -162,11 +162,7 @@ async function handleSSERequest(request: Request) {
         return;
       }
 
-      const adminSupabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-        process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-key',
-        { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
-      );
+      const adminSupabase = createSafeClient();
 
       // 创建任务
       const MAX_PROMPT_LENGTH = 50000;
@@ -439,17 +435,7 @@ async function handleJSONRequest(request: Request) {
     }
 
     // Use Admin Client for DB operations to avoid potential client-side connection issues
-    const adminSupabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-        process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-key',
-        {
-            auth: {
-                persistSession: false,
-                autoRefreshToken: false,
-                detectSessionInUrl: false
-            }
-        }
-    );
+    const adminSupabase = createSafeClient();
 
     // Note: Credit deduction is now handled entirely in the Edge Function to ensure atomicity and correct pricing based on model usage.
     

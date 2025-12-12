@@ -1,15 +1,11 @@
 // POST /api/mailbox/upload
 // 公开接口 - 处理加密文件上传到 inbox-files 桶
 
-import { createClient } from '@supabase/supabase-js';
+import { createSafeClient } from '@/lib/supabase-server-safe';
 import { NextResponse } from 'next/server';
 import rateLimit from '@/lib/rate-limit';
 
-// 确保在构建时即使没有环境变量也不会报错
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-key';
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createSafeClient();
 
 const limiter = rateLimit({
   interval: 60 * 1000, // 1 minute

@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createSafeClient } from '@/lib/supabase-server-safe';
 import { NextResponse } from 'next/server';
 import { verifyAfdianSignature, AfdianWebhookPayload, isStrictSignatureMode } from '@/lib/afdian';
 
@@ -51,16 +51,7 @@ export async function POST(request: Request) {
       console.log('[Afdian Webhook] Processing order:', tradeNo, 'Amount:', orderAmount);
       
       // 初始化 Supabase Admin 客户端
-      const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
-      );
+      const supabaseAdmin = createSafeClient();
       
       // 先检查订单是否已存在（防止重复支付）
       // 同时检查 out_trade_no（我们的订单号）和 trade_no（爱发电交易号）

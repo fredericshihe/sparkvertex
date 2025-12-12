@@ -4,7 +4,7 @@
  */
 
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
+import { createSafeClient } from '@/lib/supabase-server-safe';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
@@ -19,8 +19,8 @@ import { NextResponse } from 'next/server';
 export function createServerSupabase() {
   const cookieStore = cookies();
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key',
     {
       cookies: {
         get(name: string) {
@@ -43,10 +43,7 @@ export function createServerSupabase() {
  * 注意：每次调用都创建新实例，避免跨请求状态污染
  */
 export function createAdminSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  return createSafeClient();
 }
 
 // =====================================================

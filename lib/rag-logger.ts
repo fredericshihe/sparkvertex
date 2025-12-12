@@ -3,7 +3,7 @@
  * 用于追踪用户意图分布、系统性能和优化效果
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createSafeAnonClient } from '@/lib/supabase-server-safe';
 import { UserIntent } from './intent-classifier';
 
 export interface RAGLogEntry {
@@ -52,15 +52,7 @@ export interface RAGLogResult {
  */
 export async function logRAGRequest(entry: RAGLogEntry): Promise<RAGLogResult> {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn('[RAG Logger] Missing Supabase config, skipping log');
-      return { logId: null, success: false, error: 'Missing Supabase config' };
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = createSafeAnonClient();
 
     const { data, error } = await supabase.rpc('insert_rag_log', {
       p_user_id: entry.userId || null,
@@ -103,14 +95,11 @@ export async function updateRAGLogResult(
   generationTaskId?: string
 ): Promise<boolean> {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey || !logId) {
+    if (!logId) {
       return false;
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = createSafeAnonClient();
 
     const { error } = await supabase.rpc('update_rag_log_result', {
       p_log_id: logId,
@@ -135,14 +124,7 @@ export async function updateRAGLogResult(
  */
 export async function getIntentStats(): Promise<any[]> {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return [];
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = createSafeAnonClient();
 
     const { data, error } = await supabase
       .from('rag_intent_stats')
@@ -165,14 +147,7 @@ export async function getIntentStats(): Promise<any[]> {
  */
 export async function getDailyStats(): Promise<any[]> {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return [];
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = createSafeAnonClient();
 
     const { data, error } = await supabase
       .from('rag_daily_stats')
