@@ -1,5 +1,6 @@
+'use client';
+
 import React from 'react';
-import Image from 'next/image';
 import TiltedCard from '../TiltedCard';
 
 export default function FeatureCreation() {
