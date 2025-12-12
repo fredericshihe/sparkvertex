@@ -163,8 +163,8 @@ async function handleSSERequest(request: Request) {
       }
 
       const adminSupabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+        process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-key',
         { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
       );
 
@@ -440,8 +440,8 @@ async function handleJSONRequest(request: Request) {
 
     // Use Admin Client for DB operations to avoid potential client-side connection issues
     const adminSupabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+        process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-key',
         {
             auth: {
                 persistSession: false,
