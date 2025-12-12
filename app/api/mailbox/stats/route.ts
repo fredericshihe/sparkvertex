@@ -4,6 +4,8 @@
 import { createClient } from '@/lib/supabase-server';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 const APP_ID_REGEX = /^app_[a-f0-9-]+_[a-f0-9-]+$/;
 
 export async function GET(req: Request) {
