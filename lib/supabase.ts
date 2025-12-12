@@ -1,8 +1,10 @@
 import { createBrowserClient } from '@supabase/ssr';
 
+// 客户端 Supabase 实例
+// 必须要有环境变量，否则无法连接到真实的 Supabase 项目
 export const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key',
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   {
     auth: {
       // 自动刷新 token，防止会话过期

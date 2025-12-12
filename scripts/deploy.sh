@@ -15,9 +15,26 @@ npm install
 
 # 3. 构建项目
 echo "mb 正在构建 Next.js 项目..."
-# 尝试加载环境变量 (解决 supabaseUrl is required 错误)
+
+# 尝试加载环境变量 (支持 .env, .env.production, .env.local)
+if [ -f .env ]; then
+  echo "Loading .env..."
+  export $(grep -v '^#' .env | xargs)
+fi
+if [ -f .env.production ]; then
+  echo "Loading .env.production..."
+  export $(grep -v '^#' .env.production | xargs)
+fi
 if [ -f .env.local ]; then
+  echo "Loading .env.local..."
   export $(grep -v '^#' .env.local | xargs)
+fi
+
+# 检查关键环境变量是否存在
+if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+  echo "❌ 错误: 未找到 NEXT_PUBLIC_SUPABASE_URL 环境变量！"
+  echo "请确保服务器上存在 .env 或 .env.local 文件，并且包含 NEXT_PUBLIC_SUPABASE_URL 和 NEXT_PUBLIC_SUPABASE_ANON_KEY。"
+  exit 1
 fi
 
 # 注意：如果服务器内存较小，确保 Swap 已经启用
