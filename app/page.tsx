@@ -1,36 +1,28 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import dynamic from 'next/dynamic';
-import Hero from '@/components/Hero';
-import FeatureCreation from '@/components/landing/FeatureCreation';
-import FeatureBackend from '@/components/landing/FeatureBackend';
-import Showcase from '@/components/landing/Showcase';
-import CTASection from '@/components/landing/CTASection';
+import HomeClient from './HomeClient';
 
-const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
-
-// 使用默认 Node.js 运行时，避免 Edge Runtime 兼容性问题
-// export const runtime = 'edge';
 // ISR: 缓存 120 秒（2分钟）
 export const revalidate = 120;
 
 export default async function Home() {
-  // 在服务端获取 Top 5 项目数据，避免客户端请求
-  const cookieStore = cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-      },
-    }
-  );
-
   let heroItems: any[] = [];
+  
   try {
+    // 在服务端获取 Top 6 项目数据
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+        },
+      }
+    );
+
     const { data, error } = await supabase
       .from('items')
       .select(`
@@ -69,30 +61,8 @@ export default async function Home() {
     }
   } catch (error) {
     console.error('Error fetching hero items:', error);
+    // 即使出错也返回空数组，不会阻止页面渲染
   }
 
-  return (
-    <div className="min-h-screen flex flex-col relative bg-black">
-      {/* Global Fixed Background */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <Galaxy 
-            mouseRepulsion={true}
-            mouseInteraction={true}
-            density={1.5}
-            glowIntensity={0.5}
-            saturation={0.8}
-            hueShift={240}
-        />
-      </div>
-
-      {/* Scrollable Content */}
-      <div className="relative z-10">
-        <Hero initialItems={heroItems} />
-        <FeatureCreation />
-        <FeatureBackend />
-        <Showcase items={heroItems} />
-        <CTASection />
-      </div>
-    </div>
-  );
+  return <HomeClient heroItems={heroItems} />;
 }
