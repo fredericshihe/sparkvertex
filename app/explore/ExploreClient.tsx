@@ -9,83 +9,19 @@ import { exploreCache, itemDetailsCache } from '@/lib/cache';
 import { getPreviewContent } from '@/lib/preview';
 import { useLanguage } from '@/context/LanguageContext';
 import { translations } from '@/lib/i18n/translations';
+import { KNOWN_CATEGORIES } from '@/lib/categories';
 
-const KNOWN_CATEGORIES: Record<string, { key: string, icon: string }> = {
-  // Core Categories (English keys)
-  game: { key: 'game', icon: 'fa-gamepad' },
-  tool: { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  productivity: { key: 'productivity', icon: 'fa-list-check' },
-  design: { key: 'design', icon: 'fa-palette' },
-  devtool: { key: 'devtool', icon: 'fa-code' },
-  entertainment: { key: 'entertainment', icon: 'fa-film' },
-  education: { key: 'education', icon: 'fa-graduation-cap' },
-  visualization: { key: 'visualization', icon: 'fa-chart-pie' },
-  lifestyle: { key: 'lifestyle', icon: 'fa-mug-hot' },
-  
-  // Chinese mappings
-  '游戏': { key: 'game', icon: 'fa-gamepad' },
-  '游戏娱乐': { key: 'game', icon: 'fa-gamepad' },
-  '休闲游戏': { key: 'game', icon: 'fa-gamepad' },
-  '益智游戏': { key: 'game', icon: 'fa-gamepad' },
-  'Game': { key: 'game', icon: 'fa-gamepad' },
-  
-  '创意': { key: 'design', icon: 'fa-palette' },
-  '创意设计': { key: 'design', icon: 'fa-palette' },
-  '设计': { key: 'design', icon: 'fa-palette' },
-  '艺术': { key: 'design', icon: 'fa-palette' },
-  'Eye Candy': { key: 'design', icon: 'fa-palette' },
-  'Design': { key: 'design', icon: 'fa-palette' },
-  
-  '生产力': { key: 'productivity', icon: 'fa-list-check' },
-  '办公效率': { key: 'productivity', icon: 'fa-list-check' },
-  '效率': { key: 'productivity', icon: 'fa-list-check' },
-  '办公': { key: 'productivity', icon: 'fa-list-check' },
-  'Productivity': { key: 'productivity', icon: 'fa-list-check' },
-  
-  '工具': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  '实用工具': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  'Tiny Tools': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  '计算器': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  'Tool': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  
-  '开发者工具': { key: 'devtool', icon: 'fa-code' },
-  '开发': { key: 'devtool', icon: 'fa-code' },
-  '编程': { key: 'devtool', icon: 'fa-code' },
-  '代码': { key: 'devtool', icon: 'fa-code' },
-  'DevTool': { key: 'devtool', icon: 'fa-code' },
-  'Developer': { key: 'devtool', icon: 'fa-code' },
-  
-  '影音娱乐': { key: 'entertainment', icon: 'fa-film' },
-  '娱乐': { key: 'entertainment', icon: 'fa-film' },
-  '音乐': { key: 'entertainment', icon: 'fa-music' },
-  '视频': { key: 'entertainment', icon: 'fa-video' },
-  '影视': { key: 'entertainment', icon: 'fa-film' },
-  'Entertainment': { key: 'entertainment', icon: 'fa-film' },
-  
-  '教育': { key: 'education', icon: 'fa-graduation-cap' },
-  '教育学习': { key: 'education', icon: 'fa-graduation-cap' },
-  '学习': { key: 'education', icon: 'fa-graduation-cap' },
-  '知识': { key: 'education', icon: 'fa-graduation-cap' },
-  'Education': { key: 'education', icon: 'fa-graduation-cap' },
-  
-  '数据可视化': { key: 'visualization', icon: 'fa-chart-pie' },
-  '图表': { key: 'visualization', icon: 'fa-chart-pie' },
-  '数据': { key: 'visualization', icon: 'fa-chart-pie' },
-  'Visualization': { key: 'visualization', icon: 'fa-chart-pie' },
-  
-  '生活': { key: 'lifestyle', icon: 'fa-mug-hot' },
-  '生活便利': { key: 'lifestyle', icon: 'fa-mug-hot' },
-  '日常': { key: 'lifestyle', icon: 'fa-mug-hot' },
-  '健康': { key: 'lifestyle', icon: 'fa-heart-pulse' },
-  'Lifestyle': { key: 'lifestyle', icon: 'fa-mug-hot' },
-  
-  'AI': { key: 'tool', icon: 'fa-robot' },
-  'AI应用': { key: 'tool', icon: 'fa-robot' },
-};
+interface CategoryItem {
+  id: string;
+  label: string;
+  translationKey: string;
+  icon: string;
+  count: number;
+}
 
 interface ExploreClientProps {
   initialItems: Item[];
-  initialCategories: any[];
+  initialCategories: CategoryItem[];
   initialTopItem?: Item;
 }
 
@@ -303,12 +239,12 @@ export default function ExploreClient({ initialItems, initialCategories, initial
   };
 
   return (
-    <div className="flex h-[100dvh] pt-16 bg-slate-950 overflow-hidden">
+    <div className="flex h-[100dvh] pt-16 bg-transparent overflow-hidden">
       {/* Sidebar Navigation */}
-      <aside className="w-64 flex-shrink-0 border-r border-slate-800 bg-slate-900/50 backdrop-blur-xl hidden md:flex flex-col">
+      <aside className="w-64 flex-shrink-0 border-r border-white/10 bg-black/20 backdrop-blur-xl hidden md:flex flex-col">
         <div className="p-6">
           <h2 className="text-xl font-bold text-white flex items-center gap-2 px-2">
-            <i className="fa-solid fa-store text-brand-500"></i> {t.explore.title}
+            <i className="fa-solid fa-store text-white"></i> {t.explore.title}
           </h2>
         </div>
         
@@ -319,13 +255,13 @@ export default function ExploreClient({ initialItems, initialCategories, initial
               onClick={() => filterByCategory(cat.id)}
               className={`w-full text-left flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
                 category === cat.id 
-                  ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  ? 'bg-white text-black shadow-lg shadow-white/10' 
+                  : 'text-slate-400 hover:bg-white/10 hover:text-white'
               }`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                  category === cat.id ? 'bg-white/20' : 'bg-slate-800'
+                  category === cat.id ? 'bg-black/10' : 'bg-white/5'
                 }`}>
                   <i className={`fa-solid ${cat.icon}`}></i>
                 </div>
@@ -333,7 +269,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
               </div>
               {(cat as any).count > 0 && (
                 <span className={`text-xs px-2 py-0.5 rounded-full ${
-                  category === cat.id ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-500'
+                  category === cat.id ? 'bg-black/10 text-black' : 'bg-white/5 text-slate-500'
                 }`}>
                   {(cat as any).count}
                 </span>
@@ -342,13 +278,13 @@ export default function ExploreClient({ initialItems, initialCategories, initial
           ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-800">
-          <div className="bg-gradient-to-br from-purple-900/50 to-brand-900/50 rounded-xl p-4 border border-white/5 shadow-lg">
+        <div className="p-4 border-t border-white/10">
+          <div className="bg-white/5 rounded-xl p-4 border border-white/10 shadow-lg">
             <h3 className="text-white font-bold text-sm mb-2 flex items-center gap-2">
-              <i className="fa-solid fa-code-branch text-brand-400"></i> {t.explore.dev_center}
+              <i className="fa-solid fa-code-branch text-white"></i> {t.explore.dev_center}
             </h3>
             <p className="text-xs text-slate-300 mb-4 leading-relaxed" dangerouslySetInnerHTML={{ __html: t.explore.dev_desc }} />
-            <a href="/create" className="block w-full py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold text-center rounded-lg transition shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2">
+            <a href="/create" className="block w-full py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold text-center rounded-lg transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
               <i className="fa-solid fa-wand-magic-sparkles"></i> {t.explore.start_create}
             </a>
           </div>
@@ -356,17 +292,17 @@ export default function ExploreClient({ initialItems, initialCategories, initial
       </aside>
 
       {/* Main Content Area Wrapper */}
-      <div className="flex-1 flex flex-col min-w-0 bg-slate-950 relative">
+      <div className="flex-1 flex flex-col min-w-0 bg-transparent relative">
         {/* Mobile Category Filter (Fixed at top) */}
-        <div className="md:hidden z-30 bg-slate-950/95 backdrop-blur border-b border-slate-800 px-4 py-3 flex gap-2 overflow-x-auto no-scrollbar flex-shrink-0">
+        <div className="md:hidden z-30 bg-black/80 backdrop-blur-md border-b border-white/10 px-4 py-3 flex gap-2 overflow-x-auto no-scrollbar flex-shrink-0">
           {categories.map(cat => (
             <button
               key={cat.id}
               onClick={() => filterByCategory(cat.id)}
               className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold border transition-colors flex items-center gap-2 ${
                 category === cat.id
-                  ? 'bg-brand-600 border-brand-500 text-white'
-                  : 'bg-slate-900 border-slate-700 text-slate-400'
+                  ? 'bg-white text-black border-white'
+                  : 'bg-slate-900/40 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
               }`}
             >
               {getCategoryLabel(cat)}
@@ -387,23 +323,23 @@ export default function ExploreClient({ initialItems, initialCategories, initial
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                 {/* AI Features Badge */}
-                <div className="flex flex-wrap items-center gap-3 px-3 py-1 rounded-lg bg-brand-500/10 border border-brand-500/20 self-start sm:self-auto">
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
+                <div className="flex flex-wrap items-center gap-3 px-3 py-1 rounded-lg bg-slate-900/40 backdrop-blur-md border border-white/10 self-start sm:self-auto">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
                        <i className="fa-solid fa-microchip text-purple-400"></i>
                        {t.explore.ai_badge_driven}
                     </span>
-                    <span className="w-px h-3 bg-brand-500/30 hidden sm:block"></span>
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
+                    <span className="w-px h-3 bg-white/10 hidden sm:block"></span>
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
                        <i className="fa-solid fa-shield-halved text-green-400"></i>
                        {t.explore.ai_badge_security}
                     </span>
-                    <span className="w-px h-3 bg-brand-500/30 hidden sm:block"></span>
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
+                    <span className="w-px h-3 bg-white/10 hidden sm:block"></span>
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
                        <i className="fa-solid fa-bolt text-yellow-400"></i>
                        {t.explore.ai_badge_recommendation}
                     </span>
-                    <span className="w-px h-3 bg-brand-500/30 hidden sm:block"></span>
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-brand-100">
+                    <span className="w-px h-3 bg-white/10 hidden sm:block"></span>
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
                        <i className="fa-solid fa-copyright text-blue-400"></i>
                        {t.explore.ai_badge_copyright}
                     </span>
@@ -413,11 +349,11 @@ export default function ExploreClient({ initialItems, initialCategories, initial
             
             <div className="relative w-full md:w-80 group">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <i className="fa-solid fa-search text-slate-500 group-focus-within:text-brand-500 transition-colors"></i>
+                <i className="fa-solid fa-search text-slate-500 group-focus-within:text-white transition-colors"></i>
               </div>
               <input
                 type="text"
-                className="block w-full pl-10 pr-3 py-2.5 border border-slate-700 rounded-xl leading-5 bg-slate-900 text-slate-300 placeholder-slate-500 focus:outline-none focus:bg-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 sm:text-sm transition-all shadow-sm"
+                className="block w-full pl-10 pr-3 py-2.5 border border-white/10 rounded-xl leading-5 bg-slate-900/40 backdrop-blur-md text-slate-300 placeholder-slate-500 focus:outline-none focus:bg-slate-900/60 focus:border-white/20 focus:ring-1 focus:ring-white/20 sm:text-sm transition-all shadow-sm"
                 placeholder={t.explore.search_placeholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -430,9 +366,9 @@ export default function ExploreClient({ initialItems, initialCategories, initial
           {!searchQuery && topItems.length > 0 && topItems[0] && (
             <div className="mb-16 mt-8">
                {/* Hero Card */}
-               <div className="relative group rounded-3xl bg-slate-900 border border-slate-800 overflow-hidden shadow-2xl transition-all hover:shadow-brand-900/20 hover:border-slate-700">
+               <div className="relative group rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 overflow-hidden shadow-2xl transition-all hover:shadow-white/5 hover:border-white/20">
                   {/* Background Gradient Mesh */}
-                  <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-brand-900/20 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+                  <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-white/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
                   
                   <div className="flex flex-col md:flex-row min-h-[450px]">
                     {/* Left: Content */}
@@ -440,7 +376,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
                        <div className="flex items-center gap-3 mb-4">
                           <img 
                             src={topItems[0]?.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${topItems[0]?.author}`} 
-                            className="w-8 h-8 rounded-full border border-slate-700" 
+                            className="w-8 h-8 rounded-full border border-white/10" 
                             alt={topItems[0]?.author} 
                             onError={(e) => {
                               e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${topItems[0]?.author}`;
@@ -448,7 +384,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
                           />
                           <span className="text-slate-400 text-sm font-medium">{topItems[0]?.author}</span>
                           {(topItems[0]?.total_score || 0) > 0 && (
-                            <span className="px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 text-xs font-bold border border-brand-500/20">
+                            <span className="px-2 py-0.5 rounded-full bg-white/10 text-white text-xs font-bold border border-white/10">
                               {topItems[0]?.total_score} 分
                             </span>
                           )}
@@ -465,7 +401,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
                        <div className="flex items-center gap-4 mt-auto">
                           <button 
                             onClick={() => topItems[0] && openDetailModal(topItems[0].id, topItems[0])}
-                            className="px-8 py-4 bg-white text-slate-950 rounded-xl font-bold hover:bg-slate-200 transition shadow-lg shadow-white/5 flex items-center gap-2"
+                            className="px-8 py-4 bg-white text-black rounded-xl font-bold hover:bg-slate-200 transition shadow-lg shadow-white/5 flex items-center gap-2"
                           >
                             {t.explore.try_now || '立即体验'} <i className="fa-solid fa-arrow-right"></i>
                           </button>
@@ -474,7 +410,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
                              className={`w-14 h-14 rounded-xl flex items-center justify-center border transition ${
                                topItems[0] && myLikes.has(topItems[0].id) 
                                  ? 'bg-rose-500/10 border-rose-500/50 text-rose-500' 
-                                 : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'
+                                 : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
                              }`}
                           >
                              <i className={`fa-solid fa-heart ${topItems[0] && myLikes.has(topItems[0].id) ? 'fa-beat' : ''}`}></i>
@@ -483,8 +419,8 @@ export default function ExploreClient({ initialItems, initialCategories, initial
                     </div>
 
                     {/* Right: Preview Visual */}
-                    <div className="w-full md:w-[55%] h-64 md:h-auto relative bg-slate-800/50 border-t md:border-t-0 md:border-l border-slate-800/50 overflow-hidden group-hover:bg-slate-800/80 transition-colors">
-                       <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+                    <div className="w-full md:w-[55%] h-64 md:h-auto relative bg-black/20 border-t md:border-t-0 md:border-l border-white/5 overflow-hidden group-hover:bg-black/30 transition-colors">
+                       <div className="absolute inset-0 flex items-center justify-center bg-transparent">
                           {topItems[0]?.content ? (
                             <iframe 
                                 srcDoc={getPreviewContent(topItems[0]?.content, { raw: true, appId: topItems[0]?.id ? String(topItems[0].id) : undefined })} 
@@ -547,7 +483,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
             <div className="flex justify-center mt-12 pb-12">
               <button 
                 onClick={loadMore}
-                className="px-8 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl font-bold transition border border-slate-800 hover:border-slate-700 flex items-center gap-2"
+                className="px-8 py-3 bg-slate-900/40 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl font-bold transition border border-white/10 hover:border-white/20 flex items-center gap-2 backdrop-blur-md"
               >
                 {t.explore.load_more} <i className="fa-solid fa-chevron-down text-xs"></i>
               </button>

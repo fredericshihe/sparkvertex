@@ -110,7 +110,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
 
       <div className="flip-card-inner relative w-full h-full transition-all duration-500" style={{ transformStyle: 'preserve-3d' }}>
         {/* Front */}
-        <div className="flip-card-front absolute inset-0 w-full h-full rounded-2xl overflow-hidden border border-slate-700/50 bg-slate-800 shadow-lg flex flex-col" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(0deg)' }}>
+        <div className="flip-card-front absolute inset-0 w-full h-full rounded-2xl overflow-hidden border border-white/10 bg-slate-900/40 backdrop-blur-md shadow-lg flex flex-col" style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(0deg)' }}>
           
           {/* Trigger Zone - Desktop Only */}
           <div 
@@ -120,7 +120,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
             <i className="fa-solid fa-qrcode mr-1"></i> {t.project_card.scan_experience}
           </div>
 
-          <div className="h-[220px] md:h-44 relative bg-slate-800 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
+          <div className="h-[220px] md:h-44 relative bg-black/20 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
             {/* Iframe Preview */}
             {showPreview && item.content && (
                <iframe
@@ -145,7 +145,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                 {/* 编辑按钮 - 进入创作页面 */}
                 <button 
                   onClick={(e) => { e.stopPropagation(); onEdit && onEdit(item); }}
-                  className="w-7 h-7 rounded-full bg-slate-900/80 backdrop-blur text-white hover:bg-brand-600 transition flex items-center justify-center border border-slate-700 shadow-lg"
+                  className="w-7 h-7 rounded-full bg-black/60 backdrop-blur text-white hover:bg-white hover:text-black transition flex items-center justify-center border border-white/10 shadow-lg"
                   title={t.project_card.edit}
                 >
                   <i className="fa-solid fa-pen text-xs"></i>
@@ -154,7 +154,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                 {!item.is_draft && onUpdate && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); onUpdate(item); }}
-                    className="w-7 h-7 rounded-full bg-slate-900/80 backdrop-blur text-white hover:bg-emerald-600 transition flex items-center justify-center border border-slate-700 shadow-lg"
+                    className="w-7 h-7 rounded-full bg-black/60 backdrop-blur text-white hover:bg-emerald-500 hover:text-white transition flex items-center justify-center border border-white/10 shadow-lg"
                     title={t.project_card?.update || '更新作品'}
                   >
                     <i className="fa-solid fa-arrow-up-from-bracket text-xs"></i>
@@ -163,7 +163,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                 {/* 删除按钮 */}
                 <button 
                   onClick={(e) => { e.stopPropagation(); onDelete && onDelete(item.id); }}
-                  className="w-7 h-7 rounded-full bg-slate-900/80 backdrop-blur text-white hover:bg-rose-600 transition flex items-center justify-center border border-slate-700 shadow-lg"
+                  className="w-7 h-7 rounded-full bg-black/60 backdrop-blur text-white hover:bg-rose-500 hover:text-white transition flex items-center justify-center border border-white/10 shadow-lg"
                   title={t.project_card.delete}
                 >
                   <i className="fa-solid fa-trash text-xs"></i>
@@ -179,7 +179,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                 </span>
               )}
               {!item.is_draft && item.is_public === false && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-slate-900/80 text-slate-400 border border-slate-700 flex items-center gap-1 shadow-lg">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-md bg-black/60 text-slate-400 border border-white/10 flex items-center gap-1 shadow-lg">
                   <i className="fa-solid fa-lock text-[10px]"></i> {t.project_card.private}
                 </span>
               )}
@@ -196,11 +196,11 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
             
             <div className="flex-grow"></div>
             
-            <div className="flex items-center justify-between pt-2 border-t border-slate-700/50 gap-2 w-full">
+            <div className="flex items-center justify-between pt-2 border-t border-white/10 gap-2 w-full">
               <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0 flex-1 overflow-hidden">
                 <img 
                   src={item.authorAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author}`} 
-                  className="w-4 h-4 rounded-full flex-shrink-0" 
+                  className="w-4 h-4 rounded-full flex-shrink-0 border border-white/10" 
                   alt="author" 
                   onError={(e) => {
                     e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author}`;
@@ -228,42 +228,27 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
           </div>
         </div>
 
-        {/* Back (QR Code & Prompt Background) */}
-        <div className="flip-card-back absolute inset-0 w-full h-full rounded-2xl overflow-hidden bg-slate-900 border border-slate-700/50 shadow-xl flex flex-col items-center justify-center relative" style={{ transform: 'rotateY(180deg)', backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
+        {/* Back (QR Code & Glass Effect) */}
+        <div className="flip-card-back absolute inset-0 w-full h-full rounded-2xl overflow-hidden bg-zinc-900/40 backdrop-blur-xl border border-white/10 shadow-2xl flex flex-col items-center justify-center relative" style={{ transform: 'rotateY(180deg)', backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}>
           
-          {/* Prompt Background with Radial Mask */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none select-none flex items-center justify-center">
-             <div className="absolute inset-0 opacity-40" style={{ maskImage: 'radial-gradient(circle at center, black 30%, transparent 100%)' }}>
-               <code className="text-[10px] text-slate-500/30 font-mono leading-3 break-all whitespace-pre-wrap block w-full h-full p-4">
-                {item.prompt || (
-                  <>
-                    # Task {item.title} # Keywords {(item.tags || []).join(', ')}
-                    {/* Repeat content to fill background */}
-                    {(item.description || '').repeat(10)}
-                  </>
-                )}
-              </code>
-             </div>
-             {/* Center Glow - Dynamic Color */}
-             <div className={`absolute w-40 h-40 bg-gradient-to-r ${item.color || 'from-purple-500 to-pink-500'} opacity-20 blur-3xl rounded-full`}></div>
-          </div>
-
           {/* QR Code Content */}
           <div className="relative z-10 flex flex-col items-center justify-center group-hover:scale-105 transition-transform duration-300">
-            <div className="bg-white p-1.5 rounded-lg shadow-2xl">
+            <div className="bg-white p-2 rounded-xl shadow-2xl">
               {isClient && (
                 <QRCodeSVG 
                   value={`${window.location.origin}/p/${item.id}?mode=app`}
-                  size={130}
+                  size={120}
                   level="M"
                   fgColor="#000000"
                   bgColor="#ffffff"
                 />
               )}
             </div>
-            <div className="text-center mt-3">
-              <div className="text-white font-bold text-sm mb-1 drop-shadow-md"><i className="fa-solid fa-mobile-screen-button mr-1"></i> {t.project_card.scan_now}</div>
-              <div className="text-slate-400 text-[10px] drop-shadow-md">{t.project_card.mobile_fullscreen}</div>
+            <div className="text-center mt-4">
+              <div className="text-white font-bold text-sm mb-1 drop-shadow-md flex items-center justify-center gap-2">
+                <i className="fa-solid fa-qrcode"></i> {t.project_card.scan_now}
+              </div>
+              <div className="text-white/60 text-[10px] font-medium tracking-wide">{t.project_card.mobile_fullscreen}</div>
             </div>
           </div>
 

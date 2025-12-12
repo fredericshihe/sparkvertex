@@ -1,24 +1,16 @@
-
-import { createClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-// App ID 格式校验
-const APP_ID_REGEX = /^(app_[a-f0-9-]+_[a-f0-9-]+|draft_[a-f0-9-]+)$/;
-
-// CORS headers
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Spark-App-Id',
-};
+import { 
+  createAdminSupabase, 
+  isValidAppId, 
+  DEFAULT_CORS_HEADERS, 
+  createCorsOptionsResponse, 
+  apiSuccess, 
+  apiError, 
+  ApiErrors,
+  apiLog 
+} from '@/lib/api-utils';
 
 export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders });
+  return createCorsOptionsResponse();
 }
 
 export async function POST(req: Request) {
@@ -26,33 +18,17 @@ export async function POST(req: Request) {
     // Get App ID from header
     const appId = req.headers.get('X-Spark-App-Id');
     
-    console.log('[Submit API] Received request. AppID:', appId);
+    apiLog.info('Submit', 'Received request. AppID:', appId);
     
     if (!appId) {
-      console.warn('[Submit API] Missing X-Spark-App-Id header');
-      return NextResponse.json(
-        { error: 'Missing X-Spark-App-Id header' }, 
-        { status: 400, headers: corsHeaders }
-      );
+      apiLog.warn('Submit', 'Missing X-Spark-App-Id header');
+      return apiError('Missing X-Spark-App-Id header', 400);
     }
     
     // Validate App ID
-    // Allow UUIDs (standard format for published apps), draft IDs, and numeric IDs (legacy/simple)
-    const isDraft = appId.startsWith('draft_');
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(appId);
-    const isNumeric = /^\d+$/.test(appId);
-    
-    // 宽松验证：只要不是空的，且包含合法字符，就允许通过
-    // 这样可以兼容各种 ID 格式，避免误杀
-    if (!APP_ID_REGEX.test(appId) && !isDraft && !isUUID && !isNumeric) {
-      // Fallback for other valid ID formats (must be at least 1 char to avoid garbage)
-      if (!/^[a-zA-Z0-9_-]+$/.test(appId)) {
-        console.warn('[Submit API] Invalid App ID format:', appId);
-        return NextResponse.json(
-          { error: 'Invalid App ID' }, 
-          { status: 400, headers: corsHeaders }
-        );
-      }
+    if (!isValidAppId(appId)) {
+      apiLog.warn('Submit', 'Invalid App ID format:', appId);
+      return apiError('Invalid App ID', 400);
     }
     
     // Get payload
@@ -67,10 +43,10 @@ export async function POST(req: Request) {
     } else if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData();
       // Handle files if needed
-      const obj: any = {};
+      const obj: Record<string, unknown> = {};
       for (const [key, value] of Array.from(formData.entries())) {
         if (value instanceof File) {
-           const fileInfo: any = {
+           const fileInfo: Record<string, unknown> = {
              name: value.name,
              type: value.type,
              size: value.size,
@@ -86,7 +62,7 @@ export async function POST(req: Request) {
                fileInfo.content = `data:${value.type};base64,${base64}`;
                fileInfo.has_content = true;
              } catch (e) {
-               console.warn('Failed to convert file to base64', e);
+               apiLog.warn('Submit', 'Failed to convert file to base64', e);
              }
            } else {
              fileInfo._note = value.size > 50 * 1024 ? 'File too large to preview (>50KB)' : 'File content not stored';
@@ -106,16 +82,11 @@ export async function POST(req: Request) {
     // Payload size limit (100KB)
     const payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload);
     if (payloadStr.length > 100 * 1024) {
-      return NextResponse.json(
-        { error: 'Payload too large (max 100KB)' }, 
-        { status: 413, headers: corsHeaders }
-      );
+      return ApiErrors.payloadTooLarge('Payload too large (max 100KB)');
     }
     
-    // Rate limit (simple check)
-    // ... (skip for now or implement if needed)
-    
-    // Insert into database
+    // Insert into database (create client per request to avoid state pollution)
+    const supabase = createAdminSupabase();
     const clientIP = req.headers.get('x-forwarded-for')?.split(',')[0] || 'unknown';
     
     const { error } = await supabase
@@ -132,23 +103,15 @@ export async function POST(req: Request) {
       });
       
     if (error) {
-      console.error('Database error:', error);
-      return NextResponse.json(
-        { error: 'Failed to save data' }, 
-        { status: 500, headers: corsHeaders }
-      );
+      apiLog.error('Submit', 'Database error:', error);
+      return ApiErrors.serverError('Failed to save data');
     }
     
-    return NextResponse.json(
-      { success: true, message: 'Data submitted successfully' }, 
-      { status: 200, headers: corsHeaders }
-    );
+    return apiSuccess(undefined, 'Data submitted successfully');
     
-  } catch (err: any) {
-    console.error('Submit API error:', err);
-    return NextResponse.json(
-      { error: err.message || 'Internal Server Error' }, 
-      { status: 500, headers: corsHeaders }
-    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Internal Server Error';
+    apiLog.error('Submit', 'Submit API error:', err);
+    return ApiErrors.serverError(message);
   }
 }

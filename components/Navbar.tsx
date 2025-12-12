@@ -13,11 +13,20 @@ export default function Navbar() {
   const [user, setUser] = useState<any>(null);
   const [avatarUrl, setAvatarUrl] = useState<string>('');
   const [isLoadingAvatar, setIsLoadingAvatar] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { openLoginModal, openFeedbackModal } = useModal();
   const { success } = useToast();
   const { t, language, setLanguage } = useLanguage();
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     // Check for email verification hash
@@ -95,64 +104,61 @@ export default function Navbar() {
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 
-  const isActive = (path: string) => pathname === path ? 'bg-slate-700' : '';
+  const isActive = (path: string) => pathname === path ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white hover:bg-white/5';
 
   const toggleLanguage = () => {
     setLanguage(language === 'zh' ? 'en' : 'zh');
   };
 
   return (
-    <nav className="fixed w-full z-50 glass-panel border-b border-slate-700/50">
+    <nav className={`fixed w-full z-50 transition-all duration-500 ${scrolled ? 'bg-black/40 backdrop-blur-md border-b border-white/5' : 'bg-transparent border-b border-transparent'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
-            <Link href="/" className="flex items-center cursor-pointer mr-8">
+            <Link href="/" className="flex items-center cursor-pointer mr-12 group">
               <div className="flex-shrink-0 flex items-center">
                 <img 
                   src="/logo.png" 
                   alt="Logo" 
-                  className="w-8 h-8 mr-2 object-contain mix-blend-screen" 
+                  className="w-8 h-8 mr-3 object-contain opacity-90 group-hover:opacity-100 transition-opacity" 
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
                   }}
                 />
               </div>
               <div className="flex items-center">
-                <span className="font-bold text-lg md:text-xl tracking-tight text-white">Spark<span className="text-brand-500">Vertex</span> {language === 'zh' && '灵枢'}</span>
+                <span className="font-medium text-lg tracking-wide text-white/90 group-hover:text-white transition-colors">Spark<span className="text-white/60">Vertex</span></span>
               </div>
             </Link>
             <div className="hidden md:block">
-              <div className="flex items-baseline space-x-4">
-                <Link href="/" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/')}`}>{t.nav.home}</Link>
-                <Link href="/why" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/why')}`}>{t.nav.why}</Link>
-                <Link href="/guide" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/guide')}`}>{t.nav.guide}</Link>
-                <Link href="/explore" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white ${isActive('/explore')}`}>{t.nav.explore}</Link>
-                <Link href="/create" className={`hover:bg-slate-700 px-3 py-2 rounded-md text-sm font-medium transition text-white flex items-center gap-2 ${isActive('/create')}`}>
-                  <i className="fa-solid fa-wand-magic-sparkles text-brand-400"></i> {t.nav.create}
+              <div className="flex items-baseline space-x-2">
+                <Link href="/" className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/')}`}>{t.nav.home}</Link>
+                <Link href="/explore" className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/explore')}`}>{t.nav.explore}</Link>
+                <Link href="/create" className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-2 ${isActive('/create')}`}>
+                  <i className="fa-solid fa-wand-magic-sparkles text-white/60"></i> {t.nav.create}
                 </Link>
               </div>
             </div>
           </div>
           <div className="hidden md:flex items-center ml-4 gap-4">
-            <button onClick={toggleLanguage} className="text-slate-300 hover:text-white px-2 py-1 rounded-md text-xs font-bold border border-slate-600 hover:bg-slate-700 transition">
+            <button onClick={toggleLanguage} className="text-white/50 hover:text-white px-3 py-1 rounded-full text-xs font-medium border border-white/5 hover:bg-white/5 transition-all duration-300">
               {language === 'zh' ? 'EN' : '中'}
             </button>
-            <button onClick={openFeedbackModal} className="text-slate-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition flex items-center gap-2" title={t.nav.feedback}>
+            <button onClick={openFeedbackModal} className="text-white/50 hover:text-white px-3 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-2 hover:bg-white/5" title={t.nav.feedback}>
               <i className="fa-solid fa-comment-dots"></i>
-              <span>{t.nav.feedback}</span>
             </button>
-            <Link href="/upload" className="bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 rounded-full text-sm font-medium transition shadow-lg shadow-brand-500/30">
-              <i className="fa-solid fa-cloud-arrow-up mr-2"></i>{t.nav.upload}
+            <Link href="/upload" className="bg-white/5 hover:bg-white/10 border border-white/10 text-white/90 hover:text-white px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 backdrop-blur-sm">
+              <i className="fa-solid fa-cloud-arrow-up mr-2 text-white/60"></i>{t.nav.upload}
             </Link>
-            <div id="nav-auth-container">
+            <div id="nav-auth-container" className="pl-2 border-l border-white/10 ml-2">
               {user ? (
-                <Link href="/profile" className="flex items-center gap-2 text-slate-300 hover:text-white font-medium text-sm transition">
+                <Link href="/profile" className="flex items-center gap-2 text-white/60 hover:text-white font-medium text-sm transition-all duration-300">
                    {isLoadingAvatar ? (
-                     <div className="w-8 h-8 rounded-full border border-slate-600 bg-slate-800 animate-pulse"></div>
+                     <div className="w-8 h-8 rounded-full border border-white/10 bg-white/5 animate-pulse"></div>
                    ) : (
                      <img 
                         src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
-                        className="w-8 h-8 rounded-full border border-slate-600 object-cover" 
+                        className="w-8 h-8 rounded-full border border-white/10 object-cover hover:border-white/30 transition-colors" 
                         alt="Avatar"
                         onError={(e) => {
                           e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`;
@@ -161,15 +167,15 @@ export default function Navbar() {
                    )}
                 </Link>
               ) : (
-                <button onClick={openLoginModal} className="text-slate-300 hover:text-white font-medium text-sm transition">{t.nav.login}</button>
+                <button onClick={openLoginModal} className="text-white/60 hover:text-white font-medium text-sm transition-all duration-300 px-3 py-2 hover:bg-white/5 rounded-full">{t.nav.login}</button>
               )}
             </div>
           </div>
           <div className="md:hidden flex items-center gap-4">
-            <button onClick={toggleLanguage} className="text-slate-300 hover:text-white px-2 py-1 rounded-md text-xs font-bold border border-slate-600 hover:bg-slate-700 transition">
+            <button onClick={toggleLanguage} className="text-white/50 hover:text-white px-2 py-1 rounded-md text-xs font-bold border border-white/10 hover:bg-white/5 transition">
               {language === 'zh' ? 'EN' : '中'}
             </button>
-            <button onClick={toggleMobileMenu} className="text-gray-300 hover:text-white p-2"><i className="fa-solid fa-bars text-xl"></i></button>
+            <button onClick={toggleMobileMenu} className="text-white/60 hover:text-white p-2"><i className="fa-solid fa-bars text-xl"></i></button>
           </div>
         </div>
       </div>
@@ -179,22 +185,20 @@ export default function Navbar() {
         <div className="fixed inset-0 top-16 z-40 md:hidden" onClick={toggleMobileMenu}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"></div>
           <div 
-            className="absolute top-0 left-0 w-full bg-slate-900/95 backdrop-blur-xl border-b border-slate-800 shadow-2xl animate-slide-down origin-top"
+            className="absolute top-0 left-0 w-full bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-white/10 shadow-2xl animate-slide-down origin-top"
             onClick={e => e.stopPropagation()}
           >
             <div className="px-4 pt-2 pb-4 space-y-1">
-              <Link href="/" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-home w-6 text-center"></i> {t.nav.home}</Link>
-              <Link href="/why" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-book w-6 text-center"></i> {t.nav.why}</Link>
-              <Link href="/guide" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-wand-magic-sparkles w-6 text-center"></i> {t.nav.guide}</Link>
-              <Link href="/explore" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-lightbulb w-6 text-center"></i> {t.nav.explore}</Link>
-              <Link href="/create" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-wand-magic-sparkles w-6 text-center"></i> {t.nav.create}</Link>
-              <button onClick={() => { toggleMobileMenu(); openFeedbackModal(); }} className="block w-full text-left px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-comment-dots w-6 text-center"></i> {t.nav.feedback}</button>
-              <Link href="/upload" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-brand-400 hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-cloud-arrow-up w-6 text-center"></i> {t.nav.upload}</Link>
-              <div className="border-t border-slate-800 my-2 pt-2">
+              <Link href="/" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-home w-6 text-center text-white/50"></i> {t.nav.home}</Link>
+              <Link href="/explore" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-lightbulb w-6 text-center text-white/50"></i> {t.nav.explore}</Link>
+              <Link href="/create" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-wand-magic-sparkles w-6 text-center text-white/50"></i> {t.nav.create}</Link>
+              <button onClick={() => { toggleMobileMenu(); openFeedbackModal(); }} className="block w-full text-left px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-comment-dots w-6 text-center text-white/50"></i> {t.nav.feedback}</button>
+              <Link href="/upload" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-cloud-arrow-up w-6 text-center text-white/50"></i> {t.nav.upload}</Link>
+              <div className="border-t border-white/10 my-2 pt-2">
                 {user ? (
-                   <Link href="/profile" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-user w-6 text-center"></i> {t.nav.profile}</Link>
+                   <Link href="/profile" onClick={toggleMobileMenu} className="block px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-user w-6 text-center text-white/50"></i> {t.nav.profile}</Link>
                 ) : (
-                   <button onClick={() => { toggleMobileMenu(); openLoginModal(); }} className="w-full text-left px-3 py-3 rounded-md text-base font-medium text-white hover:bg-slate-800 active:bg-slate-800 transition touch-manipulation"><i className="fa-solid fa-user w-6 text-center"></i> {t.nav.login_register}</button>
+                   <button onClick={() => { toggleMobileMenu(); openLoginModal(); }} className="w-full text-left px-3 py-3 rounded-lg text-base font-medium text-white/80 hover:text-white hover:bg-white/5 transition-all"><i className="fa-solid fa-user w-6 text-center text-white/50"></i> {t.nav.login_register}</button>
                 )}
               </div>
             </div>

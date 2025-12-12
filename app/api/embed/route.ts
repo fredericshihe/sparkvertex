@@ -1,37 +1,22 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { 
+  createServerSupabase, 
+  requireAuth, 
+  apiSuccess, 
+  ApiErrors, 
+  apiLog 
+} from '@/lib/api-utils';
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-          set(name: string, value: string, options: CookieOptions) {
-            cookieStore.set({ name, value, ...options })
-          },
-          remove(name: string, options: CookieOptions) {
-            cookieStore.set({ name, value: '', ...options })
-          },
-        },
-      }
-    );
-    const { data: { session } } = await supabase.auth.getSession();
+    const supabase = createServerSupabase();
+    const { session, errorResponse } = await requireAuth(supabase);
 
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (errorResponse) return errorResponse;
 
     const { text } = await request.json();
 
     if (!text) {
-      return NextResponse.json({ error: 'No text provided' }, { status: 400 });
+      return ApiErrors.badRequest('No text provided');
     }
 
     // Use Supabase Edge Function for embeddings
@@ -39,8 +24,8 @@ export async function POST(request: Request) {
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
-      console.error('Supabase configuration missing');
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+      apiLog.error('Embed', 'Supabase configuration missing');
+      return ApiErrors.serverError('Server configuration error');
     }
 
     const response = await fetch(`${supabaseUrl}/functions/v1/embed`, {
@@ -54,15 +39,15 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Edge Function error:', error);
-      return NextResponse.json({ error: 'Failed to generate embedding' }, { status: 500 });
+      apiLog.error('Embed', 'Edge Function error:', error);
+      return ApiErrors.serverError('Failed to generate embedding');
     }
 
     const data = await response.json();
-    return NextResponse.json({ embedding: data.embedding });
+    return apiSuccess({ embedding: data.embedding });
 
   } catch (error) {
-    console.error('Embedding error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    apiLog.error('Embed', 'Embedding error:', error);
+    return ApiErrors.serverError('Internal server error');
   }
 }

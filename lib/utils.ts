@@ -57,12 +57,29 @@ export function getFingerprint(): string {
 
 // Check if code contains Spark platform backend integration
 export function detectSparkBackendCode(htmlContent: string): boolean {
+  if (!htmlContent) return false;
+  
   const sparkBackendPatterns = [
+    // 表单提交 API
     /\/api\/mailbox\/submit/i,
+    /\/api\/mailbox\/upload/i,
+    // Spark App ID
     /window\.SPARK_APP_ID/i,
     /SPARK_APP_ID/i,
+    // 加密相关
     /SparkCrypto/i,
+    // CMS 相关
+    /window\.SparkCMS/i,
+    /data-cms=/i,
+    /data-cms-src=/i,
+    // 外部 API 调用
     /sparkvertex\.vercel\.app\/api/i,
+    // 表单提交处理（更宽泛的检测）
+    /handleSubmit[\s\S]*fetch\s*\(/i,
+    /isSubmitting/i,
+    // SparkBackend 或表单收集相关
+    /SparkBackend/i,
+    /formData[\s\S]*submit/i,
   ];
   return sparkBackendPatterns.some(pattern => pattern.test(htmlContent));
 }

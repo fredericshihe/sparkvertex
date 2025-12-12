@@ -107,7 +107,6 @@ spark-vertex-next/
 │   ├── ConfirmModal.tsx          # 通用确认弹窗
 │   ├── FeedbackModal.tsx         # 反馈弹窗
 │   ├── EditProfileModal.tsx      # 编辑资料弹窗
-│   ├── ManageOrdersModal.tsx     # 订单管理弹窗
 │   ├── RewardModal.tsx           # 打赏弹窗
 │   │
 │   ├── CityBackground.tsx        # 城市背景动画

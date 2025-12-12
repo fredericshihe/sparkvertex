@@ -65,13 +65,13 @@ export const GenerationProgress: React.FC<GenerationProgressProps> = ({
   
   switch (variant) {
       case 'floating':
-          containerClasses = "fixed bottom-24 right-6 z-50 w-96 bg-slate-900/95 backdrop-blur-md border border-slate-700/50 rounded-xl p-5 shadow-2xl text-white transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in";
+          containerClasses = "fixed bottom-24 right-6 z-50 w-96 bg-black/90 backdrop-blur-md border border-white/10 rounded-xl p-5 shadow-2xl text-white transition-all duration-300 animate-in slide-in-from-bottom-5 fade-in ring-1 ring-white/5";
           break;
       case 'centered':
-          containerClasses = "w-full max-w-2xl bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl text-white transition-all duration-300 animate-in fade-in";
+          containerClasses = "w-full max-w-2xl bg-black/50 backdrop-blur-sm border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl text-white transition-all duration-300 animate-in fade-in ring-1 ring-white/5";
           break;
       case 'chat':
-          containerClasses = "w-full bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 text-white transition-all duration-300 animate-in fade-in";
+          containerClasses = "w-full bg-white/5 rounded-xl p-4 border border-white/10 text-white transition-all duration-300 animate-in fade-in";
           title = language === 'zh' ? 'AI 正在应用修改...' : 'AI is applying changes...';
           break;
       case 'embedded':
@@ -95,7 +95,7 @@ export const GenerationProgress: React.FC<GenerationProgressProps> = ({
 
       {/* AI Thinking Indicator / System Logs */}
       {isGenerating && !plan && !currentStep && !streamingCode && (
-        <div className="mb-6 bg-slate-950/30 rounded-xl p-4 border border-white/5 relative overflow-hidden">
+        <div className="mb-6 bg-black/30 rounded-xl p-4 border border-white/5 relative overflow-hidden">
              <div className="flex gap-3">
                 {/* Left: Dots */}
                 <div className="flex gap-1 pt-1.5 shrink-0 h-fit">
@@ -106,7 +106,7 @@ export const GenerationProgress: React.FC<GenerationProgressProps> = ({
 
                 {/* Right: Scrolling Text */}
                 <div ref={logContainerRef} className="flex-1 h-[4.5rem] overflow-hidden relative flex flex-col justify-end">
-                    <div className="absolute inset-0 bg-gradient-to-b from-slate-900/0 via-slate-900/0 to-slate-900/10 pointer-events-none z-10"></div>
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/10 pointer-events-none z-10"></div>
                     <div className="space-y-1.5">
                         {logs.map((log, i) => (
                             <div key={i} className="text-xs text-slate-300/90 animate-in slide-in-from-bottom-4 fade-in duration-500 leading-relaxed">
@@ -151,7 +151,7 @@ export const GenerationProgress: React.FC<GenerationProgressProps> = ({
             </div>
             {streamingCode && (
                 <div className="bg-black/20 border-t border-blue-500/10 p-2 h-12 overflow-hidden relative">
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/10 via-transparent to-transparent pointer-events-none"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent pointer-events-none"></div>
                     <pre className="font-mono text-[9px] text-blue-300/50 whitespace-pre-wrap break-all leading-tight opacity-70">
                         {streamingCode.slice(-200)}
                     </pre>

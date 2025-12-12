@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { X } from 'lucide-react';
 import { useModal } from '@/context/ModalContext';
 import BackendDataPanel from './BackendDataPanel';
+import { detectSparkBackendCode } from '@/lib/utils';
 
 interface CreationPreviewProps {
   activeMobileTab: string;
@@ -145,12 +146,8 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
   // iframe 刷新 Key
   const [iframeKey, setIframeKey] = useState(0);
 
-  // 检测是否已配置后端（支持新的 data-cms 属性和旧的 SparkCMS 调用）
-  const hasBackend = generatedCode.includes('window.SparkCMS') || 
-                     generatedCode.includes('data-cms=') ||
-                     generatedCode.includes('data-cms-src=') ||
-                     generatedCode.includes('/api/mailbox/submit') || 
-                     generatedCode.includes('action="/api/mailbox/submit"');
+  // 检测是否已配置后端（使用统一的检测函数，支持多种模式）
+  const hasBackend = detectSparkBackendCode(generatedCode);
 
   // 提取清除缓存逻辑
   const clearAppCache = () => {
@@ -161,8 +158,8 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
         const keysToRemove: string[] = [];
         for (let i = 0; i < win.localStorage.length; i++) {
           const key = win.localStorage.key(i);
-          // 保护 Supabase Auth, i18n, 和 E2E 密钥
-          if (key && !key.startsWith('sb-') && key !== 'i18nextLng' && !key.startsWith('spark_e2e_')) {
+          // 保护 Supabase Auth 和 i18n
+          if (key && !key.startsWith('sb-') && key !== 'i18nextLng') {
              keysToRemove.push(key);
           }
         }
@@ -211,9 +208,9 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
           onCodeUpdate={setGeneratedCode}
         />
 
-        <div className="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 shrink-0">
+        <div className="h-12 bg-black border-b border-white/10 flex items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-3">
-            <button onClick={handleExit} className="lg:hidden flex w-6 h-6 items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition" title={t.common.back}>
+            <button onClick={handleExit} className="lg:hidden flex w-6 h-6 items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition" title={t.common.back}>
               <i className="fa-solid fa-chevron-left"></i>
             </button>
             <span className="text-sm font-bold text-slate-400">{t.create.preview_mode}</span>
@@ -221,7 +218,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             {/* Full Screen Button */}
             <button 
               onClick={toggleFullScreen}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition"
               title={language === 'zh' ? (isFullscreen ? '退出全屏' : '全屏预览') : (isFullscreen ? 'Exit Full Screen' : 'Full Screen')}
             >
               <i className={`fa-solid ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i>
@@ -232,7 +229,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             <button 
               onClick={handleSaveDraft}
               disabled={isSaving}
-              className={`px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
+              className={`px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
               {isSaving ? (
                 <i className="fa-solid fa-circle-notch fa-spin"></i>
@@ -264,9 +261,9 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
               className={`absolute right-2 top-2 z-20 transition-all duration-300 ${isHistoryPanelOpen ? 'bottom-20 lg:bottom-2' : ''}`}
             >
               {isHistoryPanelOpen ? (
-                <div className="w-48 h-full bg-slate-900/90 backdrop-blur-md border border-slate-700/50 rounded-xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-white/5">
+                <div className="w-48 h-full bg-black/90 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-white/5">
                   {/* Header */}
-                  <div className="px-3 py-2.5 border-b border-slate-700/50 flex items-center justify-between shrink-0 bg-slate-800/30">
+                  <div className="px-3 py-2.5 border-b border-white/10 flex items-center justify-between shrink-0 bg-white/5">
                     <div className="text-[11px] text-slate-200 font-bold flex items-center gap-2">
                       <i className="fa-solid fa-clock-rotate-left text-brand-400"></i>
                       {language === 'zh' ? `修改历史` : `History`}
@@ -278,7 +275,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                         disabled={!canQuickEditUndo}
                         className={`w-6 h-6 rounded-lg flex items-center justify-center transition text-[10px] ${
                           canQuickEditUndo 
-                            ? 'text-slate-300 hover:bg-slate-700 hover:text-white' 
+                            ? 'text-slate-300 hover:bg-white/10 hover:text-white' 
                             : 'text-slate-600 cursor-not-allowed'
                         }`}
                         title={language === 'zh' ? '撤销' : 'Undo'}
@@ -290,17 +287,17 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                         disabled={!canQuickEditRedo}
                         className={`w-6 h-6 rounded-lg flex items-center justify-center transition text-[10px] ${
                           canQuickEditRedo 
-                            ? 'text-slate-300 hover:bg-slate-700 hover:text-white' 
+                            ? 'text-slate-300 hover:bg-white/10 hover:text-white' 
                             : 'text-slate-600 cursor-not-allowed'
                         }`}
                         title={language === 'zh' ? '重做' : 'Redo'}
                       >
                         <i className="fa-solid fa-rotate-right"></i>
                       </button>
-                      <div className="w-px h-3 bg-slate-700/50 mx-0.5"></div>
+                      <div className="w-px h-3 bg-white/10 mx-0.5"></div>
                       <button
                         onClick={() => setIsHistoryPanelOpen(false)}
-                        className="w-6 h-6 rounded-lg flex items-center justify-center transition text-[10px] text-slate-400 hover:bg-slate-700 hover:text-white"
+                        className="w-6 h-6 rounded-lg flex items-center justify-center transition text-[10px] text-slate-400 hover:bg-white/10 hover:text-white"
                         title={language === 'zh' ? '收起' : 'Collapse'}
                       >
                         <i className="fa-solid fa-chevron-right"></i>
@@ -319,8 +316,8 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                             isCurrent 
                               ? 'bg-brand-500/10 text-brand-300 border border-brand-500/30 shadow-sm' 
                               : isPast 
-                                ? 'text-slate-400 bg-slate-800/40 hover:bg-slate-800/80 border border-transparent hover:border-slate-700/50' 
-                                : 'text-slate-500 hover:bg-slate-800/40 border border-transparent'
+                                ? 'text-slate-400 bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/10' 
+                                : 'text-slate-500 hover:bg-white/5 border border-transparent'
                           }`}
                           onClick={() => {
                             // Jump to this history state
@@ -348,7 +345,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                           title={item.description}
                         >
                           <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-mono shrink-0 transition-colors ${
-                            isCurrent ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30' : 'bg-slate-800 text-slate-500 group-hover:bg-slate-700 group-hover:text-slate-300'
+                            isCurrent ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30' : 'bg-white/10 text-slate-500 group-hover:bg-white/20 group-hover:text-slate-300'
                           }`}>
                             {idx + 1}
                           </span>
@@ -368,7 +365,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                 /* Collapsed state - small button to expand */
                 <button
                   onClick={() => setIsHistoryPanelOpen(true)}
-                  className="w-10 h-10 bg-slate-900/90 backdrop-blur-md border border-slate-700/50 rounded-xl shadow-2xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition ring-1 ring-white/5 group"
+                  className="w-10 h-10 bg-black/90 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition ring-1 ring-white/5 group"
                   title={language === 'zh' ? `展开历史 (${quickEditHistory.length})` : `Expand History (${quickEditHistory.length})`}
                 >
                   <div className="relative">
@@ -382,12 +379,12 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             </div>
           )}
           <div 
-            className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 origin-center
+            className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-black flex-shrink-0 origin-center
               ${(previewMode === 'mobile')
-                ? 'w-[375px] h-[812px] rounded-[3rem] border-[8px] border-slate-800 ring-1 ring-slate-700/50' 
+                ? 'w-[375px] h-[812px] rounded-[3rem] border-[8px] border-white/10 ring-1 ring-white/5' 
                 : ''}
               ${(previewMode === 'tablet')
-                ? 'w-[768px] h-[1024px] rounded-[2rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50' 
+                ? 'w-[768px] h-[1024px] rounded-[2rem] border-[12px] border-white/10 ring-1 ring-white/5' 
                 : ''}
               ${(previewMode === 'desktop')
                 ? 'w-full h-full rounded-none border-0' 
@@ -398,14 +395,14 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             }}
           >
              {(previewMode === 'mobile' && !isFullscreen) && (
-               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-slate-800 rounded-b-2xl z-20 pointer-events-none"></div>
+               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-black rounded-b-2xl z-20 pointer-events-none border-b border-x border-white/10"></div>
              )}
              
              <iframe
                key={iframeKey}
                ref={iframeRef}
                srcDoc={getPreviewContent(generatedCode, { raw: true, userId: userId || undefined, appId: appId, apiBaseUrl: typeof window !== 'undefined' ? window.location.origin : '' })}
-               className="w-full h-full bg-slate-900"
+               className="w-full h-full bg-black"
                sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads allow-same-origin"
                allow="autoplay; fullscreen"
              />
@@ -439,18 +436,18 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                </div>
             )}
 
-            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-full p-1.5 flex shadow-2xl">
-              <button onClick={() => setPreviewMode('desktop')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.desktop}><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
-              <button onClick={() => setPreviewMode('tablet')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.tablet}><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
-              <button onClick={() => setPreviewMode('mobile')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`} title={t.devices.mobile}><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
+            <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-full p-1.5 flex shadow-2xl ring-1 ring-white/5">
+              <button onClick={() => setPreviewMode('desktop')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.desktop}><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
+              <button onClick={() => setPreviewMode('tablet')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.tablet}><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
+              <button onClick={() => setPreviewMode('mobile')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.mobile}><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
             </div>
 
-            <div className="w-px h-8 bg-slate-700/50 mx-1"></div>
+            <div className="w-px h-8 bg-white/10 mx-1"></div>
 
             {/* Reset App Button */}
             <button 
                 onClick={handleResetApp}
-                className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group" 
+                className="w-11 h-11 rounded-full bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group ring-1 ring-white/5" 
                 title={language === 'zh' ? '清除缓存并重启' : 'Clear Cache & Restart'}
             >
                 <i className="fa-solid fa-rotate text-sm group-hover:rotate-180 transition duration-500"></i>
@@ -458,7 +455,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
 
             <button 
                 onClick={handleMobilePreview}
-                className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group" 
+                className="w-11 h-11 rounded-full bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group ring-1 ring-white/5" 
                 title={t.create.mobile_preview}
             >
                 <i className="fa-solid fa-qrcode text-sm group-hover:scale-110 transition"></i>
@@ -467,23 +464,23 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             {/* Configure Backend Button */}
             <button 
                 onClick={() => setShowBackendExplanation(true)}
-                className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group relative" 
+                className="w-11 h-11 rounded-full bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 
                 title={language === 'zh' ? '一键配置表单' : 'Configure Form Collection'}
             >
                 <i className="fa-solid fa-server text-sm group-hover:scale-110 transition"></i>
-                {!hasBackend && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-yellow-500 rounded-full border-2 border-slate-900"></span>}
+                {!hasBackend && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-yellow-500 rounded-full border-2 border-black"></span>}
             </button>
 
             {/* Backend Data Button */}
             {hasBackend && (
               <button 
                   onClick={() => setShowBackendPanel(true)}
-                  className="w-11 h-11 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-slate-800 shadow-xl group relative" 
+                  className="w-11 h-11 rounded-full bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 
                   title={language === 'zh' ? '查看表单数据' : 'View Form Data'}
               >
                   <i className="fa-solid fa-inbox text-sm group-hover:scale-110 transition"></i>
                   {/* Pulse indicator */}
-                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-900 animate-pulse"></span>
+                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-black animate-pulse"></span>
               </button>
             )}
 
@@ -492,7 +489,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                 className={`h-11 px-5 rounded-full flex items-center gap-2.5 font-bold transition-all shadow-xl border ${
                     isEditMode 
                     ? 'bg-gradient-to-r from-brand-600 to-purple-600 border-transparent text-white ring-2 ring-brand-500/30 scale-105' 
-                    : 'bg-slate-900/90 backdrop-blur-md border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-600 group'
+                    : 'bg-black/90 backdrop-blur-md border-white/10 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 group ring-1 ring-white/5'
                 }`}
             >
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isEditMode ? 'bg-white/20' : 'bg-brand-500/20 group-hover:bg-brand-500/30'}`}>
@@ -534,76 +531,87 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
           </div>
 
           {isGenerating && (
-            <div className="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white animate-fade-in">
-                <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700 shadow-2xl flex flex-col items-center max-w-xs text-center">
+            <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white animate-fade-in">
+                <div className="bg-zinc-950/90 backdrop-blur-xl p-8 rounded-2xl border border-white/10 shadow-2xl flex flex-col items-center max-w-sm text-center ring-1 ring-white/5 relative overflow-hidden">
+                  {/* Background Glow */}
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-brand-500/20 rounded-full blur-[60px] pointer-events-none"></div>
+                  
                   {/* Dynamic Icon based on mode */}
-                  <div className="relative mb-4">
-                     <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="relative mb-6 z-10">
+                     {/* Outer ring */}
+                     <div className="absolute inset-0 rounded-full border-4 border-white/5"></div>
+                     {/* Spinning ring */}
+                     <div className="w-16 h-16 border-4 border-brand-500 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(16,185,129,0.3)]"></div>
+                     {/* Center Icon */}
                      <div className="absolute inset-0 flex items-center justify-center">
-                        <i className={`fa-solid ${step === 'preview' ? 'fa-wand-magic-sparkles' : 'fa-robot'} text-brand-500 text-xs animate-pulse`}></i>
+                        <div className="w-10 h-10 rounded-full bg-brand-500/10 flex items-center justify-center backdrop-blur-sm">
+                            <i className={`fa-solid ${step === 'preview' ? 'fa-wand-magic-sparkles' : 'fa-robot'} text-brand-400 text-lg animate-pulse`}></i>
+                        </div>
                      </div>
                   </div>
                   
-                  <p className="font-bold text-lg text-white">
-                    {step === 'preview' 
-                        ? (language === 'zh' ? '正在优化应用...' : 'Refining App...') 
-                        : t.create.generating_title}
-                  </p>
-                  <p className="text-sm text-slate-400 mt-2 leading-relaxed">
-                    {step === 'preview'
-                        ? (language === 'zh' ? 'AI 正在根据您的反馈调整代码，请稍候...' : 'AI is adjusting the code based on your feedback, please wait...')
-                        : t.create.generating_subtitle}
-                  </p>
+                  <div className="z-10 space-y-2">
+                      <p className="font-bold text-xl text-white tracking-tight">
+                        {step === 'preview' 
+                            ? (language === 'zh' ? '正在优化应用...' : 'Refining App...') 
+                            : t.create.generating_title}
+                      </p>
+                      <p className="text-sm text-zinc-400 leading-relaxed max-w-[260px] mx-auto">
+                        {step === 'preview'
+                            ? (language === 'zh' ? 'AI 正在根据您的反馈调整代码，请稍候...' : 'AI is adjusting the code based on your feedback, please wait...')
+                            : t.create.generating_subtitle}
+                      </p>
+                  </div>
                 </div>
             </div>
           )}
 
       {showEditModal && selectedElement && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 backdrop-blur-sm p-4 pt-12 overflow-y-auto animate-fade-in">
-          <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-2xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden my-auto ring-1 ring-white/10">
+          <div className="bg-zinc-950/95 backdrop-blur-xl border border-white/10 rounded-2xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden my-auto ring-1 ring-white/5">
             {/* Header - More compact */}
-            <div className="px-4 py-3 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/30">
+            <div className="px-4 py-3 border-b border-white/10 flex justify-between items-center bg-white/5">
               <h3 className="text-sm font-bold text-white flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-brand-500/20 flex items-center justify-center text-brand-400 shadow-inner shadow-brand-500/10">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
                     <i className="fa-solid fa-pen-to-square text-xs"></i>
                 </div>
                 {t.create.edit_element_title}
               </h3>
-              <button onClick={() => { setShowEditModal(false); setQuickEditMode('none'); }} className="text-slate-400 hover:text-white transition w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-700/50">
+              <button onClick={() => { setShowEditModal(false); setQuickEditMode('none'); }} className="text-zinc-400 hover:text-white transition w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10">
                 <X size={18} />
               </button>
             </div>
             
             <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto scrollbar-thin">
                 {/* Context Card - More compact */}
-                <div className="bg-slate-950/50 rounded-xl p-3.5 border border-slate-800/50 relative overflow-hidden group">
+                <div className="bg-black/40 rounded-xl p-3.5 border border-white/5 relative overflow-hidden group">
                   <div className="absolute top-0 right-0 p-2 opacity-50 group-hover:opacity-100 transition">
-                     <span className="text-[10px] font-mono text-slate-400 bg-slate-900/80 px-2 py-1 rounded-md border border-slate-700/50">
+                     <span className="text-[10px] font-mono text-zinc-400 bg-zinc-900/80 px-2 py-1 rounded-md border border-white/10">
                         {selectedElement.tagName.toLowerCase()}
                      </span>
                   </div>
                   
                   <div className="space-y-2.5">
                       <div>
-                        <div className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-1.5 flex items-center gap-1.5">
+                        <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold mb-1.5 flex items-center gap-1.5">
                             <i className="fa-solid fa-crosshairs text-[9px]"></i> {t.create.edit_element_selected}
                         </div>
-                        <div className="font-mono text-xs text-brand-300 break-all bg-brand-500/5 p-1.5 rounded border border-brand-500/10">
+                        <div className="font-mono text-xs text-indigo-300 break-all bg-indigo-500/10 p-1.5 rounded border border-indigo-500/20">
                             &lt;{selectedElement.tagName.toLowerCase()} className="..."&gt;
                         </div>
                       </div>
                       
                       {selectedElement.innerText && (
-                          <div className="pl-2.5 border-l-2 border-slate-700/50">
-                            <div className="text-[10px] text-slate-500 mb-0.5">Content</div>
-                            <div className="text-xs text-slate-300 italic line-clamp-2 leading-relaxed">
+                          <div className="pl-2.5 border-l-2 border-white/10">
+                            <div className="text-[10px] text-zinc-500 mb-0.5">Content</div>
+                            <div className="text-xs text-zinc-300 italic line-clamp-2 leading-relaxed">
                                 "{selectedElement.innerText.substring(0, 100)}{selectedElement.innerText.length > 100 ? '...' : ''}"
                             </div>
                           </div>
                       )}
 
                       {selectedElement.parentTagName && (
-                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 pt-2 border-t border-slate-800/50">
+                          <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 pt-2 border-t border-white/5">
                              <i className="fa-solid fa-level-up-alt fa-rotate-90 text-[9px]"></i>
                              <span>Inside &lt;{selectedElement.parentTagName}&gt;</span>
                           </div>
@@ -613,7 +621,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
 
                 {/* Quick Edit Buttons - Show when applicable */}
                 {(detectQuickEditType(selectedElement) !== 'none') && quickEditMode === 'none' && (
-                  <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-xl p-3.5 relative overflow-hidden">
+                  <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-xl p-3.5 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-full blur-xl -mr-8 -mt-8 pointer-events-none"></div>
                     <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5 relative z-10">
                       <i className="fa-solid fa-bolt text-[9px]"></i>
@@ -626,7 +634,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                             setQuickEditMode('text');
                             setQuickEditText(selectedElement.innerText || '');
                           }}
-                          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-lg shadow-emerald-900/20 group"
+                          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-lg shadow-emerald-900/20 group border border-emerald-500/50"
                         >
                           <i className="fa-solid fa-font text-[10px] group-hover:scale-110 transition-transform"></i>
                           {language === 'zh' ? '改文字' : 'Text'}
@@ -640,7 +648,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                             setQuickEditColorType(types.length === 1 ? types[0] : 'all');
                             setQuickEditMode('color');
                           }}
-                          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-lg shadow-emerald-900/20 group"
+                          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-lg shadow-emerald-900/20 group border border-emerald-500/50"
                         >
                           <i className="fa-solid fa-palette text-[10px] group-hover:scale-110 transition-transform"></i>
                           {language === 'zh' ? '改颜色' : 'Color'}
@@ -654,13 +662,13 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                 {quickEditMode === 'color' && (
                   <div className="space-y-3 animate-fade-in">
                     <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
                         <i className="fa-solid fa-palette text-emerald-500"></i>
                         {language === 'zh' ? '选择颜色' : 'Select Color'}
                       </label>
                       <button 
                         onClick={() => setQuickEditMode('none')}
-                        className="text-[10px] text-slate-500 hover:text-slate-300 flex items-center gap-1 transition"
+                        className="text-[10px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition"
                       >
                         <i className="fa-solid fa-arrow-left"></i>
                         {language === 'zh' ? '返回' : 'Back'}
@@ -670,12 +678,12 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                     {/* Color Type Selector - More compact */}
                     {availableColorTypes.length > 0 && (
                       <div className="space-y-1.5">
-                        <div className="text-[10px] text-slate-500">{language === 'zh' ? '颜色类型：' : 'Type:'}</div>
-                        <div className="flex gap-1 p-1 bg-slate-950/50 rounded-lg border border-slate-800/50">
+                        <div className="text-[10px] text-zinc-500">{language === 'zh' ? '颜色类型：' : 'Type:'}</div>
+                        <div className="flex gap-1 p-1 bg-black/40 rounded-lg border border-white/5">
                           {availableColorTypes.length > 1 && (
                             <button
                               onClick={() => setQuickEditColorType('all')}
-                              className={`flex-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition ${quickEditColorType === 'all' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                              className={`flex-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition ${quickEditColorType === 'all' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-white/10'}`}
                             >
                               {language === 'zh' ? '全部' : 'All'}
                             </button>
@@ -683,7 +691,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                           {availableColorTypes.includes('bg') && (
                             <button
                               onClick={() => setQuickEditColorType('bg')}
-                              className={`flex-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition flex items-center justify-center gap-1 ${quickEditColorType === 'bg' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                              className={`flex-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition flex items-center justify-center gap-1 ${quickEditColorType === 'bg' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-white/10'}`}
                             >
                               <i className="fa-solid fa-fill-drip text-[9px]"></i>
                               {language === 'zh' ? '背景' : 'BG'}
@@ -692,7 +700,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                           {availableColorTypes.includes('text') && (
                             <button
                               onClick={() => setQuickEditColorType('text')}
-                              className={`flex-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition flex items-center justify-center gap-1 ${quickEditColorType === 'text' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                              className={`flex-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition flex items-center justify-center gap-1 ${quickEditColorType === 'text' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-white/10'}`}
                             >
                               <i className="fa-solid fa-font text-[9px]"></i>
                               {language === 'zh' ? '文字' : 'Text'}
@@ -701,7 +709,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                           {availableColorTypes.includes('border') && (
                             <button
                               onClick={() => setQuickEditColorType('border')}
-                              className={`flex-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition flex items-center justify-center gap-1 ${quickEditColorType === 'border' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                              className={`flex-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition flex items-center justify-center gap-1 ${quickEditColorType === 'border' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-white/10'}`}
                             >
                               <i className="fa-solid fa-border-all text-[9px]"></i>
                               {language === 'zh' ? '边框' : 'Border'}
@@ -720,23 +728,23 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                               type="color"
                               value={quickEditColor}
                               onChange={(e) => setQuickEditColor(e.target.value)}
-                              className="w-12 h-12 rounded-xl border-2 border-slate-600 cursor-pointer bg-transparent p-0.5 hover:border-emerald-500 transition"
+                              className="w-12 h-12 rounded-xl border-2 border-zinc-600 cursor-pointer bg-transparent p-0.5 hover:border-emerald-500 transition"
                             />
                             <div className="absolute inset-0 rounded-xl ring-1 ring-inset ring-white/10 pointer-events-none"></div>
                           </div>
-                          <span className="text-[9px] text-slate-400 font-mono uppercase">{quickEditColor}</span>
+                          <span className="text-[9px] text-zinc-400 font-mono uppercase">{quickEditColor}</span>
                         </div>
                         <div className="flex-1 space-y-2">
                           {/* Quick presets - Common colors */}
                           <div>
-                            <div className="text-[9px] text-slate-500 mb-1.5">{language === 'zh' ? '常用' : 'Common'}</div>
+                            <div className="text-[9px] text-zinc-500 mb-1.5">{language === 'zh' ? '常用' : 'Common'}</div>
                             <div className="grid grid-cols-8 gap-1.5">
                               {['#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1',
                                 '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#64748b', '#ffffff', '#000000'].map(color => (
                                 <button
                                   key={color}
                                   onClick={() => setQuickEditColor(color)}
-                                  className={`w-5 h-5 rounded-md border transition-all ${quickEditColor === color ? 'border-white ring-2 ring-emerald-500 scale-110 z-10' : 'border-slate-700 hover:border-slate-400 hover:scale-105'}`}
+                                  className={`w-5 h-5 rounded-md border transition-all ${quickEditColor === color ? 'border-white ring-2 ring-emerald-500 scale-110 z-10' : 'border-zinc-700 hover:border-zinc-400 hover:scale-105'}`}
                                   style={{ backgroundColor: color }}
                                   title={color}
                                 />
@@ -745,14 +753,14 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                           </div>
                           {/* Grayscale */}
                           <div>
-                            <div className="text-[9px] text-slate-500 mb-1.5">{language === 'zh' ? '灰度' : 'Gray'}</div>
+                            <div className="text-[9px] text-zinc-500 mb-1.5">{language === 'zh' ? '灰度' : 'Gray'}</div>
                             <div className="grid grid-cols-10 gap-1.5">
                               {['#f8fafc', '#f1f5f9', '#e2e8f0', '#cbd5e1', '#94a3b8', '#64748b', '#475569', '#334155',
                                 '#1e293b', '#0f172a'].map(color => (
                                 <button
                                   key={color}
                                   onClick={() => setQuickEditColor(color)}
-                                  className={`w-5 h-5 rounded-md border transition-all ${quickEditColor === color ? 'border-white ring-2 ring-emerald-500 scale-110 z-10' : 'border-slate-700 hover:border-slate-400 hover:scale-105'}`}
+                                  className={`w-5 h-5 rounded-md border transition-all ${quickEditColor === color ? 'border-white ring-2 ring-emerald-500 scale-110 z-10' : 'border-zinc-700 hover:border-zinc-400 hover:scale-105'}`}
                                   style={{ backgroundColor: color }}
                                   title={color}
                                 />
@@ -764,7 +772,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                       {/* Custom hex input */}
                       <div className="flex gap-2">
                         <div className="relative flex-1">
-                          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs">#</div>
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">#</div>
                           <input
                             type="text"
                             value={quickEditColor.replace('#', '')}
@@ -775,7 +783,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                               }
                             }}
                             placeholder="3b82f6"
-                            className="w-full bg-slate-950 border border-slate-700 rounded-lg pl-6 pr-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                            className="w-full bg-black/40 border border-white/10 rounded-lg pl-6 pr-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
                           />
                         </div>
                       </div>
@@ -786,7 +794,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                         applyQuickColorEdit(quickEditColor);
                       }}
                       disabled={!quickEditColor.match(/^#[0-9A-Fa-f]{6}$/)}
-                      className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
+                      className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 border border-emerald-500/50"
                     >
                       <i className="fa-solid fa-check text-[10px]"></i>
                       {language === 'zh' ? '应用更改' : 'Apply Changes'}
@@ -798,13 +806,13 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                 {quickEditMode === 'text' && (
                   <div className="space-y-3 animate-fade-in">
                     <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
                         <i className="fa-solid fa-font text-emerald-500"></i>
                         {language === 'zh' ? '编辑文字' : 'Edit Text'}
                       </label>
                       <button 
                         onClick={() => setQuickEditMode('none')}
-                        className="text-[10px] text-slate-500 hover:text-slate-300 flex items-center gap-1 transition"
+                        className="text-[10px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition"
                       >
                         <i className="fa-solid fa-arrow-left"></i>
                         {language === 'zh' ? '返回' : 'Back'}
@@ -814,7 +822,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                       value={quickEditText}
                       onChange={(e) => setQuickEditText(e.target.value)}
                       placeholder={language === 'zh' ? '输入新文字...' : 'Enter new text...'}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm min-h-[100px] resize-none leading-relaxed"
+                      className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-sm min-h-[100px] resize-none leading-relaxed"
                       autoFocus
                     />
                     <button
@@ -823,7 +831,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                         applyQuickTextEdit(quickEditText);
                       }}
                       disabled={!quickEditText.trim()}
-                      className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20"
+                      className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/20 border border-emerald-500/50"
                     >
                       <i className="fa-solid fa-check text-[10px]"></i>
                       {language === 'zh' ? '应用更改' : 'Apply Changes'}
@@ -837,17 +845,17 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                     {/* Divider if quick edit was available */}
                     {detectQuickEditType(selectedElement) !== 'none' && (
                       <div className="flex items-center gap-3 py-1">
-                        <div className="flex-1 h-px bg-slate-800"></div>
-                        <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
+                        <div className="flex-1 h-px bg-white/5"></div>
+                        <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider">
                           {language === 'zh' ? '或使用 AI' : 'Or use AI'}
                         </span>
-                        <div className="flex-1 h-px bg-slate-800"></div>
+                        <div className="flex-1 h-px bg-white/5"></div>
                       </div>
                     )}
 
                 {/* Intent Selector */}
                 <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                    <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-2.5">
                         {language === 'zh' ? '修改类型' : 'Modification Type'}
                     </label>
                     <div className="grid grid-cols-4 gap-2">
@@ -862,8 +870,8 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                                 onClick={() => setEditIntent(type.id as any)}
                                 className={`flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-xl border transition-all ${
                                     editIntent === type.id 
-                                    ? 'bg-brand-600 border-brand-500 text-white shadow-lg shadow-brand-900/20 ring-1 ring-brand-400/50' 
-                                    : 'bg-slate-800/50 border-slate-700/50 text-slate-400 hover:bg-slate-700 hover:text-slate-200 hover:border-slate-600'
+                                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-900/20 ring-1 ring-indigo-400/50' 
+                                    : 'bg-white/5 border-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200 hover:border-white/10'
                                 }`}
                             >
                                 <i className={`fa-solid ${type.icon} text-xs ${editIntent === type.id ? 'animate-pulse' : ''}`}></i>
@@ -875,7 +883,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                 
                 {/* Input */}
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                  <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-2.5">
                     {t.create.edit_element_label}
                   </label>
                   <div className="relative group">
@@ -888,9 +896,9 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                             editIntent === 'logic' ? (language === 'zh' ? '例如：点击后弹出一个提示框...' : 'E.g. Show an alert on click...') :
                             t.create.edit_element_placeholder
                         }
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white placeholder-slate-600 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 min-h-[80px] resize-none text-xs leading-relaxed transition-all group-hover:border-slate-600"
+                        className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 min-h-[80px] resize-none text-xs leading-relaxed transition-all group-hover:border-white/20"
                       />
-                      <div className="absolute bottom-2 right-2.5 text-[9px] text-slate-600 font-mono bg-slate-900/80 px-1.5 py-0.5 rounded">
+                      <div className="absolute bottom-2 right-2.5 text-[9px] text-zinc-600 font-mono bg-black/40 px-1.5 py-0.5 rounded border border-white/5">
                         {editRequest.length} chars
                       </div>
                   </div>
@@ -901,10 +909,10 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             
             {/* Footer - Only show for AI edit */}
             {quickEditMode === 'none' && (
-              <div className="px-4 py-3 border-t border-slate-700/50 bg-slate-800/30 flex gap-3">
+              <div className="px-4 py-3 border-t border-white/10 bg-white/5 flex gap-3">
               <button
                 onClick={() => setShowEditModal(false)}
-                className="flex-1 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors border border-slate-700 hover:border-slate-600"
+                className="flex-1 px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 font-bold text-xs transition-colors border border-white/5 hover:border-white/10"
               >
                 {t.common.cancel}
               </button>
@@ -914,7 +922,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                   handleElementEditSubmit();
                 }}
                 disabled={!editRequest.trim()}
-                className="flex-[2] px-3 py-2.5 rounded-xl bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition-all shadow-lg shadow-brand-900/20 flex items-center justify-center gap-2 group"
+                className="flex-[2] px-3 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs transition-all shadow-lg shadow-indigo-900/20 flex items-center justify-center gap-2 group border border-indigo-500/50"
               >
                 <i className="fa-solid fa-wand-magic-sparkles text-[10px] group-hover:animate-pulse"></i>
                 {t.create.btn_generate_edit}
@@ -959,22 +967,22 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
       {/* Backend Explanation Modal */}
       {showBackendExplanation && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-0 max-w-md w-full shadow-2xl flex flex-col relative overflow-hidden">
+          <div className="bg-zinc-950/95 backdrop-blur-xl border border-white/10 rounded-2xl p-0 max-w-md w-full shadow-2xl flex flex-col relative overflow-hidden ring-1 ring-white/5">
             {/* Header */}
-            <div className="p-6 border-b border-slate-800 bg-slate-900/50">
+            <div className="p-6 border-b border-white/10 bg-white/5">
                 <button 
                   onClick={() => setShowBackendExplanation(false)}
-                  className="absolute top-4 right-4 text-slate-400 hover:text-white transition"
+                  className="absolute top-4 right-4 text-zinc-400 hover:text-white transition"
                 >
                   <X size={20} />
                 </button>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-4 shadow-lg shadow-emerald-900/20">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-4 shadow-lg shadow-emerald-900/20 ring-1 ring-white/10">
                     <i className="fa-solid fa-server text-xl text-white"></i>
                 </div>
                 <h3 className="text-xl font-bold text-white mb-1">
-                    {language === 'zh' ? '一键配置后端' : 'One-click Backend Config'}
+                    {language === 'zh' ? '一键配置表单' : 'One-click Form Config'}
                 </h3>
-                <p className="text-sm text-slate-400">
+                <p className="text-sm text-zinc-400">
                     {language === 'zh' ? '为你的应用注入灵魂，让它“活”起来' : 'Inject soul into your app, make it alive'}
                 </p>
             </div>
@@ -983,14 +991,14 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             <div className="p-6 space-y-6">
                 {/* Feature 1 */}
                 <div className="flex gap-4">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0 border border-blue-500/20">
                         <i className="fa-solid fa-database text-blue-400 text-sm"></i>
                     </div>
                     <div>
-                        <h4 className="text-sm font-bold text-slate-200 mb-1">
+                        <h4 className="text-sm font-bold text-zinc-200 mb-1">
                             {language === 'zh' ? '自动数据存储' : 'Auto Data Storage'}
                         </h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <p className="text-xs text-zinc-400 leading-relaxed">
                             {language === 'zh' 
                                 ? '无需编写后端代码，自动创建数据库表，保存用户提交的表单、留言、投票等数据。' 
                                 : 'No backend code needed. Automatically creates database tables to save forms, comments, votes, etc.'}
@@ -1000,38 +1008,56 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
 
                 {/* Feature 2 */}
                 <div className="flex gap-4">
-                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0 border border-purple-500/20">
                         <i className="fa-solid fa-bolt text-purple-400 text-sm"></i>
                     </div>
                     <div>
-                        <h4 className="text-sm font-bold text-slate-200 mb-1">
+                        <h4 className="text-sm font-bold text-zinc-200 mb-1">
                             {language === 'zh' ? '用户交互收集' : 'User Interaction'}
                         </h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
+                        <p className="text-xs text-zinc-400 leading-relaxed">
                             {language === 'zh' 
-                                ? '连接你与用户。轻松收集用户反馈、游戏分数、预约申请，在后台统一管理。' 
-                                : 'Connect with users. Collect feedback, game scores, and reservations, managed in one place.'}
+                                ? '连接你与用户。轻松收集用户反馈、预约申请，在后台统一管理。' 
+                                : 'Connect with users. Collect feedback and reservations, managed in one place.'}
                         </p>
                     </div>
                 </div>
 
                 {/* Use Cases */}
-                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">
+                <div className="bg-black/40 rounded-xl p-4 border border-white/5">
+                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3 block">
                         {language === 'zh' ? '适用场景' : 'USE CASES'}
                     </span>
                     <div className="grid grid-cols-2 gap-2">
                         {[
                             { icon: 'fa-clipboard-list', label: language === 'zh' ? '问卷/报名' : 'Surveys/Sign-ups' },
                             { icon: 'fa-paper-plane', label: language === 'zh' ? '意见/反馈' : 'Feedback/Suggestions' },
-                            { icon: 'fa-bullseye', label: language === 'zh' ? '成绩/分数' : 'Game Scores' },
                             { icon: 'fa-calendar-check', label: language === 'zh' ? '预约/登记' : 'Reservations' }
                         ].map((item, i) => (
-                            <div key={i} className="flex items-center gap-2 text-xs text-slate-300">
-                                <i className={`fa-solid ${item.icon} text-slate-500`}></i>
+                            <div key={i} className="flex items-center gap-2 text-xs text-zinc-300">
+                                <i className={`fa-solid ${item.icon} text-zinc-500`}></i>
                                 {item.label}
                             </div>
                         ))}
+                    </div>
+                </div>
+
+                {/* Important Notice */}
+                <div className="bg-amber-500/10 rounded-xl p-4 border border-amber-500/20">
+                    <div className="flex gap-3">
+                        <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+                            <i className="fa-solid fa-triangle-exclamation text-amber-400 text-xs"></i>
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-bold text-amber-300 mb-1">
+                                {language === 'zh' ? '配置前提' : 'Prerequisite'}
+                            </h4>
+                            <p className="text-xs text-amber-200/70 leading-relaxed">
+                                {language === 'zh' 
+                                    ? '请确保你的应用中已设计明确的「提交」「预约」「登记」「反馈」等按钮，否则配置可能失败。' 
+                                    : 'Ensure your app has clear "Submit", "Reserve", "Register", or "Feedback" buttons, otherwise configuration may fail.'}
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1040,7 +1066,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             <div className="p-6 pt-0 flex gap-3">
                 <button
                     onClick={() => setShowBackendExplanation(false)}
-                    className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm transition border border-slate-700"
+                    className="flex-1 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 font-bold text-sm transition border border-white/5 hover:border-white/10"
                 >
                     {language === 'zh' ? '我再想想' : 'Cancel'}
                 </button>
@@ -1049,7 +1075,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                         setShowBackendExplanation(false);
                         handleConfigureBackend();
                     }}
-                    className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm transition shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2"
+                    className="flex-[2] py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm transition shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 border border-emerald-500/20"
                 >
                     <i className="fa-solid fa-wand-magic-sparkles"></i>
                     {language === 'zh' ? '开始配置' : 'Start Configuration'}

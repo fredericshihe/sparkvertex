@@ -1,13 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { X, Lock, Unlock, Key, Download, AlertTriangle } from 'lucide-react';
+import { X, Search, Download, RefreshCw, Trash2, Eye, ChevronRight, Database, Table as TableIcon, LayoutList, CheckCircle, Circle, BarChart3, Filter } from 'lucide-react';
 import { detectSparkBackendCode } from '@/lib/utils';
-import { decryptData, isEncrypted, importPrivateKey, importPrivateKeyFromBackup, generateKeyPair, isWebCryptoAvailable } from '@/lib/client-crypto';
-
-// E2E 密钥存储 Key 前缀
-const E2E_KEY_PREFIX = 'spark_e2e_app_';
+import * as XLSX from 'xlsx';
 
 interface InboxMessage {
   id: string;
@@ -23,14 +20,6 @@ interface AppItem {
   title: string;
   icon_url?: string;
   content?: string;
-  public_key?: string;
-}
-
-// 解密结果缓存
-interface DecryptedPayload {
-  data: unknown;
-  isDecrypted: boolean;
-  error?: string;
 }
 
 interface BackendDataPanelProps {
@@ -44,6 +33,103 @@ interface BackendDataPanelProps {
   onCodeUpdate?: (newCode: string) => void;
 }
 
+const TRANSLATIONS = {
+  zh: {
+    title: '表单收集箱',
+    subtitle: '查看用户提交的表单数据',
+    syncing: '正在同步...',
+    connected: '实时连接就绪',
+    refresh: '刷新',
+    close: '关闭',
+    retry: '重试',
+    myApps: '我的应用',
+    loading: '加载中...',
+    noApps: '暂无配置后端的应用',
+    noData: '暂无表单数据',
+    noDataDesc: '当用户在您的应用中提交表单（如联系我们、报名表）时，数据会显示在这里。',
+    howToCollect: '如何收集数据？',
+    howToCollectDesc: '在创建应用时，告诉 AI 您需要一个表单。例如：',
+    howToCollectExample: '"创建一个活动报名表单，包含姓名、手机号和备注，提交到后台"',
+    records: '条记录',
+    exportJson: '导出 JSON',
+    exportExcel: '导出 Excel',
+    time: '提交时间',
+    details: '数据详情',
+    formData: '表单内容',
+    deleteRecord: '删除此记录',
+    deleteConfirm: '确定要删除这条记录吗？',
+    searchPlaceholder: '搜索数据...',
+    statusAll: '全部状态',
+    statusProcessed: '已处理',
+    statusUnprocessed: '未处理',
+    markProcessed: '标记为已处理',
+    markUnprocessed: '标记为未处理',
+    analysis: '数据分析',
+    totalSubmissions: '总提交数',
+    processedRate: '处理率',
+    todaySubmissions: '今日新增',
+    dailyTrend: '近7日趋势',
+    viewTable: '表格视图',
+    viewJson: 'JSON视图',
+    viewAnalysis: '分析视图',
+    storagePolicy: '数据存储策略',
+    storagePolicyDesc: '默认存储30天。升级永久存储，数据永不过期。',
+    upgradeStorage: '升级永久存储 (60积分)',
+    permanentStorage: '永久存储已激活',
+    confirmUpgradeTitle: '确认升级永久存储？',
+    confirmUpgradeDesc: '将消耗 60 积分开启永久数据存储功能。',
+    upgradeSuccess: '升级成功！您的数据将永久保存。',
+    upgradeFail: '升级失败，请检查积分是否充足。'
+  },
+  en: {
+    title: 'Form Collection Box',
+    subtitle: 'View user form submissions',
+    syncing: 'Syncing...',
+    connected: 'Real-time Connected',
+    refresh: 'Refresh',
+    close: 'Close',
+    retry: 'Retry',
+    myApps: 'My Apps',
+    loading: 'Loading...',
+    noApps: 'No backend-enabled apps found',
+    noData: 'No Form Data Yet',
+    noDataDesc: 'Data will appear here when users submit forms (like contact forms) in your app.',
+    howToCollect: 'How to collect data?',
+    howToCollectDesc: 'When creating an app, tell AI you need a form. Example:',
+    howToCollectExample: '"Create an event registration form with name, phone, and notes, submitting to backend"',
+    records: 'records',
+    exportJson: 'Export JSON',
+    exportExcel: 'Export Excel',
+    time: 'Time',
+    details: 'Submission Details',
+    formData: 'Form Data',
+    deleteRecord: 'Delete Record',
+    deleteConfirm: 'Are you sure you want to delete this record?',
+    searchPlaceholder: 'Search data...',
+    statusAll: 'All Status',
+    statusProcessed: 'Processed',
+    statusUnprocessed: 'Unprocessed',
+    markProcessed: 'Mark as Processed',
+    markUnprocessed: 'Mark as Unprocessed',
+    analysis: 'Data Analysis',
+    totalSubmissions: 'Total Submissions',
+    processedRate: 'Processed Rate',
+    todaySubmissions: 'New Today',
+    dailyTrend: '7-Day Trend',
+    viewTable: 'Table View',
+    viewJson: 'JSON View',
+    viewAnalysis: 'Analysis View',
+    storagePolicy: 'Data Storage Policy',
+    storagePolicyDesc: 'Default 30-day retention. Upgrade for permanent storage.',
+    upgradeStorage: 'Upgrade to Permanent (60 Credits)',
+    permanentStorage: 'Permanent Storage Active',
+    confirmUpgradeTitle: 'Confirm Upgrade?',
+    confirmUpgradeDesc: 'This will cost 60 credits to enable permanent storage.',
+    upgradeSuccess: 'Upgrade successful! Your data is now safe forever.',
+    upgradeFail: 'Upgrade failed. Please check your credits.'
+  }
+};
+
 export default function BackendDataPanel({ 
   isOpen, 
   onClose, 
@@ -52,30 +138,39 @@ export default function BackendDataPanel({
   language,
   mode = 'test',
 }: BackendDataPanelProps) {
+  const t = TRANSLATIONS[language] || TRANSLATIONS.en;
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'table' | 'json' | 'analysis'>('table');
+  const [selectedMessage, setSelectedMessage] = useState<InboxMessage | null>(null);
   
+  // Search & Filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'processed' | 'unprocessed'>('all');
+  const [hasPermanentStorage, setHasPermanentStorage] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+
   // 应用列表（生产模式）
   const [apps, setApps] = useState<AppItem[]>([]);
   const [selectedAppId, setSelectedAppId] = useState<string | null>(appId || null);
   const [appsLoading, setAppsLoading] = useState(false);
   
-  // 🔐 E2EE 解密相关状态
-  const [hasPrivateKey, setHasPrivateKey] = useState(false);
-  const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
-  const [decryptedCache, setDecryptedCache] = useState<Record<string, DecryptedPayload>>({});
-  const [showKeyImport, setShowKeyImport] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-  
-  // 🔐 应用公钥状态（用于检测旧应用是否需要生成密钥）
-  const [appHasPublicKey, setAppHasPublicKey] = useState(false);
-  const [generatingKey, setGeneratingKey] = useState(false);
-  
   // 计算实际使用的 app_id
   const effectiveAppId = mode === 'production' 
     ? selectedAppId 
     : (appId || (userId ? `draft_${userId}` : null));
+  
+  // 🔍 调试日志：排查 app_id 不匹配问题
+  useEffect(() => {
+    console.log('[BackendDataPanel] Debug:', {
+      mode,
+      appId,
+      userId,
+      effectiveAppId,
+      selectedAppId
+    });
+  }, [mode, appId, userId, effectiveAppId, selectedAppId]);
   
   // 获取用户已发布的应用列表（生产模式）
   const fetchApps = useCallback(async () => {
@@ -83,9 +178,20 @@ export default function BackendDataPanel({
     
     setAppsLoading(true);
     try {
+      // Check permanent storage status
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('has_permanent_storage')
+        .eq('id', userId)
+        .single();
+      
+      if (profileData) {
+        setHasPermanentStorage(profileData.has_permanent_storage || false);
+      }
+
       const { data, error } = await supabase
         .from('items')
-        .select('id, title, icon_url, content, public_key')
+        .select('id, title, icon_url, content')
         .eq('author_id', userId)
         .order('created_at', { ascending: false });
       
@@ -106,21 +212,58 @@ export default function BackendDataPanel({
     }
   }, [userId, mode, selectedAppId]);
 
+  const handleUpgradeStorage = async () => {
+    if (!userId) return;
+    if (!confirm(t.confirmUpgradeDesc)) return;
+
+    setUpgrading(true);
+    try {
+      const { data, error } = await supabase.rpc('purchase_permanent_storage', {
+        p_user_id: userId
+      });
+
+      if (error) throw error;
+
+      if (data && data.success) {
+        setHasPermanentStorage(true);
+        alert(t.upgradeSuccess);
+      } else {
+        alert(data?.message || t.upgradeFail);
+      }
+    } catch (err: any) {
+      console.error('Upgrade failed:', err);
+      alert(t.upgradeFail);
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
   const fetchMessages = useCallback(async () => {
     if (!effectiveAppId) return;
     
     setLoading(true);
     setError(null);
+    setSelectedMessage(null);
     
     try {
       const appIdStr = String(effectiveAppId);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('[BackendDataPanel] Current user:', user?.id);
+      console.log('[BackendDataPanel] Fetching messages for app_id:', appIdStr);
       
       const { data, error: fetchError } = await supabase
         .from('inbox_messages')
         .select('*')
         .eq('app_id', appIdStr)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(100); // Increased limit for table view
+      
+      console.log('[BackendDataPanel] Query result:', { 
+        data, 
+        error: fetchError,
+        count: data?.length || 0 
+      });
 
       if (fetchError) {
         if (fetchError.code === '42P01') {
@@ -158,13 +301,21 @@ export default function BackendDataPanel({
         .on(
           'postgres_changes',
           {
-            event: 'INSERT',
+            event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
             schema: 'public',
             table: 'inbox_messages',
             filter: `app_id=eq.${filterValue}`
           },
           (payload) => {
-            setMessages(prev => [payload.new as InboxMessage, ...prev]);
+            if (payload.eventType === 'INSERT') {
+              setMessages(prev => [payload.new as InboxMessage, ...prev]);
+            } else if (payload.eventType === 'UPDATE') {
+              setMessages(prev => prev.map(m => 
+                m.id === payload.new.id ? { ...m, ...payload.new } : m
+              ));
+            } else if (payload.eventType === 'DELETE') {
+              setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+            }
           }
         )
         .subscribe();
@@ -175,196 +326,9 @@ export default function BackendDataPanel({
     }
   }, [isOpen, effectiveAppId, fetchMessages]);
 
-  // 🔐 检查应用是否有公钥（仅生产模式）
-  useEffect(() => {
-    if (mode !== 'production' || !selectedAppId) {
-      setAppHasPublicKey(true); // 测试模式默认为 true
-      return;
-    }
-    
-    const selectedApp = apps.find(app => app.id === selectedAppId);
-    setAppHasPublicKey(!!selectedApp?.public_key);
-  }, [mode, selectedAppId, apps]);
-
-  // 🔐 加载私钥（当选择应用时）
-  useEffect(() => {
-    if (!effectiveAppId) {
-      setHasPrivateKey(false);
-      setPrivateKey(null);
-      return;
-    }
-
-    const loadPrivateKey = async () => {
-      // 从 localStorage 加载私钥
-      const storedKey = localStorage.getItem(`${E2E_KEY_PREFIX}${effectiveAppId}_private`);
-      if (storedKey) {
-        try {
-          const keyJWK = JSON.parse(storedKey);
-          const cryptoKey = await importPrivateKey(keyJWK);
-          setPrivateKey(cryptoKey);
-          setHasPrivateKey(true);
-          console.log('[E2E] Loaded private key for app:', effectiveAppId);
-        } catch (e) {
-          console.error('[E2E] Failed to load private key:', e);
-          setHasPrivateKey(false);
-          setPrivateKey(null);
-        }
-      } else {
-        setHasPrivateKey(false);
-        setPrivateKey(null);
-      }
-    };
-
-    loadPrivateKey();
-  }, [effectiveAppId]);
-  
-  // 🔐 为旧应用生成密钥对
-  const handleGenerateKeyPair = async () => {
-    if (!selectedAppId || mode !== 'production') return;
-    
-    setGeneratingKey(true);
-    try {
-      // 1. 生成密钥对
-      const { publicKey: publicKeyJWK, privateKey: privateKeyJWK } = await generateKeyPair();
-      console.log('[E2E] Generated new key pair for legacy app');
-      
-      // 2. 保存公钥到数据库
-      const { error } = await supabase
-        .from('items')
-        .update({ public_key: JSON.stringify(publicKeyJWK) })
-        .eq('id', selectedAppId);
-      
-      if (error) throw error;
-      
-      // 3. 保存私钥到本地存储
-      localStorage.setItem(`${E2E_KEY_PREFIX}${selectedAppId}_private`, JSON.stringify(privateKeyJWK));
-      localStorage.setItem(`${E2E_KEY_PREFIX}${selectedAppId}_public`, JSON.stringify(publicKeyJWK));
-      
-      // 4. 更新状态
-      const cryptoKey = await importPrivateKey(privateKeyJWK);
-      setPrivateKey(cryptoKey);
-      setHasPrivateKey(true);
-      setAppHasPublicKey(true);
-      
-      // 5. 更新 apps 列表中的数据
-      setApps(prev => prev.map(app => 
-        app.id === selectedAppId 
-          ? { ...app, public_key: JSON.stringify(publicKeyJWK) }
-          : app
-      ));
-      
-      console.log('[E2E] Successfully enabled E2E encryption for app:', selectedAppId);
-      
-      // 6. 自动触发导出私钥（重要提示用户备份）
-      setTimeout(() => {
-        handleExportKey();
-      }, 500);
-      
-    } catch (e: any) {
-      console.error('[E2E] Failed to generate key pair:', e);
-      setImportError(e.message);
-    } finally {
-      setGeneratingKey(false);
-    }
-  };
-
-  // 🔐 解密消息
-  const decryptMessage = useCallback(async (messageId: string, payload: string): Promise<DecryptedPayload> => {
-    // 检查缓存
-    if (decryptedCache[messageId]) {
-      return decryptedCache[messageId];
-    }
-
-    // 检查是否加密
-    if (!isEncrypted(payload)) {
-      const result = {
-        data: JSON.parse(payload),
-        isDecrypted: false
-      };
-      setDecryptedCache(prev => ({ ...prev, [messageId]: result }));
-      return result;
-    }
-
-    // 需要私钥才能解密
-    if (!privateKey) {
-      return {
-        data: null,
-        isDecrypted: false,
-        error: language === 'zh' ? '需要私钥才能解密' : 'Private key required for decryption'
-      };
-    }
-
-    try {
-      const decrypted = await decryptData(payload, privateKey);
-      const result = {
-        data: decrypted,
-        isDecrypted: true
-      };
-      setDecryptedCache(prev => ({ ...prev, [messageId]: result }));
-      return result;
-    } catch (e: any) {
-      console.error('[E2E] Decryption failed:', e);
-      return {
-        data: null,
-        isDecrypted: false,
-        error: language === 'zh' ? '解密失败: ' + e.message : 'Decryption failed: ' + e.message
-      };
-    }
-  }, [privateKey, decryptedCache, language]);
-
-  // 🔐 导入私钥
-  const handleImportKey = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const keyJWK = importPrivateKeyFromBackup(text);
-      const cryptoKey = await importPrivateKey(keyJWK);
-      
-      // 保存到 localStorage
-      if (effectiveAppId) {
-        localStorage.setItem(`${E2E_KEY_PREFIX}${effectiveAppId}_private`, JSON.stringify(keyJWK));
-      }
-      
-      setPrivateKey(cryptoKey);
-      setHasPrivateKey(true);
-      setShowKeyImport(false);
-      setImportError(null);
-      setDecryptedCache({}); // 清空缓存，强制重新解密
-      
-      console.log('[E2E] Successfully imported private key');
-    } catch (e: any) {
-      console.error('[E2E] Failed to import key:', e);
-      setImportError(e.message);
-    }
-  };
-
-  // 🔐 导出私钥
-  const handleExportKey = () => {
-    if (!effectiveAppId) return;
-    
-    const storedKey = localStorage.getItem(`${E2E_KEY_PREFIX}${effectiveAppId}_private`);
-    if (!storedKey) return;
-
-    const backup = JSON.stringify({
-      version: 1,
-      type: 'spark-e2e-private-key',
-      appId: effectiveAppId,
-      key: JSON.parse(storedKey),
-      created: new Date().toISOString()
-    }, null, 2);
-
-    const blob = new Blob([backup], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `spark-key-${effectiveAppId}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const deleteMessage = async (messageId: string) => {
+    if (!confirm(t.deleteConfirm)) return;
+    
     try {
       await supabase
         .from('inbox_messages')
@@ -372,12 +336,7 @@ export default function BackendDataPanel({
         .eq('id', messageId);
       
       setMessages(prev => prev.filter(m => m.id !== messageId));
-      // 同时清除解密缓存
-      setDecryptedCache(prev => {
-        const next = { ...prev };
-        delete next[messageId];
-        return next;
-      });
+      if (selectedMessage?.id === messageId) setSelectedMessage(null);
     } catch (err) {
       console.error('Delete failed:', err);
     }
@@ -385,18 +344,12 @@ export default function BackendDataPanel({
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    
-    if (diff < 60000) return language === 'zh' ? '刚刚' : 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} ${language === 'zh' ? '分钟前' : 'min ago'}`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)} ${language === 'zh' ? '小时前' : 'hr ago'}`;
-    
-    return date.toLocaleDateString(language === 'zh' ? 'zh-CN' : 'en-US', {
+    return date.toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      second: '2-digit'
     });
   };
 
@@ -408,42 +361,173 @@ export default function BackendDataPanel({
     }
   };
 
+  // Filter messages
+  const filteredMessages = useMemo(() => {
+    return messages.filter(msg => {
+      // Status filter
+      if (statusFilter === 'processed' && !msg.processed) return false;
+      if (statusFilter === 'unprocessed' && msg.processed) return false;
+
+      // Search filter
+      if (searchQuery) {
+        const searchLower = searchQuery.toLowerCase();
+        const payloadStr = msg.encrypted_payload.toLowerCase();
+        const idStr = msg.id.toLowerCase();
+        return payloadStr.includes(searchLower) || idStr.includes(searchLower);
+      }
+
+      return true;
+    });
+  }, [messages, statusFilter, searchQuery]);
+
+  // Calculate stats
+  const stats = useMemo(() => {
+    const total = messages.length;
+    const processed = messages.filter(m => m.processed).length;
+    const processedRate = total > 0 ? Math.round((processed / total) * 100) : 0;
+    
+    const today = new Date().toDateString();
+    const todayCount = messages.filter(m => new Date(m.created_at).toDateString() === today).length;
+    
+    // Daily trend (last 7 days)
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      return d.toDateString();
+    }).reverse();
+    
+    const trend = last7Days.map(dateStr => ({
+      date: dateStr,
+      count: messages.filter(m => new Date(m.created_at).toDateString() === dateStr).length
+    }));
+
+    return { total, processed, processedRate, todayCount, trend };
+  }, [messages]);
+
+  const toggleProcessed = async (messageId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('inbox_messages')
+        .update({ processed: !currentStatus })
+        .eq('id', messageId);
+
+      if (error) throw error;
+
+      setMessages(prev => prev.map(m => 
+        m.id === messageId ? { ...m, processed: !currentStatus } : m
+      ));
+    } catch (err) {
+      console.error('Error updating status:', err);
+    }
+  };
+
+  const exportToExcel = () => {
+    const data = filteredMessages.map(msg => {
+      const payload = parsePayload(msg.encrypted_payload);
+      return {
+        ID: msg.id,
+        [t.time]: new Date(msg.created_at).toLocaleString(),
+        Status: msg.processed ? 'Processed' : 'Unprocessed',
+        ...payload
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Submissions");
+    XLSX.writeFile(wb, `submissions_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const exportData = () => {
+    const dataStr = JSON.stringify(messages, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inbox-data-${new Date().toISOString()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Extract table columns from the first few messages
+  const tableColumns = useMemo(() => {
+    const columns = new Set<string>();
+    // Check first 5 messages to find common keys
+    filteredMessages.slice(0, 5).forEach(msg => {
+      const data = parsePayload(msg.encrypted_payload);
+      if (typeof data === 'object' && data !== null) {
+        Object.keys(data).forEach(key => columns.add(key));
+      }
+    });
+    // Convert to array and limit to 5 columns for display
+    return Array.from(columns).slice(0, 5);
+  }, [filteredMessages]);
+
   if (!isOpen) return null;
 
   // 渲染表单提交数据列表
   const renderInboxContent = () => {
     if (loading && messages.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center py-12">
-          <i className="fa-solid fa-circle-notch fa-spin text-2xl text-brand-500 mb-3"></i>
-          <p className="text-slate-500">{language === 'zh' ? '加载中...' : 'Loading...'}</p>
+        <div className="flex flex-col items-center justify-center py-24 h-full">
+          <i className="fa-solid fa-circle-notch fa-spin text-3xl text-indigo-500 mb-4"></i>
+          <p className="text-slate-400 font-medium">{t.loading}</p>
         </div>
       );
     }
     
     if (messages.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center py-12">
-          <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4">
-            <i className="fa-solid fa-inbox text-2xl text-slate-600"></i>
+        <div className="flex flex-col items-center justify-center py-24 h-full text-center">
+          <div className="w-20 h-20 bg-zinc-800/50 rounded-full flex items-center justify-center mb-6 border border-zinc-700">
+            <Database className="w-8 h-8 text-zinc-500" />
           </div>
-          <h3 className="font-medium text-white mb-2">
-            {language === 'zh' ? '暂无表单数据' : 'No Form Data Yet'}
+          <h3 className="text-xl font-bold text-white mb-2">
+            {t.noData}
           </h3>
-          <p className="text-sm text-slate-500 text-center max-w-xs">
-            {language === 'zh' 
-              ? '当用户在您的应用中提交表单（如联系我们、报名表）时，数据会显示在这里。'
-              : 'Data will appear here when users submit forms (like contact forms) in your app.'}
+          <p className="text-slate-400 max-w-md mx-auto mb-8 leading-relaxed">
+            {t.noDataDesc}
           </p>
-          <div className="mt-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 w-full max-w-sm">
-            <p className="text-xs text-slate-500 mb-2">
-              <i className="fa-solid fa-lightbulb text-yellow-400 mr-2"></i>
-              {language === 'zh' ? '如何创建表单：' : 'How to create a form:'}
+          
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 max-w-md w-full text-left">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                <i className="fa-solid fa-code"></i>
+              </div>
+              <h4 className="font-bold text-white text-sm">{t.howToCollect}</h4>
+            </div>
+            <p className="text-xs text-slate-400 mb-3">
+              {t.howToCollectDesc}
             </p>
-            <div className="text-xs text-brand-400 bg-slate-900/50 p-2 rounded border border-slate-700/50">
-              {language === 'zh' 
-                ? '"帮我创建一个联系表单，提交到我的收件箱"' 
-                : '"Create a contact form that submits to my inbox"'}
+            <div className="bg-black rounded-lg p-3 border border-zinc-800 text-xs font-mono text-indigo-300">
+              {t.howToCollectExample}
+            </div>
+          </div>
+
+          {/* Storage Policy Info (Empty State) */}
+          <div className="mt-8 max-w-md w-full bg-zinc-900/30 border border-zinc-800 rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${hasPermanentStorage ? 'bg-green-500/10 text-green-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                  <i className={`fa-solid ${hasPermanentStorage ? 'fa-infinity' : 'fa-clock'}`}></i>
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-white">{t.storagePolicy}</div>
+                  <div className="text-xs text-slate-400">{hasPermanentStorage ? t.permanentStorage : t.storagePolicyDesc}</div>
+                </div>
+              </div>
+              {!hasPermanentStorage && (
+                <button 
+                  onClick={handleUpgradeStorage}
+                  disabled={upgrading}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5"
+                >
+                  {upgrading ? <i className="fa-solid fa-circle-notch fa-spin"></i> : <i className="fa-solid fa-arrow-up"></i>}
+                  {t.upgradeStorage}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -451,282 +535,434 @@ export default function BackendDataPanel({
     }
 
     return (
-      <div className="space-y-3">
-        {/* 🔴 E2EE 未启用警告（旧应用没有公钥） */}
-        {mode === 'production' && !appHasPublicKey && (
-          <div className="p-4 rounded-lg mb-4 bg-red-500/10 border border-red-500/30">
-            <div className="flex items-start gap-3">
-              <AlertTriangle size={20} className="text-red-400 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h4 className="font-medium text-red-400 mb-1">
-                  {language === 'zh' ? '⚠️ 端到端加密未启用' : '⚠️ E2E Encryption Not Enabled'}
-                </h4>
-                <p className="text-xs text-red-300/70 mb-3">
-                  {language === 'zh' 
-                    ? '此应用的表单数据以明文存储。启用加密后，只有您能解密查看数据，平台管理员也无法访问。'
-                    : 'Form data for this app is stored in plain text. Enable encryption so only you can decrypt and view the data.'}
-                </p>
-                {isWebCryptoAvailable() ? (
-                  <>
-                    <button
-                      onClick={handleGenerateKeyPair}
-                      disabled={generatingKey}
-                      className="flex items-center gap-2 px-3 py-2 bg-red-500 hover:bg-red-600 disabled:bg-red-500/50 rounded-lg text-sm font-medium text-white transition"
-                    >
-                      {generatingKey ? (
-                        <>
-                          <i className="fa-solid fa-spinner fa-spin"></i>
-                          {language === 'zh' ? '生成中...' : 'Generating...'}
-                        </>
-                      ) : (
-                        <>
-                          <Key size={14} />
-                          {language === 'zh' ? '启用端到端加密' : 'Enable E2E Encryption'}
-                        </>
-                      )}
-                    </button>
-                    <p className="text-[10px] text-slate-500 mt-2">
-                      {language === 'zh' 
-                        ? '⚠️ 启用后将自动下载私钥备份，请妥善保管！丢失私钥将无法解密数据。'
-                        : '⚠️ A private key backup will be downloaded. Keep it safe! Lost keys cannot be recovered.'}
-                    </p>
-                  </>
-                ) : (
-                  <div className="p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                    <p className="text-xs text-yellow-400">
-                      {language === 'zh' 
-                        ? '🔒 需要 HTTPS 才能启用加密。请使用 https:// 或 localhost 访问。'
-                        : '🔒 HTTPS required to enable encryption. Please access via https:// or localhost.'}
-                    </p>
-                  </div>
-                )}
-              </div>
+      <div className="flex h-full flex-col">
+        {/* Storage Policy Banner (List State) */}
+        <div className={`mx-6 mt-3 p-3 rounded-lg border flex items-center justify-between ${hasPermanentStorage ? 'bg-green-500/5 border-green-500/20' : 'bg-amber-500/5 border-amber-500/20'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-6 h-6 rounded flex items-center justify-center ${hasPermanentStorage ? 'text-green-400' : 'text-amber-400'}`}>
+              <i className={`fa-solid ${hasPermanentStorage ? 'fa-infinity' : 'fa-clock'}`}></i>
             </div>
+            <span className="text-xs text-slate-300">
+              {hasPermanentStorage ? t.permanentStorage : t.storagePolicyDesc}
+            </span>
           </div>
-        )}
-
-        {/* Stats */}
-        <div className="flex items-center gap-4 p-3 bg-slate-800/50 rounded-lg mb-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center">
-              <i className="fa-solid fa-envelope text-green-400 text-sm"></i>
-            </div>
-            <div>
-              <div className="text-lg font-bold text-white">{messages.length}</div>
-              <div className="text-xs text-slate-500">{language === 'zh' ? '条记录' : 'Records'}</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
-              <i className="fa-solid fa-clock text-blue-400 text-sm"></i>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-white">
-                {messages[0] ? formatDate(messages[0].created_at) : '-'}
-              </div>
-              <div className="text-xs text-slate-500">{language === 'zh' ? '最近提交' : 'Latest'}</div>
-            </div>
-          </div>
+          {!hasPermanentStorage && (
+            <button 
+              onClick={handleUpgradeStorage}
+              disabled={upgrading}
+              className="px-3 py-1 rounded bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-xs font-medium transition"
+            >
+              {upgrading ? '...' : t.upgradeStorage}
+            </button>
+          )}
         </div>
 
-        {/* 🔐 加密状态提示 */}
-        {messages.some(m => isEncrypted(m.encrypted_payload)) && (
-          <div className={`p-3 rounded-lg mb-4 flex items-center gap-3 ${
-            hasPrivateKey 
-              ? 'bg-green-500/10 border border-green-500/30' 
-              : 'bg-yellow-500/10 border border-yellow-500/30'
-          }`}>
-            {hasPrivateKey ? (
-              <>
-                <Unlock size={16} className="text-green-400" />
-                <span className="text-sm text-green-400">
-                  {language === 'zh' ? '已加载解密密钥，数据已解密' : 'Decryption key loaded, data decrypted'}
-                </span>
-                <button
-                  onClick={handleExportKey}
-                  className="ml-auto flex items-center gap-1 px-2 py-1 bg-green-500/20 hover:bg-green-500/30 rounded text-xs text-green-400 transition"
-                >
-                  <Download size={12} />
-                  {language === 'zh' ? '备份密钥' : 'Backup Key'}
-                </button>
-              </>
-            ) : (
-              <>
-                <Lock size={16} className="text-yellow-400" />
-                <span className="text-sm text-yellow-400">
-                  {language === 'zh' ? '部分数据已加密，需要导入私钥才能查看' : 'Some data is encrypted, import private key to view'}
-                </span>
-                <button
-                  onClick={() => setShowKeyImport(true)}
-                  className="ml-auto flex items-center gap-1 px-2 py-1 bg-yellow-500/20 hover:bg-yellow-500/30 rounded text-xs text-yellow-400 transition"
-                >
-                  <Key size={12} />
-                  {language === 'zh' ? '导入密钥' : 'Import Key'}
-                </button>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* 密钥导入弹窗 */}
-        {showKeyImport && (
-          <div className="mb-4 p-4 bg-slate-800 rounded-lg border border-slate-700">
-            <h4 className="font-medium text-white mb-2 flex items-center gap-2">
-              <Key size={16} className="text-brand-400" />
-              {language === 'zh' ? '导入解密密钥' : 'Import Decryption Key'}
-            </h4>
-            <p className="text-xs text-slate-400 mb-3">
-              {language === 'zh' 
-                ? '请选择您在发布应用时备份的私钥文件 (.json)' 
-                : 'Select the private key file (.json) you backed up when publishing the app'}
-            </p>
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleImportKey}
-              className="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-brand-500 file:text-white hover:file:bg-brand-600 cursor-pointer"
-            />
-            {importError && (
-              <p className="mt-2 text-xs text-red-400 flex items-center gap-1">
-                <AlertTriangle size={12} />
-                {importError}
-              </p>
-            )}
-            <button
-              onClick={() => setShowKeyImport(false)}
-              className="mt-2 text-xs text-slate-500 hover:text-slate-400"
-            >
-              {language === 'zh' ? '取消' : 'Cancel'}
-            </button>
-          </div>
-        )}
-
-        {/* Messages List */}
-        {messages.map((message, index) => {
-          const payloadIsEncrypted = isEncrypted(message.encrypted_payload);
-          const cached = decryptedCache[message.id];
+        <div className="flex flex-1 min-h-0">
+        {/* Main Data View (Table/List) */}
+        <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${selectedMessage ? 'w-2/3 border-r border-zinc-800' : 'w-full'}`}>
           
-          // 尝试解密或使用缓存
-          let displayData: any = null;
-          let decryptionError: string | null = null;
-          let showEncrypted = false;
-
-          if (cached) {
-            displayData = cached.data;
-            decryptionError = cached.error || null;
-          } else if (payloadIsEncrypted) {
-            if (hasPrivateKey) {
-              // 触发异步解密
-              decryptMessage(message.id, message.encrypted_payload);
-              displayData = null; // 显示加载中
-            } else {
-              showEncrypted = true;
-            }
-          } else {
-            displayData = parsePayload(message.encrypted_payload);
-          }
-
-          const isObject = typeof displayData === 'object' && displayData !== null;
-          
-          return (
-            <div
-              key={message.id}
-              className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden hover:border-slate-600 transition group"
-            >
-              <div className="flex items-center justify-between px-4 py-2 bg-slate-800/50 border-b border-slate-700/30">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">#{messages.length - index}</span>
-                  <span className="text-xs text-slate-400">{formatDate(message.created_at)}</span>
-                  {payloadIsEncrypted && (
-                    <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${
-                      cached?.isDecrypted 
-                        ? 'bg-green-500/20 text-green-400' 
-                        : 'bg-yellow-500/20 text-yellow-400'
-                    }`}>
-                      {cached?.isDecrypted ? <Unlock size={10} /> : <Lock size={10} />}
-                      {cached?.isDecrypted 
-                        ? (language === 'zh' ? '已解密' : 'Decrypted') 
-                        : (language === 'zh' ? '已加密' : 'Encrypted')}
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => deleteMessage(message.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/20 rounded transition"
+          {/* Toolbar */}
+          <div className="px-6 py-3 border-b border-zinc-800 flex flex-col gap-3 bg-zinc-900/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setViewMode('table')}
+                  className={`p-2 rounded-lg transition ${viewMode === 'table' ? 'bg-zinc-800 text-white' : 'text-slate-400 hover:text-white hover:bg-zinc-800/50'}`}
+                  title={t.viewTable}
                 >
-                  <i className="fa-solid fa-trash text-xs text-slate-400 hover:text-red-400"></i>
+                  <TableIcon size={16} />
                 </button>
+                <button 
+                  onClick={() => setViewMode('json')}
+                  className={`p-2 rounded-lg transition ${viewMode === 'json' ? 'bg-zinc-800 text-white' : 'text-slate-400 hover:text-white hover:bg-zinc-800/50'}`}
+                  title={t.viewJson}
+                >
+                  <LayoutList size={16} />
+                </button>
+                <button 
+                  onClick={() => setViewMode('analysis')}
+                  className={`p-2 rounded-lg transition ${viewMode === 'analysis' ? 'bg-zinc-800 text-white' : 'text-slate-400 hover:text-white hover:bg-zinc-800/50'}`}
+                  title={t.viewAnalysis}
+                >
+                  <BarChart3 size={16} />
+                </button>
+                <div className="h-4 w-px bg-zinc-800 mx-2"></div>
+                <span className="text-xs text-slate-500">
+                  {filteredMessages.length} {t.records}
+                </span>
               </div>
               
-              <div className="p-4">
-                {showEncrypted ? (
-                  <div className="flex flex-col items-center justify-center py-4 text-slate-500">
-                    <Lock size={24} className="mb-2 text-yellow-400" />
-                    <p className="text-sm text-yellow-400">
-                      {language === 'zh' ? '数据已加密' : 'Data is encrypted'}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {language === 'zh' ? '请导入私钥以查看内容' : 'Import private key to view content'}
-                    </p>
-                  </div>
-                ) : decryptionError ? (
-                  <div className="flex flex-col items-center justify-center py-4 text-red-400">
-                    <AlertTriangle size={24} className="mb-2" />
-                    <p className="text-sm">{decryptionError}</p>
-                  </div>
-                ) : displayData === null ? (
-                  <div className="flex items-center justify-center py-4">
-                    <i className="fa-solid fa-circle-notch fa-spin text-brand-400 mr-2"></i>
-                    <span className="text-slate-400 text-sm">
-                      {language === 'zh' ? '解密中...' : 'Decrypting...'}
-                    </span>
-                  </div>
-                ) : isObject ? (
-                  <div className="space-y-2">
-                    {Object.entries(displayData).map(([key, value]) => (
-                      <div key={key} className="flex items-start gap-3">
-                        <span className="text-xs text-slate-500 min-w-[80px] pt-0.5">{key}</span>
-                        <span className="text-sm text-white break-all">
-                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <pre className="text-sm text-slate-300 whitespace-pre-wrap break-all font-mono bg-slate-900/50 p-3 rounded-lg">
-                    {String(displayData)}
-                  </pre>
-                )}
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={exportData}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium transition border border-zinc-700"
+                >
+                  <Download size={14} />
+                  {t.exportJson}
+                </button>
+                <button 
+                  onClick={exportToExcel}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-400 hover:text-emerald-300 rounded-lg text-xs font-medium transition border border-emerald-900/50"
+                >
+                  <TableIcon size={14} />
+                  {t.exportExcel}
+                </button>
               </div>
             </div>
-          );
-        })}
+
+            {/* Filters */}
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                <input 
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={t.searchPlaceholder}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition"
+                />
+              </div>
+              <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5">
+                <button
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition ${statusFilter === 'all' ? 'bg-zinc-800 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  {t.statusAll}
+                </button>
+                <button
+                  onClick={() => setStatusFilter('unprocessed')}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition ${statusFilter === 'unprocessed' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  {t.statusUnprocessed}
+                </button>
+                <button
+                  onClick={() => setStatusFilter('processed')}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition ${statusFilter === 'processed' ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  {t.statusProcessed}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Analysis View */}
+          {viewMode === 'analysis' && (
+            <div className="flex-1 overflow-auto p-6">
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                  <div className="text-slate-500 text-xs font-medium mb-1">{t.totalSubmissions}</div>
+                  <div className="text-2xl font-bold text-white">{stats.total}</div>
+                </div>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                  <div className="text-slate-500 text-xs font-medium mb-1">{t.processedRate}</div>
+                  <div className="text-2xl font-bold text-emerald-400">{stats.processedRate}%</div>
+                </div>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                  <div className="text-slate-500 text-xs font-medium mb-1">{t.todaySubmissions}</div>
+                  <div className="text-2xl font-bold text-indigo-400">{stats.todayCount}</div>
+                </div>
+              </div>
+
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+                <h4 className="text-sm font-bold text-white mb-4">{t.dailyTrend}</h4>
+                <div className="h-40 flex items-end gap-2">
+                  {stats.trend.map((item, i) => {
+                    const max = Math.max(...stats.trend.map(t => t.count), 1);
+                    const height = (item.count / max) * 100;
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
+                        <div className="w-full bg-zinc-800 rounded-t-sm relative h-full flex items-end">
+                          <div 
+                            className="w-full bg-indigo-500/50 group-hover:bg-indigo-500 transition-all rounded-t-sm"
+                            style={{ height: `${height}%` }}
+                          ></div>
+                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap border border-zinc-800">
+                            {item.count}
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-slate-500 rotate-45 origin-left translate-y-2">
+                          {item.date.split(' ').slice(1, 3).join(' ')}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Table View */}
+          {viewMode === 'table' && (
+            <div className="flex-1 overflow-auto">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-zinc-900/50 sticky top-0 z-10 backdrop-blur-sm">
+                  <tr>
+                    <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider border-b border-zinc-800 w-16">#</th>
+                    {tableColumns.map(col => (
+                      <th key={col} className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider border-b border-zinc-800">
+                        {col}
+                      </th>
+                    ))}
+                    <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider border-b border-zinc-800 w-32">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider border-b border-zinc-800 text-right">
+                      {t.time}
+                    </th>
+                    <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider border-b border-zinc-800 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/50">
+                  {filteredMessages.map((msg, idx) => {
+                    const data = parsePayload(msg.encrypted_payload);
+                    const isSelected = selectedMessage?.id === msg.id;
+                    
+                    return (
+                      <tr 
+                        key={msg.id} 
+                        onClick={() => setSelectedMessage(msg)}
+                        className={`group cursor-pointer transition-colors ${isSelected ? 'bg-indigo-500/10 hover:bg-indigo-500/20' : 'hover:bg-zinc-800/30'}`}
+                      >
+                        <td className="px-6 py-4 text-xs text-slate-500 font-mono">
+                          {filteredMessages.length - idx}
+                        </td>
+                        {tableColumns.map(col => (
+                          <td key={col} className="px-6 py-4 text-sm text-slate-300 whitespace-nowrap max-w-[200px] overflow-hidden text-ellipsis">
+                            {typeof data === 'object' && data !== null ? String((data as any)[col] || '-') : '-'}
+                          </td>
+                        ))}
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleProcessed(msg.id, msg.processed);
+                            }}
+                            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
+                              msg.processed 
+                                ? 'text-emerald-400 hover:bg-emerald-500/10' 
+                                : 'text-amber-400 hover:bg-amber-500/10'
+                            }`}
+                          >
+                            <div className={`w-1.5 h-1.5 rounded-full ${msg.processed ? 'bg-emerald-400' : 'bg-amber-400'}`}></div>
+                            {msg.processed ? t.statusProcessed : t.statusUnprocessed}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-slate-500 text-right whitespace-nowrap font-mono">
+                          {formatDate(msg.created_at)}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <ChevronRight size={16} className={`text-slate-600 transition-transform ${isSelected ? 'text-indigo-400' : 'group-hover:text-slate-400'}`} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* JSON List View (Fallback) */}
+          {viewMode === 'json' && (
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {filteredMessages.map((message, index) => {
+                const displayData = parsePayload(message.encrypted_payload);
+                const isSelected = selectedMessage?.id === message.id;
+                
+                return (
+                  <div
+                    key={message.id}
+                    onClick={() => setSelectedMessage(message)}
+                    className={`rounded-xl border p-4 cursor-pointer transition-all ${
+                      isSelected 
+                        ? 'bg-indigo-500/10 border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
+                        : 'bg-zinc-900/30 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs font-mono px-2 py-0.5 rounded ${isSelected ? 'bg-indigo-500/20 text-indigo-300' : 'bg-zinc-800 text-slate-500'}`}>
+                          #{filteredMessages.length - index}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleProcessed(message.id, message.processed);
+                          }}
+                          className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium transition ${
+                            message.processed 
+                              ? 'text-emerald-400 hover:bg-emerald-500/10' 
+                              : 'text-amber-400 hover:bg-amber-500/10'
+                          }`}
+                        >
+                          <div className={`w-1.5 h-1.5 rounded-full ${message.processed ? 'bg-emerald-400' : 'bg-amber-400'}`}></div>
+                          {message.processed ? t.statusProcessed : t.statusUnprocessed}
+                        </button>
+                        <span className="text-xs text-slate-400">{formatDate(message.created_at)}</span>
+                      </div>
+                    </div>
+                    <pre className="text-xs text-slate-300 font-mono overflow-hidden text-ellipsis line-clamp-3 opacity-80">
+                      {JSON.stringify(displayData, null, 2)}
+                    </pre>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Detail Panel (Right Side) */}
+        {selectedMessage && (
+          <div className="w-[400px] bg-zinc-900 border-l border-zinc-800 flex flex-col animate-slide-in-right shadow-2xl z-20">
+            <div className="p-6 border-b border-zinc-800 flex items-center justify-between bg-zinc-900">
+              <h3 className="font-bold text-white text-lg">
+                {language === 'zh' ? '数据详情' : 'Submission Details'}
+              </h3>
+              <button 
+                onClick={() => setSelectedMessage(null)}
+                className="p-2 hover:bg-zinc-800 rounded-lg text-slate-400 hover:text-white transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-6">
+                {/* Metadata Card */}
+                <div className="bg-black/30 rounded-xl p-4 border border-zinc-800">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1 uppercase tracking-wider">ID</div>
+                      <div className="text-xs text-slate-300 font-mono truncate" title={selectedMessage.id}>{selectedMessage.id}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1 uppercase tracking-wider">{language === 'zh' ? '时间' : 'Time'}</div>
+                      <div className="text-xs text-slate-300 font-mono">{formatDate(selectedMessage.created_at)}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Data Content */}
+                <div>
+                  <div className="text-xs text-indigo-400 font-bold uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <Database size={12} />
+                    {language === 'zh' ? '表单内容' : 'Form Data'}
+                  </div>
+                  <div className="bg-zinc-800/30 rounded-xl border border-zinc-800 overflow-hidden">
+                    {(() => {
+                      const data = parsePayload(selectedMessage.encrypted_payload);
+                      if (typeof data === 'object' && data !== null) {
+                        return (
+                          <div className="divide-y divide-zinc-800">
+                            {Object.entries(data).map(([key, value]) => (
+                              <div key={key} className="p-4 hover:bg-zinc-800/50 transition">
+                                <div className="text-xs text-slate-500 mb-1.5 font-medium">{key}</div>
+                                <div className="text-sm text-white break-words font-mono">
+                                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="p-4">
+                          <pre className="text-sm text-slate-300 whitespace-pre-wrap break-all font-mono">
+                            {String(data)}
+                          </pre>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Raw JSON */}
+                <div>
+                  <div className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-3">Raw JSON</div>
+                  <div className="bg-black rounded-xl p-4 border border-zinc-800 relative group">
+                    <pre className="text-xs text-green-400/80 font-mono whitespace-pre-wrap break-all">
+                      {JSON.stringify(parsePayload(selectedMessage.encrypted_payload), null, 2)}
+                    </pre>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(JSON.stringify(parsePayload(selectedMessage.encrypted_payload), null, 2));
+                      }}
+                      className="absolute top-2 right-2 p-2 bg-zinc-800 rounded-lg text-slate-400 hover:text-white opacity-0 group-hover:opacity-100 transition"
+                      title="Copy JSON"
+                    >
+                      <i className="fa-regular fa-copy"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-zinc-800 bg-zinc-900">
+              <button
+                onClick={() => deleteMessage(selectedMessage.id)}
+                className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl font-bold transition border border-red-500/20 flex items-center justify-center gap-2"
+              >
+                <Trash2 size={16} />
+                {language === 'zh' ? '删除此记录' : 'Delete Record'}
+              </button>
+            </div>
+          </div>
+        )}
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className={`bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full ${mode === 'production' ? 'max-w-4xl h-[70vh]' : 'max-w-2xl max-h-[70vh]'} flex overflow-hidden animate-scale-in`}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in p-4 md:p-8">
+      <div className={`bg-zinc-950 border border-zinc-800 rounded-3xl shadow-2xl w-full ${mode === 'production' ? 'max-w-[90vw] h-[85vh]' : 'max-w-5xl h-[80vh]'} flex overflow-hidden animate-scale-in ring-1 ring-white/5`}>
         
         {/* Sidebar (App List) - Only in production mode */}
         {mode === 'production' && (
-          <div className="w-64 border-r border-slate-700 flex flex-col bg-slate-900/50">
-            <div className="p-4 border-b border-slate-700">
-              <h3 className="font-medium text-white text-sm">
-                {language === 'zh' ? '我的应用' : 'My Apps'}
+          <div className="w-72 border-r border-zinc-800 flex flex-col bg-zinc-900/50">
+            <div className="p-6 border-b border-zinc-800">
+              <h3 className="font-bold text-white text-lg flex items-center gap-2">
+                <i className="fa-solid fa-layer-group text-indigo-500"></i>
+                {t.myApps}
               </h3>
             </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            
+            {/* Storage Policy Info in Sidebar */}
+            <div className="px-4 pt-4 pb-2">
+              <div className={`p-3 rounded-xl border ${hasPermanentStorage ? 'bg-green-500/5 border-green-500/20' : 'bg-amber-500/5 border-amber-500/20'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={`w-6 h-6 rounded flex items-center justify-center ${hasPermanentStorage ? 'text-green-400' : 'text-amber-400'}`}>
+                    <i className={`fa-solid ${hasPermanentStorage ? 'fa-infinity' : 'fa-clock'}`}></i>
+                  </div>
+                  <span className={`text-xs font-bold ${hasPermanentStorage ? 'text-green-400' : 'text-amber-400'}`}>
+                    {hasPermanentStorage ? t.permanentStorage : t.storagePolicy}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 leading-relaxed mb-2">
+                  {hasPermanentStorage ? t.upgradeSuccess : t.storagePolicyDesc}
+                </p>
+                {!hasPermanentStorage && (
+                  <button 
+                    onClick={handleUpgradeStorage}
+                    disabled={upgrading}
+                    className="w-full py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  >
+                    {upgrading ? <i className="fa-solid fa-circle-notch fa-spin"></i> : <i className="fa-solid fa-arrow-up"></i>}
+                    {t.upgradeStorage}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
               {appsLoading ? (
-                <div className="flex flex-col items-center justify-center py-8 text-slate-500">
-                  <i className="fa-solid fa-spinner fa-spin mb-2"></i>
-                  <span className="text-xs">{language === 'zh' ? '加载中...' : 'Loading...'}</span>
+                <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+                  <i className="fa-solid fa-spinner fa-spin mb-3"></i>
+                  <span className="text-xs">{t.loading}</span>
                 </div>
               ) : apps.length === 0 ? (
-                <div className="text-center py-8 px-4">
-                  <p className="text-xs text-slate-500">
-                    {language === 'zh' ? '暂无配置后端的应用' : 'No backend-enabled apps found'}
+                <div className="text-center py-12 px-4">
+                  <p className="text-sm text-slate-500">
+                    {t.noApps}
                   </p>
                 </div>
               ) : (
@@ -734,25 +970,28 @@ export default function BackendDataPanel({
                   <button
                     key={app.id}
                     onClick={() => setSelectedAppId(app.id)}
-                    className={`w-full flex items-center gap-3 p-2 rounded-lg transition text-left ${
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition text-left group ${
                       selectedAppId === app.id
-                        ? 'bg-brand-500/10 border border-brand-500/50'
-                        : 'hover:bg-slate-800 border border-transparent'
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20'
+                        : 'hover:bg-zinc-800 text-slate-400 hover:text-white'
                     }`}
                   >
-                    <div className="w-8 h-8 rounded bg-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden shrink-0 border ${selectedAppId === app.id ? 'border-white/20 bg-white/10' : 'border-zinc-700 bg-zinc-800'}`}>
                       {app.icon_url ? (
                         <img src={app.icon_url} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <i className="fa-solid fa-cube text-slate-600 text-xs"></i>
+                        <i className="fa-solid fa-cube text-xs"></i>
                       )}
                     </div>
-                    <div className="min-w-0">
-                      <div className={`text-sm font-medium truncate ${selectedAppId === app.id ? 'text-brand-400' : 'text-slate-300'}`}>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold truncate mb-0.5">
                         {app.title || `App #${app.id}`}
                       </div>
-                      <div className="text-[10px] text-slate-500 truncate">ID: {app.id}</div>
+                      <div className={`text-[10px] truncate font-mono ${selectedAppId === app.id ? 'text-indigo-200' : 'text-slate-600'}`}>
+                        {String(app.id).substring(0, 8)}...
+                      </div>
                     </div>
+                    {selectedAppId === app.id && <ChevronRight size={14} className="opacity-50" />}
                   </button>
                 ))
               )}
@@ -761,85 +1000,63 @@ export default function BackendDataPanel({
         )}
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 bg-slate-900">
+        <div className="flex-1 flex flex-col min-w-0 bg-zinc-950 relative">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-700">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-brand-500/20 rounded-xl flex items-center justify-center">
-                <i className="fa-solid fa-inbox text-brand-400"></i>
+          <div className="flex items-center justify-between px-8 py-5 border-b border-zinc-800 bg-zinc-900/30 backdrop-blur-sm">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                <Database className="text-white w-6 h-6" />
               </div>
               <div>
-                <h2 className="font-bold text-white">
-                  {language === 'zh' ? '应用收件箱' : 'App Inbox'}
+                <h2 className="text-2xl font-bold text-white tracking-tight">
+                  {t.title}
                 </h2>
-                <p className="text-xs text-slate-500">
-                  {language === 'zh' ? '查看用户提交的表单数据' : 'View user form submissions'}
-                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-slate-400 flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${loading ? 'bg-yellow-400 animate-pulse' : 'bg-emerald-400'}`}></span>
+                    {loading 
+                      ? t.syncing 
+                      : t.connected}
+                  </span>
+                  <span className="text-zinc-700 text-xs">|</span>
+                  <code className="text-xs text-slate-500 font-mono bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
+                    ID: {effectiveAppId || 'N/A'}
+                  </code>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 onClick={fetchMessages}
-                className="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition"
-                title={language === 'zh' ? '刷新' : 'Refresh'}
+                className="w-10 h-10 rounded-xl bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-slate-400 hover:text-white transition border border-zinc-700"
+                title={t.refresh}
               >
-                <i className={`fa-solid fa-refresh ${loading ? 'animate-spin' : ''}`}></i>
+                <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
               </button>
               <button
                 onClick={onClose}
-                className="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition"
+                className="w-10 h-10 rounded-xl bg-zinc-800 hover:bg-red-500/20 flex items-center justify-center text-slate-400 hover:text-red-400 transition border border-zinc-700 hover:border-red-500/30"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
-            </div>
-          </div>
-
-          {/* App ID Info */}
-          <div className="px-4 py-2 bg-slate-800/50 border-b border-slate-700/50">
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-500">{language === 'zh' ? '应用 ID' : 'App ID'}:</span>
-              <code className="px-2 py-0.5 bg-slate-700 rounded text-slate-300 font-mono">
-                {effectiveAppId || 'N/A'}
-              </code>
-              {mode === 'test' && effectiveAppId && String(effectiveAppId).startsWith('draft_') && (
-                <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded text-xs">
-                  {language === 'zh' ? '测试模式' : 'Test Mode'}
-                </span>
-              )}
-              {mode === 'production' && (
-                <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-xs">
-                  {language === 'zh' ? '已发布' : 'Published'}
-                </span>
-              )}
             </div>
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-hidden relative">
             {error ? (
-              <div className="flex flex-col items-center justify-center py-12 text-red-400">
-                <i className="fa-solid fa-triangle-exclamation text-2xl mb-3"></i>
-                <p>{error}</p>
+              <div className="flex flex-col items-center justify-center h-full text-red-400">
+                <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4 border border-red-500/20">
+                  <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
+                </div>
+                <p className="font-bold">{error}</p>
+                <button onClick={fetchMessages} className="mt-4 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-sm transition">
+                  {t.retry}
+                </button>
               </div>
             ) : (
               renderInboxContent()
             )}
-          </div>
-
-          {/* Footer */}
-          <div className="p-4 border-t border-slate-700 bg-slate-800/30">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-slate-500">
-                <i className="fa-solid fa-info-circle mr-1"></i>
-                {language === 'zh' ? '表单数据实时同步' : 'Form data syncs in real-time'}
-              </p>
-              <button
-                onClick={onClose}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium text-white transition"
-              >
-                {language === 'zh' ? '关闭' : 'Close'}
-              </button>
-            </div>
           </div>
         </div>
       </div>

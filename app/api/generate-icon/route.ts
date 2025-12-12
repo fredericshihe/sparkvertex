@@ -310,6 +310,14 @@ Output ONLY the generated prompt string. Do not include any other text.`
         style = "Organic, soft lighting, zen, nature-inspired, rounded corners";
         colors = "Sage green, soft teal, bamboo color, white";
         metaphor = "lotus flower or heartbeat line or leaf";
+      } else if (combinedText.includes("portfolio") || combinedText.includes("resume") || combinedText.includes("cv") || combinedText.includes("personal website")) {
+        style = "Minimalist, professional, elegant, high-end magazine style";
+        colors = "Black and white, or navy blue and gold";
+        metaphor = "monogram or abstract profile or signature";
+      } else if (combinedText.includes("appointment") || combinedText.includes("booking") || combinedText.includes("schedule") || combinedText.includes("calendar")) {
+        style = "Clean, functional, business-oriented, flat design";
+        colors = "Blue, white, and green";
+        metaphor = "calendar page or clock or checkmark";
       } else if (combinedText.includes("social") || combinedText.includes("chat") || combinedText.includes("connect") || combinedText.includes("entertainment") || combinedText.includes("music") || combinedText.includes("video")) {
         style = "Friendly, rounded, bubble-like, gradient mesh";
         colors = "Hot pink, electric blue, purple gradient";

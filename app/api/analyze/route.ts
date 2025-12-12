@@ -1,5 +1,10 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { 
+  createServerSupabase, 
+  requireAuth, 
+  apiSuccess, 
+  ApiErrors,
+  apiLog 
+} from '@/lib/api-utils';
 import { NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getRAGContext } from '@/lib/rag';
@@ -7,29 +12,10 @@ import { getRAGContext } from '@/lib/rag';
 export async function POST(request: Request) {
   try {
     // 1. Security Check: Verify User Session
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-          set(name: string, value: string, options: CookieOptions) {
-            cookieStore.set({ name, value, ...options })
-          },
-          remove(name: string, options: CookieOptions) {
-            cookieStore.set({ name, value: '', ...options })
-          },
-        },
-      }
-    );
-    const { data: { session } } = await supabase.auth.getSession();
+    const supabase = createServerSupabase();
+    const { session, errorResponse } = await requireAuth(supabase);
 
-    if (!session) {
-      return NextResponse.json({ error: '未授权，请先登录 (Unauthorized: Please login first)' }, { status: 401 });
-    }
+    if (errorResponse) return errorResponse;
 
     // 2. Rate Limiting
     // Limit: 50 per minute, 200 per day (Analysis is more frequent)
@@ -42,13 +28,13 @@ export async function POST(request: Request) {
     );
 
     if (!allowed) {
-      return NextResponse.json({ error: `请求过于频繁，请稍后再试 (Rate Limit Exceeded: ${rateLimitError})` }, { status: 429 });
+      return ApiErrors.rateLimited(`请求过于频繁: ${rateLimitError}`);
     }
 
     const { system_prompt, user_prompt, temperature = 0.7 } = await request.json();
     
     if (!user_prompt) {
-      return NextResponse.json({ error: '缺少用户提示词 (No user_prompt provided)' }, { status: 400 });
+      return ApiErrors.badRequest('缺少用户提示词');
     }
 
     // --- RAG & JSON Mode Enhancement ---
@@ -58,10 +44,8 @@ export async function POST(request: Request) {
     // 2. Construct Final System Prompt
     let finalSystemPrompt = system_prompt;
     if (ragContext) {
-        console.log('[RAG] Injecting context into System Prompt...');
+        apiLog.info('Analyze', 'Injecting RAG context into System Prompt...');
         finalSystemPrompt += ragContext;
-    } else {
-        console.log('[RAG] No context to inject.');
     }
 
     // 3. Enforce JSON Mode (Instructions)
@@ -93,17 +77,15 @@ export async function POST(request: Request) {
 
     // 3. Input Validation
     if (user_prompt.length > 100000) {
-      return NextResponse.json({ error: '输入内容过长 (Input too long)' }, { status: 400 });
+      return ApiErrors.badRequest('输入内容过长');
     }
 
     // 4. Try Supabase Edge Function (Priority)
-    // This allows using the remote DeepSeek proxy which handles the API key securely
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    // SECURITY: Use Service Role Key to authenticate as a privileged caller.
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
     if (!supabaseKey) {
-      console.warn('SECURITY WARNING: SUPABASE_SERVICE_ROLE_KEY is not set. Edge Function calls may fail or be insecure.');
+      apiLog.warn('Analyze', 'SUPABASE_SERVICE_ROLE_KEY is not set. Edge Function calls may fail.');
     }
 
     if (supabaseUrl && supabaseKey) {
@@ -123,7 +105,7 @@ export async function POST(request: Request) {
 
           if (edgeResponse.status === 503 || edgeResponse.status === 504 || edgeResponse.status === 429) {
              if (edgeRetryCount === maxEdgeRetries) {
-               console.warn(`Edge Function failed after retries: ${edgeResponse.status}`);
+               apiLog.warn('Analyze', `Edge Function failed after retries: ${edgeResponse.status}`);
                break; // Fallback to local DeepSeek
              }
              await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, edgeRetryCount)));
@@ -154,7 +136,9 @@ export async function POST(request: Request) {
                     try {
                       const data = JSON.parse(dataStr);
                       fullContent += data.choices?.[0]?.delta?.content || '';
-                    } catch (e) {}
+                    } catch {
+                      // ignore parse errors for SSE chunks
+                    }
                   }
                 }
               }
@@ -162,16 +146,13 @@ export async function POST(request: Request) {
                 return NextResponse.json({ content: fullContent });
               }
             }
-            break; // If response ok but no content (shouldn't happen with stream), break to fallback? Or return empty?
-                   // Assuming if ok and stream parsed, we returned. If we are here, maybe stream failed?
-                   // Actually if edgeResponse.ok but reader fails, we might want to fallback.
+            break;
           } else {
-             // Other errors (400, 500 etc) - maybe fallback?
-             console.warn(`Edge Function returned ${edgeResponse.status}, falling back.`);
+             apiLog.warn('Analyze', `Edge Function returned ${edgeResponse.status}, falling back.`);
              break;
           }
         } catch (e) {
-          console.warn('Edge Function attempt failed, retrying/falling back.', e);
+          apiLog.warn('Analyze', 'Edge Function attempt failed, retrying/falling back.', e);
           if (edgeRetryCount === maxEdgeRetries) break;
           await new Promise(resolve => setTimeout(resolve, 1000));
           edgeRetryCount++;
@@ -192,8 +173,8 @@ export async function POST(request: Request) {
       
       // 1. Category Analysis
       if ((systemLower.includes('应用分类专家') || systemLower.includes('category expert')) && !promptLower.includes('特定类别')) {
-        const categories = ['休闲游戏', '实用工具', '办公效率', '教育学习', '生活便利', '创意设计', '数据可视化', '影音娱乐', '开发者工具', 'AI应用'];
-        return NextResponse.json({ content: '创意设计' });
+        const categories = ['休闲游戏', '实用工具', '办公效率', '教育学习', '生活便利', '数据可视化', '开发者工具', '个人主页', '服务预约', 'AI应用'];
+        return NextResponse.json({ content: '实用工具' });
       }
       
       // 2. App Type Analysis (Eye Candy, etc.)
@@ -258,7 +239,7 @@ export async function POST(request: Request) {
              throw new Error(`DeepSeek API Error after retries: ${response.status} ${errorText}`);
            }
            const waitTime = Math.pow(2, retryCount) * 1000 + Math.random() * 500;
-           console.warn(`DeepSeek API ${response.status}. Retrying in ${Math.round(waitTime)}ms...`);
+           apiLog.warn('Analyze', `DeepSeek API ${response.status}. Retrying in ${Math.round(waitTime)}ms...`);
            await new Promise(resolve => setTimeout(resolve, waitTime));
            retryCount++;
            continue;
@@ -277,7 +258,7 @@ export async function POST(request: Request) {
         lastError = e;
         if (retryCount === maxRetries) break;
         const waitTime = Math.pow(2, retryCount) * 1000;
-        console.warn(`DeepSeek API Network Error. Retrying...`, e);
+        apiLog.warn('Analyze', 'DeepSeek API Network Error. Retrying...', e);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         retryCount++;
       }
@@ -285,13 +266,15 @@ export async function POST(request: Request) {
 
     throw lastError || new Error('DeepSeek API failed after retries');
 
-  } catch (error: any) {
-    console.error('Analysis error occurred:', error);
-    // Return specific status codes if possible
-    if (error.message.includes('429')) return NextResponse.json({ error: '请求过多 (Too Many Requests)' }, { status: 429 });
-    if (error.message.includes('503')) return NextResponse.json({ error: '服务暂时不可用 (Service Unavailable)' }, { status: 503 });
-    if (error.message.includes('504')) return NextResponse.json({ error: '网关超时 (Gateway Timeout)' }, { status: 504 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    apiLog.error('Analyze', 'Analysis error occurred:', error);
     
-    return NextResponse.json({ error: `服务器内部错误 (Internal Server Error: ${error.message})` }, { status: 500 });
+    // Return specific status codes if possible
+    if (errorMessage.includes('429')) return ApiErrors.rateLimited('请求过多');
+    if (errorMessage.includes('503')) return ApiErrors.serverError('服务暂时不可用');
+    if (errorMessage.includes('504')) return ApiErrors.serverError('网关超时');
+    
+    return ApiErrors.serverError(`服务器内部错误: ${errorMessage}`);
   }
 }

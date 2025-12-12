@@ -11,10 +11,6 @@ import { getPreviewContent } from '@/lib/preview';
 import { copyToClipboard, detectSparkBackendCode } from '@/lib/utils';
 import { sha256 } from '@/lib/sha256';
 import BackendDataPanel from '@/components/BackendDataPanel';
-import { generateKeyPair as generateE2EKeyPair } from '@/lib/client-crypto';
-
-// E2E 密钥存储 Key 前缀（每个应用一对密钥）
-const E2E_KEY_PREFIX = 'spark_e2e_app_';
 
 // --- Helper Functions (Ported from SparkWorkbench.html) ---
 
@@ -71,7 +67,7 @@ async function analyzeCategory(htmlContent: string, language: string = 'en') {
   const isZh = language === 'zh';
 
   if (isZh) {
-    const categories = ['游戏', '工具', '效率', '教育', '生活', '设计', '可视化', '娱乐', '开发者工具'];
+    const categories = ['游戏', '工具', '效率', '教育', '生活', '可视化', '开发者工具', '个人主页', '服务预约'];
     const systemPrompt = '你是一个应用商店分类专家。分析 HTML 代码并将其归类到最合适的类别中。';
     const userPrompt = `分析以下 HTML 代码的核心功能，并将其归类为以下类别之一：\n${categories.join(', ')}\n\n只返回类别名称，不要解释。代码：\n\n${htmlContent.substring(0, 20000)}`;
     
@@ -82,7 +78,7 @@ async function analyzeCategory(htmlContent: string, language: string = 'en') {
     return categoryText.trim().replace(/["'《》]/g, '');
   }
 
-  const categories = ['Game', 'Utility', 'Productivity', 'Education', 'Lifestyle', 'Design', 'Visualization', 'Entertainment', 'DevTool', 'AI'];
+  const categories = ['Game', 'Utility', 'Productivity', 'Education', 'Lifestyle', 'Visualization', 'DevTool', 'Portfolio', 'Appointment', 'AI'];
   const systemPrompt = 'You are an App Store category expert. Analyze the HTML code and categorize it into the most suitable category.';
   const userPrompt = `Analyze the core function of the following HTML code and categorize it into one of these categories:\n${categories.join(', ')}\n\nReturn only the category name. No explanation. Code:\n\n${htmlContent.substring(0, 20000)}`;
   
@@ -99,10 +95,10 @@ async function analyzeCategory(htmlContent: string, language: string = 'en') {
     'Productivity': 'productivity',
     'Education': 'education',
     'Lifestyle': 'lifestyle',
-    'Design': 'design',
     'Visualization': 'visualization',
-    'Entertainment': 'entertainment',
     'DevTool': 'devtool',
+    'Portfolio': 'portfolio',
+    'Appointment': 'appointment',
     'AI': 'ai'
   };
   
@@ -259,7 +255,12 @@ function performBasicSecurityCheck(htmlContent: string) {
       { pattern: /keylogger|keystroke|keypress.*password/gi, name: 'Suspicious Keylogging' },
       // { pattern: /document\.cookie/gi, name: 'Cookie Access' }, // Common for auth
       // { pattern: /localStorage|sessionStorage/gi, name: 'Local Storage' }, // Common for state persistence
-      { pattern: /navigator\.sendBeacon/gi, name: 'Background Data Sending' }
+      { pattern: /navigator\.sendBeacon/gi, name: 'Background Data Sending' },
+      
+      // Content Moderation (Basic Keyword Check)
+      { pattern: /(porn|xxx|hentai|sex|nude|色情|成人|裸聊)/gi, name: 'Pornographic Content Keyword' },
+      { pattern: /(casino|betting|gambling|slot machine|赌博|彩票|六合彩|网赌)/gi, name: 'Gambling Content Keyword' },
+      { pattern: /(cocaine|heroin|meth|drug sale|毒品|冰毒|海洛因)/gi, name: 'Illegal Drug Content Keyword' }
   ];
   
   const foundRisks: string[] = [];
@@ -282,8 +283,8 @@ function performBasicSecurityCheck(htmlContent: string) {
 }
 
 async function checkMaliciousCode(htmlContent: string) {
-  const systemPrompt = 'You are a lenient Code Auditor. This is a code sharing platform for single-file apps.';
-  const userPrompt = `Perform security check on the following code.
+  const systemPrompt = 'You are a strict Code Auditor and Content Moderator. This is a code sharing platform for single-file apps.';
+  const userPrompt = `Perform security and content moderation check on the following code.
   
 **Allowed behaviors (Do not report):**
 1. CDN resources (React, Vue, Tailwind, Audio/Video, Images).
@@ -297,10 +298,14 @@ async function checkMaliciousCode(htmlContent: string) {
    - sparkvertex.vercel.app/api/* - Platform API endpoints
    - These are SAFE and should NOT be reported as Data Theft!
 
-**Risks (Report these):**
+**Risks (Report these immediately):**
 1. **Malicious Mining**: CPU intensive loops or mining pool connections.
 2. **Data Theft**: Sending sensitive data to UNKNOWN 3rd party servers (not Spark platform APIs).
 3. **Malicious Destruction**: Deleting page content or infinite alerts.
+4. **Illegal Content (STRICT)**:
+   - **Pornography**: Explicit sexual content, nudity, or links to adult sites.
+   - **Gambling**: Online casinos, betting, or gambling promotion (excluding simple card games without real money).
+   - **Drugs**: Promotion or sale of illegal drugs or controlled substances.
 
 Return JSON format:
 {
@@ -406,6 +411,7 @@ function UploadContent() {
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPublic, setIsPublic] = useState(true);
+  const [isDuplicateRestricted, setIsDuplicateRestricted] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [duplicateModal, setDuplicateModal] = useState<{
     show: boolean;
@@ -565,7 +571,16 @@ function UploadContent() {
             // Check for duplicates immediately after validation
             checkDuplicateEarly(fileContent).then(result => {
               if (result.passed) {
-                performAIAnalysis(fileContent, result.data);
+                if (result.isDuplicate) {
+                    setIsPublic(false);
+                    setIsDuplicateRestricted(true);
+                    toastError(language === 'zh' 
+                        ? '检测到重复内容，已自动设置为私密分享' 
+                        : 'Duplicate content detected. Visibility set to Private.');
+                } else {
+                    setIsDuplicateRestricted(false);
+                }
+                performAIAnalysis(fileContent);
               }
             });
         }
@@ -932,15 +947,17 @@ function UploadContent() {
           .eq('id', existing.id)
           .single();
         
-        setDuplicateModal({
-          show: true,
-          type: 'hash',
+        console.log('🔍 [Duplicate Check] Hash Match Found - Restricting to Private');
+        setIsCheckingDuplicate(false);
+        
+        return { 
+          passed: true, 
+          isDuplicate: true,
+          duplicateType: 'hash',
           isSelf: existing.author_id === session.user.id,
           matchedItemId: existing.id,
           matchedTitle: matchedItem?.title
-        });
-        setIsCheckingDuplicate(false);
-        return { passed: false }; // Block
+        }; 
       }
 
       // 2. Vector Check (Slower, but required early)
@@ -1008,19 +1025,19 @@ function UploadContent() {
                   
                 const isSelf = matchOwner && matchOwner.author_id === session.user.id;
 
-                // 0.98 Threshold: Block
+                // 0.98 Threshold: Restrict to Private
                 if (bestMatch.similarity > 0.98) {
-                   console.log('🔍 [Duplicate Check] BLOCKED by Vector (Similarity > 0.98)');
-                   setDuplicateModal({
-                     show: true,
-                     type: 'vector',
+                   console.log('🔍 [Duplicate Check] Vector Match > 0.98 - Restricting to Private');
+                   setIsCheckingDuplicate(false);
+                   return { 
+                     passed: true,
+                     isDuplicate: true,
+                     duplicateType: 'vector',
                      isSelf: isSelf || false,
                      similarity: bestMatch.similarity,
                      matchedItemId: bestMatch.id,
                      matchedTitle: matchOwner?.title
-                   });
-                   setIsCheckingDuplicate(false);
-                   return { passed: false };
+                   };
                 }
                 // 0.90 Threshold: Warn (but allow pass)
                 if (bestMatch.similarity > 0.90) {
@@ -1474,9 +1491,6 @@ function UploadContent() {
       }
 
       let data, error;
-      // E2EE 密钥对（新建应用时生成）
-      let publicKeyJWK: JsonWebKey | null = null;
-      let privateKeyJWK: JsonWebKey | null = null;
 
       if ((isEditing && editId) || (isUpdating && updateId)) {
         // Update existing item (编辑模式或更新模式)
@@ -1517,20 +1531,6 @@ function UploadContent() {
         error = result.error;
       } else {
         // Create new item
-        // 1. Check if item with same title already exists for this user to prevent 409
-        // Note: Ideally this should be handled by catching the 409 error, but Supabase JS client sometimes wraps it obscurely.
-        // Let's try to catch the specific error code below.
-        
-        // 为应用生成 E2EE 密钥对
-        try {
-          const keyPair = await generateE2EKeyPair();
-          publicKeyJWK = keyPair.publicKey;
-          privateKeyJWK = keyPair.privateKey;
-          console.log('[E2E] Generated new key pair for app');
-        } catch (e) {
-          console.error('[E2E] Failed to generate key pair:', e);
-        }
-
         const insertPayload = {
           title,
           description,
@@ -1546,8 +1546,7 @@ function UploadContent() {
           downloads: 0,
           icon_url: iconUrl,
           content_hash: contentHash,
-          embedding: finalEmbedding,
-          public_key: publicKeyJWK ? JSON.stringify(publicKeyJWK) : null
+          embedding: finalEmbedding
         };
 
         let result = await supabase.from('items').insert(insertPayload).select().single();
@@ -1587,17 +1586,6 @@ function UploadContent() {
       setUploadProgress(100);
       const itemId = isEditing && editId ? editId : data.id;
       setPublishedId(itemId);
-
-      // 保存私钥到本地存储（仅新建时）
-      if (!isEditing && !isUpdating && privateKeyJWK && itemId) {
-        try {
-          localStorage.setItem(`${E2E_KEY_PREFIX}${itemId}_private`, JSON.stringify(privateKeyJWK));
-          localStorage.setItem(`${E2E_KEY_PREFIX}${itemId}_public`, JSON.stringify(publicKeyJWK));
-          console.log('[E2E] Saved key pair to localStorage for app:', itemId);
-        } catch (e) {
-          console.error('[E2E] Failed to save keys to localStorage:', e);
-        }
-      }
 
       // 触发 AI 评分（后台异步，不阻塞用户）
       if (itemId) {
@@ -1655,9 +1643,12 @@ function UploadContent() {
   };
 
   return (
-    <div className="min-h-screen pt-24 px-4 max-w-4xl mx-auto pb-20">
+    <div className="min-h-screen bg-black pt-24 px-4 pb-20">
+      <div className="max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold text-white mb-8 flex items-center gap-3">
-        <i className={`fa-solid ${isUpdating ? 'fa-arrow-up-from-bracket' : isEditing ? 'fa-pen-to-square' : 'fa-cloud-arrow-up'} text-brand-500`}></i>
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <i className={`fa-solid ${isUpdating ? 'fa-arrow-up-from-bracket' : isEditing ? 'fa-pen-to-square' : 'fa-cloud-arrow-up'} text-white text-lg`}></i>
+        </div>
         {isUpdating 
           ? (t.upload?.update_title || '更新作品') 
           : isEditing 
@@ -1667,8 +1658,8 @@ function UploadContent() {
 
       {/* 更新模式提示 */}
       {isUpdating && (
-        <div className="mb-6 glass-panel rounded-xl p-4 border border-emerald-500/30 bg-emerald-500/10">
-          <div className="flex items-center gap-3">
+        <div className="mb-6 rounded-2xl p-1 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/20">
+          <div className="bg-zinc-900/50 backdrop-blur-md rounded-xl p-4 flex items-center gap-4">
             <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
               <i className="fa-solid fa-sync text-xl text-emerald-400"></i>
             </div>
@@ -1680,38 +1671,27 @@ function UploadContent() {
         </div>
       )}
 
-      {/* How to Create Guide Banner */}
-      <div className="mb-8 glass-panel rounded-xl p-5 border border-blue-500/30 bg-gradient-to-r from-blue-500/10 to-purple-500/10">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <i className="fa-solid fa-graduation-cap text-2xl text-blue-400"></i>
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white mb-1">{t.upload.guide_title}</h3>
-              <p className="text-xs text-slate-300">{t.upload.guide_desc}</p>
+      {/* Progress Steps */}
+      <div className="flex items-center justify-between mb-12 relative px-4">
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0.5 bg-white/10 -z-10"></div>
+        {[1, 2, 3, 4].map((s) => (
+          <div key={s} className={`relative flex flex-col items-center gap-2 bg-black px-2`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all duration-300 border-2 ${
+              step >= s 
+                ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.3)]' 
+                : 'bg-zinc-900 text-slate-600 border-white/10'
+            }`}>
+              {step > s ? <i className="fa-solid fa-check"></i> : s}
             </div>
           </div>
-          <Link href="/guide" className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg font-medium hover:scale-105 transition whitespace-nowrap text-sm flex items-center">
-            <i className="fa-solid fa-book-open mr-2"></i>{t.upload.guide_btn}
-          </Link>
-        </div>
-      </div>
-
-      {/* Progress Steps */}
-      <div className="flex items-center justify-between mb-12 relative">
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-slate-800 -z-10"></div>
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-colors ${step >= 1 ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-500'}`}>1</div>
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-colors ${step >= 2 ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-500'}`}>2</div>
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-colors ${step >= 3 ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-500'}`}>3</div>
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-colors ${step >= 4 ? 'bg-brand-600 text-white' : 'bg-slate-800 text-slate-500'}`}>4</div>
+        ))}
       </div>
 
       {/* Step 1: Upload */}
       {step === 1 && (
         <>
           <div 
-            className="glass-panel rounded-2xl p-10 text-center border-2 border-dashed border-slate-600 hover:border-brand-500 transition cursor-pointer group"
+            className="relative overflow-hidden rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl p-12 text-center transition-all duration-300 hover:border-indigo-500/50 hover:bg-white/10 cursor-pointer group"
             onClick={() => {
               if (!user) {
                 openLoginModal();
@@ -1722,6 +1702,8 @@ function UploadContent() {
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
           >
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -1729,19 +1711,19 @@ function UploadContent() {
               accept=".html,text/html" 
               onChange={handleFileSelect} 
             />
-            <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition">
-              <i className="fa-solid fa-file-code text-4xl text-brand-500"></i>
+            <div className="w-24 h-24 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-8 group-hover:scale-110 transition duration-300 border border-white/10 shadow-xl">
+              <i className="fa-solid fa-cloud-arrow-up text-4xl text-indigo-500 group-hover:text-indigo-400 transition-colors"></i>
             </div>
-            <h3 className="text-xl font-bold text-white mb-2">{t.upload.drag_drop_title}</h3>
-            <p className="text-slate-400">{t.upload.drag_drop_desc}</p>
+            <h3 className="text-2xl font-bold text-white mb-3">{t.upload.drag_drop_title}</h3>
+            <p className="text-slate-400 max-w-md mx-auto leading-relaxed">{t.upload.drag_drop_desc}</p>
           </div>
           {isEditing && fileContent && (
-            <div className="text-center mt-4">
+            <div className="text-center mt-6">
               <button 
                 onClick={(e) => { e.stopPropagation(); setStep(2); }}
-                className="text-slate-400 hover:text-white text-sm underline"
+                className="text-slate-500 hover:text-white text-sm transition-colors flex items-center justify-center gap-2 mx-auto"
               >
-                {t.upload.cancel_reupload}
+                <i className="fa-solid fa-arrow-left"></i> {t.upload.cancel_reupload}
               </button>
             </div>
           )}
@@ -1750,17 +1732,19 @@ function UploadContent() {
 
       {/* Step 2: Preview */}
       {step === 2 && (
-        <div className="space-y-6">
+        <div className="space-y-8">
           
           {/* Validation Overlay */}
           {validationState.status === 'validating' && (
-             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm">
-                <div className="text-center space-y-4 animate-pulse">
-                    <div className="w-16 h-16 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                    <h3 className="text-xl font-bold text-white">{t.upload.validating_code || 'Verifying Application...'}</h3>
-                    <p className="text-slate-400">{t.upload.validating_desc || 'Checking for runtime errors and rendering issues.'}</p>
+             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md">
+                <div className="text-center space-y-6 animate-pulse">
+                    <div className="w-20 h-20 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto shadow-[0_0_20px_rgba(99,102,241,0.3)]"></div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-white mb-2">{t.upload.validating_code || 'Verifying Application...'}</h3>
+                      <p className="text-slate-400">{t.upload.validating_desc || 'Checking for runtime errors and rendering issues.'}</p>
+                    </div>
                 </div>
-                {/* Hidden Validation Iframe (Must be rendered for innerText to work, so use opacity-0 instead of hidden) */}
+                {/* Hidden Validation Iframe */}
                 <iframe 
                     srcDoc={getValidationContent(fileContent)}
                     className="fixed top-0 left-0 w-[100px] h-[100px] opacity-0 pointer-events-none -z-50"
@@ -1771,114 +1755,124 @@ function UploadContent() {
 
           {/* Validation Error Modal */}
           {validationState.status === 'error' && (
-             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4">
-                <div className="bg-slate-800 border border-red-500/50 rounded-2xl p-8 max-w-lg w-full shadow-2xl text-center">
-                    <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <i className="fa-solid fa-bug text-4xl text-red-500"></i>
-                    </div>
-                    <h3 className="text-2xl font-bold text-white mb-2">{t.upload.validation_failed || 'Validation Failed'}</h3>
-                    <p className="text-slate-400 mb-4">
-                        {t.upload.validation_failed_desc || 'The application cannot be uploaded because it has serious errors or renders a blank screen.'}
-                    </p>
-                    
-                    <div className="bg-black/30 rounded-lg p-4 text-left mb-6 border border-red-500/20 overflow-auto max-h-40">
-                        <div className="text-xs text-red-400 font-bold uppercase mb-1">{language === 'zh' ? '错误详情' : 'Error Details'}</div>
-                        <code className="text-sm text-red-200 font-mono break-words">
-                            {validationState.error}
-                        </code>
-                        {validationState.details && validationState.details.stack && (
-                            <pre className="text-xs text-slate-500 mt-2 whitespace-pre-wrap break-all">
-                                {validationState.details.stack}
-                            </pre>
-                        )}
-                    </div>
+             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
+                <div className="bg-zinc-900 border border-red-500/30 rounded-3xl p-8 max-w-lg w-full shadow-2xl text-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-red-500/5 pointer-events-none"></div>
+                    <div className="relative z-10">
+                      <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+                          <i className="fa-solid fa-bug text-4xl text-red-500"></i>
+                      </div>
+                      <h3 className="text-2xl font-bold text-white mb-2">{t.upload.validation_failed || 'Validation Failed'}</h3>
+                      <p className="text-slate-400 mb-6">
+                          {t.upload.validation_failed_desc || 'The application cannot be uploaded because it has serious errors or renders a blank screen.'}
+                      </p>
+                      
+                      <div className="bg-black/50 rounded-xl p-4 text-left mb-6 border border-red-500/20 overflow-auto max-h-40 custom-scrollbar">
+                          <div className="text-xs text-red-400 font-bold uppercase mb-2 flex items-center gap-2">
+                            <i className="fa-solid fa-terminal"></i> {language === 'zh' ? '错误详情' : 'Error Details'}
+                          </div>
+                          <code className="text-sm text-red-200 font-mono break-words block">
+                              {validationState.error}
+                          </code>
+                          {validationState.details && validationState.details.stack && (
+                              <pre className="text-xs text-slate-500 mt-2 whitespace-pre-wrap break-all font-mono">
+                                  {validationState.details.stack}
+                              </pre>
+                          )}
+                      </div>
 
-                    {/* AI Fix Hint */}
-                    <div className="bg-brand-500/10 border border-brand-500/30 rounded-lg p-3 mb-6 text-left">
-                        <div className="flex items-center gap-2 text-brand-400 text-sm">
+                      {/* AI Fix Hint */}
+                      <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 mb-8 text-left flex gap-3">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400">
                             <i className="fa-solid fa-wand-magic-sparkles"></i>
-                            <span className="font-medium">{language === 'zh' ? '提示：' : 'Tip:'}</span>
-                        </div>
-                        <p className="text-slate-300 text-sm mt-1">
-                            {language === 'zh' 
-                                ? '前往创作页面，使用 AI 修复功能可以自动修复代码错误' 
-                                : 'Go to the creator page and use AI Fix to automatically repair code errors'}
-                        </p>
-                    </div>
+                          </div>
+                          <div>
+                            <div className="font-bold text-indigo-300 text-sm mb-0.5">{language === 'zh' ? 'AI 智能修复' : 'AI Smart Fix'}</div>
+                            <p className="text-slate-400 text-xs">
+                                {language === 'zh' 
+                                    ? '前往创作页面，使用 AI 修复功能可以自动修复代码错误' 
+                                    : 'Go to the creator page and use AI Fix to automatically repair code errors'}
+                            </p>
+                          </div>
+                      </div>
 
-                    <div className="flex gap-4">
-                        {hasBackendCode && (
+                      <div className="flex gap-3">
+                          {hasBackendCode && (
+                            <button 
+                                onClick={() => setShowBackendPanel(true)}
+                                className="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition border border-white/10 flex items-center gap-2"
+                            >
+                                <i className="fa-solid fa-database"></i>
+                            </button>
+                          )}
                           <button 
-                              onClick={() => setShowBackendPanel(true)}
-                              className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition border border-slate-600 flex items-center gap-2"
+                              onClick={handleEditInCreator}
+                              className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
                           >
-                              <i className="fa-solid fa-database"></i>
-                              {language === 'zh' ? '配置后端' : 'Backend'}
+                              <i className="fa-solid fa-wand-magic-sparkles"></i>
+                              {language === 'zh' ? '前往修复' : 'Go to Fix'}
                           </button>
-                        )}
-                        <button 
-                            onClick={handleEditInCreator}
-                            className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2"
-                        >
-                            <i className="fa-solid fa-wand-magic-sparkles"></i>
-                            {language === 'zh' ? '前往修复' : 'Go to Fix'}
-                        </button>
-                        <button 
-                            onClick={handleReset}
-                            className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition"
-                        >
-                            {t.upload.cancel_upload || 'Cancel'}
-                        </button>
+                          <button 
+                              onClick={handleReset}
+                              className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition border border-white/5"
+                          >
+                              {t.upload.cancel_upload || 'Cancel'}
+                          </button>
+                      </div>
                     </div>
                 </div>
              </div>
           )}
 
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-white">{t.upload.preview_effect}</h2>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <i className="fa-solid fa-mobile-screen-button text-indigo-500"></i> {t.upload.preview_effect}
+            </h2>
           </div>
 
-          <div className="w-full h-[850px] bg-slate-900 rounded-lg overflow-hidden border border-slate-600 relative flex justify-center items-center group p-8">
+          <div className="w-full h-[850px] bg-zinc-900/50 rounded-3xl overflow-hidden border border-white/5 relative flex justify-center items-center group p-8 backdrop-blur-sm">
              <div 
-                className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-slate-900 flex-shrink-0 ${
+                className={`transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl overflow-hidden relative bg-black flex-shrink-0 ${
                   previewMode === 'desktop' 
-                    ? 'w-full h-full rounded-none border-0' 
+                    ? 'w-full h-full rounded-2xl border border-white/10' 
                     : previewMode === 'tablet'
-                      ? 'w-[768px] h-[95%] rounded-[1.5rem] border-[12px] border-slate-800 ring-1 ring-slate-700/50'
-                      : 'w-[375px] h-[812px] rounded-[2.5rem] border-[10px] border-slate-800 ring-1 ring-slate-700/50'
+                      ? 'w-[768px] h-[95%] rounded-[1.5rem] border-[12px] border-zinc-800 ring-1 ring-white/10 shadow-2xl'
+                      : 'w-[375px] h-[812px] rounded-[2.5rem] border-[10px] border-zinc-800 ring-1 ring-white/10 shadow-2xl'
                 }`}
               >
                 {/* Mobile Notch */}
-                <div className={`absolute top-0 left-1/2 -translate-x-1/2 bg-slate-800 z-20 transition-all duration-300 ${
+                <div className={`absolute top-0 left-1/2 -translate-x-1/2 bg-zinc-800 z-20 transition-all duration-300 ${
                     previewMode === 'mobile' ? 'w-24 h-6 rounded-b-xl opacity-100' : 'w-0 h-0 opacity-0'
                 }`}></div>
 
                 <iframe 
                   srcDoc={getPreviewContent(fileContent, { raw: true })} 
-                  className="w-full h-full border-0 bg-slate-900" 
+                  className="w-full h-full border-0 bg-white" 
                   sandbox="allow-scripts allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads allow-same-origin"
                   allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; payment; fullscreen; picture-in-picture"
                 />
               </div>
 
               {/* Preview Controls */}
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 opacity-0 group-hover:opacity-100 transition duration-300 z-10">
-                <div className="bg-slate-900/80 backdrop-blur border border-slate-700 rounded-full p-1 flex">
-                  <button onClick={() => setPreviewMode('desktop')} className={`w-10 h-10 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}><i className="fa-solid fa-desktop"></i></button>
-                  <button onClick={() => setPreviewMode('tablet')} className={`w-10 h-10 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}><i className="fa-solid fa-tablet-screen-button"></i></button>
-                  <button onClick={() => setPreviewMode('mobile')} className={`w-10 h-10 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}><i className="fa-solid fa-mobile-screen"></i></button>
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2 opacity-0 group-hover:opacity-100 transition duration-300 z-10 translate-y-2 group-hover:translate-y-0">
+                <div className="bg-zinc-900/90 backdrop-blur-xl border border-white/10 rounded-full p-1.5 flex shadow-xl">
+                  <button onClick={() => setPreviewMode('desktop')} className={`w-10 h-10 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-white text-black shadow-lg' : 'text-slate-400 hover:text-white'}`}><i className="fa-solid fa-desktop"></i></button>
+                  <button onClick={() => setPreviewMode('tablet')} className={`w-10 h-10 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-white text-black shadow-lg' : 'text-slate-400 hover:text-white'}`}><i className="fa-solid fa-tablet-screen-button"></i></button>
+                  <button onClick={() => setPreviewMode('mobile')} className={`w-10 h-10 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-white text-black shadow-lg' : 'text-slate-400 hover:text-white'}`}><i className="fa-solid fa-mobile-screen"></i></button>
                 </div>
               </div>
           </div>
 
           {/* Duplicate Check Status */}
           {isCheckingDuplicate && (
-            <div className="glass-panel rounded-2xl p-6 mb-6 border-2 border-orange-500/30">
-              <div className="flex items-center gap-3 text-orange-400">
-                <i className="fa-solid fa-shield-halved fa-pulse text-2xl"></i>
+            <div className="rounded-2xl p-6 mb-6 border border-orange-500/20 bg-orange-500/5 backdrop-blur-sm">
+              <div className="flex items-center gap-4 text-orange-400">
+                <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                  <i className="fa-solid fa-shield-halved fa-pulse"></i>
+                </div>
                 <div className="flex-grow">
-                  <div className="font-bold">{language === 'zh' ? '🔍 正在检测重复内容...' : '🔍 Checking for duplicates...'}</div>
-                  <div className="text-xs text-slate-400 mt-1">
+                  <div className="font-bold">{language === 'zh' ? '正在检测重复内容...' : 'Checking for duplicates...'}</div>
+                  <div className="text-xs text-orange-400/60 mt-1">
                     {language === 'zh' ? '正在进行全网原创性比对，请稍候...' : 'Checking for originality across the platform...'}
                   </div>
                 </div>
@@ -1887,28 +1881,30 @@ function UploadContent() {
           )}
 
           {/* AI Analysis Status */}
-          <div className="glass-panel rounded-2xl p-6 mb-6">
+          <div className="rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl p-8 mb-8">
             <div id="ai-analysis-status" className="text-sm">
               {analysisState.status === 'analyzing' && (
                 <>
-                  <div className="flex items-center gap-3 text-purple-400 mb-4">
-                    <i className="fa-solid fa-brain fa-pulse text-xl"></i>
+                  <div className="flex items-center gap-4 text-indigo-400 mb-6">
+                    <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center flex-shrink-0 border border-indigo-500/20">
+                      <i className="fa-solid fa-brain fa-pulse text-xl"></i>
+                    </div>
                     <div className="flex-grow">
-                      <div className="font-bold">{t.upload.ai_analyzing} {analysisState.progress}%</div>
-                      <div className="w-full bg-slate-700 h-1.5 mt-2 rounded-full overflow-hidden">
-                        <div className="bg-purple-500 h-full transition-all duration-300" style={{ width: `${analysisState.progress}%` }}></div>
+                      <div className="font-bold text-lg text-white mb-2">{t.upload.ai_analyzing} {analysisState.progress}%</div>
+                      <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
+                        <div className="bg-gradient-to-r from-indigo-500 to-violet-500 h-full transition-all duration-300 shadow-[0_0_10px_rgba(99,102,241,0.5)]" style={{ width: `${analysisState.progress}%` }}></div>
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-3">
                     {analysisState.tasks?.map(task => (
-                      <div key={task.id} className="flex items-center gap-2 text-sm p-2 rounded bg-slate-800/50 border border-slate-700/50">
-                        <div className="w-5 h-5 flex items-center justify-center">
+                      <div key={task.id} className="flex items-center gap-3 text-sm p-3 rounded-xl bg-zinc-900/50 border border-white/5">
+                        <div className="w-6 h-6 flex items-center justify-center rounded-full bg-white/5">
                           {task.status === 'pending' 
                             ? <i className="fa-solid fa-circle-notch fa-spin text-slate-500 text-xs"></i> 
-                            : <i className="fa-solid fa-check text-green-400 text-xs"></i>}
+                            : <i className="fa-solid fa-check text-emerald-400 text-xs"></i>}
                         </div>
-                        <span className={task.status === 'pending' ? 'text-slate-400' : 'text-slate-200'}>{task.label}</span>
+                        <span className={task.status === 'pending' ? 'text-slate-400' : 'text-slate-200 font-medium'}>{task.label}</span>
                       </div>
                     ))}
                   </div>
@@ -1917,55 +1913,57 @@ function UploadContent() {
 
               {analysisState.status === 'success' && analysisState.data && (
                 <>
-                  <div className="flex items-center gap-3 text-green-400">
-                    <i className="fa-solid fa-circle-check text-2xl"></i>
+                  <div className="flex items-center gap-4 text-emerald-400 mb-6">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center flex-shrink-0 border border-emerald-500/20">
+                      <i className="fa-solid fa-circle-check text-2xl"></i>
+                    </div>
                     <div className="flex-grow">
-                      <div className="font-bold">{analysisState.message || t.upload.ai_complete}</div>
-                      <div className="text-xs text-slate-400 mt-1">{t.upload.security_pass}</div>
+                      <div className="font-bold text-lg text-white">{analysisState.message || t.upload.ai_complete}</div>
+                      <div className="text-sm text-slate-400 mt-1">{t.upload.security_pass}</div>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-                      <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> {t.upload.result_category}</div>
-                      <div className="font-bold text-white">{analysisState.data.category ? ((t.categories as any)[analysisState.data.category] || analysisState.data.category) : ''}</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4">
+                      <div className="text-xs text-emerald-400 mb-2 font-bold uppercase tracking-wider"><i className="fa-solid fa-tag mr-1"></i> {t.upload.result_category}</div>
+                      <div className="font-bold text-white text-lg">{analysisState.data.category ? ((t.categories as any)[analysisState.data.category] || analysisState.data.category) : ''}</div>
                     </div>
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-                      <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> {t.upload.result_title}</div>
-                      <div className="font-bold text-white truncate">{analysisState.data.title}</div>
+                    <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4">
+                      <div className="text-xs text-emerald-400 mb-2 font-bold uppercase tracking-wider"><i className="fa-solid fa-heading mr-1"></i> {t.upload.result_title}</div>
+                      <div className="font-bold text-white text-lg truncate">{analysisState.data.title}</div>
                     </div>
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2">
-                      <div className="text-xs text-blue-400 mb-1"><i className="fa-solid fa-check mr-1"></i> {t.upload.result_tags}</div>
+                    <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4 col-span-2">
+                      <div className="text-xs text-indigo-400 mb-2 font-bold uppercase tracking-wider"><i className="fa-solid fa-hashtag mr-1"></i> {t.upload.result_tags}</div>
                       <div className="font-bold text-white flex flex-wrap gap-2">
                         {analysisState.data.tags?.map((t, i) => (
-                          <span key={i} className="text-purple-400 border border-purple-500/30 bg-purple-500/10 px-1 rounded">{t}</span>
+                          <span key={i} className="text-indigo-300 border border-indigo-500/20 bg-indigo-500/10 px-2 py-1 rounded-lg text-sm">{t}</span>
                         ))}
-                        <span className="text-slate-400 text-xs self-center">+ {analysisState.data.techTagsCount} {t.upload.result_tech}</span>
+                        <span className="text-slate-500 text-xs self-center bg-white/5 px-2 py-1 rounded-lg">+ {analysisState.data.techTagsCount} {t.upload.result_tech}</span>
                       </div>
                     </div>
                     {analysisState.data.mobileOptimized && (
-                      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2">
-                        <div className="text-xs text-purple-400 mb-1"><i className="fa-solid fa-wand-magic-sparkles mr-1"></i> {t.upload.result_mobile}</div>
+                      <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4 col-span-2">
+                        <div className="text-xs text-purple-400 mb-2 font-bold uppercase tracking-wider"><i className="fa-solid fa-mobile-screen mr-1"></i> {t.upload.result_mobile}</div>
                         <div className="font-bold text-white text-sm">{t.upload.result_mobile_desc}</div>
                       </div>
                     )}
                     {analysisState.data.iconUrl && (
-                      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2 flex items-center gap-4">
-                        <img src={analysisState.data.iconUrl} className="w-12 h-12 rounded-xl border border-slate-600" alt="Generated Icon" />
+                      <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4 col-span-2 flex items-center gap-4">
+                        <img src={analysisState.data.iconUrl} className="w-14 h-14 rounded-xl border border-white/10 shadow-lg" alt="Generated Icon" />
                         <div>
-                          <div className="text-xs text-purple-400 mb-1"><i className="fa-solid fa-wand-magic-sparkles mr-1"></i> {t.upload.result_icon}</div>
+                          <div className="text-xs text-purple-400 mb-1 font-bold uppercase tracking-wider"><i className="fa-solid fa-icons mr-1"></i> {t.upload.result_icon}</div>
                           <div className="font-bold text-white text-sm">{t.upload.result_icon_desc}</div>
                         </div>
                       </div>
                     )}
-                    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 col-span-2">
-                      <div className="text-xs text-green-400 mb-1"><i className="fa-solid fa-check mr-1"></i> {t.upload.result_security}</div>
+                    <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-4 col-span-2">
+                      <div className="text-xs text-emerald-400 mb-2 font-bold uppercase tracking-wider"><i className="fa-solid fa-shield-halved mr-1"></i> {t.upload.result_security}</div>
                       <div className="font-bold text-white">{t.upload.result_safe}</div>
                     </div>
                     {hasBackendCode && (
-                      <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-3 col-span-2">
-                        <div className="text-xs text-amber-400 mb-1"><i className="fa-solid fa-server mr-1"></i> {language === 'zh' ? '检测到后端集成' : 'Backend Integration Detected'}</div>
-                        <div className="text-sm text-slate-300">{language === 'zh' ? '作品包含 Spark 平台后端代码，发布后仅支持私有分享以保护数据安全' : 'This work contains Spark platform backend code. It will be published as private-only to protect data security.'}</div>
+                      <div className="bg-amber-900/10 border border-amber-500/20 rounded-xl p-4 col-span-2">
+                        <div className="text-xs text-amber-400 mb-2 font-bold uppercase tracking-wider"><i className="fa-solid fa-server mr-1"></i> {language === 'zh' ? '检测到后端集成' : 'Backend Integration Detected'}</div>
+                        <div className="text-sm text-amber-200/80">{language === 'zh' ? '作品包含 Spark 平台后端代码，发布后仅支持私有分享以保护数据安全' : 'This work contains Spark platform backend code. It will be published as private-only to protect data security.'}</div>
                       </div>
                     )}
                   </div>
@@ -1974,31 +1972,38 @@ function UploadContent() {
 
               {analysisState.status === 'risk' && analysisState.data && (
                 <>
-                  <div className="flex items-center gap-3 text-red-400">
-                    <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
+                  <div className="flex items-center gap-4 text-red-400 mb-6">
+                    <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0 border border-red-500/20">
+                      <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
+                    </div>
                     <div className="flex-grow">
-                      <div className="font-bold">{t.upload.security_risk}</div>
-                      <div className="text-xs text-slate-400 mt-1">{t.upload.risk_severity} {(analysisState.data.severity || 'UNKNOWN').toUpperCase()}</div>
+                      <div className="font-bold text-lg text-white">{t.upload.security_risk}</div>
+                      <div className="text-sm text-red-400 mt-1">{t.upload.risk_severity} {(analysisState.data.severity || 'UNKNOWN').toUpperCase()}</div>
                     </div>
                   </div>
-                  <div className="mt-4 bg-red-900/20 border border-red-700/50 rounded-lg p-4">
-                    <div className="text-sm font-bold text-red-400 mb-2">{t.upload.risk_list}</div>
-                    <ul className="space-y-1">
+                  <div className="mt-4 bg-red-950/30 border border-red-500/20 rounded-xl p-6">
+                    <div className="text-sm font-bold text-red-400 mb-3 uppercase tracking-wider">{t.upload.risk_list}</div>
+                    <ul className="space-y-2">
                       {analysisState.data.risks?.map((risk, i) => (
-                        <li key={i} className="text-sm text-slate-300">• {risk}</li>
+                        <li key={i} className="text-sm text-red-200 flex items-start gap-2">
+                          <i className="fa-solid fa-circle-exclamation mt-1 text-xs opacity-70"></i>
+                          {risk}
+                        </li>
                       ))}
                     </ul>
-                    <div className="mt-3 text-xs text-slate-400">{t.upload.risk_block}</div>
+                    <div className="mt-4 pt-4 border-t border-red-500/20 text-xs text-red-400/60">{t.upload.risk_block}</div>
                   </div>
                 </>
               )}
 
               {analysisState.status === 'error' && (
-                <div className="flex items-center gap-3 text-red-400">
-                  <i className="fa-solid fa-ban text-xl"></i>
+                <div className="flex items-center gap-4 text-red-400">
+                  <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0 border border-red-500/20">
+                    <i className="fa-solid fa-ban text-2xl"></i>
+                  </div>
                   <div>
-                    <div className="font-bold">{t.upload.analysis_error}</div>
-                    <div className="text-xs text-slate-400 mt-1">{analysisState.message}</div>
+                    <div className="font-bold text-lg text-white">{t.upload.analysis_error}</div>
+                    <div className="text-sm text-red-400/80 mt-1">{analysisState.message}</div>
                   </div>
                 </div>
               )}
@@ -2006,204 +2011,209 @@ function UploadContent() {
           </div>
 
           {/* Metadata Form (Moved to Step 2) */}
-          <div className="glass-panel rounded-2xl p-6 space-y-4">
-            <div className="flex items-center mb-4">
-                <i className="fa-solid fa-pen-to-square text-brand-500 mr-2 text-xl"></i>
-                <h3 className="font-bold text-white">{t.upload.app_info}</h3>
+          <div className="rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl p-8 space-y-6">
+            <div className="flex items-center mb-2">
+                <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 mr-3">
+                  <i className="fa-solid fa-pen-to-square text-xl"></i>
+                </div>
+                <h3 className="font-bold text-xl text-white">{t.upload.app_info}</h3>
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">{t.upload.app_title} <span className="text-purple-400 text-xs">({t.upload.ai_auto_extract})</span></label>
-              <input 
-                type="text" 
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-brand-500 outline-none"
-                placeholder={t.upload.ai_analyzing_short}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">{t.upload.app_desc} <span className="text-purple-400 text-xs">({t.upload.ai_auto_gen})</span></label>
-              <textarea 
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-brand-500 outline-none resize-none"
-                placeholder={t.upload.ai_analyzing_short}
-              />
-            </div>
-
-            {/* App Icon Section */}
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2">{t.upload.app_icon} <span className="text-slate-500 text-xs">({t.upload.icon_hint})</span></label>
-              <div className="flex items-start gap-6">
-                {/* Preview */}
-                <div className="flex-shrink-0">
-                  <div className="w-24 h-24 rounded-[1.5rem] bg-slate-800 border border-slate-700 overflow-hidden relative group shadow-lg">
-                    {iconPreview ? (
-                      <img src={iconPreview} alt="App Icon" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-600">
-                        <i className="fa-solid fa-image text-2xl"></i>
-                      </div>
-                    )}
-                    {/* Glossy Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
-                  </div>
-                  <div className="text-center mt-2 text-[10px] text-slate-500">{t.upload.icon_preview}</div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">{t.upload.app_title} <span className="text-indigo-400 text-xs ml-1">({t.upload.ai_auto_extract})</span></label>
+                  <input 
+                    type="text" 
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 outline-none transition-all"
+                    placeholder={t.upload.ai_analyzing_short}
+                  />
                 </div>
 
-                {/* Controls */}
-                <div className="flex-grow space-y-3">
-                  {/* AI Generate */}
-                  <button 
-                    onClick={async () => {
-                      if (!firstIconGenerationComplete) {
-                        toastError(language === 'zh' ? '请等待首次自动图标生成完成' : 'Please wait for the first icon generation to complete');
-                        return;
-                      }
-                      if (!description) {
-                        toastError(t.upload.fill_desc_first);
-                        return;
-                      }
-                      if (generationCount >= 3) {
-                        toastError(t.upload.icon_gen_limit);
-                        return;
-                      }
-                      
-                      // Show confirmation dialog for manual generation (costs 2 credits)
-                      const confirmMsg = language === 'zh' 
-                        ? 'AI 将生成高清应用图标，此操作将消耗 2 积分，是否继续？' 
-                        : 'AI will generate a high-quality app icon. This will cost 2 credits. Continue?';
-                      
-                      if (!confirm(confirmMsg)) return;
-                      
-                      setIsGeneratingIcon(true);
-                      setGenerationCount(prev => prev + 1);
-                      
-                      try {
-                        const response = await fetch('/api/generate-icon', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ title, description, firstCall: false })
-                        });
-                        
-                        if (!response.ok) {
-                          const data = await response.json().catch(() => ({}));
-                          const msg = data.error || `API Error: ${response.status}`;
-                          const err: any = new Error(msg);
-                          err.status = response.status;
-                          throw err;
-                        }
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">{t.upload.app_desc} <span className="text-indigo-400 text-xs ml-1">({t.upload.ai_auto_gen})</span></label>
+                  <textarea 
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={4}
+                    className="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 outline-none resize-none transition-all"
+                    placeholder={t.upload.ai_analyzing_short}
+                  />
+                </div>
+              </div>
 
-                        const data = await response.json();
-
-                        if (data.debug && data.debug.trace) {
-                          console.log('🎨 [Manual] Icon Generation Trace:', data.debug.trace);
-                        }
-
-                        if (data.url) {
-                          setIconPreview(data.url);
-                          // Convert data URL to File object for upload
-                          const res = await fetch(data.url);
-                          const blob = await res.blob();
-                          const file = new File([blob], 'icon.png', { type: 'image/png' });
-                          setIconFile(file);
-
-                          // Update analysis state to reflect the new icon in the status panel
-                          setAnalysisState(prev => ({
-                            ...prev,
-                            data: {
-                              ...(prev.data || {}),
-                              iconUrl: data.url
-                            }
-                          }));
-
-                          toastSuccess(t.upload.icon_gen_success.replace('{n}', String(3 - (generationCount + 1))));
-                        }
-                      } catch (error: any) {
-                        console.error('Icon generation failed', error);
-                        if (error.status === 403 || error.message.includes('Insufficient credits')) {
-                            openCreditPurchaseModal();
-                        } else {
-                            toastError(error.message || t.upload.icon_gen_fail);
-                        }
-                        // Revert count on failure if you want, but usually attempts are counted regardless
-                        // setGenerationCount(prev => prev - 1); 
-                      } finally {
-                        setIsGeneratingIcon(false);
-                      }
-                    }}
-                    disabled={!firstIconGenerationComplete || isGeneratingIcon || !description || generationCount >= 3}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white py-2 rounded-lg font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {!firstIconGenerationComplete ? (
-                      <><i className="fa-solid fa-hourglass-half"></i> {language === 'zh' ? '等待首次分析完成...' : 'Waiting for initial analysis...'}</>
-                    ) : isGeneratingIcon ? (
-                      <><i className="fa-solid fa-circle-notch fa-spin"></i> {t.upload.ai_generating}</>
-                    ) : generationCount >= 3 ? (
-                      <><i className="fa-solid fa-ban"></i> {t.upload.limit_reached}</>
-                    ) : (
-                      <><i className="fa-solid fa-wand-magic-sparkles"></i> {t.upload.ai_generate_icon} ({3 - generationCount}/3)</>
-                    )}
-                  </button>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-slate-700"></div>
+              {/* Icon Selection */}
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-slate-400">{t.upload.app_icon}</label>
+                <div className="flex gap-6 items-start">
+                  <div className="flex-shrink-0">
+                    <div className="w-24 h-24 rounded-2xl overflow-hidden border border-white/10 shadow-lg relative group bg-zinc-900">
+                      {iconPreview ? (
+                        <img src={iconPreview} alt="Icon" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-600">
+                          <i className="fa-solid fa-image text-2xl"></i>
+                        </div>
+                      )}
+                      {/* Glossy Overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
                     </div>
-                    <div className="relative flex justify-center text-xs">
-                      <span className="px-2 bg-slate-900 text-slate-500">{t.upload.or}</span>
-                    </div>
+                    <div className="text-center mt-2 text-[10px] text-slate-500 font-medium uppercase tracking-wider">{t.upload.icon_preview}</div>
                   </div>
 
-                  {/* Manual Upload */}
-                  <div className="relative">
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          setIconFile(file);
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setIconPreview(reader.result as string);
-                          };
-                          reader.readAsDataURL(file);
+                  {/* Controls */}
+                  <div className="flex-grow space-y-3">
+                    {/* AI Generate */}
+                    <button 
+                      onClick={async () => {
+                        if (!firstIconGenerationComplete) {
+                          toastError(language === 'zh' ? '请等待首次自动图标生成完成' : 'Please wait for the first icon generation to complete');
+                          return;
+                        }
+                        if (!description) {
+                          toastError(t.upload.fill_desc_first);
+                          return;
+                        }
+                        if (generationCount >= 3) {
+                          toastError(t.upload.icon_gen_limit);
+                          return;
+                        }
+                        
+                        // Show confirmation dialog for manual generation (costs 2 credits)
+                        const confirmMsg = language === 'zh' 
+                          ? 'AI 将生成高清应用图标，此操作将消耗 2 积分，是否继续？' 
+                          : 'AI will generate a high-quality app icon. This will cost 2 credits. Continue?';
+                        
+                        if (!confirm(confirmMsg)) return;
+                        
+                        setIsGeneratingIcon(true);
+                        setGenerationCount(prev => prev + 1);
+                        
+                        try {
+                          const response = await fetch('/api/generate-icon', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ title, description, firstCall: false })
+                          });
+                          
+                          if (!response.ok) {
+                            const data = await response.json().catch(() => ({}));
+                            const msg = data.error || `API Error: ${response.status}`;
+                            const err: any = new Error(msg);
+                            err.status = response.status;
+                            throw err;
+                          }
+
+                          const data = await response.json();
+
+                          if (data.debug && data.debug.trace) {
+                            console.log('🎨 [Manual] Icon Generation Trace:', data.debug.trace);
+                          }
+
+                          if (data.url) {
+                            setIconPreview(data.url);
+                            // Convert data URL to File object for upload
+                            const res = await fetch(data.url);
+                            const blob = await res.blob();
+                            const file = new File([blob], 'icon.png', { type: 'image/png' });
+                            setIconFile(file);
+
+                            // Update analysis state to reflect the new icon in the status panel
+                            setAnalysisState(prev => ({
+                              ...prev,
+                              data: {
+                                ...(prev.data || {}),
+                                iconUrl: data.url
+                              }
+                            }));
+
+                            toastSuccess(t.upload.icon_gen_success.replace('{n}', String(3 - (generationCount + 1))));
+                          }
+                        } catch (error: any) {
+                          console.error('Icon generation failed', error);
+                          if (error.status === 403 || error.message.includes('Insufficient credits')) {
+                              openCreditPurchaseModal();
+                          } else {
+                              toastError(error.message || t.upload.icon_gen_fail);
+                          }
+                          // Revert count on failure if you want, but usually attempts are counted regardless
+                          // setGenerationCount(prev => prev - 1); 
+                        } finally {
+                          setIsGeneratingIcon(false);
                         }
                       }}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                    />
-                    <button className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg font-bold transition flex items-center justify-center gap-2 border border-slate-700">
-                      <i className="fa-solid fa-upload"></i> {t.upload.upload_local}
+                      disabled={!firstIconGenerationComplete || isGeneratingIcon || !description || generationCount >= 3}
+                      className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white py-2.5 rounded-xl font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/20"
+                    >
+                      {!firstIconGenerationComplete ? (
+                        <><i className="fa-solid fa-hourglass-half"></i> {language === 'zh' ? '等待首次分析完成...' : 'Waiting for initial analysis...'}</>
+                      ) : isGeneratingIcon ? (
+                        <><i className="fa-solid fa-circle-notch fa-spin"></i> {t.upload.ai_generating}</>
+                      ) : generationCount >= 3 ? (
+                        <><i className="fa-solid fa-ban"></i> {t.upload.limit_reached}</>
+                      ) : (
+                        <><i className="fa-solid fa-wand-magic-sparkles"></i> {t.upload.ai_generate_icon} ({3 - generationCount}/3)</>
+                      )}
                     </button>
+
+                    <div className="relative py-1">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-white/10"></div>
+                      </div>
+                      <div className="relative flex justify-center text-xs">
+                        <span className="px-2 bg-zinc-900 text-slate-500">{t.upload.or}</span>
+                      </div>
+                    </div>
+
+                    {/* Manual Upload */}
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setIconFile(file);
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setIconPreview(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      />
+                      <button className="w-full bg-zinc-800 hover:bg-zinc-700 text-slate-300 py-2.5 rounded-xl font-bold transition flex items-center justify-center gap-2 border border-white/10">
+                        <i className="fa-solid fa-upload"></i> {t.upload.upload_local}
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500 text-center">{t.upload.icon_size_hint}</p>
                   </div>
-                  <p className="text-xs text-slate-500">{t.upload.icon_size_hint}</p>
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">{t.upload.prompt_label} <span className="text-purple-400 text-xs">{t.upload.prompt_hint}</span></label>
+              <label className="block text-sm font-medium text-slate-400 mb-2">{t.upload.prompt_label} <span className="text-indigo-400 text-xs ml-1">{t.upload.prompt_hint}</span></label>
               <textarea 
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                rows={12}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-brand-500 outline-none resize-none"
+                rows={8}
+                className="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 outline-none resize-none transition-all font-mono text-sm"
                 placeholder={t.upload.ai_analyzing_short}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">{t.upload.tags_label} <span className="text-purple-400 text-xs">{t.upload.tags_hint}</span></label>
-              <div className="flex flex-wrap gap-2 mb-2 min-h-[2rem]">
-                {tags.length === 0 && isAnalyzing && <span className="text-xs text-slate-500">{t.upload.waiting_analysis}</span>}
+              <label className="block text-sm font-medium text-slate-400 mb-2">{t.upload.tags_label} <span className="text-indigo-400 text-xs ml-1">{t.upload.tags_hint}</span></label>
+              <div className="flex flex-wrap gap-2 mb-3 min-h-[2rem]">
+                {tags.length === 0 && isAnalyzing && <span className="text-xs text-slate-500 flex items-center gap-2"><i className="fa-solid fa-circle-notch fa-spin"></i> {t.upload.waiting_analysis}</span>}
                 {tags.map(tag => (
-                  <span key={tag} className="bg-slate-700 text-slate-300 px-2 py-1 rounded text-sm flex items-center gap-1">
+                  <span key={tag} className="bg-zinc-800 border border-white/10 text-slate-300 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 group">
                     {tag}
-                    <button onClick={() => removeTag(tag)} className="hover:text-white"><i className="fa-solid fa-times"></i></button>
+                    <button onClick={() => removeTag(tag)} className="text-slate-500 hover:text-white transition-colors"><i className="fa-solid fa-times"></i></button>
                   </span>
                 ))}
               </div>
@@ -2213,21 +2223,21 @@ function UploadContent() {
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && addTag()}
-                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-brand-500 outline-none"
+                  className="flex-1 bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 outline-none transition-all"
                   placeholder={t.upload.add_tag_placeholder}
                 />
-                <button onClick={addTag} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg">{t.upload.add}</button>
+                <button onClick={addTag} className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold border border-white/10 transition-colors">{t.upload.add}</button>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-between items-center gap-4">
-            <button onClick={handleReset} className="px-6 py-2 rounded-lg border border-slate-600 text-slate-300 hover:text-white hover:border-slate-500 hover:bg-slate-800 transition">{t.upload.reupload}</button>
+          <div className="flex justify-between items-center gap-4 pt-4">
+            <button onClick={handleReset} className="px-6 py-3 rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/5 transition-colors">{t.upload.reupload}</button>
             
             <div className="flex gap-4">
                 <button 
                     onClick={handleEditInCreator}
-                    className="px-6 py-2 rounded-lg border border-brand-500/50 text-brand-400 hover:text-white hover:bg-brand-600/20 transition flex items-center gap-2"
+                    className="px-6 py-3 rounded-xl border border-indigo-500/30 text-indigo-400 hover:text-white hover:bg-indigo-500/10 transition flex items-center gap-2 font-medium"
                 >
                     <i className="fa-solid fa-pen-to-square"></i>
                     {t.upload.edit_code || (language === 'zh' ? '编辑代码' : 'Edit Code')}
@@ -2236,10 +2246,10 @@ function UploadContent() {
                 <button 
                 onClick={() => setStep(3)} 
                 disabled={isAnalyzing || !isSecuritySafe}
-                className={`px-6 py-2 rounded-lg font-bold transition flex items-center gap-2 ${
+                className={`px-8 py-3 rounded-xl font-bold transition flex items-center gap-2 shadow-lg ${
                     isAnalyzing || !isSecuritySafe 
-                    ? 'bg-slate-700 text-slate-500 cursor-not-allowed' 
-                    : 'bg-brand-600 hover:bg-brand-500 text-white'
+                    ? 'bg-zinc-800 text-slate-500 cursor-not-allowed border border-white/5' 
+                    : 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white shadow-indigo-500/20'
                 }`}
                 >
                 {isAnalyzing ? (
@@ -2257,273 +2267,331 @@ function UploadContent() {
 
       {/* Step 3: Pricing & Publish */}
       {step === 3 && (
-        <div className="glass-panel rounded-2xl p-8 space-y-6">
+        <div className="rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl p-8 space-y-8">
           {/* Visibility Settings */}
-          <div className="mb-8">
-            <h3 className="text-xl font-bold text-white mb-4">{t.upload.publish_settings}</h3>
-            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
+          <div>
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <i className="fa-solid fa-eye text-indigo-500"></i> {t.upload.publish_settings}
+            </h3>
+            <div className="bg-zinc-900/50 rounded-2xl p-6 border border-white/5">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-white font-medium mb-1">
+                  <h4 className="text-white font-bold text-lg mb-1">
                     {isPublic ? t.upload.public_work : t.upload.private_work}
                   </h4>
                   <p className="text-sm text-slate-400">
                     {hasBackendCode 
                       ? (language === 'zh' ? '含后端代码的作品只能私有分享' : 'Works with backend code can only be shared privately')
-                      : (isPublic 
-                        ? t.upload.public_hint 
-                        : t.upload.private_hint)}
+                      : isDuplicateRestricted
+                        ? (language === 'zh' ? '重复内容只能私有分享' : 'Duplicate content can only be shared privately')
+                        : (isPublic 
+                          ? t.upload.public_hint 
+                          : t.upload.private_hint)}
                   </p>
                 </div>
                 <button 
-                  onClick={() => !hasBackendCode && setIsPublic(!isPublic)}
-                  disabled={hasBackendCode}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                    hasBackendCode 
-                      ? 'bg-slate-600 cursor-not-allowed opacity-50' 
-                      : (isPublic ? 'bg-brand-500' : 'bg-slate-600')
+                  onClick={() => !hasBackendCode && !isDuplicateRestricted && setIsPublic(!isPublic)}
+                  disabled={hasBackendCode || isDuplicateRestricted}
+                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none ${
+                    hasBackendCode || isDuplicateRestricted
+                      ? 'bg-zinc-700 cursor-not-allowed opacity-50' 
+                      : (isPublic ? 'bg-indigo-500' : 'bg-zinc-700')
                   }`}
                 >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isPublic ? 'translate-x-6' : 'translate-x-1'}`} />
+                  <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform shadow-md ${isPublic ? 'translate-x-7' : 'translate-x-1'}`} />
                 </button>
               </div>
               {hasBackendCode && (
-                <div className="mt-3 flex items-center gap-2 text-amber-400 text-xs">
+                <div className="mt-4 flex items-center gap-2 text-amber-400 text-xs bg-amber-500/10 p-3 rounded-lg border border-amber-500/20">
                   <i className="fa-solid fa-server"></i>
                   <span>{language === 'zh' ? '检测到后端集成代码，为保护数据安全，仅支持私有分享' : 'Backend integration detected. Private sharing only for data security.'}</span>
                 </div>
               )}
+              {isDuplicateRestricted && (
+                <div className="mt-4 flex items-center gap-2 text-orange-400 text-xs bg-orange-500/10 p-3 rounded-lg border border-orange-500/20">
+                  <i className="fa-solid fa-shield-halved"></i>
+                  <span>{language === 'zh' ? '检测到重复内容，为保护原创，仅支持私有分享' : 'Duplicate content detected. Private sharing only to protect originality.'}</span>
+                </div>
+              )}
             </div>
           </div>
 
-          <h3 className="text-xl font-bold text-white mb-6">{t.upload.set_price}</h3>
-
           <div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <i className="fa-solid fa-tag text-indigo-500"></i> {t.upload.set_price}
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Free Option */}
               <div 
-                className={`border rounded-xl p-6 cursor-pointer transition relative ${priceType === 'free' ? 'border-brand-500 bg-brand-900/20' : 'border-slate-600 hover:border-brand-500'}`}
+                className={`border rounded-2xl p-8 cursor-pointer transition-all duration-300 relative group ${
+                  priceType === 'free' 
+                    ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10' 
+                    : 'border-white/10 bg-zinc-900/30 hover:border-indigo-500/50 hover:bg-zinc-900/50'
+                }`}
                 onClick={() => setPriceType('free')}
               >
-                <div className="absolute top-4 right-4 w-6 h-6 rounded-full border-2 border-slate-500 flex items-center justify-center">
-                  {priceType === 'free' && <div className="w-3 h-3 bg-brand-500 rounded-full"></div>}
+                <div className="absolute top-6 right-6 w-6 h-6 rounded-full border-2 border-slate-500 flex items-center justify-center transition-colors group-hover:border-indigo-400">
+                  {priceType === 'free' && <div className="w-3 h-3 bg-indigo-500 rounded-full shadow-sm"></div>}
                 </div>
-                <i className="fa-solid fa-gift text-3xl text-green-400 mb-4"></i>
-                <h4 className="text-lg font-bold text-white">{t.upload.free_share}</h4>
-                <p className="text-sm text-slate-400 mt-2">{t.upload.free_desc}</p>
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-6 border border-emerald-500/20">
+                  <i className="fa-solid fa-gift text-3xl text-emerald-400"></i>
+                </div>
+                <h4 className="text-xl font-bold text-white mb-2">{t.upload.free_share}</h4>
+                <p className="text-sm text-slate-400 leading-relaxed">{t.upload.free_desc}</p>
               </div>
 
               {/* Paid Option */}
               <div 
-                className={`border rounded-xl p-6 cursor-pointer transition relative ${priceType === 'paid' ? 'border-brand-500 bg-brand-900/20' : 'border-slate-600 hover:border-brand-500'}`}
+                className={`border rounded-2xl p-8 cursor-pointer transition-all duration-300 relative group ${
+                  priceType === 'paid' 
+                    ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10' 
+                    : 'border-white/10 bg-zinc-900/30 hover:border-indigo-500/50 hover:bg-zinc-900/50'
+                }`}
                 onClick={() => setPriceType('paid')}
               >
-                <div className="absolute top-4 right-4 w-6 h-6 rounded-full border-2 border-slate-500 flex items-center justify-center">
-                  {priceType === 'paid' && <div className="w-3 h-3 bg-brand-500 rounded-full"></div>}
+                <div className="absolute top-6 right-6 w-6 h-6 rounded-full border-2 border-slate-500 flex items-center justify-center transition-colors group-hover:border-indigo-400">
+                  {priceType === 'paid' && <div className="w-3 h-3 bg-indigo-500 rounded-full shadow-sm"></div>}
                 </div>
-                <i className="fa-solid fa-sack-dollar text-3xl text-yellow-400 mb-4"></i>
-                <h4 className="text-lg font-bold text-white">{t.upload.paid_download}</h4>
-                <p className="text-sm text-slate-400 mt-2">{t.upload.paid_desc}</p>
+                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-6 border border-amber-500/20">
+                  <i className="fa-solid fa-sack-dollar text-3xl text-amber-400"></i>
+                </div>
+                <h4 className="text-xl font-bold text-white mb-2">{t.upload.paid_download}</h4>
+                <p className="text-sm text-slate-400 leading-relaxed mb-4">{t.upload.paid_desc}</p>
                 
                 {priceType === 'paid' && (
-                  <div className="mt-4" onClick={(e) => e.stopPropagation()}>
-                    <label className="text-xs text-slate-400">{t.upload.price_cny}</label>
-                    <input 
-                      type="number" 
-                      value={price}
-                      onChange={(e) => setPrice(parseFloat(e.target.value))}
-                      step="0.5"
-                      min="1"
-                      className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 mt-1 text-white focus:border-brand-500 outline-none"
-                    />
+                  <div className="mt-4 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+                    <label className="text-xs text-indigo-300 font-bold uppercase tracking-wider mb-1.5 block">{t.upload.price_cny}</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">¥</span>
+                      <input 
+                        type="number" 
+                        value={price}
+                        onChange={(e) => setPrice(parseFloat(e.target.value))}
+                        step="0.5"
+                        min="1"
+                        className="w-full bg-zinc-900 border border-white/10 rounded-xl pl-8 pr-4 py-2.5 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 outline-none transition-all font-bold"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="pt-6 flex gap-4">
-            <button onClick={() => setStep(2)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition">{t.upload.prev_step}</button>
+          <div className="pt-8 flex gap-4 border-t border-white/5">
+            <button onClick={() => setStep(2)} className="flex-1 py-3.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition border border-white/5">{t.upload.prev_step}</button>
             <button 
               onClick={handlePublish} 
               disabled={loading}
-              className="flex-[2] py-3 bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white rounded-lg font-bold transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-[2] py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
-                <>
-                  <i className="fa-solid fa-circle-notch fa-spin"></i>
-                  {isEditing || isUpdating ? t.upload.saving : t.upload.publishing} {Math.round(uploadProgress)}%
-                </>
+                <><i className="fa-solid fa-circle-notch fa-spin"></i> {t.upload.publishing}</>
               ) : (
-                isUpdating 
-                  ? (t.upload?.confirm_update || '确认更新') 
-                  : isEditing 
-                    ? t.upload.save_changes 
-                    : t.upload.confirm_publish
+                <>{(isEditing || isUpdating) ? t.upload.confirm_modify : t.upload.confirm_publish} <i className="fa-solid fa-rocket"></i></>
               )}
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 4: Launch (Success) */}
+      {/* Step 4: Success */}
       {step === 4 && (
-        <div className="glass-panel rounded-2xl p-12 text-center animate-float-up">
-          <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i className="fa-solid fa-check text-5xl text-green-500"></i>
-          </div>
-          <h2 className="text-3xl font-bold text-white mb-4">{(isEditing || isUpdating) ? t.upload.modify_success : t.upload.publish_success}</h2>
-          <p className="text-slate-400 mb-8">{(isEditing || isUpdating) ? t.upload.modify_success_desc : t.upload.publish_success_desc}</p>
+        <div className="rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl p-12 text-center animate-float-up relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none"></div>
           
-          <div className="bg-slate-950 rounded-xl p-6 border border-slate-800 flex flex-col items-center justify-center gap-4 mb-8">
-            <div className="text-slate-500 text-sm">{t.upload.work_link}</div>
-            <div className="flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-lg border border-slate-800 w-full max-w-md">
-              <span className="text-brand-400 truncate flex-1 text-left">{`${typeof window !== 'undefined' ? window.location.origin : ''}/explore?work=${publishedId}`}</span>
-              <button onClick={copyShareLink} className="text-slate-400 hover:text-white"><i className="fa-regular fa-copy"></i></button>
+          <div className="relative z-10">
+            <div className="w-28 h-28 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-8 border border-emerald-500/20 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
+              <i className="fa-solid fa-check text-6xl text-emerald-500"></i>
             </div>
-          </div>
-
-          <div className="flex gap-4 justify-center">
-            <button onClick={() => router.push('/explore')} className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold transition">
-              {t.upload.return_explore}
-            </button>
-            <button onClick={goToDetail} className="px-8 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold transition shadow-lg shadow-brand-500/30">
-              {t.upload.view_work}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Duplicate Detection Modal */}
-      {duplicateModal.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4 animate-fade-in">
-          <div className="bg-slate-800 border border-orange-500/50 rounded-2xl p-8 max-w-lg w-full shadow-2xl relative">
-            {/* Header Icon */}
-            <div className="w-20 h-20 bg-orange-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-              <i className="fa-solid fa-shield-halved text-4xl text-orange-500"></i>
-            </div>
-
-            {/* Title */}
-            <h3 className="text-2xl font-bold text-white mb-3 text-center">
-              {language === 'zh' ? '🔍 重复内容检测' : '🔍 Duplicate Content Detected'}
-            </h3>
-
-            {/* Detection Type Badge */}
-            <div className="flex justify-center mb-6">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/20 border border-orange-500/30 rounded-full">
-                <i className={`fa-solid ${duplicateModal.type === 'hash' ? 'fa-fingerprint' : 'fa-brain'}`}></i>
-                <span className="text-sm font-medium text-orange-300">
-                  {language === 'zh' 
-                    ? (duplicateModal.type === 'hash' ? '哈希指纹匹配' : 'AI 语义识别') 
-                    : (duplicateModal.type === 'hash' ? 'Hash Fingerprint Match' : 'AI Semantic Match')}
-                </span>
-                {duplicateModal.similarity && (
-                  <span className="text-xs text-orange-400">
-                    {Math.round(duplicateModal.similarity * 100)}%
-                  </span>
-                )}
+            <h2 className="text-4xl font-bold text-white mb-4 tracking-tight">{(isEditing || isUpdating) ? t.upload.modify_success : t.upload.publish_success}</h2>
+            <p className="text-slate-400 mb-10 text-lg">{(isEditing || isUpdating) ? t.upload.modify_success_desc : t.upload.publish_success_desc}</p>
+            
+            <div className="bg-zinc-900/80 rounded-2xl p-8 border border-white/10 flex flex-col items-center justify-center gap-4 mb-10 max-w-xl mx-auto shadow-inner">
+              <div className="text-slate-500 text-sm font-medium uppercase tracking-wider">{t.upload.work_link}</div>
+              <div className="flex items-center gap-3 bg-black/50 px-5 py-3.5 rounded-xl border border-white/10 w-full">
+                <span className="text-indigo-400 truncate flex-1 text-left font-mono text-sm">{`${typeof window !== 'undefined' ? window.location.origin : ''}/explore?work=${publishedId}`}</span>
+                <button onClick={copyShareLink} className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"><i className="fa-regular fa-copy"></i></button>
               </div>
             </div>
 
-            {/* Message */}
-            <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-6 mb-6">
-              {duplicateModal.isSelf ? (
-                <>
-                  <div className="flex items-start gap-3 mb-4">
-                    <i className="fa-solid fa-user-check text-2xl text-blue-400 flex-shrink-0 mt-1"></i>
-                    <div>
-                      <h4 className="text-white font-bold mb-2">
-                        {language === 'zh' ? '检测到您自己的作品' : 'Your Own Work Detected'}
-                      </h4>
-                      {duplicateModal.matchedTitle && (
-                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2 mb-3">
-                          <p className="text-sm text-blue-200">
-                            <i className="fa-solid fa-file-code mr-2"></i>
-                            <span className="font-medium">{duplicateModal.matchedTitle}</span>
-                          </p>
-                        </div>
-                      )}
-                      <p className="text-slate-300 text-sm leading-relaxed">
-                        {language === 'zh' 
-                          ? duplicateModal.type === 'hash'
-                            ? '系统检测到该代码与您之前发布的作品完全一致。为避免重复，请编辑原作品而非重新发布。'
-                            : `系统通过 AI 分析发现，该作品与您之前发布的作品高度相似（相似度 ${Math.round((duplicateModal.similarity || 0) * 100)}%）。建议编辑原作品。`
-                          : duplicateModal.type === 'hash'
-                            ? 'This code is identical to your previously published work. Please edit the original instead of republishing.'
-                            : `AI analysis shows this work is highly similar (${Math.round((duplicateModal.similarity || 0) * 100)}%) to your previous work. Please edit the original.`}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 flex items-start gap-2">
-                    <i className="fa-solid fa-lightbulb text-blue-400 flex-shrink-0 mt-0.5"></i>
-                    <p className="text-xs text-blue-200">
-                      {language === 'zh' 
-                        ? '提示：在个人中心找到原作品，点击"编辑"即可更新内容，保留点赞和浏览数据。' 
-                        : 'Tip: Find your original work in Profile, click "Edit" to update it while keeping likes and views.'}
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-start gap-3 mb-4">
-                    <i className="fa-solid fa-triangle-exclamation text-2xl text-red-400 flex-shrink-0 mt-1"></i>
-                    <div>
-                      <h4 className="text-white font-bold mb-2">
-                        {language === 'zh' ? '检测到重复内容' : 'Duplicate Content Found'}
-                      </h4>
-                      {duplicateModal.matchedTitle && (
-                        <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 mb-3">
-                          <p className="text-sm text-red-200">
-                            <i className="fa-solid fa-file-code mr-2"></i>
-                            <span className="font-medium">{duplicateModal.matchedTitle}</span>
-                          </p>
-                        </div>
-                      )}
-                      <p className="text-slate-300 text-sm leading-relaxed">
-                        {language === 'zh' 
-                          ? duplicateModal.type === 'hash'
-                            ? '系统检测到该代码与平台已有作品完全一致，涉嫌抄袭或重复搬运。'
-                            : `系统通过 AI 语义分析发现，该作品与平台已有作品高度相似（相似度 ${Math.round((duplicateModal.similarity || 0) * 100)}%），可能是"换皮"或"洗稿"。`
-                          : duplicateModal.type === 'hash'
-                            ? 'This code is identical to existing work on the platform, suspected plagiarism.'
-                            : `AI semantic analysis shows high similarity (${Math.round((duplicateModal.similarity || 0) * 100)}%) to existing work, possible "reskin" or derivative.`}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-2">
-                    <i className="fa-solid fa-shield-halved text-red-400 flex-shrink-0 mt-0.5"></i>
-                    <p className="text-xs text-red-200">
-                      {language === 'zh' 
-                        ? '为保护原创，该作品无法发布。建议创作全新内容或显著改进原作。' 
-                        : 'To protect originality, this work cannot be published. Please create original content.'}
-                    </p>
-                  </div>
-                </>
-              )}
+            <div className="flex gap-4 justify-center">
+              <button onClick={() => router.push('/explore')} className="px-8 py-3.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition border border-white/5">
+                {t.upload.return_explore}
+              </button>
+              <button onClick={goToDetail} className="px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-500/30">
+                {t.upload.view_work}
+              </button>
             </div>
+          </div>
+        </div>
+      )}
 
+      {/* Duplicate Modal */}
+      {duplicateModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-zinc-900 border border-orange-500/30 rounded-3xl p-8 max-w-lg w-full shadow-2xl relative overflow-hidden">
+            <div className="absolute inset-0 bg-orange-500/5 pointer-events-none"></div>
+            
+            <div className="relative z-10">
+              {/* Header Icon */}
+              <div className="w-20 h-20 bg-orange-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-orange-500/20">
+                <i className="fa-solid fa-shield-halved text-4xl text-orange-500"></i>
+              </div>
 
+              {/* Title */}
+              <h3 className="text-2xl font-bold text-white mb-3 text-center">
+                {language === 'zh' ? '🔍 重复内容检测' : '🔍 Duplicate Content Detected'}
+              </h3>
 
-            {/* Actions */}
-            <div className="flex gap-3">
-              {duplicateModal.isSelf && (
+              {/* Detection Type Badge */}
+              <div className="flex justify-center mb-8">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full">
+                  <i className={`fa-solid ${duplicateModal.type === 'hash' ? 'fa-fingerprint' : 'fa-brain'} text-orange-400`}></i>
+                  <span className="text-sm font-medium text-orange-300">
+                    {language === 'zh' 
+                      ? (duplicateModal.type === 'hash' ? '哈希指纹匹配' : 'AI 语义识别') 
+                      : (duplicateModal.type === 'hash' ? 'Hash Fingerprint Match' : 'AI Semantic Match')}
+                  </span>
+                  {duplicateModal.similarity && (
+                    <span className="text-xs text-orange-400 font-bold bg-orange-500/10 px-1.5 py-0.5 rounded">
+                      {Math.round(duplicateModal.similarity * 100)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Message */}
+              <div className="bg-black/40 border border-white/5 rounded-2xl p-6 mb-8">
+                {duplicateModal.isSelf ? (
+                  <>
+                    <div className="flex items-start gap-4 mb-4">
+                      <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0 text-blue-400">
+                        <i className="fa-solid fa-user-check text-xl"></i>
+                      </div>
+                      <div>
+                        <h4 className="text-white font-bold mb-2 text-lg">
+                          {language === 'zh' ? '检测到您自己的作品' : 'Your Own Work Detected'}
+                        </h4>
+                        {duplicateModal.matchedTitle && (
+                          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2 mb-3 inline-block">
+                            <p className="text-sm text-blue-200">
+                              <i className="fa-solid fa-file-code mr-2 opacity-70"></i>
+                              <span className="font-medium">{duplicateModal.matchedTitle}</span>
+                            </p>
+                          </div>
+                        )}
+                        <p className="text-slate-300 text-sm leading-relaxed">
+                          {language === 'zh' 
+                            ? duplicateModal.type === 'hash'
+                              ? '系统检测到该代码与您之前发布的作品完全一致。为避免重复，请编辑原作品而非重新发布。'
+                              : `系统通过 AI 分析发现，该作品与您之前发布的作品高度相似（相似度 ${Math.round((duplicateModal.similarity || 0) * 100)}%）。建议编辑原作品。`
+                            : duplicateModal.type === 'hash'
+                              ? 'This code is identical to your previously published work. Please edit the original instead of republishing.'
+                              : `AI analysis shows this work is highly similar (${Math.round((duplicateModal.similarity || 0) * 100)}%) to your previous work. Please edit the original.`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 flex items-start gap-3">
+                      <i className="fa-solid fa-lightbulb text-blue-400 flex-shrink-0 mt-0.5"></i>
+                      <p className="text-xs text-blue-200 leading-relaxed">
+                        {language === 'zh' 
+                          ? '提示：在个人中心找到原作品，点击"编辑"即可更新内容，保留点赞和浏览数据。' 
+                          : 'Tip: Find your original work in Profile, click "Edit" to update it while keeping likes and views.'}
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-start gap-4 mb-4">
+                      <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0 text-red-400">
+                        <i className="fa-solid fa-triangle-exclamation text-xl"></i>
+                      </div>
+                      <div>
+                        <h4 className="text-white font-bold mb-2 text-lg">
+                          {language === 'zh' ? '检测到重复内容' : 'Duplicate Content Found'}
+                        </h4>
+                        {duplicateModal.matchedTitle && (
+                          <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-3 inline-block">
+                            <p className="text-sm text-red-200">
+                              <i className="fa-solid fa-file-code mr-2 opacity-70"></i>
+                              <span className="font-medium">{duplicateModal.matchedTitle}</span>
+                            </p>
+                          </div>
+                        )}
+                        <p className="text-slate-300 text-sm leading-relaxed">
+                          {language === 'zh' 
+                            ? duplicateModal.type === 'hash'
+                              ? '系统检测到该代码与平台已有作品完全一致，涉嫌抄袭或重复搬运。'
+                              : `系统通过 AI 语义分析发现，该作品与平台已有作品高度相似（相似度 ${Math.round((duplicateModal.similarity || 0) * 100)}%），可能是"换皮"或"洗稿"。`
+                            : duplicateModal.type === 'hash'
+                              ? 'This code is identical to existing work on the platform, suspected plagiarism.'
+                              : `AI semantic analysis shows high similarity (${Math.round((duplicateModal.similarity || 0) * 100)}%) to existing work, possible "reskin" or derivative.`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3">
+                      <i className="fa-solid fa-shield-halved text-red-400 flex-shrink-0 mt-0.5"></i>
+                      <p className="text-xs text-red-200 leading-relaxed">
+                        {language === 'zh' 
+                          ? '为保护原创，该作品无法发布。建议创作全新内容或显著改进原作。' 
+                          : 'To protect originality, this work cannot be published. Please create original content.'}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                {duplicateModal.isSelf && (
+                  <button 
+                    onClick={() => {
+                      setDuplicateModal({ show: false, type: 'hash', isSelf: false });
+                      router.push('/profile');
+                    }}
+                    className="flex-1 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
+                  >
+                    <i className="fa-solid fa-pen-to-square"></i>
+                    {language === 'zh' ? '前往编辑' : 'Edit Original'}
+                  </button>
+                )}
                 <button 
                   onClick={() => {
                     setDuplicateModal({ show: false, type: 'hash', isSelf: false });
-                    router.push('/profile');
+                    setLoading(false);
                   }}
-                  className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2"
+                  className={`${duplicateModal.isSelf ? 'flex-1' : 'w-full'} py-3.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition border border-white/5`}
                 >
-                  <i className="fa-solid fa-pen-to-square"></i>
-                  {language === 'zh' ? '前往编辑' : 'Edit Original'}
+                  {language === 'zh' ? '知道了' : 'Got it'}
                 </button>
-              )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Limit Modal */}
+      {showLimitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-fade-in">
+          <div className="bg-zinc-900 border border-yellow-500/30 rounded-3xl p-8 max-w-md w-full shadow-2xl text-center relative overflow-hidden">
+            <div className="absolute inset-0 bg-yellow-500/5 pointer-events-none"></div>
+            <div className="relative z-10">
+              <div className="w-20 h-20 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-yellow-500/20">
+                <i className="fa-solid fa-hand text-4xl text-yellow-500"></i>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2">
+                {language === 'zh' ? '今日发布已达上限' : 'Daily Limit Reached'}
+              </h3>
+              <p className="text-slate-400 mb-8 leading-relaxed">
+                {language === 'zh' 
+                  ? '为了保证社区质量，每位创作者每天最多发布 10 个作品。请明天再来分享您的创意！' 
+                  : 'To ensure community quality, each creator can publish up to 5 works per day. Please come back tomorrow!'}
+              </p>
               <button 
-                onClick={() => {
-                  setDuplicateModal({ show: false, type: 'hash', isSelf: false });
-                  setLoading(false);
-                }}
-                className={`${duplicateModal.isSelf ? 'flex-1' : 'w-full'} py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition`}
+                onClick={() => setShowLimitModal(false)}
+                className="w-full py-3.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition border border-white/5"
               >
                 {language === 'zh' ? '知道了' : 'Got it'}
               </button>
@@ -2538,42 +2606,15 @@ function UploadContent() {
         onClose={() => setShowBackendPanel(false)}
         userId={user?.id || null}
         language={language}
-        mode="test"
-        code={fileContent}
-        onCodeUpdate={(newCode) => setFileContent(newCode)}
       />
-
-      {/* Daily Limit Modal */}
-      {showLimitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-2xl text-center relative">
-            <div className="w-20 h-20 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-              <i className="fa-solid fa-hand text-4xl text-yellow-500"></i>
-            </div>
-            <h3 className="text-2xl font-bold text-white mb-2">
-              {language === 'zh' ? '今日发布已达上限' : 'Daily Limit Reached'}
-            </h3>
-            <p className="text-slate-400 mb-8">
-              {language === 'zh' 
-                ? '为了保证社区质量，每位创作者每天最多发布 10 个作品。请明天再来分享您的创意！' 
-                : 'To ensure community quality, each creator can publish up to 5 works per day. Please come back tomorrow!'}
-            </p>
-            <button 
-              onClick={() => setShowLimitModal(false)}
-              className="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition"
-            >
-              {language === 'zh' ? '知道了' : 'Got it'}
-            </button>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
 
 export default function UploadPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen pt-24 px-4 flex justify-center"><i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500"></i></div>}>
+    <Suspense fallback={<div className="min-h-screen bg-black pt-24 px-4 flex justify-center"><i className="fa-solid fa-circle-notch fa-spin text-3xl text-indigo-500"></i></div>}>
       <UploadContent />
     </Suspense>
   );

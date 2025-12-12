@@ -4,13 +4,13 @@
 
 :root {
   --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 15, 23, 42;
-  --background-end-rgb: 15, 23, 42;
+  --background-start-rgb: 0, 0, 0;
+  --background-end-rgb: 0, 0, 0;
 }
 
 html {
     -webkit-tap-highlight-color: transparent;
-    overscroll-behavior-y: none; /* Prevent pull-to-refresh/bounce on the root */
+    /* overscroll-behavior-y: none; Removed to ensure scrolling works */
 }
 
 body {
@@ -23,6 +23,7 @@ body {
       rgb(var(--background-start-rgb));
     font-family: 'Inter', sans-serif;
     overflow-x: hidden;
+    overflow-y: auto; /* Ensure vertical scrolling is enabled */
     -webkit-overflow-scrolling: touch;
     touch-action: manipulation;
     
@@ -46,7 +47,7 @@ input, textarea, [contenteditable] {
 }
 
 .glass-panel {
-    background: rgba(30, 41, 59, 0.7);
+    background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -76,14 +77,14 @@ input, textarea, [contenteditable] {
     height: 8px;
 }
 ::-webkit-scrollbar-track {
-    background: #0f172a; 
+    background: #000000; 
 }
 ::-webkit-scrollbar-thumb {
-    background: #334155; 
+    background: rgba(255, 255, 255, 0.2); 
     border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: #475569; 
+    background: rgba(255, 255, 255, 0.3); 
 }
 
 .no-scrollbar::-webkit-scrollbar {

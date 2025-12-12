@@ -139,7 +139,7 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
       containerClasses = "w-full max-w-2xl bg-black/40 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl text-white transition-all duration-500 animate-in fade-in overflow-hidden";
       break;
     case 'chat':
-      containerClasses = "w-full bg-slate-900/50 rounded-2xl border border-white/5 text-white transition-all duration-300 animate-in fade-in overflow-hidden";
+      containerClasses = "w-full bg-white/5 rounded-2xl border border-white/10 text-white transition-all duration-300 animate-in fade-in overflow-hidden";
       break;
   }
 
@@ -397,17 +397,17 @@ const TimelineItem: React.FC<{
     purple: {
       active: 'border-purple-500 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.3)]',
       completed: 'border-purple-500/50 text-purple-400 bg-purple-500/10',
-      inactive: 'border-slate-800 text-slate-600 bg-slate-900'
+      inactive: 'border-white/10 text-slate-600 bg-white/5'
     },
     cyan: {
       active: 'border-cyan-500 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.3)]',
       completed: 'border-cyan-500/50 text-cyan-400 bg-cyan-500/10',
-      inactive: 'border-slate-800 text-slate-600 bg-slate-900'
+      inactive: 'border-white/10 text-slate-600 bg-white/5'
     },
     blue: {
       active: 'border-blue-500 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]',
       completed: 'border-blue-500/50 text-blue-400 bg-blue-500/10',
-      inactive: 'border-slate-800 text-slate-600 bg-slate-900'
+      inactive: 'border-white/10 text-slate-600 bg-white/5'
     }
   };
 
@@ -423,7 +423,7 @@ const TimelineItem: React.FC<{
       {/* 节点图标 */}
       <div className={`absolute left-0 top-0 w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all duration-500 z-10 ${
         active 
-          ? `${currentStyle.active} bg-slate-900 scale-110` 
+          ? `${currentStyle.active} bg-black scale-110` 
           : completed
             ? `${currentStyle.completed}`
             : `${currentStyle.inactive} opacity-50`

@@ -18,15 +18,16 @@ import { CodeWaterfall } from '@/components/CodeWaterfall';
 import { CreationChat } from '@/components/CreationChat';
 import { CreationPreview } from '../../components/CreationPreview';
 import { GET_BACKEND_CONFIG_PROMPT } from '@/lib/prompts';
+import Galaxy from '@/components/Galaxy';
 
 // --- Constants ---
 const CATEGORIES = [
   { id: 'game', icon: 'fa-gamepad' },
-  { id: 'design', icon: 'fa-palette' },
+  { id: 'portfolio', icon: 'fa-id-card' }, // New
+  { id: 'appointment', icon: 'fa-calendar-check' }, // New
   { id: 'productivity', icon: 'fa-list-check' },
   { id: 'tool', icon: 'fa-screwdriver-wrench' },
   { id: 'devtool', icon: 'fa-code' },
-  { id: 'entertainment', icon: 'fa-film' },
   { id: 'education', icon: 'fa-graduation-cap' },
   { id: 'visualization', icon: 'fa-chart-pie' },
   { id: 'lifestyle', icon: 'fa-mug-hot' }
@@ -66,10 +67,10 @@ const STYLES = [
 const CATEGORY_STYLES: Record<string, string[]> = {
   game: ['retro', 'cyberpunk', 'cartoon', 'lowpoly', 'dark_fantasy', 'neobrutalism'],
   tool: ['minimalist', 'neumorphism', 'native', 'industrial', 'swiss', 'dark_mode'],
-  design: ['minimalist', 'swiss', 'editorial', 'glassmorphism', 'neobrutalism', 'dark_mode'],
+  portfolio: ['minimalist', 'swiss', 'editorial', 'glassmorphism', 'neobrutalism', 'dark_mode'], // New
+  appointment: ['business', 'minimalist', 'native', 'material', 'card', 'clean'], // New
   productivity: ['minimalist', 'dark_mode', 'kanban', 'business', 'swiss', 'neumorphism'],
   devtool: ['dark_mode', 'industrial', 'minimalist', 'swiss', 'neobrutalism', 'retro'],
-  entertainment: ['glassmorphism', 'dark_fantasy', 'cyberpunk', 'material', 'neumorphism', 'card'],
   education: ['cute', 'business', 'paper', 'gamified', 'minimalist', 'card'],
   visualization: ['dark_mode', 'swiss', 'minimalist', 'industrial', 'glassmorphism', 'card'],
   lifestyle: ['cute', 'bubble', 'minimalist', 'native', 'paper', 'material']
@@ -497,7 +498,7 @@ function CreateContent() {
           iframeRef.current.contentWindow.postMessage({
             type: 'spark-user-id-response',
             userId: userId,
-            appId: `draft_${userId}`,
+            appId: sessionDraftId, // 使用完整的 sessionDraftId（包含 session 后缀）
             apiBase: window.location.origin // 传递正确的 API 基地址
           }, '*');
         }
@@ -597,7 +598,7 @@ function CreateContent() {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isEditMode, userId]);
+  }, [isEditMode, userId, sessionDraftId]);
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -1584,8 +1585,8 @@ ${description}
         const keysToRemove: string[] = [];
         for (let i = 0; i < win.localStorage.length; i++) {
           const key = win.localStorage.key(i);
-          // 保护 Supabase Auth, i18n, 和 E2E 密钥
-          if (key && !key.startsWith('sb-') && key !== 'i18nextLng' && !key.startsWith('spark_e2e_')) {
+          // 保护 Supabase Auth 和 i18n
+          if (key && !key.startsWith('sb-') && key !== 'i18nextLng') {
              keysToRemove.push(key);
           }
         }
@@ -3140,7 +3141,8 @@ Remember: You're building for production. Code must be clean, performant, and er
                 is_first_edit: isFirstEditOnUpload,
                 model: selectedModel,
                 tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit,
-                skip_compression: fullCodeMode || forceFull // 🆕 全量修改模式或强制全量时跳过压缩
+                skip_compression: fullCodeMode || forceFull || isBackendConfig, // 🆕 backend_config 也跳过压缩，确保 AI 看到完整表单代码
+                operation_type: nextOperationType // 🆕 传递操作类型，用于后端特殊处理
             }),
             signal: abortControllerRef.current.signal
         });
@@ -4491,29 +4493,29 @@ Please fix the code to make the app display properly.`;
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-        <div className="bg-slate-900/90 border border-slate-700/50 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl overflow-hidden">
-          <div className="p-4 border-b border-slate-800/50 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
+        <div className="bg-black/90 border border-white/10 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl overflow-hidden">
+          <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/50 backdrop-blur-md">
             <h3 className="font-bold text-white flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-brand-500/20 flex items-center justify-center text-brand-400">
+                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white">
                     <i className="fa-solid fa-clock-rotate-left text-sm"></i>
                 </div>
                 {t.create.history}
             </h3>
-            <button onClick={() => setShowHistoryModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition">
+            <button onClick={() => setShowHistoryModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition">
               <X size={18} />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             {codeHistory.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-500 gap-3">
-                  <div className="w-16 h-16 rounded-full bg-slate-800/50 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
                       <i className="fa-solid fa-clock-rotate-left text-2xl opacity-50"></i>
                   </div>
                   <p className="text-sm">{t.create.no_history}</p>
               </div>
             ) : (
               [...codeHistory].reverse().map((item, index) => (
-                <div key={item.timestamp} className="bg-slate-800/40 rounded-xl p-4 border border-slate-700/50 hover:border-brand-500/50 hover:bg-slate-800/60 transition group relative overflow-hidden">
+                <div key={item.timestamp} className="bg-white/5 rounded-xl p-4 border border-white/10 hover:border-white/20 hover:bg-white/10 transition group relative overflow-hidden">
                   <div className="flex justify-between items-start mb-2 relative z-10">
                     <div className="flex items-center gap-2">
                         <span className={`text-[10px] px-2 py-1 rounded-md border font-bold flex items-center gap-1.5 shadow-sm ${
@@ -4521,7 +4523,7 @@ Please fix the code to make the app display properly.`;
                             item.type === 'chat' ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' :
                             item.type === 'regenerate' ? 'bg-orange-500/10 text-orange-300 border-orange-500/20' :
                             item.type === 'fix' ? 'bg-red-500/10 text-red-300 border-red-500/20' :
-                            'bg-slate-700/50 text-slate-300 border-slate-600/50'
+                            'bg-white/5 text-slate-300 border-white/10'
                         }`}>
                             <i className={`fa-solid ${getTypeIcon(item.type)}`}></i>
                             {getTypeLabel(item.type)}
@@ -4531,14 +4533,14 @@ Please fix the code to make the app display properly.`;
                             {new Date(item.timestamp).toLocaleTimeString(language === 'zh' ? 'zh-CN' : 'en-US')} 
                         </span>
                     </div>
-                    <span className="text-[10px] font-mono bg-slate-950/50 text-slate-400 px-2 py-1 rounded-lg border border-slate-800">
+                    <span className="text-[10px] font-mono bg-black/50 text-slate-400 px-2 py-1 rounded-lg border border-white/10">
                       v{codeHistory.length - index}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-300 line-clamp-2 mb-4 pl-1 border-l-2 border-slate-700/50 group-hover:border-brand-500/30 transition-colors">{item.prompt}</p>
+                  <p className="text-sm text-slate-300 line-clamp-2 mb-4 pl-1 border-l-2 border-white/10 group-hover:border-white/30 transition-colors">{item.prompt}</p>
                   <button 
                     onClick={() => handleRollback(item)}
-                    className="w-full py-2.5 bg-slate-900/50 hover:bg-brand-600 text-slate-300 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 border border-slate-700/50 hover:border-brand-500 hover:shadow-lg hover:shadow-brand-500/20"
+                    className="w-full py-2.5 bg-black/50 hover:bg-white text-slate-300 hover:text-black rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 border border-white/10 hover:border-white hover:shadow-lg"
                   >
                     <i className="fa-solid fa-clock-rotate-left"></i> {t.create.restore_version}
                   </button>
@@ -4553,14 +4555,14 @@ Please fix the code to make the app display properly.`;
 
   const renderWizard = () => (
     <div className="max-w-4xl mx-auto pt-12 pb-12 px-4 min-h-screen flex flex-col">
-      <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700/50 rounded-3xl p-8 shadow-2xl animate-fade-in relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand-500/50 to-transparent"></div>
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-brand-500/20 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-3xl p-8 shadow-2xl animate-fade-in relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
         {/* Progress Steps */}
         <div className="flex justify-between mb-12 relative max-w-lg mx-auto w-full z-10">
-          <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-800 -z-10 rounded-full"></div>
+          <div className="absolute top-1/2 left-0 w-full h-1 bg-white/5 -z-10 rounded-full"></div>
           {['category', 'device', 'style', 'concept'].map((s, i) => {
             const steps = ['category', 'device', 'style', 'concept'];
             const currentIndex = steps.indexOf(step);
@@ -4569,10 +4571,10 @@ Please fix the code to make the app display properly.`;
             
             return (
               <div key={s} className="relative">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 border-4 ${isActive ? 'bg-brand-500 border-slate-900 text-white shadow-[0_0_15px_rgba(14,165,233,0.5)] scale-110' : 'bg-slate-800 border-slate-900 text-slate-500'}`}>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 border-4 ${isActive ? 'bg-white text-black border-black/50 shadow-[0_0_15px_rgba(255,255,255,0.3)] scale-110' : 'bg-black border-white/10 text-slate-500'}`}>
                   {i + 1}
                 </div>
-                <div className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-colors ${isActive ? 'text-brand-400' : 'text-slate-600'}`}>
+                <div className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-colors ${isActive ? 'text-white' : 'text-slate-600'}`}>
                   {stepNames[s as keyof typeof stepNames]}
                 </div>
               </div>
@@ -4592,10 +4594,10 @@ Please fix the code to make the app display properly.`;
                   <button
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat.id)}
-                    className="relative p-4 bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700 hover:border-brand-500 rounded-xl transition-all group text-left hover:shadow-lg hover:-translate-y-1 hover:z-10"
+                    className="relative p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl transition-all group text-left hover:shadow-lg hover:-translate-y-1 hover:z-10"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center mb-3 group-hover:scale-110 transition shadow-inner">
-                      <i className={`fa-solid ${cat.icon} text-xl text-brand-400`}></i>
+                    <div className="w-12 h-12 rounded-xl bg-black/40 flex items-center justify-center mb-3 group-hover:scale-110 transition shadow-inner border border-white/5">
+                      <i className={`fa-solid ${cat.icon} text-xl text-white`}></i>
                     </div>
                     <h3 className="text-lg font-bold text-white mb-1.5">{t.categories[cat.id as keyof typeof t.categories]}</h3>
                     <p className="text-xs text-slate-400 leading-snug">{t.categories[`${cat.id}_desc` as keyof typeof t.categories]}</p>
@@ -4616,10 +4618,10 @@ Please fix the code to make the app display properly.`;
                   <button
                     key={dev.id}
                     onClick={() => handleDeviceSelect(dev.id)}
-                    className="p-6 bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700 hover:border-brand-500 rounded-2xl transition-all group text-left hover:shadow-lg hover:-translate-y-1"
+                    className="p-6 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-2xl transition-all group text-left hover:shadow-lg hover:-translate-y-1"
                   >
-                    <div className="w-14 h-14 rounded-2xl bg-slate-900 flex items-center justify-center mb-4 group-hover:scale-110 transition shadow-inner">
-                      <i className={`fa-solid ${dev.icon} text-2xl text-brand-400`}></i>
+                    <div className="w-14 h-14 rounded-2xl bg-black/40 flex items-center justify-center mb-4 group-hover:scale-110 transition shadow-inner border border-white/5">
+                      <i className={`fa-solid ${dev.icon} text-2xl text-white`}></i>
                     </div>
                     <h3 className="text-xl font-bold text-white mb-2">{t.devices[dev.id as keyof typeof t.devices]}</h3>
                     <p className="text-sm text-slate-400 leading-relaxed">{t.devices[`${dev.id}_desc` as keyof typeof t.devices]}</p>
@@ -4627,7 +4629,7 @@ Please fix the code to make the app display properly.`;
                 ))}
               </div>
               <div className="flex justify-center pt-4">
-                <button onClick={() => setStep('category')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-800 transition">
+                <button onClick={() => setStep('category')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-white/5 transition">
                   <i className="fa-solid fa-arrow-left"></i> {t.create.btn_back}
                 </button>
               </div>
@@ -4649,7 +4651,7 @@ Please fix the code to make the app display properly.`;
                   <button
                     key={style.id}
                     onClick={() => handleStyleSelect(style.id)}
-                    className="p-6 bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700 hover:border-brand-500 rounded-2xl transition-all group relative overflow-hidden hover:shadow-lg hover:-translate-y-1"
+                    className="p-6 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-2xl transition-all group relative overflow-hidden hover:shadow-lg hover:-translate-y-1"
                   >
                     <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${style.color} transition duration-500`}></div>
                     <div className="flex items-center justify-between mb-3 relative z-10">
@@ -4661,7 +4663,7 @@ Please fix the code to make the app display properly.`;
                 ))}
               </div>
               <div className="flex justify-center pt-4">
-                <button onClick={() => setStep('device')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-800 transition">
+                <button onClick={() => setStep('device')} className="text-slate-400 hover:text-white text-sm flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-white/5 transition">
                   <i className="fa-solid fa-arrow-left"></i> {t.create.btn_back}
                 </button>
               </div>
@@ -4676,7 +4678,7 @@ Please fix the code to make the app display properly.`;
               </div>
               
               {/* Main Input */}
-              <div className="bg-slate-900/50 rounded-2xl border border-slate-700 focus-within:border-brand-500 transition-colors relative">
+              <div className="bg-white/5 rounded-2xl border border-white/10 focus-within:border-white/20 transition-colors relative">
                 <textarea
                   value={wizardData.description}
                   onChange={(e) => setWizardData(prev => ({ ...prev, description: e.target.value }))}
@@ -4695,7 +4697,7 @@ Please fix the code to make the app display properly.`;
               <div className="flex items-center gap-2">
                  <button 
                    onClick={useMadLibsTemplate}
-                   className="text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-lg transition flex items-center gap-1 border border-slate-700"
+                   className="text-xs bg-white/5 hover:bg-white/10 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1 border border-white/10"
                  >
                    <Edit3 size={12} />
                    {language === 'zh' ? '使用填空模板' : 'Use Template'}
@@ -4716,7 +4718,7 @@ Please fix the code to make the app display properly.`;
                        {language === 'zh' ? 'AI 优化 (2积分)' : 'AI Optimize (2 credits)'}
                      </>
                    )}
-                   <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-slate-800 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-slate-700">
+                   <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-black border border-white/10 text-xs text-slate-300 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
                      {language === 'zh' 
                        ? 'AI 将优化您的描述，使其更详细、专业。消耗 2 积分。' 
                        : 'AI will optimize your description to make it more detailed and professional. Costs 2 credits.'}
@@ -4727,7 +4729,7 @@ Please fix the code to make the app display properly.`;
               <div className="flex gap-4 pt-4">
                 <button
                   onClick={() => setStep('style')}
-                  className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-white/5 transition"
                 >
                   {t.create.btn_back}
                 </button>
@@ -4737,7 +4739,7 @@ Please fix the code to make the app display properly.`;
                     startGeneration(false, '', '', false, 'init');
                   }}
                   disabled={!wizardData.description}
-                  className={`flex-1 bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white py-4 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
+                  className={`flex-1 bg-white text-black hover:bg-slate-200 py-4 rounded-xl font-bold shadow-lg shadow-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
                 >
                   <span>{t.create.btn_generate}</span>
                   <Wand2 size={18} />
@@ -4759,34 +4761,12 @@ Please fix the code to make the app display properly.`;
     setGenerationPhase('starting');
     setStep('preview'); // Ensure we are in preview mode
     
-    // 🆕 P1 优化: 构造更详细的 User Prompt，帮助 AI 理解上下文
+    // 🆕 P3 简化: User Prompt 只需一句话触发，所有规则都在 System Prompt 中
+    // 这样避免了两个 Prompt 的重复/冲突，AI 只需遵循 System Prompt 即可
     const userPrompt = language === 'zh' 
-      ? `请为此应用添加表单收集后端功能：
-
-### 任务目标
-1. 识别应用中的主要表单（如提交按钮、输入框组合）
-2. 如果没有表单，在页面底部创建一个"联系我们"或"意见反馈"表单
-3. 修改表单提交逻辑，将数据发送到 /api/mailbox/submit
-4. 添加提交中的加载状态
-
-### 重要约束
-- 不要修改现有 UI 设计（颜色、字体、布局）
-- 只修改表单提交的逻辑部分
-- 确保 payload 包含所有表单字段`
-      : `Please add form collection backend functionality to this app:
-
-### Task Goals
-1. Identify main forms in the app (submit buttons, input groups)
-2. If no form exists, create a "Contact Us" or "Feedback" form at the bottom
-3. Modify form submission logic to send data to /api/mailbox/submit
-4. Add loading state during submission
-
-### Important Constraints
-- Do NOT modify existing UI design (colors, fonts, layout)
-- Only modify form submission logic
-- Ensure payload includes all form fields`;
+      ? '请为此应用配置表单收集后端（按照 System Prompt 中的规则执行）'
+      : 'Configure form collection backend for this app (follow System Prompt rules)';
     
-    // 🆕 修正参数: displayPrompt 应该是用户可见的简短描述
     const displayPrompt = language === 'zh' ? '配置表单收集后端' : 'Configure form collection backend';
     
     await startGeneration(true, userPrompt, displayPrompt, false, 'backend_config');
@@ -4834,20 +4814,20 @@ Please fix the code to make the app display properly.`;
             <div className={`relative z-10 w-full max-w-4xl px-6 transition-all duration-500 ${isCompleting ? 'scale-110 opacity-0' : 'scale-100 opacity-100'}`}>
                 
                 {/* Central Status Display */}
-                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700/50 rounded-3xl p-8 shadow-2xl relative group">
+                <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-3xl p-8 shadow-2xl relative group">
                     {/* Glowing Border Effect */}
-                    <div className="absolute -inset-[1px] bg-gradient-to-r from-transparent via-brand-500/50 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-1000 animate-gradient-x rounded-3xl"></div>
+                    <div className="absolute -inset-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-1000 animate-gradient-x rounded-3xl"></div>
                     
                     <div className="relative flex flex-col md:flex-row gap-8 items-center md:items-start">
                         {/* Left: Visual Indicator */}
                         <div className="shrink-0 relative z-10">
                             <div className="w-20 h-20 rounded-2xl shadow-lg relative">
-                                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700/50 overflow-hidden flex items-center justify-center">
-                                    <i className={`fa-solid ${wizardData.category ? (CATEGORIES.find(c => c.id === wizardData.category)?.icon || 'fa-cube') : 'fa-cube'} text-4xl text-brand-500/80`}></i>
+                                <div className="absolute inset-0 rounded-2xl bg-black/40 border border-white/10 overflow-hidden flex items-center justify-center">
+                                    <i className={`fa-solid ${wizardData.category ? (CATEGORIES.find(c => c.id === wizardData.category)?.icon || 'fa-cube') : 'fa-cube'} text-4xl text-white`}></i>
                                 </div>
                             </div>
-                            <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full border-2 border-slate-900 bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center shadow-lg">
-                                <i className="fa-solid fa-robot text-white text-xs animate-bounce"></i>
+                            <div className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full border-2 border-black bg-white flex items-center justify-center shadow-lg">
+                                <i className="fa-solid fa-robot text-black text-xs animate-bounce"></i>
                             </div>
                         </div>
 
@@ -4856,8 +4836,8 @@ Please fix the code to make the app display properly.`;
                             <h3 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
                                 {language === 'zh' ? '正在构建您的应用' : 'Building Your Application'}
                                 <span className="flex h-2 w-2 relative">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
                                 </span>
                             </h3>
                             <p className="text-slate-400 text-sm mb-6 line-clamp-1">
@@ -4865,7 +4845,7 @@ Please fix the code to make the app display properly.`;
                             </p>
 
                             {/* Progress Component Integration */}
-                            <div className="bg-black/30 rounded-xl border border-white/5 p-1">
+                            <div className="bg-black/20 rounded-xl border border-white/10 p-1">
                                 <GenerationProgress 
                                     plan={aiPlan} 
                                     currentStep={currentStep} 
@@ -4998,7 +4978,7 @@ Please fix the code to make the app display properly.`;
       {renderHistoryModal()}
 
       {/* Mobile Bottom Tab Bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 w-full bg-slate-900 border-t border-slate-800 flex z-50 pb-safe">
+      <div className="lg:hidden fixed bottom-0 left-0 w-full bg-black border-t border-white/10 flex z-50 pb-safe">
         <button 
           onClick={() => setActiveMobileTab('preview')}
           className={`flex-1 py-3 flex flex-col items-center gap-1 ${activeMobileTab === 'preview' ? 'text-brand-400' : 'text-slate-500'}`}
@@ -5018,11 +4998,23 @@ Please fix the code to make the app display properly.`;
   );
 
   return (
-    <div className={`min-h-screen text-white relative ${step === 'preview' ? 'h-[100dvh] overflow-hidden' : ''}`}>
+    <div className={`min-h-screen text-white relative bg-black ${step === 'preview' ? 'h-[100dvh] overflow-hidden' : ''}`}>
+      {/* Global Fixed Background */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <Galaxy 
+            mouseRepulsion={false}
+            mouseInteraction={false}
+            density={1.5}
+            glowIntensity={0.5}
+            saturation={0.8}
+            hueShift={240}
+        />
+      </div>
+
       {step !== 'preview' && (
         <button 
           onClick={handleExit}
-          className="fixed top-6 left-6 z-50 w-10 h-10 bg-slate-800/50 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full flex items-center justify-center transition backdrop-blur-md border border-slate-700/50"
+          className="fixed top-6 left-6 z-50 w-10 h-10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-full flex items-center justify-center transition backdrop-blur-md border border-white/10"
           title={t.create.exit_creation}
         >
           <i className="fa-solid fa-chevron-left"></i>
@@ -5051,7 +5043,7 @@ Please fix the code to make the app display properly.`;
       {/* Timeout Modal */}
       {showTimeoutModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+          <div className="bg-black border border-white/10 rounded-2xl w-full max-w-md p-6 shadow-2xl">
             <div className="flex items-center gap-3 mb-4 text-amber-400">
               <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
               <h3 className="text-xl font-bold">{language === 'zh' ? '生成时间较长' : 'Generation Taking Long'}</h3>
@@ -5064,14 +5056,14 @@ Please fix the code to make the app display properly.`;
             <div className="flex gap-3">
               <button 
                 onClick={() => handleCancelGeneration(timeoutCost)}
-                className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition border border-slate-700 flex flex-col items-center justify-center gap-0.5"
+                className="flex-1 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition border border-white/10 flex flex-col items-center justify-center gap-0.5"
               >
                 <span className="font-bold text-sm">{language === 'zh' ? '取消任务' : 'Cancel Task'}</span>
                 <span className="text-[10px] text-slate-400 font-normal">{language === 'zh' ? '不扣除积分' : 'No credits charged'}</span>
               </button>
               <button 
                 onClick={handleTimeoutWait}
-                className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold transition shadow-lg shadow-brand-500/20"
+                className="flex-1 py-3 bg-white text-black hover:bg-slate-200 rounded-xl font-bold transition shadow-lg shadow-white/10"
               >
                 {language === 'zh' ? '继续等待' : 'Keep Waiting'}
               </button>

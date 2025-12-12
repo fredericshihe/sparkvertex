@@ -1,5 +1,4 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { apiSuccess, ApiErrors, apiLog } from '@/lib/api-utils';
 
 export const runtime = 'edge';
 
@@ -8,7 +7,7 @@ export async function POST(req: Request) {
     const { itemId } = await req.json();
 
     if (!itemId) {
-      return NextResponse.json({ error: '缺少 itemId' }, { status: 400 });
+      return ApiErrors.badRequest('缺少 itemId');
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -26,15 +25,16 @@ export async function POST(req: Request) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('评分函数调用失败:', errorText);
-      return NextResponse.json({ error: '评分失败' }, { status: 500 });
+      apiLog.error('ScoreItem', '评分函数调用失败:', errorText);
+      return ApiErrors.serverError('评分失败');
     }
 
     const result = await response.json();
-    return NextResponse.json(result);
+    return apiSuccess(result);
 
-  } catch (error: any) {
-    console.error('API 错误:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    apiLog.error('ScoreItem', 'API 错误:', error);
+    return ApiErrors.serverError(message);
   }
 }

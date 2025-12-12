@@ -73,7 +73,7 @@ export async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, 
 }
 
 export async function analyzeCategory(htmlContent: string) {
-  const categories = ['休闲游戏', '实用工具', '办公效率', '教育学习', '生活便利', '创意设计', '数据可视化', '影音娱乐', '开发者工具', 'AI应用'];
+  const categories = ['休闲游戏', '实用工具', '办公效率', '教育学习', '生活便利', '数据可视化', '开发者工具', '个人主页', '服务预约', 'AI应用'];
   const systemPrompt = '你是一个资深的应用市场分类专家。你需要精准分析 HTML 代码的核心功能，并将其归类到一个最合适的类别中。';
   const userPrompt = `请分析以下 HTML 代码的核心功能和用户场景，将其归类为以下类别之一:\n${categories.join(', ')}\n\n只返回类别名称，不要解释，不要标点符号。代码:\n\n${htmlContent.substring(0, 20000)}`;
   

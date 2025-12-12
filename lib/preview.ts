@@ -42,82 +42,6 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
   const sparkAppIdScript = `<script>
     (function() {
       // ============================================
-      // 端到端加密工具
-      // ============================================
-      window.SparkCrypto = {
-        // ArrayBuffer 转 Base64
-        arrayBufferToBase64: function(buffer) {
-          var bytes = new Uint8Array(buffer);
-          var binary = '';
-          for (var i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
-          }
-          return btoa(binary);
-        },
-        
-        // AES 加密
-        aesEncrypt: async function(data) {
-          var aesKey = await crypto.subtle.generateKey(
-            { name: 'AES-GCM', length: 256 },
-            true,
-            ['encrypt', 'decrypt']
-          );
-          
-          var iv = crypto.getRandomValues(new Uint8Array(12));
-          var encoded = new TextEncoder().encode(data);
-          
-          var encrypted = await crypto.subtle.encrypt(
-            { name: 'AES-GCM', iv: iv },
-            aesKey,
-            encoded
-          );
-          
-          var rawKey = await crypto.subtle.exportKey('raw', aesKey);
-          
-          return {
-            encrypted: this.arrayBufferToBase64(encrypted),
-            key: rawKey,
-            iv: iv
-          };
-        },
-        
-        // 混合加密（AES + RSA）
-        encryptData: async function(data, publicKeyJWK) {
-          // 导入公钥
-          var publicKey = await crypto.subtle.importKey(
-            'jwk',
-            publicKeyJWK,
-            { name: 'RSA-OAEP', hash: 'SHA-256' },
-            true,
-            ['encrypt']
-          );
-          
-          var jsonData = JSON.stringify(data);
-          
-          // 1. AES 加密数据
-          var aesResult = await this.aesEncrypt(jsonData);
-          
-          // 2. RSA 加密 AES 密钥
-          var encryptedKey = await crypto.subtle.encrypt(
-            { name: 'RSA-OAEP' },
-            publicKey,
-            aesResult.key
-          );
-          
-          // 3. 打包
-          return JSON.stringify({
-            v: 1,
-            d: aesResult.encrypted,
-            k: this.arrayBufferToBase64(encryptedKey),
-            i: this.arrayBufferToBase64(aesResult.iv.buffer)
-          });
-        }
-      };
-      
-      // 公钥存储
-      window.SPARK_PUBLIC_KEY = null;
-      
-      // ============================================
       // CMS 内容管理工具
       // ============================================
       window.SparkCMS = {
@@ -437,7 +361,7 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
           // Convert FormData to plain object
           var dataObj = {};
           formData.forEach(function(value, key) {
-            // Handle file uploads separately (don't encrypt files)
+            // Handle file uploads separately
             if (value instanceof File) {
               dataObj[key] = { _file: true, name: value.name, type: value.type, size: value.size };
             } else {
@@ -445,22 +369,7 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
             }
           });
           
-          // Try to encrypt if public key is available
           var payload = JSON.stringify(dataObj);
-          var isEncrypted = false;
-          
-          if (window.SPARK_PUBLIC_KEY) {
-            try {
-              console.log('[Spark] Encrypting form data with E2E encryption...');
-              payload = await window.SparkCrypto.encryptData(dataObj, window.SPARK_PUBLIC_KEY);
-              isEncrypted = true;
-              console.log('[Spark] Data encrypted successfully');
-            } catch(err) {
-              console.warn('[Spark] Encryption failed, sending unencrypted:', err);
-            }
-          } else {
-            console.log('[Spark] No public key available, sending unencrypted');
-          }
           
           // Send with JSON body
           var requestBody = payload;
@@ -470,7 +379,7 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
           if (fullUrl.includes('/api/mailbox/submit')) {
             requestBody = JSON.stringify({
               app_id: window.SPARK_APP_ID,
-              payload: isEncrypted ? payload : dataObj,
+              payload: dataObj,
               metadata: {
                 title: document.title,
                 url: window.location.href,
@@ -484,8 +393,7 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
             body: requestBody,
             headers: {
               'Content-Type': 'application/json',
-              'X-Spark-App-Id': window.SPARK_APP_ID,
-              'X-Spark-Encrypted': isEncrypted ? 'true' : 'false'
+              'X-Spark-App-Id': window.SPARK_APP_ID
             }
           })
           .then(function(response) {
@@ -511,7 +419,7 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
           });
       }
 
-      // Intercept Form Submission with E2E Encryption
+      // Intercept Form Submission
       document.addEventListener('submit', async function(e) {
         var form = e.target;
         var action = form.getAttribute('action');
@@ -539,9 +447,6 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
       // This prevents overwriting appId when it's already set (e.g., for published apps)
       var originalAppId = window.SPARK_APP_ID;
       
-      // Always request public key from parent for E2E encryption
-      window.parent.postMessage({ type: 'spark-request-public-key' }, '*');
-      
       // Listen for responses from parent
       window.addEventListener('message', function(event) {
         // Handle user ID response
@@ -562,14 +467,6 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
           // Also update API base if provided
           if (event.data.apiBase) {
             window.SPARK_API_BASE = event.data.apiBase;
-          }
-        }
-        
-        // Handle public key response for E2E encryption
-        if (event.data && event.data.type === 'spark-public-key-response') {
-          if (event.data.publicKey) {
-            window.SPARK_PUBLIC_KEY = event.data.publicKey;
-            console.log('[Spark] Received public key for E2E encryption');
           }
         }
       });

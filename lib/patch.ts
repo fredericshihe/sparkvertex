@@ -1631,7 +1631,7 @@ function detectUndefinedReferences(code: string): string[] {
             'confetti', 'html2canvas', 'QRCode', 'Chart', 'moment', 'dayjs', 'axios',
             'Babel', '_', 'lodash', '$', 'jQuery', 'lucide', 'Lucide',
             // Spark platform globals
-            'SPARK_APP_ID', 'SPARK_API_BASE', 'SPARK_USER_ID', 'SPARK_PUBLIC_KEY', 'SparkCrypto', 'SparkCMS',
+            'SPARK_APP_ID', 'SPARK_API_BASE', 'SPARK_USER_ID', 'SparkCMS',
             // HTML Elements (JSX intrinsic elements will be lowercase)
             'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'button', 'input', 'form',
             'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot',

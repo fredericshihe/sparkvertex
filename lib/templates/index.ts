@@ -8,7 +8,6 @@ export * from './backup-service';
 export * from './crypto';
 export * from './cms-publish';
 export * from './cms-viewer';
-export * from './file-upload';
 export * from './image-compress';
 export * from './chunked-upload';
 
@@ -22,7 +21,6 @@ import { generateBackupServiceCode } from './backup-service';
 import { generateCryptoCode } from './crypto';
 import { generateCMSPublishCode } from './cms-publish';
 import { generateCMSViewerCode } from './cms-viewer';
-import { generateFileUploadCode } from './file-upload';
 import { generateImageCompressCode } from './image-compress';
 import { generateChunkedUploadCode } from './chunked-upload';
 
@@ -38,7 +36,6 @@ export interface AppConfig {
     encryption?: boolean;
     cmsPublish?: boolean;
     cmsViewer?: boolean;
-    fileUpload?: boolean;
     imageCompress?: boolean;
     chunkedUpload?: boolean;
   };
@@ -58,8 +55,8 @@ export function generateAppInfrastructure(config: AppConfig): string {
     '',
   ];
   
-  // 加密工具（如果需要同步或文件上传）
-  if (features.encryption || features.cloudSync || features.fileUpload) {
+  // 加密工具（如果需要同步）
+  if (features.encryption || features.cloudSync) {
     parts.push('// === Crypto Utilities ===');
     parts.push(generateCryptoCode());
     parts.push('');
@@ -100,13 +97,6 @@ export function generateAppInfrastructure(config: AppConfig): string {
     parts.push('');
   }
   
-  // 文件上传
-  if (features.fileUpload) {
-    parts.push('// === Encrypted File Upload ===');
-    parts.push(generateFileUploadCode(appId, apiBase));
-    parts.push('');
-  }
-  
   // 图片压缩
   if (features.imageCompress) {
     parts.push('// === Image Compression ===');
@@ -136,7 +126,7 @@ async function initSparkInfrastructure() {
   console.log('🚀 Initializing ${appName}...');
   
   try {
-    ${features.encryption || features.cloudSync || features.fileUpload ? `
+    ${features.encryption || features.cloudSync ? `
     // Initialize crypto
     window.sparkCrypto = new SparkCrypto();
     await window.sparkCrypto.init();
@@ -169,13 +159,6 @@ async function initSparkInfrastructure() {
     ${features.cmsPublish ? `
     // Initialize CMS
     window.sparkCMS = new SparkCMSPublish('${config.appId}');
-    ` : ''}
-    
-    ${features.fileUpload ? `
-    // Initialize file upload
-    const publicKeyJWK = await window.sparkCrypto?.exportPublicKeyJWK();
-    window.sparkFileUpload = new SparkFileUpload('${config.appId}', publicKeyJWK);
-    await window.sparkFileUpload.init();
     ` : ''}
     
     console.log('✅ ${appName} initialized successfully');

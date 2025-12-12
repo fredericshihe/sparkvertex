@@ -31,10 +31,8 @@ import LoginModal from '@/components/LoginModal';
 import DetailModal from '@/components/DetailModal';
 import FeedbackModal from '@/components/FeedbackModal';
 import EditProfileModal from '@/components/EditProfileModal';
-import PaymentQRModal from '@/components/PaymentQRModal';
 import PaymentModal from '@/components/PaymentModal';
 import RewardModal from '@/components/RewardModal';
-import ManageOrdersModal from '@/components/ManageOrdersModal';
 import CreditPurchaseModal from '@/components/CreditPurchaseModal';
 import ConfirmModal from '@/components/ConfirmModal';
 import CityBackground from '@/components/CityBackground';
@@ -65,7 +63,7 @@ export default function RootLayout({
           <ToastProvider>
             <ModalProvider>
               <canvas id="fluid-canvas" className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 opacity-20"></canvas>
-              <CityBackground />
+              {/* <CityBackground /> */}
               <Suspense fallback={<div className="h-16 bg-slate-900/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-slate-700/50" />}>
                 <Navbar />
               </Suspense>
@@ -77,10 +75,8 @@ export default function RootLayout({
               <DetailModal />
               <FeedbackModal />
               <EditProfileModal />
-              <PaymentQRModal />
               <PaymentModal />
               <RewardModal />
-              <ManageOrdersModal />
               <CreditPurchaseModal />
               <ConfirmModal />
             </ModalProvider>

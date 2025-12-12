@@ -1,16 +1,36 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { createLogger } from '@/lib/logger';
+
+const logger = createLogger('AuthCallback');
+
+// 允许重定向的路径白名单
+const ALLOWED_REDIRECT_PATHS = ['/', '/profile', '/create', '/explore', '/upload', '/guide'];
+
+function isValidRedirectPath(path: string): boolean {
+  // 只允许相对路径，且必须以 / 开头
+  if (!path.startsWith('/')) return false;
+  // 不允许协议相关路径 (//example.com)
+  if (path.startsWith('//')) return false;
+  // 不允许包含 @ 符号 (user@host)
+  if (path.includes('@')) return false;
+  // 检查是否是允许的路径或其子路径
+  return ALLOWED_REDIRECT_PATHS.some(allowed => 
+    path === allowed || path.startsWith(allowed + '/')
+  );
+}
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
   const next = requestUrl.searchParams.get('next') || '/';
 
+  // 验证重定向路径，防止 Open Redirect 攻击
+  const safeRedirect = isValidRedirectPath(next) ? next : '/';
+
   if (code) {
     const cookieStore = cookies();
-    // Determine if we are on a secure connection
-    const isSecure = requestUrl.protocol === 'https:';
     
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,28 +50,22 @@ export async function GET(request: Request) {
       }
     );
     
-    console.log('Auth Callback: Exchanging code for session...');
-    // Log cookie names for debugging (don't log values)
-    console.log('Available cookies:', cookieStore.getAll().map(c => c.name));
+    logger.debug('Exchanging code for session...');
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
-      console.error('Auth Callback Error:', error.message);
+      logger.error('Failed to exchange code:', error.message);
       
       // Check for specific PKCE error
       if (error.message.includes('code verifier')) {
-        // Redirect to a help page or home with specific instruction
         return NextResponse.redirect(new URL(`/?error=verifier_missing&details=${encodeURIComponent('请在同一个浏览器中打开链接')}`, request.url));
       }
 
       return NextResponse.redirect(new URL(`/?error=auth_failed&details=${encodeURIComponent(error.message)}`, request.url));
     }
-    console.log('Auth Callback: Session exchanged successfully');
-  } else {
-    console.log('Auth Callback: No code found in URL');
+    logger.debug('Session exchanged successfully');
   }
 
-  // URL to redirect to after sign in process completes
-  console.log('Auth Callback: Redirecting to', next);
-  return NextResponse.redirect(new URL(next, request.url));
+  logger.debug('Redirecting to:', safeRedirect);
+  return NextResponse.redirect(new URL(safeRedirect, request.url));
 }

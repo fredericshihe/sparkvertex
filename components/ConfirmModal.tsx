@@ -45,11 +45,11 @@ export default function ConfirmModal() {
       ></div>
 
       {/* Modal Content */}
-      <div className={`relative bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all duration-300 ${
+      <div className={`relative bg-black/90 border border-white/10 rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all duration-300 ring-1 ring-white/5 ${
         isConfirmModalOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'
       }`}>
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/5">
           <h3 className="text-lg font-semibold text-white">
             {confirmModalConfig?.title || t.common.confirm}
           </h3>
@@ -67,11 +67,11 @@ export default function ConfirmModal() {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-slate-900/50 border-t border-slate-800 flex justify-end gap-3">
+        <div className="px-6 py-4 bg-white/5 border-t border-white/10 flex justify-end gap-3">
           {confirmModalConfig?.cancelText !== null && (
             <button
               onClick={handleCancel}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-all"
+              className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-white/10 transition-all"
             >
               {confirmModalConfig?.cancelText || t.common.cancel}
             </button>

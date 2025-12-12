@@ -1,7 +1,11 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { 
+  createServerSupabase, 
+  createAdminSupabase, 
+  requireAuth, 
+  apiSuccess, 
+  ApiErrors,
+  apiLog 
+} from '@/lib/api-utils';
 
 export const runtime = 'nodejs';
 
@@ -10,43 +14,20 @@ export async function POST(request: Request) {
     const { taskId, amount } = await request.json();
 
     if (!taskId || !amount) {
-      return NextResponse.json({ error: 'Missing taskId or amount' }, { status: 400 });
+      return ApiErrors.badRequest('Missing taskId or amount');
     }
 
-    const cookieStore = cookies();
-    
     // 1. Verify User Session
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-          set(name: string, value: string, options: CookieOptions) {
-            cookieStore.set({ name, value, ...options })
-          },
-          remove(name: string, options: CookieOptions) {
-            cookieStore.set({ name, value: '', ...options })
-          },
-        },
-      }
-    );
+    const supabase = createServerSupabase();
+    const { session, errorResponse } = await requireAuth(supabase);
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (errorResponse) return errorResponse;
+    const user = session.user;
 
     // 2. Admin Client for Database Operations
-    const adminSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const adminSupabase = createAdminSupabase();
 
-    // 3. Verify Task Ownership (Optional but recommended)
+    // 3. Verify Task Ownership
     const { data: task, error: taskError } = await adminSupabase
         .from('generation_tasks')
         .select('user_id, cost')
@@ -54,21 +35,25 @@ export async function POST(request: Request) {
         .single();
 
     if (taskError || !task) {
-        return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+        return ApiErrors.notFound('Task not found');
     }
 
     if (task.user_id !== user.id) {
-        return NextResponse.json({ error: 'Unauthorized task access' }, { status: 403 });
+        return ApiErrors.forbidden('Unauthorized task access');
     }
 
     // 4. Refund Credits
-    // Ensure amount is a number
     const refundAmount = Number(amount);
     if (isNaN(refundAmount) || refundAmount <= 0) {
-        return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+        return ApiErrors.badRequest('Invalid amount');
     }
     
-    // Fetch current credits first to ensure atomic-like update (though not truly atomic without RPC)
+    // 验证退款金额不超过任务消耗
+    if (refundAmount > (task.cost || 0)) {
+        return ApiErrors.badRequest('Refund amount exceeds task cost');
+    }
+    
+    // Fetch current credits
     const { data: profile, error: profileError } = await adminSupabase
         .from('profiles')
         .select('credits')
@@ -76,7 +61,7 @@ export async function POST(request: Request) {
         .single();
         
     if (profileError) {
-        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+        return ApiErrors.notFound('Profile not found');
     }
 
     const newCredits = (Number(profile.credits) || 0) + refundAmount;
@@ -87,13 +72,14 @@ export async function POST(request: Request) {
         .eq('id', user.id);
 
     if (updateError) {
-        return NextResponse.json({ error: 'Failed to update credits' }, { status: 500 });
+        return ApiErrors.serverError('Failed to update credits');
     }
 
-    return NextResponse.json({ success: true, newCredits });
+    return apiSuccess({ newCredits });
 
-  } catch (error: any) {
-    console.error('Refund error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    apiLog.error('Refund', 'Refund error:', error);
+    return ApiErrors.serverError(message);
   }
 }

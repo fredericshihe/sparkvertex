@@ -17,16 +17,10 @@ interface ModalContextType {
   isEditProfileModalOpen: boolean;
   openEditProfileModal: () => void;
   closeEditProfileModal: () => void;
-  isPaymentQRModalOpen: boolean;
-  openPaymentQRModal: () => void;
-  closePaymentQRModal: () => void;
   isPaymentModalOpen: boolean;
   openPaymentModal: (item: any) => void;
   closePaymentModal: () => void;
   paymentItem: any | null;
-  isManageOrdersModalOpen: boolean;
-  openManageOrdersModal: () => void;
-  closeManageOrdersModal: () => void;
   isRewardModalOpen: boolean;
   openRewardModal: (authorId: string) => void;
   closeRewardModal: () => void;
@@ -58,10 +52,8 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const [detailItemData, setDetailItemData] = useState<any | null>(null);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
-  const [isPaymentQRModalOpen, setIsPaymentQRModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentItem, setPaymentItem] = useState<any | null>(null);
-  const [isManageOrdersModalOpen, setIsManageOrdersModalOpen] = useState(false);
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
   const [rewardAuthorId, setRewardAuthorId] = useState<string | null>(null);
   const [isCreditPurchaseModalOpen, setIsCreditPurchaseModalOpen] = useState(false);
@@ -123,9 +115,6 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   const openEditProfileModal = () => setIsEditProfileModalOpen(true);
   const closeEditProfileModal = () => setIsEditProfileModalOpen(false);
 
-  const openPaymentQRModal = () => setIsPaymentQRModalOpen(true);
-  const closePaymentQRModal = () => setIsPaymentQRModalOpen(false);
-
   const openPaymentModal = (item: any) => {
     setPaymentItem(item);
     setIsPaymentModalOpen(true);
@@ -134,9 +123,6 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     setIsPaymentModalOpen(false);
     setPaymentItem(null);
   };
-
-  const openManageOrdersModal = () => setIsManageOrdersModalOpen(true);
-  const closeManageOrdersModal = () => setIsManageOrdersModalOpen(false);
 
   const openRewardModal = (authorId: string) => {
     setRewardAuthorId(authorId);
@@ -167,9 +153,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       isDetailModalOpen || 
       isFeedbackModalOpen || 
       isEditProfileModalOpen || 
-      isPaymentQRModalOpen || 
       isPaymentModalOpen || 
-      isManageOrdersModalOpen ||
       isRewardModalOpen ||
       isCreditPurchaseModalOpen ||
       isConfirmModalOpen;
@@ -188,9 +172,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     isDetailModalOpen, 
     isFeedbackModalOpen, 
     isEditProfileModalOpen, 
-    isPaymentQRModalOpen, 
     isPaymentModalOpen, 
-    isManageOrdersModalOpen,
     isRewardModalOpen,
     isCreditPurchaseModalOpen,
     isConfirmModalOpen
@@ -212,16 +194,10 @@ export function ModalProvider({ children }: { children: ReactNode }) {
       isEditProfileModalOpen,
       openEditProfileModal,
       closeEditProfileModal,
-      isPaymentQRModalOpen,
-      openPaymentQRModal,
-      closePaymentQRModal,
       isPaymentModalOpen,
       openPaymentModal,
       closePaymentModal,
       paymentItem,
-      isManageOrdersModalOpen,
-      openManageOrdersModal,
-      closeManageOrdersModal,
       isRewardModalOpen,
       openRewardModal,
       closeRewardModal,

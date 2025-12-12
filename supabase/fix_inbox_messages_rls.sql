@@ -28,15 +28,21 @@ CREATE POLICY "Anyone can submit to inbox" ON public.inbox_messages
   WITH CHECK (TRUE);
 
 -- 3.2 所有者读取策略 - 只有应用所有者可以读取
--- app_id 格式: app_{user_id}_{item_id} 或 {item_id}
+-- app_id 格式: 
+--   1. app_{user_id}_{item_id} (旧格式)
+--   2. draft_{user_id}_{session_id} (创作页面草稿)
+--   3. {item_id} (已发布应用的数字ID)
 -- 使用子查询 (select auth.uid()) 以获得更好的性能
 CREATE POLICY "Owner can read inbox" ON public.inbox_messages
   FOR SELECT 
   USING (
-    -- 方式1: app_id 以 'app_{user_id}_' 开头
+    -- 方式1: app_id 以 'app_{user_id}_' 开头 (旧格式)
     app_id LIKE 'app_' || (select auth.uid())::TEXT || '_%'
     OR
-    -- 方式2: 检查 items 表中该 app_id 对应的 author_id
+    -- 方式2: app_id 以 'draft_{user_id}_' 开头 (创作页面草稿)
+    app_id LIKE 'draft_' || (select auth.uid())::TEXT || '_%'
+    OR
+    -- 方式3: 检查 items 表中该 app_id 对应的 author_id (已发布应用)
     EXISTS (
       SELECT 1 FROM public.items 
       WHERE items.id::TEXT = inbox_messages.app_id 
@@ -50,6 +56,8 @@ CREATE POLICY "Owner can delete inbox" ON public.inbox_messages
   USING (
     app_id LIKE 'app_' || (select auth.uid())::TEXT || '_%'
     OR
+    app_id LIKE 'draft_' || (select auth.uid())::TEXT || '_%'
+    OR
     EXISTS (
       SELECT 1 FROM public.items 
       WHERE items.id::TEXT = inbox_messages.app_id 
@@ -62,6 +70,8 @@ CREATE POLICY "Owner can update inbox" ON public.inbox_messages
   FOR UPDATE 
   USING (
     app_id LIKE 'app_' || (select auth.uid())::TEXT || '_%'
+    OR
+    app_id LIKE 'draft_' || (select auth.uid())::TEXT || '_%'
     OR
     EXISTS (
       SELECT 1 FROM public.items 

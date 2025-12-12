@@ -325,25 +325,6 @@ export default function DetailModal() {
       openLoginModal();
       return;
     }
-
-    // Check Price & Purchase Status
-    if (item.price && item.price > 0) {
-      // Allow author to download their own item
-      if (item.author_id !== session.user.id) {
-        const { data: order } = await supabase
-          .from('orders')
-          .select('id')
-          .eq('buyer_id', session.user.id)
-          .eq('item_id', item.id)
-          .eq('status', 'completed')
-          .single();
-        
-        if (!order) {
-          openPaymentModal(item);
-          return;
-        }
-      }
-    }
     
     // Increment download count
     incrementDownloads(item.id);
@@ -603,7 +584,7 @@ export default function DetailModal() {
                     <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.category}</h3>
                     <div className="flex flex-wrap gap-2 mb-4">
                       {item?.tags?.filter(tag => {
-                        const CATEGORY_KEYS = ['game', 'design', 'productivity', 'tool', 'devtool', 'entertainment', 'education', 'visualization', 'lifestyle'];
+                        const CATEGORY_KEYS = ['game', 'portfolio', 'appointment', 'productivity', 'tool', 'devtool', 'education', 'visualization', 'lifestyle'];
                         return /[\u4e00-\u9fa5]/.test(tag) || CATEGORY_KEYS.includes(tag.toLowerCase());
                       }).map(tag => (
                         <span key={tag} className="bg-slate-800 text-blue-300 px-2 py-1 rounded text-xs border border-blue-700">{tag}</span>
@@ -613,7 +594,7 @@ export default function DetailModal() {
                     <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.tech_stack}</h3>
                     <div className="flex flex-wrap gap-2">
                       {item?.tags?.filter(tag => {
-                        const CATEGORY_KEYS = ['game', 'design', 'productivity', 'tool', 'devtool', 'entertainment', 'education', 'visualization', 'lifestyle'];
+                        const CATEGORY_KEYS = ['game', 'portfolio', 'appointment', 'productivity', 'tool', 'devtool', 'education', 'visualization', 'lifestyle'];
                         return !(/[\u4e00-\u9fa5]/.test(tag)) && !CATEGORY_KEYS.includes(tag.toLowerCase());
                       }).map(tag => (
                         <span key={tag} className="bg-slate-800 text-slate-400 px-2 py-1 rounded text-xs border border-slate-700">{tag}</span>
@@ -624,12 +605,6 @@ export default function DetailModal() {
 
                 {/* Bottom Action Bar */}
                 <div className="p-6 border-t border-white/10 bg-black/40 backdrop-blur relative">
-                  {/* Price Tag */}
-                  <div className="absolute -top-5 right-6 bg-black/80 border border-white/10 px-4 py-1 rounded-full shadow-lg flex items-center gap-2 backdrop-blur-md">
-                    <span className="text-xs text-slate-400">{t.detail.price}</span>
-                    <span className="font-bold text-lg text-white">{item?.price && item.price > 0 ? `¥${item.price}` : t.detail.free}</span>
-                  </div>
-
                   <div className="flex flex-wrap sm:flex-nowrap gap-3 mt-2">
                     <button 
                       onClick={handleLike}

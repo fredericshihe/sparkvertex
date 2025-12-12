@@ -8,77 +8,6 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-// E2E 加密工具
-const E2ECrypto = {
-  // Base64 转 ArrayBuffer
-  base64ToArrayBuffer(base64: string): ArrayBuffer {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes.buffer;
-  },
-  
-  // 检查是否是加密数据
-  isEncrypted(data: string): boolean {
-    try {
-      const parsed = JSON.parse(data);
-      return parsed.v === 1 && parsed.d && parsed.k && parsed.i;
-    } catch {
-      return false;
-    }
-  },
-  
-  // 解密数据
-  async decrypt(encryptedPayload: string, privateKeyJWK: JsonWebKey): Promise<unknown> {
-    const payload = JSON.parse(encryptedPayload);
-    
-    if (payload.v !== 1) {
-      throw new Error('Unsupported encryption version');
-    }
-    
-    // 导入私钥
-    const privateKey = await crypto.subtle.importKey(
-      'jwk',
-      privateKeyJWK,
-      { name: 'RSA-OAEP', hash: 'SHA-256' },
-      true,
-      ['decrypt']
-    );
-    
-    // 1. RSA 解密 AES 密钥
-    const encryptedKey = this.base64ToArrayBuffer(payload.k);
-    const key = await crypto.subtle.decrypt(
-      { name: 'RSA-OAEP' },
-      privateKey,
-      encryptedKey
-    );
-    
-    // 2. 导入 AES 密钥
-    const aesKey = await crypto.subtle.importKey(
-      'raw',
-      key,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['decrypt']
-    );
-    
-    // 3. AES 解密数据
-    const iv = new Uint8Array(this.base64ToArrayBuffer(payload.i));
-    const encrypted = this.base64ToArrayBuffer(payload.d);
-    
-    const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      aesKey,
-      encrypted
-    );
-    
-    const text = new TextDecoder().decode(decrypted);
-    return JSON.parse(text);
-  }
-};
-
 interface AppItem {
   id: string;
   title: string;
@@ -161,49 +90,16 @@ export default function BackendDashboard() {
     setExpandedMessages(newExpanded);
   };
 
-  // E2E Encryption state
-  const [hasPrivateKey, setHasPrivateKey] = useState(false);
-  const [privateKey, setPrivateKey] = useState<JsonWebKey | null>(null);
-  const [decryptionError, setDecryptionError] = useState<string | null>(null);
-
-  // Check for private key on mount
-  useEffect(() => {
-    const STORAGE_KEY_PRIVATE = 'spark_e2e_private_key';
-    const storedKey = localStorage.getItem(STORAGE_KEY_PRIVATE);
-    if (storedKey) {
-      try {
-        setPrivateKey(JSON.parse(storedKey));
-        setHasPrivateKey(true);
-      } catch (e) {
-        console.error('Failed to parse private key:', e);
-      }
-    }
-  }, []);
-
-  // Decrypt messages when private key is available
-  const decryptMessages = useCallback(async (messages: InboxMessage[]) => {
-    if (!privateKey) return messages;
-    
-    const decrypted = await Promise.all(messages.map(async (msg) => {
-      if (E2ECrypto.isEncrypted(msg.encrypted_payload)) {
-        try {
-          const data = await E2ECrypto.decrypt(msg.encrypted_payload, privateKey);
-          return { ...msg, decrypted: data };
-        } catch (e) {
-          console.error('Failed to decrypt message:', e);
-          return msg;
-        }
-      }
-      // Not encrypted, try to parse as JSON
+  // Parse messages - simply parse JSON payload
+  const parseMessages = useCallback((messages: InboxMessage[]) => {
+    return messages.map(msg => {
       try {
         return { ...msg, decrypted: JSON.parse(msg.encrypted_payload) };
       } catch {
         return msg;
       }
-    }));
-    
-    return decrypted;
-  }, [privateKey]);
+    });
+  }, []);
 
   // Check auth
   useEffect(() => {
@@ -336,7 +232,6 @@ export default function BackendDashboard() {
   // Fetch inbox messages for selected app
   const fetchInboxMessages = useCallback(async (appId: string) => {
     setInboxLoading(true);
-    setDecryptionError(null);
     try {
       // 强制转换为字符串，避免 Supabase 客户端误判类型
       const appIdStr = String(appId);
@@ -358,9 +253,9 @@ export default function BackendDashboard() {
 
       if (error) throw error;
       
-      // 尝试解密消息
-      const decryptedMessages = await decryptMessages(data || []);
-      setInboxMessages(decryptedMessages);
+      // 解析消息
+      const parsedMessages = parseMessages(data || []);
+      setInboxMessages(parsedMessages);
     } catch (error: any) {
       console.error('Error fetching inbox:', error);
       if (error.code === '42P01') {
@@ -370,7 +265,7 @@ export default function BackendDashboard() {
     } finally {
       setInboxLoading(false);
     }
-  }, [decryptMessages]);
+  }, [parseMessages]);
 
   // Fetch CMS content for selected app
   const fetchCmsContent = useCallback(async (appId: string) => {
@@ -565,14 +460,6 @@ export default function BackendDashboard() {
       if (decrypted) {
         data = decrypted;
       } else {
-        if (E2ECrypto.isEncrypted(payload)) {
-          return (
-            <div className="flex items-center gap-2 text-amber-400 text-xs">
-              <i className="fa-solid fa-lock"></i>
-              <span>{language === 'zh' ? '加密消息' : 'Encrypted Message'}</span>
-            </div>
-          );
-        }
         data = typeof payload === 'string' ? JSON.parse(payload) : payload;
       }
       
@@ -605,25 +492,12 @@ export default function BackendDashboard() {
   // Render form payload in a readable format
   const renderPayload = (payload: string, decrypted?: unknown) => {
     try {
-      // 优先使用解密后的数据
+      // 优先使用解析后的数据
       let data: unknown;
       
       if (decrypted) {
         data = decrypted;
       } else {
-        // 检查是否是加密数据
-        if (E2ECrypto.isEncrypted(payload)) {
-          return (
-            <div className="flex items-center gap-2 text-amber-400 bg-amber-500/10 p-3 rounded-lg">
-              <i className="fa-solid fa-lock"></i>
-              <span className="text-sm">
-                {language === 'zh' 
-                  ? '此消息已加密。需要私钥才能查看内容。'
-                  : 'This message is encrypted. Private key required to view.'}
-              </span>
-            </div>
-          );
-        }
         data = typeof payload === 'string' ? JSON.parse(payload) : payload;
       }
       
@@ -1258,42 +1132,7 @@ export default function BackendDashboard() {
                   )}
                 </div>
 
-                {/* E2E Encryption Notice */}
-                {activeTab === 'inbox' && inboxMessages.length > 0 && (
-                  <div className="p-4 border-t border-slate-700/50 bg-slate-800/30">
-                    <div className="flex items-start gap-3 text-xs text-slate-500">
-                      {hasPrivateKey ? (
-                        <>
-                          <i className="fa-solid fa-lock text-green-400 mt-0.5"></i>
-                          <div>
-                            <p className="font-medium text-green-400 mb-1">
-                              {language === 'zh' ? '端到端加密已启用' : 'End-to-End Encryption Enabled'}
-                            </p>
-                            <p>
-                              {language === 'zh' 
-                                ? '你的私钥存储在本地浏览器中。加密数据只有你能解密查看。'
-                                : 'Your private key is stored locally. Only you can decrypt the encrypted data.'}
-                            </p>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <i className="fa-solid fa-shield-halved text-amber-400 mt-0.5"></i>
-                          <div>
-                            <p className="font-medium text-amber-400 mb-1">
-                              {language === 'zh' ? '端到端加密未配置' : 'E2E Encryption Not Configured'}
-                            </p>
-                            <p>
-                              {language === 'zh' 
-                                ? '访问任意应用详情页即可自动生成加密密钥。新提交的数据将被端到端加密。'
-                                : 'Visit any app detail page to auto-generate encryption keys. New submissions will be end-to-end encrypted.'}
-                            </p>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
+
               </div>
             )}
           </div>

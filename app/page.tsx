@@ -1,6 +1,11 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import Hero from '@/components/Hero';
+import FeatureCreation from '@/components/landing/FeatureCreation';
+import FeatureBackend from '@/components/landing/FeatureBackend';
+import Showcase from '@/components/landing/Showcase';
+import CTASection from '@/components/landing/CTASection';
+import Galaxy from '@/components/Galaxy';
 
 // 使用边缘运行时，降低延迟
 export const runtime = 'edge';
@@ -36,7 +41,7 @@ export default async function Home() {
       `)
       .eq('is_public', true)
       .order('daily_rank', { ascending: true })
-      .limit(5);
+      .limit(6);
 
     if (!error && data) {
       heroItems = data.map((item: any) => ({
@@ -65,9 +70,26 @@ export default async function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col relative">
-      <div className="flex-grow relative">
+    <div className="min-h-screen flex flex-col relative bg-black">
+      {/* Global Fixed Background */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <Galaxy 
+            mouseRepulsion={true}
+            mouseInteraction={true}
+            density={1.5}
+            glowIntensity={0.5}
+            saturation={0.8}
+            hueShift={240}
+        />
+      </div>
+
+      {/* Scrollable Content */}
+      <div className="relative z-10">
         <Hero initialItems={heroItems} />
+        <FeatureCreation />
+        <FeatureBackend />
+        <Showcase items={heroItems} />
+        <CTASection />
       </div>
     </div>
   );

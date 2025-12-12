@@ -314,7 +314,7 @@ async function exportData() {
 - Survey / questionnaire responses
 - Order submissions from customers
 
-#### Form Data Collection (Encrypted Inbox)
+#### Form Data Collection (Cloud Inbox)
 For collecting data from public users (surveys, contact forms, lead gen):
 \`\`\`javascript
 // Get app_id - works in both preview mode and published mode
@@ -328,7 +328,7 @@ async function submitForm(formData) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       app_id: SPARK_APP_ID,
-      payload: formData, // Will be stored as-is or encrypted
+      payload: formData,
       metadata: { source: 'contact_form' }
     })
   });
@@ -358,35 +358,6 @@ async function publishContent(content, slug) {
 // Get public content (no auth)
 async function getPublicContent(appId, slug) {
   const response = await fetch(\\\`{{API_BASE}}/api/cms/content/\${appId}?slug=\${slug}\\\`);
-  return response.json();
-}
-\`\`\`
-
-#### 4. Encrypted File Upload
-\`\`\`javascript
-// Encrypt and upload file
-async function uploadEncryptedFile(file) {
-  // Generate AES key
-  const aesKey = await crypto.subtle.generateKey(
-    { name: 'AES-GCM', length: 256 }, true, ['encrypt']
-  );
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  
-  // Encrypt file
-  const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv }, aesKey, await file.arrayBuffer()
-  );
-  
-  // Upload encrypted file
-  const formData = new FormData();
-  formData.append('file', new Blob([encrypted]), 'encrypted');
-  formData.append('app_id', '{{APP_ID}}');
-  formData.append('iv', btoa(String.fromCharCode(...iv)));
-  
-  const response = await fetch('{{API_BASE}}/api/mailbox/upload', {
-    method: 'POST',
-    body: formData
-  });
   return response.json();
 }
 \`\`\`
@@ -484,70 +455,140 @@ export const GET_BACKEND_CONFIG_PROMPT = (language: string) => {
       ? '**语言要求**: ANALYSIS 和 SUMMARY 必须使用中文输出，不要使用英文。'
       : '**Language**: ANALYSIS and SUMMARY must be in English.';
 
-  return `You are an expert React Refactoring Engineer.
-Your task is to analyze the provided React code and add backend integration capabilities using DIFF PATCHES.
+  // 中英文双语任务描述
+  const taskDescription = language === 'zh' 
+    ? `## 任务: 为应用添加表单收集后端
 
-### ⚠️ CRITICAL: NO UI/UX CHANGES
+### 🎯 执行以下操作:
+1. 找到应用中的主要提交按钮（如"提交"、"发送"、"预约"、"登记"、"确认"等）
+2. 为对应的表单添加 /api/mailbox/submit 后端连接
+3. 添加 isSubmitting 加载状态和成功/失败反馈
+
+### ⚠️ 关键提示:
+- 如果代码中没有任何表单或提交按钮，请在页面底部创建一个「联系我们」表单
+- 绝对不要修改任何与表单逻辑无关的代码（样式、布局、其他功能）
+- payload 必须包含表单的所有字段值和语义化的字段名`
+    : `## Task: Add form collection backend to the app
+
+### 🎯 Execute the following:
+1. Find main submit buttons (e.g., "Submit", "Send", "Reserve", "Register", "Confirm")
+2. Connect the form to /api/mailbox/submit
+3. Add isSubmitting loading state and success/error feedback
+
+### ⚠️ Key Notes:
+- If NO form or submit button exists, create a "Contact Us" form at the bottom
+- Do NOT modify any code unrelated to form logic (styles, layout, other features)
+- Payload must include all form field values with semantic field names`;
+
+  return `You are an expert React Refactoring Engineer.
+${taskDescription}
+
+---
+
+### ⚠️ CRITICAL CONSTRAINTS
 - **DO NOT** change the visual design, layout, colors, or fonts.
-- **DO NOT** add new UI elements unless absolutely necessary for the backend logic (e.g., a loading spinner).
-- **EXCEPTION**: If the user explicitly requests to ADD a form (e.g. "Add a contact form"), you MUST create a new UI section for it that matches the existing design style perfectly.
+- **DO NOT** add new UI elements unless absolutely necessary for the backend logic (e.g., a loading spinner on submit button).
+- **EXCEPTION**: If NO form exists in the code, you MUST create a "Contact Us" section at the bottom.
 - **PRESERVE** the existing user experience exactly as it is.
 - **ONLY** modify the logic to connect to the backend.
 
-### Task
-1. **Identify Main Form**: Find the most important final submission form (e.g., "Submit Order", "Add Item", "Contact Us").
-2. **(If Missing) Create Form**: If NO form exists and the user requested one, create a "Contact Us" section at the bottom.
-3. **Connect Form**: Modify the form submission logic to send data to \`/api/mailbox/submit\`.
-4. **Add Loading State**: Ensure the submit button shows a loading state (e.g., "Submitting...", spinner) while the request is in progress.
+### 🔍 Step 1: Form Detection
+Scan the ENTIRE code for these patterns:
 
-### 🔌 Backend Integration Rules
-1. **Form Submission** (CRITICAL - Include ALL form field data):
-   - Use \`fetch('/api/mailbox/submit', ...)\`
-   - **IMPORTANT**: The payload must include ALL form fields and their semantic meaning:
-     \`\`\`javascript
-     const [isSubmitting, setIsSubmitting] = useState(false); // Add loading state
+**✅ Forms to connect (look for these button labels):**
+- 中文: "提交", "发送", "预约", "登记", "确认", "添加", "保存", "注册", "登录"
+- English: "Submit", "Send", "Reserve", "Register", "Confirm", "Add", "Save", "Sign Up"
+- \`<form\` tags with submit buttons
+- \`onClick\` handlers on buttons with above labels
+- Modal dialogs containing input fields and confirm buttons
+- Multi-step wizards with final submit actions
+- Shopping carts with checkout buttons
+- Game score submission buttons
 
-     const handleSubmit = async (e) => {
-       e.preventDefault();
-       setIsSubmitting(true); // Start loading
-       try {
-         const formData = {
-           // Include all fields from the form with their values
-           name: nameValue,
-           // ...
-         };
-         
-         await fetch('/api/mailbox/submit', {
-           method: 'POST',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({
-             app_id: window.SPARK_APP_ID,
-             payload: formData,
-             metadata: {
-               form_type: 'contact', // Describe the form purpose
-               submitted_at: new Date().toISOString()
-             }
-           })
-         });
-         // Handle success (e.g., clear form, show toast)
-       } catch (err) {
-         // Handle error
-       } finally {
-         setIsSubmitting(false); // Stop loading
-       }
-     };
-     \`\`\`
+**❌ NOT forms (DO NOT modify):**
+- Navigation links and menu buttons
+- Toggle switches for settings (unless they save to server)
+- Buttons that only change local state (filters, tabs, open/close modals)
+- Delete/Cancel buttons that don't submit data to server
 
-2. **Missing Form Handling (CRITICAL)**:
-   - If the user requests "Configure Form Collection" but the app has NO forms (e.g., a static landing page), you MUST create one.
-   - **Action**: Add a "Contact Us" or "Feedback" section at the bottom of the page.
-   - **Style**: Match the existing design language (colors, fonts, spacing).
-   - **Fields**: Include at least Name, Email, and Message.
-   - **Integration**: Immediately wire it up to the \`/api/mailbox/submit\` endpoint as described above.
+### 📋 Step 2: Determine Action
+
+**Scenario A: Form Found**
+→ Modify the existing form's submit handler to call \`/api/mailbox/submit\`
+→ Add \`isSubmitting\` state and loading indicator on button
+→ Add success/error feedback (alert or state-based message)
+
+**Scenario B: No Form Found (Static Page)**
+→ CREATE a new "Contact Us" / "联系我们" section at the bottom of the page
+→ Match the existing design style (colors, fonts, spacing)
+→ Include fields: Name/姓名, Email/邮箱, Message/留言
+→ Wire it to \`/api/mailbox/submit\` immediately
+
+### 🔌 Backend Integration Code Template
+\`\`\`javascript
+// Add this state at the top of component
+const [isSubmitting, setIsSubmitting] = useState(false);
+
+// Modify or create the submit handler
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setIsSubmitting(true);
+  try {
+    // CRITICAL: Include ALL form fields with semantic names
+    const formData = {
+      name: nameValue,       // 姓名
+      email: emailValue,     // 邮箱
+      phone: phoneValue,     // 电话 (if exists)
+      message: messageValue, // 留言
+      // ... include ALL other form fields
+    };
+    
+    const res = await fetch('/api/mailbox/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        app_id: window.SPARK_APP_ID,
+        payload: formData,
+        metadata: {
+          form_type: 'contact', // or 'reservation', 'feedback', 'order', 'score', etc.
+          submitted_at: new Date().toISOString()
+        }
+      })
+    });
+    
+    if (!res.ok) throw new Error('Submission failed');
+    alert('提交成功！'); // Or use toast/state-based message
+    // Optionally clear form fields here
+  } catch (err) {
+    alert('提交失败，请重试');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+// Update submit button to show loading state
+<button 
+  type="submit" 
+  disabled={isSubmitting}
+  onClick={handleSubmit}
+>
+  {isSubmitting ? '提交中...' : '提交'}
+</button>
+\`\`\`
+
+### 🎯 Common Patterns to Handle
+1. **Modal Forms**: Find the modal's confirm button, NOT the trigger button
+2. **Multi-step Forms**: Connect the FINAL step's submit, NOT intermediate "Next" buttons
+3. **Inline Add Forms**: (e.g., "Add Todo") - Connect the add action
+4. **Game Score Submit**: Connect the "Submit Score" or "Save Result" action
+5. **Reservation Forms**: Connect the "Reserve" / "预约" button
 
 ### Output Format (Strict Diff Mode)
 ${langInstruction}
-1. **Analysis**: Start with \`/// ANALYSIS: ... ///\` describing the target code signature in ${summaryLang}.
+1. **Analysis**: Start with \`/// ANALYSIS: ... ///\` describing:
+   - What form(s) you found (or "No form found, will create Contact Us section")
+   - Which button/handler you will modify
+   - What fields will be included in payload
 2. **Summary**: You MUST output exactly this summary: \`/// SUMMARY: ${summaryText} ///\`.
 3. **Patch**: Use this strict format:
 <<<<SEARCH
@@ -563,11 +604,16 @@ ${langInstruction}
    - **NEVER** output "Here is the full code". Only output the **changes**.
 2. **SEARCH Block**: 
    - Must match original code EXACTLY (whitespace/indentation).
-   - **MUST include at least 2 lines of context** before and after the code you want to change.
+   - **MUST include at least 3 lines of context** before and after the code you want to change.
    - **NEVER** use a single closing bracket \`}\` or \`];\` as an anchor, as it is not unique.
+   - For adding new code at the end, use the LAST 5 lines of the component as the anchor.
 3. **REPLACE Block**: 
    - Output the FULL replacement code. **ABSOLUTELY NO PLACEHOLDERS** like \`// ... existing code\` or \`/* ... */\`.
    - **NO TRUNCATION**: Ensure all string templates (backticks) and function calls are properly closed.
+4. **Payload Fields**:
+   - **MUST** include ALL form input fields in the payload
+   - Use semantic field names (name, email, phone, message, score, etc.)
+   - Never omit any user input field
 `;
 };
 
@@ -611,7 +657,7 @@ Use PGLite (PostgreSQL in WASM) for all "Private Data":
 For "Public Data" forms, use the pre-configured API:
 - **Endpoint**: \`/api/mailbox/submit\`
 - **Method**: \`POST\`
-- **Security**: The payload is encrypted client-side (simulated for MVP) or sent securely.
+- **Security**: Data is sent securely via HTTPS.
 - **Context**: Include \`app_id\` and metadata.
 
 ---

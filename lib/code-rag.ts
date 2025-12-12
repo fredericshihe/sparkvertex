@@ -205,12 +205,17 @@ function extractChineseKeywords(prompt: string): string[] {
         '科普': ['wiki', 'info', 'guide'],
         '单词': ['word', 'vocab', 'dict'],
         
-        // 创意设计
-        '画板': ['canvas', 'draw', 'paint'],
-        '色彩': ['color', 'palette', 'theme'],
-        '排版': ['layout', 'grid', 'flex'],
-        '图标': ['icon', 'svg', 'image'],
-        '动画': ['anim', 'motion', 'transition'],
+        // 个人主页 (New)
+        '作品集': ['portfolio', 'gallery', 'showcase'],
+        '简历': ['resume', 'cv', 'profile'],
+        '个人站': ['personal', 'me', 'about'],
+        '联系': ['contact', 'social', 'email'],
+
+        // 服务预约 (New)
+        '预约': ['appointment', 'booking', 'reserve'],
+        '排期': ['schedule', 'calendar', 'time'],
+        '咨询': ['consult', 'service', 'help'],
+        '订单': ['order', 'ticket', 'status'],
         
         // 开发者工具
         '代码': ['code', 'editor', 'syntax'],
@@ -222,11 +227,6 @@ function extractChineseKeywords(prompt: string): string[] {
         '图表': ['chart', 'graph', 'plot'],
         '分析': ['analyze', 'stat', 'report'],
         '展示': ['display', 'show', 'view'],
-        
-        // 影音娱乐
-        '音乐': ['music', 'audio', 'sound', 'song'],
-        '视频': ['video', 'player', 'movie'],
-        '播放': ['play', 'media', 'stream'],
         
         // 生活便利
         '健康': ['health', 'fit', 'body'],

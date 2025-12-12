@@ -88,7 +88,9 @@ export async function POST(req: Request) {
     }
     
     // 写入数据库
-    const { error } = await supabase
+    console.log('[Mailbox Submit] Inserting message for app_id:', app_id);
+    
+    const { data: insertedData, error } = await supabase
       .from('inbox_messages')
       .insert({
         app_id,
@@ -99,12 +101,16 @@ export async function POST(req: Request) {
           user_agent: req.headers.get('user-agent')?.slice(0, 200),
           submitted_at: new Date().toISOString()
         }
-      });
+      })
+      .select()
+      .single();
     
     if (error) {
       console.error('[Mailbox Submit Error]', error);
       throw error;
     }
+    
+    console.log('[Mailbox Submit] Successfully inserted:', insertedData?.id);
     
     // 更新用量统计 (忽略错误，不影响主流程)
     // 对于 draft_{userId}_{sessionId} 格式，我们需要正确提取 userId

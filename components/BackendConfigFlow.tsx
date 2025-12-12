@@ -170,10 +170,10 @@ export const BackendConfigFlow: React.FC<BackendConfigFlowProps> = ({
   }, [logs]);
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center overflow-hidden font-mono">
+    <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center overflow-hidden font-mono">
       {/* Background Grid */}
       <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-20"></div>
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-transparent to-slate-950"></div>
+      <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black"></div>
 
       {/* Main Content */}
       <div className="relative z-10 w-full max-w-4xl px-6">
@@ -198,7 +198,7 @@ export const BackendConfigFlow: React.FC<BackendConfigFlowProps> = ({
         {/* Progress Steps */}
         <div className="flex justify-between items-center mb-12 relative">
           {/* Connecting Line */}
-          <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-800 -z-10"></div>
+          <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/10 -z-10"></div>
           <div 
             className="absolute top-1/2 left-0 h-0.5 bg-brand-500 transition-all duration-500 ease-out -z-10"
             style={{ width: `${progress}%` }}
@@ -214,8 +214,8 @@ export const BackendConfigFlow: React.FC<BackendConfigFlowProps> = ({
                   initial={false}
                   animate={{ 
                     scale: isActive ? 1.2 : 1,
-                    backgroundColor: isActive || isPast ? '#3b82f6' : '#1e293b',
-                    borderColor: isActive ? '#60a5fa' : '#334155'
+                    backgroundColor: isActive || isPast ? '#3b82f6' : 'rgba(255, 255, 255, 0.1)',
+                    borderColor: isActive ? '#60a5fa' : 'rgba(255, 255, 255, 0.1)'
                   }}
                   className={`w-10 h-10 rounded-full border-2 flex items-center justify-center z-10 shadow-lg transition-colors duration-300 ${isActive ? 'shadow-brand-500/50' : ''}`}
                 >
@@ -230,8 +230,8 @@ export const BackendConfigFlow: React.FC<BackendConfigFlowProps> = ({
         </div>
 
         {/* Terminal / Logs */}
-        <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-xl p-6 h-48 overflow-hidden relative shadow-2xl">
-          <div className="absolute top-0 left-0 w-full h-8 bg-slate-800/50 border-b border-slate-700 flex items-center px-4 gap-2">
+        <div className="bg-black/80 backdrop-blur border border-white/10 rounded-xl p-6 h-48 overflow-hidden relative shadow-2xl ring-1 ring-white/5">
+          <div className="absolute top-0 left-0 w-full h-8 bg-white/5 border-b border-white/10 flex items-center px-4 gap-2">
             <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
             <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
             <div className="w-3 h-3 rounded-full bg-green-500/50"></div>

@@ -151,8 +151,9 @@ async function handleSSERequest(request: Request) {
       
       // 🆕 全量修复模式：跳过压缩，发送完整代码给AI
       const skipCompression = body.skip_compression === true;
+      const operationType = body.operation_type || 'unknown';
       if (skipCompression) {
-        console.log('[SSE] Full Repair mode - skipping RAG/compression, sending full code');
+        console.log(`[SSE] Full code mode - skipping RAG/compression (operation: ${operationType})`);
       }
       
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {

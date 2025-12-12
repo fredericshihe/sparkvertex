@@ -1,80 +1,9 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import ExploreClient from './ExploreClient';
 import { Item } from '@/types/supabase';
-
-const KNOWN_CATEGORIES: Record<string, { key: string, icon: string }> = {
-  // Core Categories (English keys)
-  game: { key: 'game', icon: 'fa-gamepad' },
-  tool: { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  productivity: { key: 'productivity', icon: 'fa-list-check' },
-  design: { key: 'design', icon: 'fa-palette' },
-  devtool: { key: 'devtool', icon: 'fa-code' },
-  entertainment: { key: 'entertainment', icon: 'fa-film' },
-  education: { key: 'education', icon: 'fa-graduation-cap' },
-  visualization: { key: 'visualization', icon: 'fa-chart-pie' },
-  lifestyle: { key: 'lifestyle', icon: 'fa-mug-hot' },
-  
-  // Chinese mappings
-  '游戏': { key: 'game', icon: 'fa-gamepad' },
-  '游戏娱乐': { key: 'game', icon: 'fa-gamepad' },
-  '休闲游戏': { key: 'game', icon: 'fa-gamepad' },
-  '益智游戏': { key: 'game', icon: 'fa-gamepad' },
-  'Game': { key: 'game', icon: 'fa-gamepad' },
-  
-  '创意': { key: 'design', icon: 'fa-palette' },
-  '创意设计': { key: 'design', icon: 'fa-palette' },
-  '设计': { key: 'design', icon: 'fa-palette' },
-  '艺术': { key: 'design', icon: 'fa-palette' },
-  'Eye Candy': { key: 'design', icon: 'fa-palette' },
-  'Design': { key: 'design', icon: 'fa-palette' },
-  
-  '生产力': { key: 'productivity', icon: 'fa-list-check' },
-  '办公效率': { key: 'productivity', icon: 'fa-list-check' },
-  '效率': { key: 'productivity', icon: 'fa-list-check' },
-  '办公': { key: 'productivity', icon: 'fa-list-check' },
-  'Productivity': { key: 'productivity', icon: 'fa-list-check' },
-  
-  '工具': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  '实用工具': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  'Tiny Tools': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  '计算器': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  'Tool': { key: 'tool', icon: 'fa-screwdriver-wrench' },
-  
-  '开发者工具': { key: 'devtool', icon: 'fa-code' },
-  '开发': { key: 'devtool', icon: 'fa-code' },
-  '编程': { key: 'devtool', icon: 'fa-code' },
-  '代码': { key: 'devtool', icon: 'fa-code' },
-  'DevTool': { key: 'devtool', icon: 'fa-code' },
-  'Developer': { key: 'devtool', icon: 'fa-code' },
-  
-  '影音娱乐': { key: 'entertainment', icon: 'fa-film' },
-  '娱乐': { key: 'entertainment', icon: 'fa-film' },
-  '音乐': { key: 'entertainment', icon: 'fa-music' },
-  '视频': { key: 'entertainment', icon: 'fa-video' },
-  '影视': { key: 'entertainment', icon: 'fa-film' },
-  'Entertainment': { key: 'entertainment', icon: 'fa-film' },
-  
-  '教育': { key: 'education', icon: 'fa-graduation-cap' },
-  '教育学习': { key: 'education', icon: 'fa-graduation-cap' },
-  '学习': { key: 'education', icon: 'fa-graduation-cap' },
-  '知识': { key: 'education', icon: 'fa-graduation-cap' },
-  'Education': { key: 'education', icon: 'fa-graduation-cap' },
-  
-  '数据可视化': { key: 'visualization', icon: 'fa-chart-pie' },
-  '图表': { key: 'visualization', icon: 'fa-chart-pie' },
-  '数据': { key: 'visualization', icon: 'fa-chart-pie' },
-  'Visualization': { key: 'visualization', icon: 'fa-chart-pie' },
-  
-  '生活': { key: 'lifestyle', icon: 'fa-mug-hot' },
-  '生活便利': { key: 'lifestyle', icon: 'fa-mug-hot' },
-  '日常': { key: 'lifestyle', icon: 'fa-mug-hot' },
-  '健康': { key: 'lifestyle', icon: 'fa-heart-pulse' },
-  'Lifestyle': { key: 'lifestyle', icon: 'fa-mug-hot' },
-  
-  'AI': { key: 'tool', icon: 'fa-robot' },
-  'AI应用': { key: 'tool', icon: 'fa-robot' },
-};
+import { KNOWN_CATEGORIES, CORE_CATEGORY_KEYS } from '@/lib/categories';
+import Galaxy from '@/components/Galaxy';
 
 export const runtime = 'edge'; // 使用边缘运行时，降低延迟
 export const revalidate = 60;  // ISR: 缓存 60 秒
@@ -93,9 +22,8 @@ export default async function ExplorePage() {
     }
   );
 
-  const CORE_KEYS = ['game', 'design', 'productivity', 'tool', 'devtool', 'entertainment', 'education', 'visualization', 'lifestyle'];
   const categoryCounts: Record<string, number> = {};
-  CORE_KEYS.forEach(k => categoryCounts[k] = 0);
+  CORE_CATEGORY_KEYS.forEach(k => categoryCounts[k] = 0);
   let totalCount = 0;
 
   // 1. Fetch Categories (Optimized with RPC)
@@ -128,7 +56,7 @@ export default async function ExplorePage() {
 
     if (tagsData) {
       totalCount = tagsData.length;
-      tagsData.forEach((item: any) => {
+      tagsData.forEach((item: { tags: string[] | null }) => {
         if (Array.isArray(item.tags)) {
           const firstChineseTag = item.tags.find((tag: string) => tag && /[\u4e00-\u9fa5]/.test(tag));
           if (firstChineseTag) {
@@ -143,7 +71,7 @@ export default async function ExplorePage() {
     }
   }
 
-  const dynamicCategories = CORE_KEYS.map(key => {
+  const dynamicCategories = CORE_CATEGORY_KEYS.map(key => {
        const def = KNOWN_CATEGORIES[key]; 
        return {
          id: key,
@@ -177,10 +105,10 @@ export default async function ExplorePage() {
   let initialTopItem: Item | undefined = undefined;
 
   if (itemsData) {
-      const formattedItems = itemsData.map((item: any) => ({
+      const formattedItems = itemsData.map((item) => ({
         ...item,
-        author: item.profiles?.username || 'Unknown',
-        authorAvatar: item.profiles?.avatar_url
+        author: (item.profiles as { username?: string } | null)?.username || 'Unknown',
+        authorAvatar: (item.profiles as { avatar_url?: string } | null)?.avatar_url
       }));
 
       if (formattedItems.length > 0) {
@@ -190,10 +118,14 @@ export default async function ExplorePage() {
   }
 
   return (
-    <ExploreClient 
-      initialItems={initialItems} 
-      initialCategories={initialCategories} 
-      initialTopItem={initialTopItem} 
-    />
+    <div className="min-h-screen bg-zinc-950 relative">
+      <div className="relative z-10">
+        <ExploreClient 
+          initialItems={initialItems} 
+          initialCategories={initialCategories} 
+          initialTopItem={initialTopItem} 
+        />
+      </div>
+    </div>
   );
 }

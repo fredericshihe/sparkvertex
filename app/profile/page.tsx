@@ -8,21 +8,21 @@ import { exploreCache } from '@/lib/cache';
 import ProjectCard from '@/components/ProjectCard';
 import { useLanguage } from '@/context/LanguageContext';
 import BackendDataPanel from '@/components/BackendDataPanel';
+import Galaxy from '@/components/Galaxy';
 
 import { useRouter } from 'next/navigation';
 
 export default function Profile() {
   const router = useRouter();
-  const { openLoginModal, openDetailModal, openEditProfileModal, openPaymentQRModal, openManageOrdersModal, openCreditPurchaseModal } = useModal();
+  const { openLoginModal, openDetailModal, openEditProfileModal, openCreditPurchaseModal } = useModal();
   const { success: toastSuccess } = useToast();
   const { t, language } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'works' | 'drafts' | 'purchased' | 'favorites'>('works');
+  const [activeTab, setActiveTab] = useState<'works' | 'drafts' | 'favorites'>('works');
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [counts, setCounts] = useState({ works: 0, drafts: 0, purchased: 0, favorites: 0 });
-  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+  const [counts, setCounts] = useState({ works: 0, drafts: 0, favorites: 0 });
   const [filterVisibility, setFilterVisibility] = useState<'all' | 'public' | 'private'>('all');
   
   // 后端数据面板状态
@@ -154,27 +154,21 @@ export default function Profile() {
       if (error) {
         console.error('Error calling get_user_counts:', error);
         // 降级到原有逻辑
-        const [worksRes, purchasedRes, favoritesRes, pendingRes] = await Promise.all([
+        const [worksRes, favoritesRes] = await Promise.all([
           supabase.from('items').select('id', { count: 'exact', head: true }).eq('author_id', user.id).neq('is_draft', true),
-          supabase.from('orders').select('id', { count: 'exact', head: true }).eq('buyer_id', user.id),
-          supabase.from('likes').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-          supabase.from('orders').select('id', { count: 'exact', head: true }).eq('seller_id', user.id).eq('status', 'paid')
+          supabase.from('likes').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
         ]);
         setCounts({
           works: worksRes.count || 0,
           drafts: draftsCount || 0,
-          purchased: purchasedRes.count || 0,
           favorites: favoritesRes.count || 0
         });
-        setPendingOrdersCount(pendingRes.count || 0);
       } else if (data) {
         setCounts({
           works: data.works || 0,
           drafts: draftsCount || 0,
-          purchased: data.purchased || 0,
           favorites: data.favorites || 0
         });
-        setPendingOrdersCount(data.pending_orders || 0);
       }
     } catch (error) {
       console.error('Error fetching counts:', error);
@@ -215,31 +209,6 @@ export default function Profile() {
           .eq('is_draft', true)
           .order('created_at', { ascending: false });
         setItems(data?.map(mapItemWithProfile) || []);
-      } else if (activeTab === 'purchased') {
-        // Fetch items purchased by user
-        const { data: orders } = await supabase
-          .from('orders')
-          .select('item_id, status')
-          .eq('buyer_id', user.id);
-          
-        if (orders && orders.length > 0) {
-          const itemIds = orders.map((o: any) => o.item_id);
-          const { data: itemsData } = await supabase
-            .from('items')
-            .select(selectQuery)
-            .in('id', itemIds);
-            
-          // Merge status
-          const mergedItems = itemsData?.map(item => {
-             // Find the most recent order for this item
-             const order = orders.find((o: any) => o.item_id === item.id);
-             return mapItemWithProfile({ ...item, orderStatus: order?.status });
-          });
-          
-          setItems(mergedItems || []);
-        } else {
-          setItems([]);
-        }
       } else if (activeTab === 'favorites') {
         const { data: likes } = await supabase
           .from('likes')
@@ -340,154 +309,153 @@ export default function Profile() {
   });
 
   return (
-    <div className="page-section relative z-10">
-      {/* Profile Header */}
-      <div className="relative h-64 overflow-hidden">
-        {/* Removed gradient and pattern to show pure background */}
-        <div className="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-slate-900 to-transparent"></div>
-      </div>
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative -mt-20">
-        <div className="flex flex-col md:flex-row items-center md:items-end gap-6 mb-8 text-center md:text-left">
-          <div className="relative">
-            <img 
-              src={profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'default'}`} 
-              className="w-32 h-32 rounded-full border-4 border-slate-900 bg-slate-800 object-cover"
-              onError={(e) => {
-                e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'default'}`;
-              }}
-            />
-          </div>
-          <div className="flex-grow mb-2 w-full md:w-auto">
-            <h1 className="text-3xl font-bold text-white mb-1">{profile?.username || user?.email?.split('@')[0] || 'Loading...'}</h1>
-            <p className="text-slate-400 text-sm max-w-xl mx-auto md:mx-0">{profile?.bio || t.profile.default_bio}</p>
-          </div>
-          <div className="flex flex-wrap justify-center md:justify-end gap-3 mb-4 w-full md:w-auto">
-            <button 
-              onClick={() => setShowBackendPanel(true)}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white transition text-sm font-bold shadow-lg shadow-brand-500/20"
-            >
-              <i className="fa-solid fa-database mr-2"></i>{t.profile.backend_data || '后端数据'}
-            </button>
-            <button 
-              onClick={openEditProfileModal}
-              className="px-4 py-2 rounded-lg glass-panel border border-slate-600 hover:bg-slate-800 transition text-sm font-bold"
-            >
-              <i className="fa-solid fa-pen-to-square mr-2"></i>{t.profile.edit_profile}
-            </button>
-            <button 
-              onClick={openPaymentQRModal}
-              className="px-4 py-2 rounded-lg glass-panel border border-slate-600 hover:bg-slate-800 transition text-sm font-bold"
-            >
-              <i className="fa-solid fa-qrcode mr-2"></i>{t.profile.payment_qr}
-            </button>
-            <button 
-              onClick={openManageOrdersModal}
-              className="relative px-4 py-2 rounded-lg glass-panel border border-slate-600 hover:bg-slate-800 transition text-sm font-bold"
-            >
-              <i className="fa-solid fa-list-check mr-2"></i>{t.profile.manage_orders}
-              {pendingOrdersCount > 0 && (
-                <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center font-bold border-2 border-slate-900 animate-bounce">
-                  {pendingOrdersCount}
-                </span>
-              )}
-            </button>
-            <button 
-              onClick={handleLogout}
-              className="px-4 py-2 rounded-lg glass-panel border border-slate-600 hover:bg-rose-900/30 hover:text-rose-400 hover:border-rose-500/50 transition text-sm font-bold"
-            >
-              <i className="fa-solid fa-right-from-bracket mr-2"></i>{t.profile.logout}
-            </button>
-          </div>
-        </div>
-
-        {/* Credits Section - Compact */}
-        <div className="glass-panel p-4 rounded-xl border border-slate-700/50 mb-8 flex flex-col sm:flex-row gap-6 items-center">
-          
-          {/* Unified Credits */}
-          <div className="flex items-center gap-4 flex-1 w-full">
-            <div className="w-10 h-10 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 text-lg shrink-0">
-              <i className="fa-solid fa-coins"></i>
-            </div>
-            <div className="flex-1">
-              <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-0.5">{t.profile.credits}</div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-xl font-bold text-white">
-                  {profile?.credits !== undefined 
-                    ? (Number.isInteger(profile.credits) ? profile.credits : Number(profile.credits).toFixed(1)) 
-                    : 30}
-                </span>
-                <span className="text-xs text-slate-500">分</span>
+    <div className="min-h-screen bg-black text-white pt-24 pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Profile Header */}
+        <div className="flex flex-col md:flex-row items-start gap-8 mb-12">
+           {/* Avatar */}
+           <div className="relative group">
+              <div className="w-32 h-32 rounded-full p-1 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500">
+                <img 
+                  src={profile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'default'}`} 
+                  className="w-full h-full rounded-full bg-zinc-900 object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'default'}`;
+                  }}
+                />
               </div>
-            </div>
-            <button 
-              onClick={openCreditPurchaseModal}
-              className="px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-lg transition shadow-lg shadow-brand-500/20 flex items-center gap-1"
-            >
-              <i className="fa-solid fa-plus"></i> {t.create?.get_credits || '充值'}
-            </button>
-          </div>
+              <button 
+                onClick={openEditProfileModal}
+                className="absolute bottom-0 right-0 w-8 h-8 bg-white text-black rounded-full flex items-center justify-center hover:scale-110 transition shadow-lg"
+              >
+                <i className="fa-solid fa-camera text-xs"></i>
+              </button>
+           </div>
 
-          {/* Info / Top-up Hint (Optional) */}
-          <div className="hidden sm:block w-px h-8 bg-slate-700"></div>
-          <div className="block sm:hidden w-full h-px bg-slate-700"></div>
+           {/* Info */}
+           <div className="flex-1 min-w-0 pt-2">
+              <div className="flex flex-wrap items-center gap-4 mb-2">
+                <h1 className="text-3xl font-bold text-white truncate">
+                  {profile?.username || user?.email?.split('@')[0] || 'Loading...'}
+                </h1>
+              </div>
+              <p className="text-slate-400 text-sm max-w-2xl mb-6 leading-relaxed">
+                {profile?.bio || t.profile.default_bio}
+              </p>
 
-          <div className="flex items-center gap-4 flex-1 w-full">
-             <div className="text-sm text-slate-400">
-                <p><i className="fa-solid fa-circle-info mr-1 text-blue-400"></i> {t.profile.daily_bonus}</p>
-                <p className="mt-1"><i className="fa-solid fa-bolt mr-1 text-yellow-400"></i> {t.profile.create_cost}</p>
-             </div>
-          </div>
+              {/* Stats Row */}
+              <div className="flex flex-wrap gap-6 mb-6">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-yellow-400">
+                    <i className="fa-solid fa-coins"></i>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 font-bold uppercase">{t.profile.credits}</div>
+                    <div className="text-white font-bold">
+                      {profile?.credits !== undefined 
+                        ? (Number.isInteger(profile.credits) ? profile.credits : Number(profile.credits).toFixed(1)) 
+                        : 30}
+                    </div>
+                  </div>
+                  <button onClick={openCreditPurchaseModal} className="ml-1 text-brand-400 hover:text-brand-300"><i className="fa-solid fa-plus-circle"></i></button>
+                </div>
+                
+                <div className="w-px h-8 bg-white/10"></div>
 
+                <div className="flex items-center gap-2">
+                   <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-blue-400">
+                    <i className="fa-solid fa-layer-group"></i>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 font-bold uppercase">{t.profile.tabs.works}</div>
+                    <div className="text-white font-bold">{counts.works}</div>
+                  </div>
+                </div>
+
+                <div className="w-px h-8 bg-white/10"></div>
+
+                <div className="flex items-center gap-2">
+                   <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-pink-400">
+                    <i className="fa-solid fa-heart"></i>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500 font-bold uppercase">{t.profile.tabs.favorites}</div>
+                    <div className="text-white font-bold">{counts.favorites}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-3 items-center">
+                <button 
+                  onClick={() => setShowBackendPanel(true)}
+                  className="group relative px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white text-sm font-bold shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 flex items-center gap-2 border border-white/10 overflow-hidden mr-2"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+                  <i className="fa-solid fa-database text-indigo-200 group-hover:text-white transition-colors"></i>
+                  <span className="relative z-10">{t.profile.backend_data || '后端数据'}</span>
+                  <i className="fa-solid fa-sparkles text-yellow-300 text-xs animate-pulse"></i>
+                </button>
+                <button 
+                  onClick={openEditProfileModal}
+                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-medium transition flex items-center gap-2"
+                >
+                  <i className="fa-solid fa-pen-to-square text-slate-400"></i>{t.profile.edit_profile}
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-rose-500/20 border border-white/10 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 text-sm font-medium transition flex items-center gap-2 ml-auto md:ml-0"
+                >
+                  <i className="fa-solid fa-right-from-bracket"></i>
+                </button>
+              </div>
+           </div>
         </div>
 
-        {/* Profile Tabs */}
-        <div className="border-b border-slate-700 mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex gap-8 overflow-x-auto no-scrollbar">
-            <button 
-              onClick={() => setActiveTab('works')} 
-              className={`px-4 py-3 font-bold text-sm transition whitespace-nowrap border-b-2 ${activeTab === 'works' ? 'text-brand-400 border-brand-500' : 'text-slate-400 border-transparent hover:text-white'}`}
-            >
-              {t.profile.tabs.works} <span className="ml-1 bg-brand-900/50 px-2 py-0.5 rounded-full text-xs">{counts.works}</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('drafts')} 
-              className={`px-4 py-3 font-bold text-sm transition whitespace-nowrap border-b-2 ${activeTab === 'drafts' ? 'text-brand-400 border-brand-500' : 'text-slate-400 border-transparent hover:text-white'}`}
-            >
-              {t.profile.tabs.drafts} <span className="ml-1 bg-slate-800 px-2 py-0.5 rounded-full text-xs">{counts.drafts}</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('purchased')}  
-              className={`px-4 py-3 font-bold text-sm transition whitespace-nowrap border-b-2 ${activeTab === 'purchased' ? 'text-brand-400 border-brand-500' : 'text-slate-400 border-transparent hover:text-white'}`}
-            >
-              {t.profile.tabs.purchased} <span className="ml-1 bg-slate-800 px-2 py-0.5 rounded-full text-xs">{counts.purchased}</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('favorites')} 
-              className={`px-4 py-3 font-bold text-sm transition whitespace-nowrap border-b-2 ${activeTab === 'favorites' ? 'text-brand-400 border-brand-500' : 'text-slate-400 border-transparent hover:text-white'}`}
-            >
-              {t.profile.tabs.favorites} <span className="ml-1 bg-slate-800 px-2 py-0.5 rounded-full text-xs">{counts.favorites}</span>
-            </button>
+        {/* Tabs & Filter */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b border-white/10 pb-1">
+          <div className="flex gap-6 overflow-x-auto no-scrollbar">
+            {[
+              { id: 'works', label: t.profile.tabs.works, count: counts.works },
+              { id: 'drafts', label: t.profile.tabs.drafts, count: counts.drafts },
+              { id: 'favorites', label: t.profile.tabs.favorites, count: counts.favorites },
+            ].map(tab => (
+              <button 
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)} 
+                className={`pb-3 font-medium text-sm transition whitespace-nowrap relative ${
+                  activeTab === tab.id ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {tab.label}
+                <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${
+                  activeTab === tab.id ? 'bg-white text-black' : 'bg-white/10 text-slate-400'
+                }`}>{tab.count}</span>
+                {activeTab === tab.id && (
+                  <div className="absolute bottom-0 left-0 w-full h-0.5 bg-white rounded-t-full"></div>
+                )}
+              </button>
+            ))}
           </div>
 
           {/* Visibility Filter (Only for Works tab) */}
           {activeTab === 'works' && (
-            <div className="flex bg-slate-800/50 p-1 rounded-lg self-start md:self-auto">
+            <div className="flex bg-white/5 border border-white/10 p-1 rounded-lg self-start md:self-auto">
               <button 
                 onClick={() => setFilterVisibility('all')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filterVisibility === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filterVisibility === 'all' ? 'bg-white/10 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 {t.profile.filter.all}
               </button>
               <button 
                 onClick={() => setFilterVisibility('public')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filterVisibility === 'public' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filterVisibility === 'public' ? 'bg-white/10 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 {t.profile.filter.public}
               </button>
               <button 
                 onClick={() => setFilterVisibility('private')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filterVisibility === 'private' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${filterVisibility === 'private' ? 'bg-white/10 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
               >
                 {t.profile.filter.private}
               </button>
@@ -496,48 +464,47 @@ export default function Profile() {
         </div>
 
         {/* Grid */}
-        <div className="pb-20">
+        <div className="min-h-[400px]">
           {loading ? (
-            <div className="text-center py-20">
+            <div className="flex justify-center py-20">
               <i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500"></i>
             </div>
           ) : filteredItems.length === 0 ? (
-            <div className="text-center py-20 text-slate-500">
-              <i className="fa-solid fa-box-open text-4xl mb-4 opacity-50"></i>
+            <div className="flex flex-col items-center justify-center py-20 text-slate-500 border border-dashed border-white/10 rounded-2xl bg-white/5">
+              <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
+                <i className="fa-solid fa-box-open text-2xl opacity-50"></i>
+              </div>
               <p>
                 {filterVisibility === 'all' ? t.profile.empty.all : 
                  filterVisibility === 'public' ? t.profile.empty.public : t.profile.empty.private}
               </p>
+              {activeTab === 'works' && (
+                <button 
+                  onClick={() => router.push('/create')}
+                  className="mt-6 px-6 py-2 bg-white text-black rounded-lg font-bold hover:bg-slate-200 transition"
+                >
+                  {t.create?.start_creating || 'Start Creating'}
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {filteredItems.map(item => (
-                <div key={item.id} className="relative">
+                <div key={item.id} className="relative group">
                   <ProjectCard 
                     item={item} 
-                    isLiked={false} // TODO: Implement like status check
-                    onLike={() => {}} // TODO: Implement like handler
+                    isLiked={false} 
+                    onLike={() => {}} 
                     onClick={(id) => openDetailModal(id, item)}
                     isOwner={activeTab === 'works' || activeTab === 'drafts'}
                     onEdit={handleEditItem}
                     onUpdate={handleUpdateItem}
                     onDelete={handleDeleteItem}
                   />
-                  {activeTab === 'purchased' && item.orderStatus === 'paid' && (
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center rounded-2xl z-10 border border-brand-500/50">
-                        <div className="w-12 h-12 bg-brand-500/20 rounded-full flex items-center justify-center mb-3 animate-pulse">
-                            <i className="fa-solid fa-hourglass-half text-brand-500 text-xl"></i>
-                        </div>
-                        <span className="text-white font-bold mb-1">{t.profile.waiting_confirm}</span>
-                        <span className="text-xs text-slate-400">{t.profile.seller_confirming}</span>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
           )}
-          
-          {/* Logout Button - Removed from here */}
         </div>
       </div>
       
