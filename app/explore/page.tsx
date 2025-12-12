@@ -3,7 +3,9 @@ import { cookies } from 'next/headers';
 import ExploreClient from './ExploreClient';
 import { Item } from '@/types/supabase';
 import { KNOWN_CATEGORIES, CORE_CATEGORY_KEYS } from '@/lib/categories';
-import Galaxy from '@/components/Galaxy';
+import dynamic from 'next/dynamic';
+
+const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
 
 // export const runtime = 'edge'; // 使用边缘运行时，降低延迟
 export const revalidate = 60;  // ISR: 缓存 60 秒

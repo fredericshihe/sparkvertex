@@ -1,11 +1,13 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import dynamic from 'next/dynamic';
 import Hero from '@/components/Hero';
 import FeatureCreation from '@/components/landing/FeatureCreation';
 import FeatureBackend from '@/components/landing/FeatureBackend';
 import Showcase from '@/components/landing/Showcase';
 import CTASection from '@/components/landing/CTASection';
-import Galaxy from '@/components/Galaxy';
+
+const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
 
 // 使用默认 Node.js 运行时，避免 Edge Runtime 兼容性问题
 // export const runtime = 'edge';
