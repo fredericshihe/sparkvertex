@@ -25,6 +25,7 @@ interface ProjectCardProps {
 export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onUpdate, onDelete, onHover, className = '' }: ProjectCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [coverError, setCoverError] = useState(false);
@@ -46,13 +47,12 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   useEffect(() => {
     setIsClient(true);
     
+    // 只有在可视区域内且没有封面图时才自动加载 iframe
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          // 性能优化：移动端如果有封面图，不自动加载 iframe，减少内存占用和卡顿
-          const isMobile = window.innerWidth < 768;
-          const hasCover = isValidUrl(item.cover_url) || isValidUrl(item.icon_url);
-          if (!isMobile || !hasCover) {
+          // 如果没有封面图，才自动加载 iframe 预览
+          if (!hasValidCover) {
             setShowPreview(true);
           }
           observer.disconnect();
@@ -71,14 +71,27 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
     return () => {
       observer.disconnect();
     };
-  }, []);
+  }, [hasValidCover]);
 
   const handleMouseEnter = () => {
     if (onHover) onHover(item);
+    setIsHovering(true);
+    // 鼠标悬停时开始加载 iframe（延迟 200ms 避免快速划过时加载）
+    if (hasValidCover && !showPreview) {
+      hoverTimeoutRef.current = setTimeout(() => {
+        setShowPreview(true);
+      }, 200);
+    }
   };
 
   const handleMouseLeave = () => {
     setIsFlipped(false);
+    setIsHovering(false);
+    // 取消悬停加载
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
   };
 
   const generatePreviewHtml = (item: Item) => {
@@ -139,11 +152,13 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
           </div>
 
           <div className="h-40 md:h-44 relative bg-black/20 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
-            {/* Iframe Preview */}
+            {/* Iframe Preview - 只在悬停且加载完成时显示 */}
             {showPreview && item.content && (
                <iframe
                  srcDoc={previewContent}
-                 className="w-[200%] h-[200%] border-0 origin-top-left scale-50 pointer-events-none select-none"
+                 className={`w-[200%] h-[200%] border-0 origin-top-left scale-50 pointer-events-none select-none transition-opacity duration-300 ${
+                   iframeLoaded && isHovering ? 'opacity-100' : 'opacity-0'
+                 }`}
                  onLoad={() => setIframeLoaded(true)}
                  sandbox="allow-scripts allow-same-origin"
                  allow="autoplay 'none'; camera 'none'; microphone 'none'"
@@ -152,9 +167,11 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                />
             )}
 
-            {/* Cover Image Optimization */}
-            {hasValidCover && (!showPreview || !iframeLoaded) && (
-              <div className="absolute inset-0 z-20 bg-slate-900">
+            {/* Cover Image - 默认显示，悬停加载完成后淡出 */}
+            {hasValidCover && (
+              <div className={`absolute inset-0 z-20 bg-slate-900 transition-opacity duration-300 ${
+                iframeLoaded && isHovering ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              }`}>
                 <Image 
                   src={coverImage!} 
                   alt={item.title} 

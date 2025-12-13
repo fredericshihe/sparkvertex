@@ -55,12 +55,12 @@ export default function RootLayout({
         {/* DNS Prefetch & Preconnect for critical domains */}
         <link rel="dns-prefetch" href="https://waesizzoqodntrlvrwhw.supabase.co" />
         <link rel="preconnect" href="https://waesizzoqodntrlvrwhw.supabase.co" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://lf6-cdn-tos.bytecdntp.com" />
-        <link rel="preconnect" href="https://lf6-cdn-tos.bytecdntp.com" crossOrigin="anonymous" />
-        {/* 使用字节跳动 CDN 加载 Font Awesome（国内访问更快） */}
+        <link rel="dns-prefetch" href="https://cdn.bootcdn.net" />
+        <link rel="preconnect" href="https://cdn.bootcdn.net" crossOrigin="anonymous" />
+        {/* 使用 BootCDN 加载 Font Awesome（国内访问稳定） */}
         <link 
           rel="stylesheet" 
-          href="https://lf6-cdn-tos.bytecdntp.com/cdn/expire-1-M/font-awesome/6.0.0/css/all.min.css" 
+          href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" 
         />
         <link rel="icon" href="/logo.png" />
       </head>
