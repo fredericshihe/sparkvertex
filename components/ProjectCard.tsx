@@ -41,17 +41,8 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
       ([entry]) => {
         if (entry.isIntersecting) {
           setShowPreview(true);
-          // 桌面端加载后保持，移动端为了性能可以考虑离开视口卸载
-          // 但为了体验流畅，暂时保持加载状态，除非内存压力大
-          if (!isMobile) {
-            observer.disconnect();
-          }
-        } else {
-          // 移动端离开视口时卸载 iframe 以释放内存
-          if (isMobile) {
-            setShowPreview(false);
-            setIframeLoaded(false);
-          }
+          // 无论移动端还是桌面端，一旦加载就不再卸载，避免来回滑动时的重复加载体验
+          observer.disconnect();
         }
       },
       { 
@@ -119,10 +110,8 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
           </div>
 
           <div className="h-40 md:h-44 relative bg-slate-800 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
-            {/* 默认背景 - 当iframe未加载时显示 */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-700 to-slate-800'} flex items-center justify-center z-5 transition-opacity duration-500 ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
-              <i className={`fa-solid ${categoryIcon} text-4xl text-white/20`}></i>
-            </div>
+            {/* 默认背景 - 仅作为占位符，不显示图标 */}
+            <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-700 to-slate-800'} z-5 transition-opacity duration-500 ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`} />
 
             {/* 动态 Iframe 预览 - 始终显示 */}
             {showPreview && item.content && (
