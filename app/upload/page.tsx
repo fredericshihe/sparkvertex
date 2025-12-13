@@ -2550,18 +2550,18 @@ function UploadContent() {
           className="max-w-3xl mx-auto"
         >
           {/* Header */}
-          <div className="text-center mb-12">
-             <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-3xl mx-auto flex items-center justify-center shadow-[0_0_30px_rgba(99,102,241,0.3)] mb-6 relative group">
+          <div className="text-center mb-8 md:mb-12">
+             <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-3xl mx-auto flex items-center justify-center shadow-[0_0_30px_rgba(99,102,241,0.3)] mb-4 md:mb-6 relative group">
                 <div className="absolute inset-0 bg-white/20 rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                <i className="fa-solid fa-rocket text-4xl text-white relative z-10"></i>
+                <i className="fa-solid fa-rocket text-3xl md:text-4xl text-white relative z-10"></i>
              </div>
-             <h2 className="text-3xl font-bold text-white mb-2 tracking-tight">{language === 'zh' ? '准备发布' : 'Ready to Launch'}</h2>
-             <p className="text-slate-400">{language === 'zh' ? '最后确认您的作品信息与设置' : 'Final confirmation of your work settings'}</p>
+             <h2 className="text-2xl md:text-3xl font-bold text-white mb-2 tracking-tight">{language === 'zh' ? '准备发布' : 'Ready to Launch'}</h2>
+             <p className="text-sm md:text-base text-slate-400">{language === 'zh' ? '最后确认您的作品信息与设置' : 'Final confirmation of your work settings'}</p>
           </div>
 
           {/* App Card */}
-          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 mb-8 flex flex-col md:flex-row gap-6 items-center md:items-start backdrop-blur-sm">
-             <div className="w-24 h-24 rounded-2xl overflow-hidden border border-white/10 shadow-lg flex-shrink-0 bg-zinc-800">
+          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-4 md:p-6 mb-8 flex flex-col md:flex-row gap-4 md:gap-6 items-center md:items-start backdrop-blur-sm">
+             <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl overflow-hidden border border-white/10 shadow-lg flex-shrink-0 bg-zinc-800">
                 {iconPreview ? (
                   <img src={iconPreview} alt="App Icon" className="w-full h-full object-cover" />
                 ) : (
@@ -2570,7 +2570,7 @@ function UploadContent() {
                   </div>
                 )}
              </div>
-             <div className="flex-1 text-center md:text-left min-w-0">
+             <div className="flex-1 text-center md:text-left min-w-0 w-full">
                 <h3 className="text-xl font-bold text-white mb-2 truncate">{title || 'Untitled App'}</h3>
                 <p className="text-slate-400 text-sm line-clamp-2 mb-3">{description || 'No description'}</p>
                 <div className="flex flex-wrap gap-2 justify-center md:justify-start">
@@ -2584,15 +2584,15 @@ function UploadContent() {
           {/* Settings Panel */}
           <div className="bg-zinc-900 border border-white/10 rounded-3xl overflow-hidden mb-8 shadow-2xl">
              {/* Visibility Setting */}
-             <div className="p-6 border-b border-white/5">
-                <div className="flex items-center justify-between mb-4">
-                   <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${isPublic ? 'bg-indigo-500/20 text-indigo-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                         <i className={`fa-solid ${isPublic ? 'fa-globe' : 'fa-lock'} text-xl`}></i>
+             <div className="p-4 md:p-6 border-b border-white/5">
+                <div className="flex items-center justify-between mb-4 gap-4">
+                   <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+                      <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center transition-colors flex-shrink-0 ${isPublic ? 'bg-indigo-500/20 text-indigo-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                         <i className={`fa-solid ${isPublic ? 'fa-globe' : 'fa-lock'} text-lg md:text-xl`}></i>
                       </div>
-                      <div>
-                         <h4 className="text-white font-bold text-lg">{language === 'zh' ? '发布范围' : 'Visibility'}</h4>
-                         <p className="text-sm text-slate-400">{isPublic ? (language === 'zh' ? '公开在 Spark 商店' : 'Public on Spark Store') : (language === 'zh' ? '仅通过链接访问' : 'Private Link Only')}</p>
+                      <div className="min-w-0 flex-1">
+                         <h4 className="text-white font-bold text-base md:text-lg truncate">{language === 'zh' ? '发布范围' : 'Visibility'}</h4>
+                         <p className="text-xs md:text-sm text-slate-400 truncate">{isPublic ? (language === 'zh' ? '公开在 Spark 商店' : 'Public on Spark Store') : (language === 'zh' ? '仅通过链接访问' : 'Private Link Only')}</p>
                       </div>
                    </div>
                    
@@ -2600,9 +2600,9 @@ function UploadContent() {
                    <button 
                       onClick={() => !isDuplicateRestricted && setIsPublic(!isPublic)}
                       disabled={isDuplicateRestricted}
-                      className={`relative w-16 h-9 rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-900 focus:ring-indigo-500 flex-shrink-0 ${isPublic ? 'bg-indigo-600' : 'bg-zinc-700'} ${isDuplicateRestricted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      className={`relative w-14 h-8 md:w-16 md:h-9 rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-900 focus:ring-indigo-500 flex-shrink-0 ${isPublic ? 'bg-indigo-600' : 'bg-zinc-700'} ${isDuplicateRestricted ? 'opacity-50 cursor-not-allowed' : ''}`}
                    >
-                      <div className={`absolute top-1 left-1 w-7 h-7 bg-white rounded-full shadow-sm transition-transform duration-300 ${isPublic ? 'translate-x-7' : 'translate-x-0'}`}></div>
+                      <div className={`absolute top-1 left-1 w-6 h-6 md:w-7 md:h-7 bg-white rounded-full shadow-sm transition-transform duration-300 ${isPublic ? 'translate-x-6 md:translate-x-7' : 'translate-x-0'}`}></div>
                    </button>
                 </div>
 
@@ -2637,17 +2637,17 @@ function UploadContent() {
              </div>
 
              {/* Version Info (Static for now) */}
-             <div className="p-6 flex items-center justify-between bg-black/20">
-                <div className="flex items-center gap-4">
-                   <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
-                      <i className="fa-solid fa-code-branch text-xl"></i>
+             <div className="p-4 md:p-6 flex items-center justify-between bg-black/20 gap-4">
+                <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+                   <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 flex-shrink-0">
+                      <i className="fa-solid fa-code-branch text-lg md:text-xl"></i>
                    </div>
-                   <div>
-                      <h4 className="text-white font-bold text-lg">{language === 'zh' ? '版本' : 'Version'}</h4>
-                      <p className="text-sm text-slate-400">{language === 'zh' ? '初始版本' : 'Initial Release'}</p>
+                   <div className="min-w-0 flex-1">
+                      <h4 className="text-white font-bold text-base md:text-lg truncate">{language === 'zh' ? '版本' : 'Version'}</h4>
+                      <p className="text-xs md:text-sm text-slate-400 truncate">{language === 'zh' ? '初始版本' : 'Initial Release'}</p>
                    </div>
                 </div>
-                <span className="font-mono text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">v1.0.0</span>
+                <span className="font-mono text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 text-xs md:text-sm flex-shrink-0">v1.0.0</span>
              </div>
           </div>
 
