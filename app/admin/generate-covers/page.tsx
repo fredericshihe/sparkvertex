@@ -109,73 +109,80 @@ export default function GenerateCoversPage() {
     ]);
   };
 
-  // 处理单个作品
+  // 处理单个作品 - 使用隐藏 div 渲染而非 iframe
   const processItem = async (item: ItemToProcess): Promise<boolean> => {
-    return new Promise(async (resolve) => {
-      setCurrentItem(item);
-      addLog(`处理中: ${item.title} (${item.id})`);
+    setCurrentItem(item);
+    addLog(`处理中: ${item.title} (${item.id})`);
 
-      // 等待 iframe 加载
-      await new Promise(r => setTimeout(r, 300));
+    try {
+      // 创建隐藏容器
+      const container = document.createElement('div');
+      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;height:600px;overflow:hidden;background:#fff;';
+      document.body.appendChild(container);
 
-      if (!iframeRef.current) {
-        addLog(`  ❌ iframe 未就绪`);
-        resolve(false);
-        return;
-      }
+      // 创建 shadow DOM 来隔离样式
+      const shadow = container.attachShadow({ mode: 'open' });
+      
+      // 渲染 HTML 内容
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'width:800px;height:600px;overflow:hidden;background:#fff;';
+      wrapper.innerHTML = item.content;
+      shadow.appendChild(wrapper);
 
-      try {
-        // 简单等待 iframe 渲染完成
-        await new Promise(r => setTimeout(r, 1500));
-
-        const iframeDoc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
-        if (!iframeDoc || !iframeDoc.body) {
-          addLog(`  ❌ 无法访问 iframe 内容`);
-          resolve(false);
-          return;
-        }
-
-        const html2canvas = (await import('html2canvas')).default;
-        
-        // html2canvas 带超时
-        const canvas = await withTimeout(
-          html2canvas(iframeDoc.body, {
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: '#ffffff',
-            scale: 1,
-            logging: false,
-            width: 800,
-            height: 600,
-            windowWidth: 800,
-            windowHeight: 600,
-          }),
-          10000,
-          'html2canvas 超时'
-        );
-
-        const coverDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-
-        // 上传封面
-        const response = await fetch('/api/generate-cover', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itemId: item.id, coverDataUrl })
+      // 等待图片加载
+      const images = wrapper.querySelectorAll('img');
+      await Promise.all(Array.from(images).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+          img.onload = resolve;
+          img.onerror = resolve;
+          setTimeout(resolve, 2000); // 超时
         });
+      }));
 
-        if (response.ok) {
-          addLog(`  ✅ 成功生成封面`);
-          resolve(true);
-        } else {
-          const err = await response.json();
-          addLog(`  ❌ 上传失败: ${err.error}`);
-          resolve(false);
-        }
-      } catch (err: any) {
-        addLog(`  ❌ 处理出错: ${err.message}`);
-        resolve(false);
+      // 额外等待渲染
+      await new Promise(r => setTimeout(r, 500));
+
+      const html2canvas = (await import('html2canvas')).default;
+      
+      const canvas = await withTimeout(
+        html2canvas(wrapper, {
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          scale: 1,
+          logging: false,
+          width: 800,
+          height: 600,
+        }),
+        15000,
+        'html2canvas 超时'
+      );
+
+      // 清理
+      document.body.removeChild(container);
+
+      const coverDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+      // 上传封面
+      const response = await fetch('/api/generate-cover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: item.id, coverDataUrl })
+      });
+
+      if (response.ok) {
+        addLog(`  ✅ 成功生成封面`);
+        return true;
+      } else {
+        const err = await response.json();
+        addLog(`  ❌ 上传失败: ${err.error}`);
+        return false;
       }
-    });
+    } catch (err: any) {
+      addLog(`  ❌ 处理出错: ${err.message}`);
+      return false;
+    }
   };
 
   // 开始批量处理
