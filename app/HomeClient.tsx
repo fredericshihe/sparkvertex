@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Hero from '@/components/Hero';
 import FeatureCreation from '@/components/landing/FeatureCreation';
@@ -14,10 +15,20 @@ interface HomeClientProps {
 }
 
 export default function HomeClient({ heroItems }: HomeClientProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col relative bg-black">
       {/* Global Fixed Background */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
+      <div 
+        className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-[2000ms] ease-in-out ${
+          mounted ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
         <Galaxy 
           mouseRepulsion={true}
           mouseInteraction={true}

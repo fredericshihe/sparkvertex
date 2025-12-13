@@ -172,7 +172,7 @@ function CreateContent() {
   type ModelType = 'deepseek-v3' | 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'gemini-3-pro-preview';
   const MODEL_CONFIG: Record<ModelType, { name: string; tokensPerCredit: number; icon: string; description: string; subtitle: string; isFree?: boolean }> = {
     'deepseek-v3': {
-      name: 'DeepSeek V3',
+      name: 'DeepSeek V3.2',
       tokensPerCredit: 0, // 免费模型
       icon: '🆓',
       description: language === 'zh' ? '免费' : 'Free',
@@ -194,7 +194,7 @@ function CreateContent() {
       subtitle: language === 'zh' ? '均衡性能，适合较复杂需求' : 'Balanced for moderate complexity'
     },
     'gemini-3-pro-preview': { 
-      name: 'Gemini 3 Pro', 
+      name: 'Gemini 3 Pro Preview', 
       tokensPerCredit: 3000, 
       icon: '🧠', 
       description: language === 'zh' ? '高级' : 'Advanced',
@@ -203,7 +203,7 @@ function CreateContent() {
   };
 
   // State: Generation
-  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-2.5-pro');
+  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-2.5-flash');
   const [generatedCode, setGeneratedCode] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [modificationCount, setModificationCount] = useState(0);

@@ -476,20 +476,20 @@ export const CreationChat: React.FC<CreationChatProps> = ({
               <div className="bg-white/5 rounded-lg p-3 border border-white/5">
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-bold text-green-400 flex items-center gap-2">
-                    <span>🆓</span> {language === 'zh' ? '免费 (DeepSeek V3)' : 'Free (DeepSeek V3)'}
+                    <span>🆓</span> {language === 'zh' ? '免费 (DeepSeek V3.2)' : 'Free (DeepSeek V3.2)'}
                   </div>
                   <span className="text-[10px] px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded border border-green-500/30">
                     {language === 'zh' ? '0 积分' : '0 Credits'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 mb-2 leading-relaxed">
-                  {language === 'zh' ? '适合简单逻辑修改，有修改失败风险。' : 'Best for simple logic changes, may fail on complex edits.'}
+                  {language === 'zh' ? '适合简单逻辑修改，有一定概率修改失败。' : 'Best for simple logic changes, may fail on complex edits.'}
                 </p>
                 <div className="flex items-start gap-2 text-[10px] text-amber-400 bg-amber-500/10 p-2 rounded border border-amber-500/20">
                   <i className="fa-solid fa-triangle-exclamation mt-0.5"></i>
                   <span>
                     {language === 'zh' 
-                      ? '注意：处理超过 60KB 的文件时会失效（上下文限制）。' 
+                      ? '注意：处理超过60KB 的文件时会失效（上下文限制）。' 
                       : 'Warning: Fails when processing files larger than 60KB (context limit).'}
                   </span>
                 </div>
@@ -506,7 +506,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  {language === 'zh' ? '速度快，消耗低。适合日常的小修小改、文案调整或简单逻辑修复。' : 'Fast and cheap. Best for daily small edits, text changes, or simple logic fixes.'}
+                  {language === 'zh' ? '回复速度极快，消耗低。适合日常的小修小改、文案调整或简单逻辑修复。' : 'Fast and cheap. Best for daily small edits, text changes, or simple logic fixes.'}
                 </p>
               </div>
 
@@ -521,7 +521,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  {language === 'zh' ? '性能均衡。适合大多数功能开发、逻辑修改和中等难度的重构。' : 'Balanced performance. Best for most feature development, logic changes, and moderate refactoring.'}
+                  {language === 'zh' ? '性能均衡，回复速度较慢，适合大多数功能开发、逻辑修改和中等难度的重构。' : 'Balanced performance. Best for most feature development, logic changes, and moderate refactoring.'}
                 </p>
               </div>
 
@@ -529,14 +529,14 @@ export const CreationChat: React.FC<CreationChatProps> = ({
               <div className="bg-white/5 rounded-lg p-3 border border-white/5">
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-bold text-amber-400 flex items-center gap-2">
-                    <span>🧠</span> {language === 'zh' ? '高级 (Gemini 3 Pro)' : 'Advanced (Gemini 3 Pro)'}
+                    <span>🧠</span> {language === 'zh' ? '高级 (Gemini 3 Pro Preview)' : 'Advanced (Gemini 3 Pro Preview)'}
                   </div>
                   <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded border border-amber-500/30">
                     {language === 'zh' ? '高消耗' : 'High Cost'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  {language === 'zh' ? '最强推理能力。适合极其复杂的逻辑、算法实现或当其他模型无法解决问题时使用。' : 'Strongest reasoning. Best for extremely complex logic, algorithms, or when other models fail.'}
+                  {language === 'zh' ? '最强推理能力，恢复速度慢。适合极其复杂的逻辑、或当其他模型无法解决问题时使用。' : 'Strongest reasoning. Best for extremely complex logic, algorithms, or when other models fail.'}
                 </p>
               </div>
             </div>
