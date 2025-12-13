@@ -3,15 +3,11 @@
   "crons": [
     {
       "path": "/api/cron/retry-credits",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/cron/cleanup-orders",
       "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/cron/health-check",
-      "schedule": "*/15 * * * *"
     }
   ]
 }
