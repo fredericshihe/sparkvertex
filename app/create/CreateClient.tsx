@@ -7,20 +7,28 @@ import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
 import { copyToClipboard } from '@/lib/utils';
 import { getPreviewContent } from '@/lib/preview';
-import { BackendConfigFlow } from '@/components/BackendConfigFlow';
 import { X, RefreshCw, MessageSquare, Eye, Wand2, Edit3, Play } from 'lucide-react';
 import { applyPatches, applyPatchesWithDetails } from '@/lib/patch';
 import { useLanguage } from '@/context/LanguageContext';
 import { QRCodeSVG } from 'qrcode.react';
-import { GenerationProgress } from '@/components/GenerationProgress';
-import { AIWorkflowProgress, type WorkflowStage, type StageDetails } from '@/components/AIWorkflowProgress';
-import { CodeWaterfall } from '@/components/CodeWaterfall';
-import { CreationChat } from '@/components/CreationChat';
-import { CreationPreview } from '../../components/CreationPreview';
+import { type WorkflowStage, type StageDetails } from '@/components/AIWorkflowProgress';
 import { GET_BACKEND_CONFIG_PROMPT } from '@/lib/prompts';
 import dynamic from 'next/dynamic';
 
+// Dynamic imports for heavy components
 const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
+const BackendConfigFlow = dynamic(() => import('@/components/BackendConfigFlow').then(mod => mod.BackendConfigFlow), { 
+  loading: () => <div className="h-32 animate-pulse bg-slate-800/50 rounded-xl" />
+});
+const GenerationProgress = dynamic(() => import('@/components/GenerationProgress').then(mod => mod.GenerationProgress));
+const AIWorkflowProgress = dynamic(() => import('@/components/AIWorkflowProgress').then(mod => mod.AIWorkflowProgress));
+const CodeWaterfall = dynamic(() => import('@/components/CodeWaterfall').then(mod => mod.CodeWaterfall));
+const CreationChat = dynamic(() => import('@/components/CreationChat').then(mod => mod.CreationChat), {
+  loading: () => <div className="h-full w-full animate-pulse bg-slate-900/50" />
+});
+const CreationPreview = dynamic(() => import('../../components/CreationPreview').then(mod => mod.CreationPreview), {
+  loading: () => <div className="h-full w-full animate-pulse bg-slate-900/50 flex items-center justify-center"><i className="fa-solid fa-circle-notch fa-spin text-2xl text-slate-600"></i></div>
+});
 
 // --- Constants ---
 const CATEGORIES = [
