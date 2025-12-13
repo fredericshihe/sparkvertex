@@ -571,36 +571,43 @@ function UploadContent() {
     if (step === 4 && publishedId && fileContent) {
       const generateCover = async () => {
         try {
-          // 创建隐藏容器（使用 div 而非 iframe 避免安全限制）
+          console.log('[Cover] Starting cover generation for item:', publishedId);
+          
+          // 创建隐藏容器 - 不使用 Shadow DOM（html2canvas 无法截取 Shadow DOM）
           const container = document.createElement('div');
-          container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;height:600px;overflow:hidden;background:#fff;';
+          container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;height:600px;overflow:hidden;background:#fff;z-index:-1;';
+          container.id = 'cover-generator-container';
           document.body.appendChild(container);
 
-          // 创建 shadow DOM 来隔离样式
-          const shadow = container.attachShadow({ mode: 'open' });
+          // 直接渲染 HTML 内容（移除脚本和事件处理器）
+          const safeContent = fileContent
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+            .replace(/on\w+="[^"]*"/gi, '');
           
-          // 渲染 HTML 内容
-          const wrapper = document.createElement('div');
-          wrapper.style.cssText = 'width:800px;height:600px;overflow:hidden;background:#fff;';
-          wrapper.innerHTML = fileContent;
-          shadow.appendChild(wrapper);
+          container.innerHTML = `
+            <div style="width:800px;height:600px;overflow:hidden;background:#fff;">
+              ${safeContent}
+            </div>
+          `;
 
           // 等待图片加载
-          const images = wrapper.querySelectorAll('img');
+          const images = container.querySelectorAll('img');
+          console.log('[Cover] Waiting for', images.length, 'images to load');
+          
           await Promise.all(Array.from(images).map(img => {
             if (img.complete) return Promise.resolve();
             return new Promise(resolve => {
               img.onload = resolve;
               img.onerror = resolve;
-              setTimeout(resolve, 2000); // 超时
+              setTimeout(resolve, 3000); // 超时
             });
           }));
 
           // 额外等待渲染
-          await new Promise(r => setTimeout(r, 500));
+          await new Promise(r => setTimeout(r, 800));
 
           const html2canvas = (await import('html2canvas')).default;
-          const canvas = await html2canvas(wrapper, {
+          const canvas = await html2canvas(container.firstElementChild as HTMLElement || container, {
             useCORS: true,
             allowTaint: true,
             backgroundColor: '#ffffff',
@@ -608,12 +615,29 @@ function UploadContent() {
             logging: false,
             width: 800,
             height: 600,
+            windowWidth: 800,
+            windowHeight: 600,
           });
 
           // 清理
           document.body.removeChild(container);
 
-          const coverDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          // 检查截图是否有效
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            const imageData = ctx.getImageData(0, 0, Math.min(100, canvas.width), Math.min(100, canvas.height));
+            const pixels = imageData.data;
+            let nonWhitePixels = 0;
+            for (let i = 0; i < pixels.length; i += 4) {
+              if (pixels[i] < 250 || pixels[i+1] < 250 || pixels[i+2] < 250) {
+                nonWhitePixels++;
+              }
+            }
+            console.log('[Cover] Non-white pixels in sample:', nonWhitePixels);
+          }
+
+          const coverDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          console.log('[Cover] Generated image size:', Math.round(coverDataUrl.length / 1024), 'KB');
           
           // 上传封面到服务器
           const response = await fetch('/api/generate-cover', {
@@ -623,16 +647,23 @@ function UploadContent() {
           });
 
           if (!response.ok) {
-            console.warn('Failed to upload cover image');
+            console.warn('[Cover] Failed to upload cover image');
           } else {
-            console.log('Cover image generated successfully');
+            const result = await response.json();
+            console.log('[Cover] Cover image generated successfully:', result.cover_url);
           }
         } catch (err) {
-          console.error('Error generating cover image:', err);
+          console.error('[Cover] Error generating cover image:', err);
+          // 确保清理容器
+          const existingContainer = document.getElementById('cover-generator-container');
+          if (existingContainer) {
+            document.body.removeChild(existingContainer);
+          }
         }
       };
 
-      generateCover();
+      // 延迟执行，确保页面渲染完成
+      setTimeout(generateCover, 1000);
     }
   }, [step, publishedId, fileContent]);
 

@@ -109,44 +109,50 @@ export default function GenerateCoversPage() {
     ]);
   };
 
-  // 处理单个作品 - 使用隐藏 div 渲染而非 iframe
+  // 处理单个作品 - 使用隐藏 div 直接渲染（不使用 Shadow DOM，html2canvas 无法截取 Shadow DOM）
   const processItem = async (item: ItemToProcess): Promise<boolean> => {
     setCurrentItem(item);
     addLog(`处理中: ${item.title} (${item.id})`);
 
     try {
-      // 创建隐藏容器
+      // 创建隐藏容器 - 放在屏幕外但不使用 display:none（否则无法渲染）
       const container = document.createElement('div');
-      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;height:600px;overflow:hidden;background:#fff;';
+      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;height:600px;overflow:hidden;background:#fff;z-index:-1;';
+      container.id = 'cover-generator-container';
       document.body.appendChild(container);
 
-      // 创建 shadow DOM 来隔离样式
-      const shadow = container.attachShadow({ mode: 'open' });
+      // 直接渲染 HTML 内容到容器（不使用 Shadow DOM）
+      // 移除可能干扰的脚本和事件
+      const safeContent = item.content
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/on\w+="[^"]*"/gi, '');
       
-      // 渲染 HTML 内容
-      const wrapper = document.createElement('div');
-      wrapper.style.cssText = 'width:800px;height:600px;overflow:hidden;background:#fff;';
-      wrapper.innerHTML = item.content;
-      shadow.appendChild(wrapper);
+      container.innerHTML = `
+        <div style="width:800px;height:600px;overflow:hidden;background:#fff;">
+          ${safeContent}
+        </div>
+      `;
 
       // 等待图片加载
-      const images = wrapper.querySelectorAll('img');
+      const images = container.querySelectorAll('img');
+      addLog(`  等待 ${images.length} 张图片加载...`);
+      
       await Promise.all(Array.from(images).map(img => {
         if (img.complete) return Promise.resolve();
         return new Promise(resolve => {
           img.onload = resolve;
           img.onerror = resolve;
-          setTimeout(resolve, 2000); // 超时
+          setTimeout(resolve, 3000); // 超时
         });
       }));
 
-      // 额外等待渲染
-      await new Promise(r => setTimeout(r, 500));
+      // 额外等待渲染完成
+      await new Promise(r => setTimeout(r, 800));
 
       const html2canvas = (await import('html2canvas')).default;
       
       const canvas = await withTimeout(
-        html2canvas(wrapper, {
+        html2canvas(container.firstElementChild as HTMLElement || container, {
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
@@ -154,6 +160,8 @@ export default function GenerateCoversPage() {
           logging: false,
           width: 800,
           height: 600,
+          windowWidth: 800,
+          windowHeight: 600,
         }),
         15000,
         'html2canvas 超时'
@@ -162,7 +170,26 @@ export default function GenerateCoversPage() {
       // 清理
       document.body.removeChild(container);
 
-      const coverDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      // 检查截图是否有效
+      const ctx = canvas.getContext('2d');
+      let isValidScreenshot = true;
+      if (ctx) {
+        const imageData = ctx.getImageData(0, 0, Math.min(100, canvas.width), Math.min(100, canvas.height));
+        const pixels = imageData.data;
+        let nonWhitePixels = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          if (pixels[i] < 250 || pixels[i+1] < 250 || pixels[i+2] < 250) {
+            nonWhitePixels++;
+          }
+        }
+        if (nonWhitePixels < 50) {
+          addLog(`  ⚠️ 警告: 截图可能是白屏 (非白像素: ${nonWhitePixels})`);
+          isValidScreenshot = false;
+        }
+      }
+
+      const coverDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      addLog(`  生成图片大小: ${Math.round(coverDataUrl.length / 1024)} KB`);
 
       // 上传封面
       const response = await fetch('/api/generate-cover', {
@@ -172,7 +199,7 @@ export default function GenerateCoversPage() {
       });
 
       if (response.ok) {
-        addLog(`  ✅ 成功生成封面`);
+        addLog(`  ✅ 成功生成封面${isValidScreenshot ? '' : ' (可能是白屏)'}`);
         return true;
       } else {
         const err = await response.json();
@@ -181,6 +208,11 @@ export default function GenerateCoversPage() {
       }
     } catch (err: any) {
       addLog(`  ❌ 处理出错: ${err.message}`);
+      // 确保清理容器
+      const existingContainer = document.getElementById('cover-generator-container');
+      if (existingContainer) {
+        document.body.removeChild(existingContainer);
+      }
       return false;
     }
   };
