@@ -33,22 +33,19 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   useEffect(() => {
     setIsClient(true);
     
-    // 移动端优化：使用更严格的 IntersectionObserver
-    // 只有当卡片真正进入视口时才加载，离开时卸载（可选，为了性能建议卸载）
-    const isMobile = window.innerWidth < 768;
-    
+    // 使用大范围预加载实现无感加载体验
+    // 视口外 800px 就开始加载，用户滚动时看不到任何加载效果
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setShowPreview(true);
-          // 无论移动端还是桌面端，一旦加载就不再卸载，避免来回滑动时的重复加载体验
           observer.disconnect();
         }
       },
       { 
-        // 移动端增加预加载距离，提升滑入时的加载体验
-        rootMargin: '200px', 
-        threshold: 0.01 
+        // 大预加载距离，确保用户滚动前内容已加载
+        rootMargin: '800px', 
+        threshold: 0 
       }
     );
 
@@ -109,15 +106,15 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
             <i className="fa-solid fa-qrcode mr-1"></i> {t.project_card.scan_experience}
           </div>
 
-          <div className="h-40 md:h-44 relative bg-slate-800 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
-            {/* 默认背景 - 仅作为占位符，不显示图标 */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-700 to-slate-800'} z-5 transition-opacity duration-500 ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`} />
+          <div className="h-40 md:h-44 relative bg-slate-900 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
+            {/* 默认背景 - 渐变占位，与 iframe 内容无缝过渡 */}
+            <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-800 to-slate-900'} z-5 transition-opacity duration-700 ease-out ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`} />
 
-            {/* 动态 Iframe 预览 - 始终显示 */}
+            {/* 动态 Iframe 预览 - 无感加载 */}
             {showPreview && item.content && (
                <iframe
                  srcDoc={previewContent}
-                 className={`w-[200%] h-[200%] border-0 origin-top-left scale-50 pointer-events-none select-none transition-opacity duration-500 ${
+                 className={`w-[200%] h-[200%] border-0 origin-top-left scale-50 pointer-events-none select-none transition-opacity duration-700 ease-out ${
                    iframeLoaded ? 'opacity-100' : 'opacity-0'
                  }`}
                  onLoad={() => setIframeLoaded(true)}
@@ -125,7 +122,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                  allow="autoplay 'none'; camera 'none'; microphone 'none'"
                  scrolling="no"
                  title={`Preview of ${item.title}`}
-                 loading="lazy"
+                 loading="eager"
                />
             )}
 

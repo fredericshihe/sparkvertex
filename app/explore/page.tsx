@@ -90,7 +90,7 @@ export default async function ExplorePage() {
       ...dynamicCategories
   ];
 
-  // 2. Fetch Items (Page 0, Category 'all')
+  // 2. Fetch Items (Page 0, Category 'all') - 预加载更多项目实现无感体验
   const { data: itemsData } = await supabase
       .from('items')
       .select(`
@@ -102,7 +102,7 @@ export default async function ExplorePage() {
       `)
       .eq('is_public', true)
       .order('daily_rank', { ascending: true, nullsFirst: false })
-      .range(0, 12); // 13 items
+      .range(0, 24); // 25 items - 增加预加载数量
 
   let initialItems: Item[] = [];
   let initialTopItem: Item | undefined = undefined;

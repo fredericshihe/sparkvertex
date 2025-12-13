@@ -44,7 +44,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
   const { openLoginModal, openDetailModal } = useModal();
   const { language } = useLanguage();
   const t = translations[language] as typeof translations['zh'];
-  const ITEMS_PER_PAGE = 12;
+  const ITEMS_PER_PAGE = 24; // 增加每页数量实现无感加载
   const mainRef = useRef<HTMLDivElement>(null);
   
   // Use useLayoutEffect to prevent visual scroll jump
