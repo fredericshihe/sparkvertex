@@ -18,7 +18,9 @@ import { CodeWaterfall } from '@/components/CodeWaterfall';
 import { CreationChat } from '@/components/CreationChat';
 import { CreationPreview } from '../../components/CreationPreview';
 import { GET_BACKEND_CONFIG_PROMPT } from '@/lib/prompts';
-import Galaxy from '@/components/Galaxy';
+import dynamic from 'next/dynamic';
+
+const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
 
 // --- Constants ---
 const CATEGORIES = [

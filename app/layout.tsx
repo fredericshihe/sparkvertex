@@ -73,9 +73,7 @@ export default function RootLayout({
             <ModalProvider>
               <canvas id="fluid-canvas" className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 opacity-20"></canvas>
               {/* <CityBackground /> */}
-              <Suspense fallback={<div className="h-16 bg-slate-900/80 backdrop-blur-md fixed top-0 left-0 right-0 z-50 border-b border-slate-700/50" />}>
-                <Navbar />
-              </Suspense>
+              <Navbar />
               <main className="min-h-screen pb-0">
                 {children}
               </main>
