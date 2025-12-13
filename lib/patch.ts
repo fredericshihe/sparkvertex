@@ -184,72 +184,135 @@ function stripComments(code: string): string {
         .replace(/\/\/.*/g, '');              // Line comments
 }
 
-export function applyPatches(source: string, patchText: string, relaxedMode: boolean = false, targets: string[] = []): string {
+export interface PatchStats {
+    total: number;
+    success: number;
+    failed: number;
+    failures: string[]; // List of failure reasons
+}
+
+export interface PatchResult {
+    code: string;
+    stats: PatchStats;
+}
+
+/**
+ * Applies patches and returns detailed statistics.
+ * Use this when you need to know which patches succeeded/failed (Partial Apply).
+ */
+export function applyPatchesWithDetails(source: string, patchText: string, relaxedMode: boolean = false, targets: string[] = []): PatchResult {
     // relaxedMode: Use relaxed matching for first edits on uploaded code
     if (relaxedMode) {
         console.log('[Patch] Using relaxed matching mode for uploaded code');
     }
 
     // 0. Check for Explicit AST Replacement Blocks (Scheme 2: Modular Generation)
-    // Format: <<<<AST_REPLACE: TargetName>>>> ...Content... >>>>
     const astMatches = Array.from(patchText.matchAll(/<<<<\s*AST_REPLACE:\s*([a-zA-Z0-9_$]+)\s*>>>>([\s\S]*?)\s*>>>>/g));
     if (astMatches.length > 0) {
         console.log(`[Patch] Found ${astMatches.length} explicit AST replacement blocks.`);
         let currentSource = source;
+        let successCount = 0;
+        let failCount = 0;
+        const failures: string[] = [];
+
         for (const match of astMatches) {
             const [_, targetName, newContent] = match;
 
             // Safety Check: Validate the block before applying
             if (!validateAstReplaceBlock(targetName, newContent)) {
                 console.error(`[Patch] Skipping invalid AST_REPLACE block for ${targetName}`);
+                failCount++;
+                failures.push(`AST_REPLACE: Invalid block syntax for ${targetName}`);
                 continue;
             }
 
             const result = applyExplicitASTPatch(currentSource, targetName, newContent);
             if (result) {
                 currentSource = result;
+                successCount++;
             } else {
                 console.warn(`[Patch] Failed to apply explicit AST patch for ${targetName}`);
+                failCount++;
+                failures.push(`AST_REPLACE: Target ${targetName} not found`);
             }
         }
-        // If we processed AST patches, we might still have normal patches? 
-        // For now, assume mixed usage is rare or handled sequentially.
-        // But to be safe, let's continue to check for normal patches in the *remaining* text?
-        // Actually, usually the AI will output EITHER AST blocks OR Search/Replace blocks.
-        // If it outputs both, we should process both.
         
-        // Let's return the result if we found AST matches, assuming the AI used this mode exclusively or primarily.
-        // If there are also normal patches, we should probably process them too.
-        // But for simplicity and safety in this "Scheme 2" rollout, let's return.
-        return validatePatchedCode(source, currentSource);
+        const finalCode = validatePatchedCode(source, currentSource);
+        // If validation reverted code, mark as full failure
+        if (finalCode === source && currentSource !== source) {
+             return {
+                 code: source,
+                 stats: {
+                     total: astMatches.length,
+                     success: 0,
+                     failed: astMatches.length,
+                     failures: ["Validation failed after applying AST patches"]
+                 }
+             };
+        }
+
+        return {
+            code: finalCode,
+            stats: {
+                total: astMatches.length,
+                success: successCount,
+                failed: failCount,
+                failures
+            }
+        };
     }
     
     // 1. Parse Patches
-    const matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*([\s\S]*?)\s*>>>>/g));
+    let matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*([\s\S]*?)\s*>>>>/g));
     
     if (matches.length === 0) {
         // Fallback 1: Loose matches (no spaces or different spacing)
-        let looseMatches = Array.from(patchText.matchAll(/<<<<SEARCH([\s\S]*?)====([\s\S]*?)>>>>/g));
+        matches = Array.from(patchText.matchAll(/<<<<SEARCH([\s\S]*?)====([\s\S]*?)>>>>/g));
         
         // Fallback 2: Handle "==== REPLACE" variation
-        if (looseMatches.length === 0) {
-             looseMatches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*REPLACE\s*([\s\S]*?)\s*>>>>/g));
+        if (matches.length === 0) {
+             matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*REPLACE\s*([\s\S]*?)\s*>>>>/g));
         }
 
         // Fallback 3: Handle missing closing >>>> (truncated response)
-        if (looseMatches.length === 0) {
-             looseMatches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*([\s\S]*?)$/g));
+        if (matches.length === 0) {
+             matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*([\s\S]*?)$/g));
         }
-
-        if (looseMatches.length > 0) {
-             const result = applyPatchesInternal(source, looseMatches, relaxedMode, targets);
-             return validatePatchedCode(source, result);
-        }
-        return source;
     }
 
-    const result = applyPatchesInternal(source, matches, relaxedMode, targets);
-    return validatePatchedCode(source, result);
+    if (matches.length > 0) {
+         const { code: rawResult, stats } = applyPatchesInternalWithStats(source, matches, relaxedMode, targets);
+         const finalCode = validatePatchedCode(source, rawResult);
+         
+         // If validation reverted code, treat as failure
+         if (finalCode === source && rawResult !== source) {
+             return {
+                 code: source,
+                 stats: {
+                     ...stats,
+                     success: 0,
+                     failed: stats.total,
+                     failures: [...stats.failures, "Post-patch validation failed (syntax error or broken references)"]
+                 }
+             };
+         }
+
+         return { code: finalCode, stats };
+    }
+
+    return { 
+        code: source, 
+        stats: { total: 0, success: 0, failed: 0, failures: [] } 
+    };
+}
+
+/**
+ * Legacy wrapper for backward compatibility.
+ * Returns only the code string.
+ */
+export function applyPatches(source: string, patchText: string, relaxedMode: boolean = false, targets: string[] = []): string {
+    const result = applyPatchesWithDetails(source, patchText, relaxedMode, targets);
+    return result.code;
 }
 
 /**
@@ -671,15 +734,14 @@ function validateIncrementalPatch(
 }
 
 /**
- * 🆕 P1 FIX: Transactional Patch Application (All-or-Nothing)
- * 
- * Key change: We now apply ALL patches to a working copy first.
- * Only if ALL patches succeed, we return the modified code.
- * If ANY patch fails, we return the original source unchanged.
- * 
- * This prevents "half-applied" patches that leave code in a broken state.
+ * Internal logic for applying patches with stats.
  */
-function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relaxedMode: boolean = false, targets: string[] = []): string {
+function applyPatchesInternalWithStats(
+    source: string, 
+    matches: RegExpMatchArray[], 
+    relaxedMode: boolean = false, 
+    targets: string[] = []
+): { code: string; stats: PatchStats } {
     // 🆕 TRANSACTIONAL: Work on a copy, only commit if all succeed
     let workingSource = source;
     let successCount = 0;
@@ -693,13 +755,10 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
     console.log(`[Patch] 🔄 TRANSACTIONAL MODE: ${matches.length} patches to apply`);
 
     // Safety Net 3: Text Fallback Scope Limitation
-    // If targets are provided, we restrict the search to the ranges of those targets.
     let allowedRanges: { start: number, end: number }[] | null = null;
     if (targets && targets.length > 0) {
         try {
             const foundRanges = findTargetRanges(workingSource, targets);
-            // IMPORTANT: Only restrict if we actually found ranges.
-            // If no ranges found, fall back to full file search (allowedRanges = null)
             if (foundRanges.length > 0) {
                 allowedRanges = foundRanges;
                 console.log(`[Patch] Restricted text fallback to ${allowedRanges.length} ranges for targets: ${targets.join(', ')}`);
@@ -716,17 +775,20 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
         const patchIndex = matches.indexOf(match);
         const previousSource = workingSource; // Save for potential rollback
         
+        // Helper to record failure
+        const recordFailure = (reason: string) => {
+            failedBlocks.push(reason);
+            failCount++;
+        };
+
         // Strategy 0: AST Smart Patch (Conflict Detection)
-        // Before trying text matching, check if we are replacing a known variable/function
         const astResult = applySmartASTPatch(workingSource, replaceBlock);
         if (astResult) {
-            // Validate incremental patch
             const validation = validateIncrementalPatch(previousSource, astResult, originalDefinitions, patchIndex);
             if (!validation.valid) {
                 console.error(`[Patch] ROLLBACK: ${validation.reason}`);
-                failedBlocks.push(`AST Smart Patch (rolled back): ${validation.reason}`);
-                failCount++;
-                continue; // Skip this patch
+                recordFailure(`AST Smart Patch (rolled back): ${validation.reason}`);
+                continue;
             }
             workingSource = astResult;
             appliedPatches.push({ index: patchIndex, before: previousSource, after: workingSource });
@@ -735,7 +797,6 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
         }
 
         // CRITICAL: Detect and reject compressed placeholders
-        // These patterns indicate the AI incorrectly used compression artifacts
         const compressionPatterns = [
             /\/\/\s*\[Component:.*?\]\s*-\s*Code omitted/i,
             /\/\/\s*\.\.\.\s*\d+\s*lines?\s*omitted/i,
@@ -746,41 +807,32 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
             /=>\s*\{\s*\/\*\s*compressed\s*\*\/\s*\}/i
         ];
 
-        // Filter noise AND compression artifacts from search block
         let cleanSearchBlock = searchBlock.split('\n')
             .filter(l => {
                 const trimmed = l.trim();
-                // Filter metadata
                 if (trimmed.startsWith('///') || trimmed.match(/^summary:/i) || trimmed.match(/^changes:/i)) return false;
-                // Filter compression artifacts (treat them as wildcards by removing them)
                 if (compressionPatterns.some(p => p.test(trimmed))) return false;
                 return true;
             })
             .join('\n');
         
-        // Check if we removed compression artifacts
         const originalHasCompression = compressionPatterns.some(p => p.test(searchBlock));
         if (originalHasCompression) {
             console.warn('Patch warning: Search block contained compression artifacts. Switching to Anchor Matching.');
             
             // Strategy: Anchor Matching (Head + Tail)
-            // If the search block had compression artifacts, we trust the first and last lines
-            // to define the boundaries, and ignore everything in between.
             const searchLines = searchBlock.split('\n').map(l => l.trim()).filter(l => l);
             if (searchLines.length >= 2) {
                 const startLine = searchLines[0];
                 const endLine = searchLines[searchLines.length - 1];
                 
-                // Find start line in source
                 const sourceLines = workingSource.split('\n');
                 let bestAnchorMatch = null;
                 
                 for (let i = 0; i < sourceLines.length; i++) {
                     if (sourceLines[i].trim() === startLine) {
-                        // Found potential start, look for end within reasonable range (500 lines)
                         for (let j = i + 1; j < Math.min(i + 500, sourceLines.length); j++) {
                             if (sourceLines[j].trim() === endLine) {
-                                // Found match!
                                 bestAnchorMatch = { startLine: i, endLine: j };
                                 break;
                             }
@@ -793,18 +845,15 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
                     console.log(`[Patch] Anchor match successful: lines ${bestAnchorMatch.startLine}-${bestAnchorMatch.endLine}`);
                     const before = sourceLines.slice(0, bestAnchorMatch.startLine).join('\n');
                     const after = sourceLines.slice(bestAnchorMatch.endLine + 1).join('\n');
-                    // Need to handle newline carefully
                     const newContent = (before ? before + '\n' : '') + replaceBlock + (after ? '\n' + after : '');
                     const patchEndIndex = (before ? before.length + 1 : 0) + replaceBlock.length;
                     const candidateSource = fixOverlapArtifacts(newContent, patchEndIndex);
                     
-                    // Validate incremental patch
                     const validation = validateIncrementalPatch(previousSource, candidateSource, originalDefinitions, patchIndex);
                     if (!validation.valid) {
                         console.error(`[Patch] ROLLBACK Anchor: ${validation.reason}`);
-                        failedBlocks.push(`Anchor Patch (rolled back): ${validation.reason}`);
-                        failCount++;
-                        continue; // Skip this patch, don't apply
+                        recordFailure(`Anchor Patch (rolled back): ${validation.reason}`);
+                        continue;
                     }
                     workingSource = candidateSource;
                     appliedPatches.push({ index: patchIndex, before: previousSource, after: workingSource });
@@ -819,57 +868,42 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
         
         if (searchTokens.length === 0) {
              console.warn("Empty search block tokens, skipping.");
+             recordFailure("Empty search block");
              continue;
         }
 
-        // Use relaxed matching for uploaded code's first edit
         let matchRange = findBestTokenMatch(sourceTokens, searchTokens, allowedRanges);
         
-        // If strict matching failed and we're in relaxed mode, try relaxed matching
         if (!matchRange && relaxedMode) {
             console.log('[Patch] Strict match failed, trying relaxed matching...');
             matchRange = findBestTokenMatchRelaxed(sourceTokens, searchTokens);
         }
 
-        // Strategy 1.5: Comment-Insensitive Match (Fallback for Hallucinated Comments)
-        // If the AI added comments (e.g. {/* Fog of War */}) that don't exist in source,
-        // we try matching by stripping comments from the search block.
+        // Strategy 1.5: Comment-Insensitive Match
         if (!matchRange) {
             const strippedSearchBlock = stripComments(cleanSearchBlock);
-            // Only try if stripping comments actually changed something
             if (strippedSearchBlock.length < cleanSearchBlock.length) {
                 const strippedSearchTokens = tokenize(strippedSearchBlock);
                 if (strippedSearchTokens.length > 0) {
-                    console.log('[Patch] Strict match failed, trying comment-insensitive matching...');
-                    // Use relaxed matching on stripped tokens
                     matchRange = findBestTokenMatchRelaxed(sourceTokens, strippedSearchTokens);
-                    
-                    if (matchRange) {
-                        console.log('[Patch] Comment-insensitive match successful!');
-                    }
+                    if (matchRange) console.log('[Patch] Comment-insensitive match successful!');
                 }
             }
         }
 
-        // 🆕 Strategy 1.6: Fuzzy Token Matching (Typo Tolerance)
-        // If AI generated tokens with small typos (1-2 char difference), try fuzzy matching
+        // Strategy 1.6: Fuzzy Token Matching
         if (!matchRange) {
             console.log('[Patch] Trying fuzzy token matching...');
             matchRange = findBestTokenMatchFuzzy(sourceTokens, searchTokens, allowedRanges);
-            if (matchRange) {
-                console.log('[Patch] Fuzzy token match successful!');
-            }
+            if (matchRange) console.log('[Patch] Fuzzy token match successful!');
         }
 
-        // Fallback: AST Lite (Function Body Replacement)
+        // Fallback: AST Lite
         if (!matchRange) {
              const functionMatch = tryFunctionMatch(workingSource, cleanSearchBlock);
              if (functionMatch) {
-                 // Validate replaceBlock syntax before applying
                  if (!isValidBlockSyntax(replaceBlock)) {
-                     console.warn(`[Patch] AST Lite: Replace block for ${functionMatch.name} has invalid syntax (unbalanced braces), skipping.`);
-                     failedBlocks.push(cleanSearchBlock.substring(0, 80) + '... (Invalid Syntax)');
-                     failCount++;
+                     recordFailure(`${cleanSearchBlock.substring(0, 50)}... (Invalid Syntax)`);
                      continue;
                  }
 
@@ -880,13 +914,10 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
                  const patchEndIndex = before.length + replaceBlock.length;
                  const candidateSource = fixOverlapArtifacts(newContent, patchEndIndex);
                  
-                 // Validate incremental patch
                  const validation = validateIncrementalPatch(previousSource, candidateSource, originalDefinitions, patchIndex);
                  if (!validation.valid) {
-                     console.error(`[Patch] ROLLBACK AST Lite: ${validation.reason}`);
-                     failedBlocks.push(`AST Lite for ${functionMatch.name} (rolled back): ${validation.reason}`);
-                     failCount++;
-                     continue; // Skip this patch
+                     recordFailure(`AST Lite for ${functionMatch.name} (rolled back): ${validation.reason}`);
+                     continue;
                  }
                  workingSource = candidateSource;
                  appliedPatches.push({ index: patchIndex, before: previousSource, after: workingSource });
@@ -896,51 +927,34 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
         }
 
         // Fallback: Significant Anchor Matching
-        // If all else fails, try to match based on the first and last lines of the search block,
-        // provided they are "significant" (long enough and not just symbols).
         if (!matchRange) {
             const searchLines = cleanSearchBlock.split('\n').map(l => l.trim()).filter(l => l);
             if (searchLines.length >= 2) {
                 let startLine = searchLines[0];
                 let endLine = searchLines[searchLines.length - 1];
                 
-                // Check significance (e.g. > 15 chars, avoids "};" or "return true;")
                 if (startLine.length > 15 && endLine.length > 15) {
                      const sourceLines = workingSource.split('\n');
-                     
-                     // 🆕 P1 FIX: UNIQUENESS CHECK
-                     // Count how many times the start line appears in source
-                     // If it appears multiple times, we need to expand the anchor
-                     const countOccurrences = (line: string) => 
-                         sourceLines.filter(l => l.trim() === line).length;
+                     const countOccurrences = (line: string) => sourceLines.filter(l => l.trim() === line).length;
                      
                      let startOccurrences = countOccurrences(startLine);
                      let expandedAnchorStart = 0;
                      
-                     // If start line is not unique, try to expand anchor (use first 2 lines)
                      if (startOccurrences > 1 && searchLines.length >= 3) {
-                         console.log(`[Patch] ⚠️ Start anchor "${startLine.slice(0, 30)}..." is not unique (${startOccurrences} occurrences), expanding...`);
-                         // Create a combined anchor with first 2 lines
                          const combinedStart = searchLines[0] + '\n' + searchLines[1];
-                         // Find this combination in source
                          for (let i = 0; i < sourceLines.length - 1; i++) {
                              const combined = sourceLines[i].trim() + '\n' + sourceLines[i + 1].trim();
                              if (combined === combinedStart) {
                                  expandedAnchorStart = i;
-                                 startLine = searchLines[0]; // Keep original for display
-                                 startOccurrences = 1; // Mark as now unique
+                                 startLine = searchLines[0];
+                                 startOccurrences = 1;
                                  break;
                              }
-                         }
-                         if (startOccurrences > 1) {
-                             console.warn(`[Patch] ❌ Even expanded anchor is not unique, skipping anchor match.`);
-                             // Don't use anchor matching if we can't make it unique
                          }
                      }
                      
                      if (startOccurrences === 1) {
                          let bestAnchorMatch = null;
-                         
                          for (let i = expandedAnchorStart; i < sourceLines.length; i++) {
                              if (sourceLines[i].trim() === startLine || (expandedAnchorStart > 0 && i === expandedAnchorStart)) {
                                  const searchStart = expandedAnchorStart > 0 ? expandedAnchorStart : i;
@@ -955,20 +969,17 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
                          }
 
                          if (bestAnchorMatch) {
-                             console.log(`[Patch] Significant Anchor match successful: lines ${bestAnchorMatch.startLine}-${bestAnchorMatch.endLine}`);
+                             console.log(`[Patch] Significant Anchor match successful`);
                              const before = sourceLines.slice(0, bestAnchorMatch.startLine).join('\n');
                              const after = sourceLines.slice(bestAnchorMatch.endLine + 1).join('\n');
                              const newContent = (before ? before + '\n' : '') + replaceBlock + (after ? '\n' + after : '');
                              const patchEndIndex = (before ? before.length + 1 : 0) + replaceBlock.length;
                              const candidateSource = fixOverlapArtifacts(newContent, patchEndIndex);
                              
-                             // Validate incremental patch
                              const validation = validateIncrementalPatch(previousSource, candidateSource, originalDefinitions, patchIndex);
                              if (!validation.valid) {
-                                 console.error(`[Patch] ROLLBACK Significant Anchor: ${validation.reason}`);
-                                 failedBlocks.push(`Significant Anchor (rolled back): ${validation.reason}`);
-                                 failCount++;
-                                 continue; // Skip this patch
+                                 recordFailure(`Significant Anchor (rolled back): ${validation.reason}`);
+                                 continue;
                              }
                              workingSource = candidateSource;
                              appliedPatches.push({ index: patchIndex, before: previousSource, after: workingSource });
@@ -991,13 +1002,10 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
             const patchEndIndex = before.length + replaceBlock.length;
             const candidateSource = fixOverlapArtifacts(newContent, patchEndIndex);
             
-            // Validate incremental patch
             const validation = validateIncrementalPatch(previousSource, candidateSource, originalDefinitions, patchIndex);
             if (!validation.valid) {
-                console.error(`[Patch] ROLLBACK Token+LCS: ${validation.reason}`);
-                failedBlocks.push(`Token+LCS (rolled back): ${validation.reason}`);
-                failCount++;
-                continue; // Skip this patch, don't update workingSource
+                recordFailure(`Token+LCS (rolled back): ${validation.reason}`);
+                continue;
             }
             workingSource = candidateSource;
             appliedPatches.push({ index: patchIndex, before: previousSource, after: workingSource });
@@ -1005,33 +1013,31 @@ function applyPatchesInternal(source: string, matches: RegExpMatchArray[], relax
             console.log(`Patch applied successfully using Token+LCS matching.`);
         } else {
             console.warn(`Patch failed for block: ${cleanSearchBlock.substring(0, 50)}...`);
-            failedBlocks.push(cleanSearchBlock.substring(0, 80) + '...');
-            failCount++;
+            recordFailure(`Could not find matching code block: "${cleanSearchBlock.substring(0, 50)}..."`);
         }
     }
     
     // 🆕 TRANSACTIONAL COMMIT LOGIC
-    // Only return modified code if ALL patches succeeded, or at least some succeeded without critical failures
     if (failCount > 0 && successCount === 0) {
-        // Complete failure - no patches applied
-        const hint = failedBlocks.length > 0 
-            ? `\n失败的代码块: ${failedBlocks[0]}` 
-            : '';
-        throw new Error(`无法应用修改：找不到匹配的代码块 (${failCount} 处失败)${hint}`);
+        // Complete failure handled by caller checking stats
     }
     
     if (failCount > 0 && successCount > 0) {
-        // Partial success - some patches failed
-        // 🆕 NEW BEHAVIOR: For safety, we still apply successful patches but warn loudly
         console.warn(`[Patch] ⚠️ PARTIAL SUCCESS: ${successCount}/${matches.length} patches applied, ${failCount} failed`);
         console.warn(`[Patch] Failed blocks: ${failedBlocks.join('; ')}`);
-        // Note: In strict transactional mode, we could return `source` here to reject partial changes
-        // But for better UX, we allow partial success since individual patches are validated
     }
     
     console.log(`[Patch] ✅ TRANSACTION COMPLETE: ${successCount} patches applied successfully`);
 
-    return workingSource;
+    return {
+        code: workingSource,
+        stats: {
+            total: matches.length,
+            success: successCount,
+            failed: failCount,
+            failures: failedBlocks
+        }
+    };
 }
 
 function findBestTokenMatch(sourceTokens: Token[], searchTokens: Token[], allowedRanges: { start: number, end: number }[] | null = null): { start: number, end: number } | null {
@@ -2088,7 +2094,3 @@ function findTargetRanges(source: string, targets: string[]): { start: number, e
 
     return ranges;
 }
-
-
-
-

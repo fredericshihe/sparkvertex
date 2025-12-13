@@ -9,7 +9,7 @@ import { copyToClipboard } from '@/lib/utils';
 import { getPreviewContent } from '@/lib/preview';
 import { BackendConfigFlow } from '@/components/BackendConfigFlow';
 import { X, RefreshCw, MessageSquare, Eye, Wand2, Edit3, Play } from 'lucide-react';
-import { applyPatches } from '@/lib/patch';
+import { applyPatches, applyPatchesWithDetails } from '@/lib/patch';
 import { useLanguage } from '@/context/LanguageContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { GenerationProgress } from '@/components/GenerationProgress';
@@ -1935,15 +1935,30 @@ ${description}
 
                     // 尝试应用补丁
                     // 如果第一次失败，尝试开启 relaxedMode（宽松匹配）
-                    let patched;
+                    let patched = '';
+                    let patchStats = null;
+
                     try {
-                        patched = applyPatches(generatedCode, rawCode, relaxedMode, targets);
+                        const result = applyPatchesWithDetails(generatedCode, rawCode, relaxedMode, targets);
+                        patched = result.code;
+                        patchStats = result.stats;
+
+                        // Check if ALL patches failed (Total Failure)
+                        if (patchStats.total > 0 && patchStats.success === 0) {
+                             throw new Error(patchStats.failures[0] || 'All patches failed');
+                        }
                     } catch (patchError: any) {
                         console.warn('Standard patch failed, retrying with relaxed mode...', patchError.message);
                         // 如果第一次不是 relaxedMode，则尝试开启 relaxedMode
                         if (!relaxedMode) {
                             try {
-                                patched = applyPatches(generatedCode, rawCode, true, targets);
+                                const result = applyPatchesWithDetails(generatedCode, rawCode, true, targets);
+                                patched = result.code;
+                                patchStats = result.stats;
+                                
+                                if (patchStats.total > 0 && patchStats.success === 0) {
+                                     throw new Error(patchStats.failures[0] || 'All patches failed');
+                                }
                                 console.log('Relaxed patch succeeded!');
                             } catch (retryError) {
                                 throw patchError; // 如果重试也失败，抛出原始错误
@@ -1951,6 +1966,21 @@ ${description}
                         } else {
                             throw patchError;
                         }
+                    }
+                    
+                    // 🆕 Handle Partial Success Warning
+                    if (patchStats && patchStats.failed > 0 && patchStats.success > 0) {
+                        const msg = language === 'zh' 
+                            ? `⚠️ 部分应用：${patchStats.success} 处成功，${patchStats.failed} 处失败。`
+                            : `⚠️ Partial Success: ${patchStats.success} applied, ${patchStats.failed} failed.`;
+                        
+                        // Use a delayed toast to ensure it's visible after success toast
+                        setTimeout(() => {
+                            // Using standard toast but with warning prefix
+                            toastSuccess(msg); 
+                        }, 500);
+                        
+                        console.warn('[Patch Warning]', msg, patchStats.failures);
                     }
                     
                     // Safety check: Ensure patched code is not empty
