@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
@@ -17,8 +17,8 @@ export default function Navbar() {
   const [credits, setCredits] = useState<number | null>(null);
   const [isLoadingAvatar, setIsLoadingAvatar] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [isEmbedded, setIsEmbedded] = useState(false);
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { openLoginModal, openFeedbackModal, openCreditPurchaseModal } = useModal();
   const { success } = useToast();
   const { t, language, setLanguage } = useLanguage();
@@ -28,6 +28,15 @@ export default function Navbar() {
       setScrolled(window.scrollY > 20);
     };
     window.addEventListener('scroll', handleScroll);
+    
+    // Check for embedded mode
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('mode') === 'app') {
+        setIsEmbedded(true);
+      }
+    }
+
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -148,7 +157,7 @@ export default function Navbar() {
   }, [user]);
 
   // Hide Navbar in App Mode OR Create Page
-  if (searchParams.get('mode') === 'app' || pathname === '/create') return null;
+  if (isEmbedded || pathname === '/create') return null;
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 

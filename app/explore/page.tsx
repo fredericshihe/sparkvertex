@@ -4,6 +4,7 @@ import ExploreClient from './ExploreClient';
 import { Item } from '@/types/supabase';
 import { KNOWN_CATEGORIES, CORE_CATEGORY_KEYS } from '@/lib/categories';
 import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
 
 const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
 
@@ -122,11 +123,13 @@ export default async function ExplorePage() {
   return (
     <div className="min-h-screen bg-zinc-950 relative">
       <div className="relative z-10">
-        <ExploreClient 
-          initialItems={initialItems} 
-          initialCategories={initialCategories} 
-          initialTopItem={initialTopItem} 
-        />
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-slate-600 border-t-brand-500 rounded-full animate-spin" /></div>}>
+          <ExploreClient 
+            initialItems={initialItems} 
+            initialCategories={initialCategories} 
+            initialTopItem={initialTopItem} 
+          />
+        </Suspense>
       </div>
     </div>
   );
