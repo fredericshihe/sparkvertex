@@ -2088,7 +2088,7 @@ function UploadContent() {
                     </div>
 
                     {/* Dynamic Task Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                    <div className="grid grid-cols-2 gap-3 md:gap-4 mb-8">
                       {analysisState.tasks?.map((task, index) => {
                         const isCompleted = task.status !== 'pending';
                         const firstPendingIndex = analysisState.tasks?.findIndex(t => t.status === 'pending');
@@ -2105,18 +2105,18 @@ function UploadContent() {
                                 : 'bg-zinc-900/30 border-white/5 opacity-50'
                           }`}
                         >
-                          <div className="p-4 flex items-center gap-4">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-colors ${
+                          <div className="p-3 md:p-4 flex items-center gap-2 md:gap-4">
+                            <div className={`w-6 h-6 md:w-8 md:h-8 rounded-lg flex items-center justify-center text-xs md:text-sm transition-colors flex-shrink-0 ${
                               isCompleted ? 'bg-emerald-500/20 text-emerald-400' : 
                               isProcessing ? 'bg-indigo-500/20 text-indigo-400' : 
                               'bg-white/5 text-slate-500'
                             }`}>
                               {isCompleted ? <i className="fa-solid fa-check"></i> :
                                isProcessing ? <i className="fa-solid fa-circle-notch fa-spin"></i> :
-                               <span className="font-mono text-xs">{index + 1}</span>}
+                               <span className="font-mono text-[10px] md:text-xs">{index + 1}</span>}
                             </div>
-                            <div className="flex-grow">
-                              <div className={`font-medium text-sm ${
+                            <div className="flex-grow min-w-0">
+                              <div className={`font-medium text-xs md:text-sm truncate ${
                                 isCompleted ? 'text-emerald-200' :
                                 isProcessing ? 'text-indigo-200' :
                                 'text-slate-500'
@@ -2124,7 +2124,7 @@ function UploadContent() {
                                 {t.upload[`task_${task.id}` as keyof typeof t.upload] || task.label}
                               </div>
                               {isProcessing && (
-                                <div className="text-[10px] text-indigo-400/60 font-mono mt-1 animate-pulse">
+                                <div className="text-[10px] text-indigo-400/60 font-mono mt-0.5 md:mt-1 animate-pulse truncate">
                                   &gt; {t.upload.executing_module}
                                 </div>
                               )}
