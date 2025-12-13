@@ -52,7 +52,16 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <head>
-        <link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css" />
+        <link rel="preconnect" href="https://cdn.staticfile.org" crossOrigin="anonymous" />
+        <link 
+          rel="stylesheet" 
+          href="https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css" 
+          media="print" 
+          onLoad="this.media='all'"
+        />
+        <noscript>
+          <link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css" />
+        </noscript>
         <link rel="icon" href="/logo.png" />
       </head>
       <body className={inter.className}>
@@ -82,7 +91,6 @@ export default function RootLayout({
             </ModalProvider>
           </ToastProvider>
         </LanguageProvider>
-        <ServiceWorkerRegister />
         <ConsoleSilencer />
       </body>
     </html>
