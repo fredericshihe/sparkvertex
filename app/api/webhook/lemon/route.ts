@@ -11,19 +11,21 @@ export async function POST(req: NextRequest) {
     const secret = LEMON_SQUEEZY_CONFIG.WEBHOOK_SECRET;
 
     if (!secret) {
-      console.error('LEMONSQUEEZY_WEBHOOK_SECRET is not set');
+      console.error('[Lemon Webhook] LEMONSQUEEZY_WEBHOOK_SECRET is not set');
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
 
     const hmac = crypto.createHmac('sha256', secret);
-    const digest = Buffer.from(hmac.update(rawBody).digest('hex'), 'utf8');
-    const signature = Buffer.from(req.headers.get('X-Signature') || '', 'utf8');
+    const digest = hmac.update(rawBody).digest('hex');
+    const signature = req.headers.get('X-Signature') || '';
 
     // 1. 安全验证：确保请求真的来自 Lemon Squeezy
-    if (!crypto.timingSafeEqual(digest, signature)) {
+    if (digest !== signature) {
+      console.error('[Lemon Webhook] Invalid signature', { digest, signature });
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
+    console.log('[Lemon Webhook] Signature verified successfully');
     const payload = JSON.parse(rawBody);
     const eventName = payload.meta.event_name;
 
