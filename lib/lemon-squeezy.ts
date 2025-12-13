@@ -68,9 +68,12 @@ export const CREDIT_PACKAGES = [
   }
 ];
 
+// Lemon Squeezy Webhook 返回的 variant_id (数字)
+// 从实际 Webhook payload 中获取的真实 ID
 export const VARIANT_CREDITS_MAP: Record<string, number> = {
-  '9737a581-e010-4d2b-ae07-c4de42189a29': 120,
-  'da329156-46d2-4483-bb11-3dfe99db04ea': 350,
-  '174a1ff4-b8f5-44a7-99fe-8d75a7a91a34': 800,
-  '0fd02f34-2a55-4e12-beda-0a50d1693501': 2000,
+  '1147295': 120,   // 体验包 (Basic)
+  '1147321': 350,   // 创作者包 (Standard)
+  '1147330': 800,   // 重度包 (Premium)
+  // TODO: 购买极客包后补充以下 ID
+  // '??????': 2000,  // 极客包 (Ultimate)
 };
