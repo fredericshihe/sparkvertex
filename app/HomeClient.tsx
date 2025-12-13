@@ -16,9 +16,16 @@ interface HomeClientProps {
 export default function HomeClient() {
   const [mounted, setMounted] = useState(false);
   const [showGalaxy, setShowGalaxy] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
     
     // Delay Galaxy loading using requestIdleCallback for better performance
     // This allows the main content to render first before initializing WebGL
@@ -32,6 +39,8 @@ export default function HomeClient() {
         setShowGalaxy(true);
       }, 500);
     }
+    
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   return (
@@ -50,6 +59,7 @@ export default function HomeClient() {
             glowIntensity={0.5}
             saturation={0.8}
             hueShift={240}
+            isMobile={isMobile}
           />
         )}
       </div>

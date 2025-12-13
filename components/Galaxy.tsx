@@ -52,7 +52,7 @@ void main() {
 }
 `;
 
-const fragmentShader = `
+const getFragmentShader = (layers: number) => `
 precision highp float;
 
 uniform float uTime;
@@ -76,7 +76,7 @@ uniform bool uTransparent;
 
 varying vec2 vUv;
 
-#define NUM_LAYER 4.0
+#define NUM_LAYER ${layers.toFixed(1)}
 #define STAR_COLOR_CUTOFF 0.2
 #define MAT45 mat2(0.7071, -0.7071, 0.7071, 0.7071)
 #define PERIOD 3.0
@@ -225,6 +225,7 @@ interface GalaxyProps {
   repulsionStrength?: number;
   autoCenterRepulsion?: number;
   transparent?: boolean;
+  isMobile?: boolean;
 }
 
 export default function Galaxy({
@@ -244,6 +245,7 @@ export default function Galaxy({
   rotationSpeed = 0.1,
   autoCenterRepulsion = 0,
   transparent = true,
+  isMobile = false,
   ...rest
 }: GalaxyProps) {
   const ctnDom = useRef<HTMLDivElement>(null);
@@ -262,7 +264,7 @@ export default function Galaxy({
   const propsRef = useRef({
     focal, rotation, starSpeed, density, hueShift, disableAnimation,
     speed, mouseInteraction, glowIntensity, saturation, mouseRepulsion,
-    twinkleIntensity, rotationSpeed, repulsionStrength, autoCenterRepulsion, transparent
+    twinkleIntensity, rotationSpeed, repulsionStrength, autoCenterRepulsion, transparent, isMobile
   });
   
   // 更新 props ref
@@ -270,7 +272,7 @@ export default function Galaxy({
     propsRef.current = {
       focal, rotation, starSpeed, density, hueShift, disableAnimation,
       speed, mouseInteraction, glowIntensity, saturation, mouseRepulsion,
-      twinkleIntensity, rotationSpeed, repulsionStrength, autoCenterRepulsion, transparent
+      twinkleIntensity, rotationSpeed, repulsionStrength, autoCenterRepulsion, transparent, isMobile
     };
     
     // 更新已存在的 program uniforms（不重新创建上下文）
@@ -320,6 +322,9 @@ export default function Galaxy({
     let program: Program;
 
     function resize() {
+      // Mobile optimization: limit dpr to 1.5 to save battery/perf
+      const dpr = props.isMobile ? Math.min(window.devicePixelRatio, 1.5) : 1;
+      renderer.dpr = dpr;
       const scale = 1;
       renderer.setSize(ctn.offsetWidth * scale, ctn.offsetHeight * scale);
       if (program) {
@@ -334,9 +339,10 @@ export default function Galaxy({
     resize();
 
     const geometry = new Triangle(gl);
+    const numLayers = props.isMobile ? 2.0 : 4.0;
     program = new Program(gl, {
       vertex: vertexShader,
-      fragment: fragmentShader,
+      fragment: getFragmentShader(numLayers),
       uniforms: {
         uTime: { value: 0 },
         uResolution: {
@@ -404,7 +410,7 @@ export default function Galaxy({
     }
 
     // 使用 propsRef 获取初始值，后续鼠标事件始终监听
-    if (props.mouseInteraction) {
+    if (props.mouseInteraction && !props.isMobile) {
       ctn.addEventListener('mousemove', handleMouseMove);
       ctn.addEventListener('mouseleave', handleMouseLeave);
     }
