@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Item } from '@/types/supabase';
 import { getPreviewContent } from '@/lib/preview';
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
 import { useLanguage } from '@/context/LanguageContext';
 
 const QRCodeSVG = dynamic(() => import('qrcode.react').then(mod => mod.QRCodeSVG), { ssr: false });
@@ -25,36 +24,19 @@ interface ProjectCardProps {
 export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onUpdate, onDelete, onHover, className = '' }: ProjectCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [isHovering, setIsHovering] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [isClient, setIsClient] = useState(false);
-  const [coverError, setCoverError] = useState(false);
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
-
-  // Helper function to validate URL
-  const isValidUrl = (url: string | undefined | null): boolean => {
-    if (!url || typeof url !== 'string' || url.trim() === '') return false;
-    return url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/');
-  };
-
-  // Prioritize cover_url over icon_url for card preview
-  const coverImage = isValidUrl(item.cover_url) ? item.cover_url : 
-                     isValidUrl(item.icon_url) ? item.icon_url : null;
-  const hasValidCover = coverImage && !coverError;
 
   useEffect(() => {
     setIsClient(true);
     
-    // 只有在可视区域内且没有封面图时才自动加载 iframe
+    // 当卡片进入可视区域时加载 iframe 预览
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          // 如果没有封面图，才自动加载 iframe 预览
-          if (!hasValidCover) {
-            setShowPreview(true);
-          }
+          setShowPreview(true);
           observer.disconnect();
         }
       },
@@ -71,27 +53,14 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
     return () => {
       observer.disconnect();
     };
-  }, [hasValidCover]);
+  }, []);
 
   const handleMouseEnter = () => {
     if (onHover) onHover(item);
-    setIsHovering(true);
-    // 鼠标悬停时开始加载 iframe（延迟 200ms 避免快速划过时加载）
-    if (hasValidCover && !showPreview) {
-      hoverTimeoutRef.current = setTimeout(() => {
-        setShowPreview(true);
-      }, 200);
-    }
   };
 
   const handleMouseLeave = () => {
     setIsFlipped(false);
-    setIsHovering(false);
-    // 取消悬停加载
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
   };
 
   // Memoize preview content
@@ -131,8 +100,8 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
           </div>
 
           <div className="h-40 md:h-44 relative bg-slate-800 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
-            {/* 默认背景 - 当没有封面且iframe未加载时显示 */}
-            {!hasValidCover && !iframeLoaded && (
+            {/* 默认背景 - 当iframe未加载时显示 */}
+            {!iframeLoaded && (
               <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-700 to-slate-800'} flex items-center justify-center z-5`}>
                 {showPreview ? (
                   <div className="w-6 h-6 border-2 border-slate-600 border-t-brand-500 rounded-full animate-spin"></div>
@@ -142,7 +111,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
               </div>
             )}
 
-            {/* Iframe Preview */}
+            {/* 动态 Iframe 预览 - 始终显示 */}
             {showPreview && item.content && (
                <iframe
                  srcDoc={previewContent}
@@ -155,22 +124,6 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                  scrolling="no"
                  title={`Preview of ${item.title}`}
                />
-            )}
-
-            {/* Cover Image - 有封面时默认显示，鼠标悬停后淡出显示动态内容 */}
-            {hasValidCover && (
-              <div className={`absolute inset-0 z-20 bg-slate-900 transition-opacity duration-300 ${
-                showPreview && iframeLoaded && isHovering ? 'opacity-0 pointer-events-none' : 'opacity-100'
-              }`}>
-                <Image 
-                  src={coverImage!} 
-                  alt={item.title} 
-                  fill 
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  onError={() => setCoverError(true)}
-                />
-              </div>
             )}
 
             {/* Overlay to prevent interaction with iframe on mobile causing about:srcdoc */}
