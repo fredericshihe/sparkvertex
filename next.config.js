@@ -86,6 +86,15 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'waesizzoqodntrlvrwhw.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
   productionBrowserSourceMaps: false, // Disable source maps in production
   poweredByHeader: false, // Remove X-Powered-By header
   async rewrites() {
