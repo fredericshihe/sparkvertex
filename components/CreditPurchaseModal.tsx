@@ -5,72 +5,11 @@ import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 import { X, Check, Sparkles } from 'lucide-react';
+import { CREDIT_PACKAGES } from '@/lib/lemon-squeezy';
+import { supabase } from '@/lib/supabase';
 
 // Define packages outside component to avoid recreation
-const PACKAGES = [
-  { 
-    id: 'basic', 
-    credits: 120,
-    price: 19.9, 
-    originalPrice: 19.9,
-    bonus: 20, // 多赠20积分
-    freeCreates: 1, // 1次免费创建 (120/15=8, 基础100+赠送20)
-    nameKey: 'basic',
-    color: 'from-slate-400 to-slate-600',
-    shadow: 'shadow-slate-500/20',
-    footerBg: 'bg-slate-900/60',
-    emoji: '🥉',
-    afdian_item_id: '2bfce06ad1d711f0be2b5254001e7c00',
-    afdian_plan_id: ''
-  },
-  { 
-    id: 'standard', 
-    credits: 350, 
-    price: 49.9, 
-    originalPrice: 58.0,
-    bonus: 75, // 多赠75积分
-    freeCreates: 5, // 5次免费创建 (350/15≈23, 基础275+赠送75)
-    nameKey: 'standard',
-    color: 'from-blue-400 to-blue-600',
-    shadow: 'shadow-blue-500/20',
-    footerBg: 'bg-blue-950/30',
-    emoji: '🥈',
-    afdian_item_id: '08693af2d1d911f0a58152540025c377',
-    afdian_plan_id: ''
-  },
-  { 
-    id: 'premium', 
-    credits: 800, 
-    price: 99.9, 
-    originalPrice: 133.0,
-    bonus: 180, // 多赠180积分
-    freeCreates: 12, // 12次免费创建 (800/15≈53, 基础620+赠送180)
-    nameKey: 'premium',
-    bestValue: true,
-    color: 'from-purple-400 to-purple-600',
-    shadow: 'shadow-purple-500/20',
-    footerBg: 'bg-purple-950/30',
-    emoji: '🥈',
-    afdian_item_id: '1e77bf3ad1d911f0aa4e52540025c377',
-    afdian_plan_id: ''
-  },
-  { 
-    id: 'ultimate', 
-    credits: 2000, 
-    price: 198.0, 
-    originalPrice: 332.0,
-    bonus: 450, // 多赠450积分
-    freeCreates: 30, // 30次免费创建 (2000/15≈133, 基础1550+赠送450)
-    nameKey: 'ultimate',
-    color: 'from-amber-400 to-amber-600',
-    shadow: 'shadow-amber-500/20',
-    isNew: true,
-    footerBg: 'bg-amber-950/30',
-    emoji: '🥇',
-    afdian_item_id: '345e4f9ed1d911f0842f52540025c377',
-    afdian_plan_id: ''
-  }
-];
+const PACKAGES = CREDIT_PACKAGES;
 
 export default function CreditPurchaseModal() {
   const { t } = useLanguage();
@@ -97,203 +36,43 @@ export default function CreditPurchaseModal() {
     if (!selectedPackage || isProcessing) return;
     
     setIsProcessing(true);
-    
-    let paymentWindow: Window | null = null;
 
-    // 仅在非移动端使用新窗口打开方式
-    if (!isMobile) {
-      // 【关键】立即打开一个空白窗口（先占位，避免浏览器拦截）
-      // 必须在用户点击事件的同步调用栈中执行，否则会被拦截
-      paymentWindow = window.open('about:blank', '_blank');
-      
-      // 如果浏览器阻止了弹窗
-      if (!paymentWindow) {
-        if (warning) warning('请允许弹窗以完成支付');
-        setIsProcessing(false);
-        return;
-      }
-      
-      // 给空白窗口添加加载提示
-      try {
-        paymentWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <title>正在跳转支付...</title>
-            <style>
-              body {
-                margin: 0;
-                padding: 0;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                min-height: 100vh;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-              }
-              .container {
-                text-align: center;
-                color: white;
-              }
-              .spinner {
-                width: 50px;
-                height: 50px;
-                border: 4px solid rgba(255,255,255,0.3);
-                border-top-color: white;
-                border-radius: 50%;
-                animation: spin 1s linear infinite;
-                margin: 0 auto 20px;
-              }
-              @keyframes spin {
-                to { transform: rotate(360deg); }
-              }
-              h2 { margin: 0 0 10px; font-size: 24px; }
-              p { margin: 0; font-size: 16px; opacity: 0.9; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="spinner"></div>
-              <h2>正在创建订单...</h2>
-              <p>请稍候，即将跳转到支付页面</p>
-            </div>
-          </body>
-          </html>
-        `);
-      } catch (e) {
-        console.warn('[Payment] Cannot write to popup window:', e);
-      }
-    }
-    
     try {
-      // 执行异步操作：创建订单
-      const res = await fetch('/api/payment/afdian/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          amount: selectedPackage.price, 
-          credits: selectedPackage.credits,
-          item_id: selectedPackage.afdian_item_id,
-          plan_id: selectedPackage.afdian_plan_id
-        }),
-      });
+      // 1. 获取当前用户信息
+      const { data: { user } } = await supabase.auth.getUser();
       
-      const data = await res.json();
-      
-      // 检查HTTP状态
-      if (!res.ok) {
-        console.error('[Payment] Server error:', res.status, data);
-        const errorMsg = data.error || t.payment_modal?.create_fail || '创建订单失败';
-        if (warning) warning(errorMsg);
-        
-        // 关闭空白窗口
-        if (paymentWindow) paymentWindow.close();
-        setStep('select');
+      if (!user) {
+        if (warning) warning('请先登录');
         setIsProcessing(false);
         return;
       }
+
+      // 2. 构建 Lemon Squeezy 支付链接
+      // checkout[custom][user_id] 是官方约定的透传字段
+      // checkout[email] 预填邮箱，提升体验
+      const checkoutUrl = `${selectedPackage.buyUrl}?checkout[custom][user_id]=${user.id}&checkout[email]=${user.email}`;
       
-      if (data.url) {
-        // 存储当前时间戳,用于检查订单
-        const paymentTime = Date.now().toString();
-        localStorage.setItem('pending_payment_time', paymentTime);
-        
-        if (isMobile) {
-          // 移动端：直接跳转当前页面
-          window.location.href = data.url;
-        } else {
-          // PC端：将空白窗口重定向到支付链接
-          if (paymentWindow) paymentWindow.location.href = data.url;
-          
-          // 切换到"支付中"状态，显示轮询 UI
-          setStep('pay');
-          
-          // 开始轮询支付状态
-          startPollingPaymentStatus(paymentTime);
-        }
+      // 3. 跳转支付
+      if (isMobile) {
+        window.location.href = checkoutUrl;
       } else {
-        if (warning) warning(t.payment_modal?.create_fail || '创建订单失败');
-        if (paymentWindow) paymentWindow.close();
-        setStep('select');
-        setIsProcessing(false);
+        window.open(checkoutUrl, '_blank');
+        // 支付后关闭弹窗，或者显示一个"支付完成"的提示
+        if (success) success('支付页面已打开，请在新窗口完成支付');
+        closeCreditPurchaseModal();
       }
+      
     } catch (error) {
       console.error('[Payment] Error:', error);
-      if (warning) warning(t.payment_modal?.create_fail || '请求失败');
-      
-      // 出错时关闭空白窗口
-      if (paymentWindow) paymentWindow.close();
-      setStep('select');
+      if (warning) warning('支付请求失败');
+    } finally {
       setIsProcessing(false);
+      setStep('select');
     }
-  }, [selectedPackage, t.payment_modal, warning, isProcessing, isMobile]);
+  }, [selectedPackage, warning, isProcessing, isMobile, success, closeCreditPurchaseModal]);
 
-  // P2: 改进轮询支付状态逻辑
-  const startPollingPaymentStatus = useCallback((paymentTime: string) => {
-    let pollCount = 0;
-    const maxPolls = 100; // P2: 延长到5分钟（100次 × 3秒）
-    
-    const checkPaymentStatus = async () => {
-      try {
-        const res = await fetch(`/api/payment/check-status?timestamp=${paymentTime}&limit=5`);
-        if (!res.ok) {
-          console.error('[Payment Poll] API error:', res.status);
-          return false;
-        }
-
-        const data = await res.json();
-        
-        // 检查是否有已支付的订单
-        if (data.statusCount?.paid > 0) {
-          console.log('[Payment Poll] Payment confirmed!');
-          localStorage.removeItem('pending_payment_time');
-          
-          // 切换到成功状态
-          setStep('success');
-          if (success) success('支付成功！积分已到账');
-          
-          // 2秒后刷新页面
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
-          
-          return true;
-        }
-
-        return false;
-      } catch (error) {
-        console.error('[Payment Poll] Error:', error);
-        return false;
-      }
-    };
-
-    // 立即检查一次
-    checkPaymentStatus().then(paid => {
-      if (paid) return;
-      
-      // 开始定时轮询
-      const pollInterval = setInterval(async () => {
-        pollCount++;
-        
-        const paid = await checkPaymentStatus();
-        
-        if (paid || pollCount >= maxPolls) {
-          clearInterval(pollInterval);
-          setIsProcessing(false);
-          
-          if (!paid && pollCount >= maxPolls) {
-            // P2: 超时后保持在支付页面，允许手动检查
-            console.log('[Payment Poll] Timeout, but keeping payment page open');
-            if (warning) warning('自动检测超时，请使用「手动检查状态」按钮，或联系客服');
-          }
-        }
-      }, 3000); // 每3秒检查一次
-    });
-  }, [success, warning]);
-
-
-
+  // 移除轮询逻辑，因为 Lemon Squeezy 使用 Webhook
+  
   if (!isCreditPurchaseModalOpen) return null;
   
   // Safety check for translation
@@ -329,15 +108,15 @@ export default function CreditPurchaseModal() {
             <h3 className="text-xl font-bold text-white mb-3">确认购买</h3>
             <p className="text-slate-300 mb-4">
               {isMobile ? (
-                  <>将在当前页面跳转到爱发电支付页面，完成 <span className="text-brand-400 font-bold">¥{selectedPackage.price}</span> 的支付。</>
+                  <>将在当前页面跳转到支付页面，完成 <span className="text-brand-400 font-bold">¥{selectedPackage.price}</span> 的支付。</>
               ) : (
-                  <>将在<strong>新标签页</strong>打开爱发电支付页面，完成 <span className="text-brand-400 font-bold">¥{selectedPackage.price}</span> 的支付。</>
+                  <>将在<strong>新标签页</strong>打开支付页面，完成 <span className="text-brand-400 font-bold">¥{selectedPackage.price}</span> 的支付。</>
               )}
             </p>
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-5">
               <p className="text-blue-400 text-sm flex items-start gap-2">
                 <span className="text-lg">✨</span>
-                <span>支付完成后，<strong>本页面会自动检测</strong>，积分将在1分钟内到账。</span>
+                <span>支付完成后，积分将自动到账。</span>
               </p>
             </div>
             <div className="flex gap-3">
