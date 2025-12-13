@@ -273,7 +273,7 @@ export default function CreditPurchaseModal() {
                         </div>
                         <span className="text-xs text-slate-400 font-medium px-1">{pkgData.badge}</span>
                      </div>
-                     {pkg.bonus && (
+                     {pkg.bonus > 0 && (
                         <span className="bg-green-500/20 text-green-400 border border-green-500/30 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap">
                           {t.credit_purchase.discount_off.replace('{n}', pkg.bonus.toString())}
                         </span>

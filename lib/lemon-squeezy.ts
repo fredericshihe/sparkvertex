@@ -10,7 +10,7 @@ export const CREDIT_PACKAGES = [
     credits: 120,
     price: 20, 
     originalPrice: 20,
-    bonus: 20,
+    bonus: 0,  // 体验包不显示百分比
     freeCreates: 1,
     nameKey: 'basic',
     color: 'from-slate-400 to-slate-600',
@@ -25,7 +25,7 @@ export const CREDIT_PACKAGES = [
     credits: 350, 
     price: 50, 
     originalPrice: 50,
-    bonus: 75,
+    bonus: 17,  // 350/50=7 vs 120/20=6, 多16.7%
     freeCreates: 5,
     nameKey: 'standard',
     color: 'from-blue-400 to-blue-600',
@@ -40,7 +40,7 @@ export const CREDIT_PACKAGES = [
     credits: 800, 
     price: 100, 
     originalPrice: 100,
-    bonus: 180,
+    bonus: 33,  // 800/100=8 vs 120/20=6, 多33%
     freeCreates: 12,
     nameKey: 'premium',
     bestValue: true,
@@ -56,7 +56,7 @@ export const CREDIT_PACKAGES = [
     credits: 2000, 
     price: 200, 
     originalPrice: 200,
-    bonus: 450,
+    bonus: 67,  // 2000/200=10 vs 120/20=6, 多67%
     freeCreates: 30,
     nameKey: 'ultimate',
     color: 'from-amber-400 to-amber-600',
