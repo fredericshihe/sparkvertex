@@ -112,7 +112,17 @@ export default function GenerateCoversPage() {
   // 处理单个作品 - 在 iframe 内部执行 html2canvas
   const processItem = async (item: ItemToProcess): Promise<boolean> => {
     setCurrentItem(item);
+    
+    // 诊断信息
+    const contentLength = item.content?.length || 0;
+    const hasBody = item.content?.includes('<body') || false;
+    const hasHtml = item.content?.includes('<html') || false;
+    const hasCanvas = item.content?.includes('<canvas') || false;
+    const hasVue = item.content?.includes('Vue') || item.content?.includes('v-') || false;
+    const hasReact = item.content?.includes('React') || item.content?.includes('react-dom') || false;
+    
     addLog(`处理中: ${item.title} (${item.id})`);
+    addLog(`  内容: ${contentLength} 字符, body:${hasBody}, html:${hasHtml}, canvas:${hasCanvas}, vue:${hasVue}, react:${hasReact}`);
 
     return new Promise(async (resolve) => {
       try {
@@ -128,31 +138,56 @@ export default function GenerateCoversPage() {
         // 注入 html2canvas 脚本到内容中
         const html2canvasCDN = 'https://cdn.bootcdn.net/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
         
-        // 移除原有脚本，但保留样式
-        let safeContent = item.content
-          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-          .replace(/on\w+="[^"]*"/gi, '');
+        // 保留原有脚本，让内容正常渲染
+        let contentToRender = item.content;
         
-        // 在 </body> 或 </html> 前注入截图脚本
+        // 只移除危险的事件处理器，保留脚本
+        contentToRender = contentToRender.replace(/on(error|load)="[^"]*"/gi, '');
+        
+        // 在 </body> 或 </html> 前注入截图脚本，延长等待时间让 JS 框架渲染
         const captureScript = `
           <script src="${html2canvasCDN}"><\/script>
           <script>
-            window.addEventListener('load', function() {
-              // 等待额外时间让内容渲染
-              setTimeout(function() {
-                // 等待所有图片加载
+            (function() {
+              var captureAttempts = 0;
+              var maxAttempts = 10;
+              
+              function attemptCapture() {
+                captureAttempts++;
+                console.log('[Cover] Attempt', captureAttempts);
+                
+                // 检查页面是否有可见内容
+                var body = document.body;
+                var hasContent = body && body.innerHTML.trim().length > 100;
+                var hasVisibleElements = document.querySelectorAll('div, p, h1, h2, h3, span, img, canvas, svg').length > 0;
+                
+                console.log('[Cover] Has content:', hasContent, 'Visible elements:', hasVisibleElements);
+                
+                // 如果还没有内容且未达到最大尝试次数，继续等待
+                if (captureAttempts < maxAttempts && !hasVisibleElements) {
+                  setTimeout(attemptCapture, 500);
+                  return;
+                }
+                
+                // 等待图片加载
                 var images = document.querySelectorAll('img');
                 var loadPromises = Array.from(images).map(function(img) {
                   if (img.complete && img.naturalWidth > 0) return Promise.resolve();
                   return new Promise(function(resolve) {
                     img.onload = resolve;
                     img.onerror = resolve;
-                    setTimeout(resolve, 3000);
+                    setTimeout(resolve, 2000);
                   });
                 });
                 
                 Promise.all(loadPromises).then(function() {
+                  // 额外等待让 CSS 动画和字体加载
                   setTimeout(function() {
+                    if (typeof html2canvas === 'undefined') {
+                      window.parent.postMessage({ type: 'coverError', error: 'html2canvas not loaded' }, '*');
+                      return;
+                    }
+                    
                     html2canvas(document.body, {
                       useCORS: true,
                       allowTaint: true,
@@ -169,18 +204,27 @@ export default function GenerateCoversPage() {
                     });
                   }, 500);
                 });
-              }, 1000);
-            });
+              }
+              
+              // 开始尝试截图
+              if (document.readyState === 'complete') {
+                setTimeout(attemptCapture, 1000);
+              } else {
+                window.addEventListener('load', function() {
+                  setTimeout(attemptCapture, 1000);
+                });
+              }
+            })();
           <\/script>
         `;
         
         // 注入脚本到内容末尾
-        if (safeContent.includes('</body>')) {
-          safeContent = safeContent.replace('</body>', captureScript + '</body>');
-        } else if (safeContent.includes('</html>')) {
-          safeContent = safeContent.replace('</html>', captureScript + '</html>');
+        if (contentToRender.includes('</body>')) {
+          contentToRender = contentToRender.replace('</body>', captureScript + '</body>');
+        } else if (contentToRender.includes('</html>')) {
+          contentToRender = contentToRender.replace('</html>', captureScript + '</html>');
         } else {
-          safeContent = safeContent + captureScript;
+          contentToRender = contentToRender + captureScript;
         }
         
         // 设置消息监听
@@ -271,7 +315,7 @@ export default function GenerateCoversPage() {
         }, 20000);
         
         // 使用 srcdoc 加载内容
-        iframe.srcdoc = safeContent;
+        iframe.srcdoc = contentToRender;
         document.body.appendChild(iframe);
         
         addLog(`  iframe 已创建，等待截图...`);
