@@ -52,6 +52,10 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <head>
+        {/* DNS Prefetch & Preconnect for critical domains */}
+        <link rel="dns-prefetch" href="https://waesizzoqodntrlvrwhw.supabase.co" />
+        <link rel="preconnect" href="https://waesizzoqodntrlvrwhw.supabase.co" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://cdn.staticfile.org" />
         <link rel="preconnect" href="https://cdn.staticfile.org" crossOrigin="anonymous" />
         <link 
           rel="stylesheet" 

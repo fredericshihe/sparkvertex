@@ -15,9 +15,23 @@ interface HomeClientProps {
 
 export default function HomeClient() {
   const [mounted, setMounted] = useState(false);
+  const [showGalaxy, setShowGalaxy] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    
+    // Delay Galaxy loading using requestIdleCallback for better performance
+    // This allows the main content to render first before initializing WebGL
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(() => {
+        setShowGalaxy(true);
+      }, { timeout: 2000 });
+    } else {
+      // Fallback for browsers that don't support requestIdleCallback
+      setTimeout(() => {
+        setShowGalaxy(true);
+      }, 500);
+    }
   }, []);
 
   return (
@@ -28,14 +42,16 @@ export default function HomeClient() {
           mounted ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        <Galaxy 
-          mouseRepulsion={true}
-          mouseInteraction={true}
-          density={1.5}
-          glowIntensity={0.5}
-          saturation={0.8}
-          hueShift={240}
-        />
+        {showGalaxy && (
+          <Galaxy 
+            mouseRepulsion={true}
+            mouseInteraction={true}
+            density={1.5}
+            glowIntensity={0.5}
+            saturation={0.8}
+            hueShift={240}
+          />
+        )}
       </div>
 
       {/* Scrollable Content */}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
@@ -164,13 +165,13 @@ export default function Navbar() {
           <div className="flex items-center flex-shrink-0">
             <Link href="/" className="flex items-center cursor-pointer mr-12 group flex-shrink-0">
               <div className="flex-shrink-0 flex items-center">
-                <img 
+                <Image 
                   src="/logo.png" 
                   alt="Logo" 
-                  className="w-8 h-8 mr-3 object-contain opacity-90 group-hover:opacity-100 transition-opacity" 
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
+                  width={32}
+                  height={32}
+                  className="mr-3 object-contain opacity-90 group-hover:opacity-100 transition-opacity"
+                  priority
                 />
               </div>
               <div className="flex items-center">
