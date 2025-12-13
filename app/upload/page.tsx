@@ -570,113 +570,153 @@ function UploadContent() {
   useEffect(() => {
     if (step === 4 && publishedId && fileContent) {
       const generateCover = async () => {
-        try {
-          console.log('[Cover] Starting cover generation for item:', publishedId);
-          
-          // 使用 iframe + srcdoc 渲染完整 HTML（保留 CSS 样式）
-          const iframe = document.createElement('iframe');
-          iframe.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:600px;border:none;background:#fff;z-index:9999;opacity:0.01;';
-          iframe.id = 'cover-generator-iframe';
-          
-          // 移除脚本标签以避免执行
-          const safeContent = fileContent
-            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '<!-- script removed -->')
-            .replace(/on\w+="[^"]*"/gi, '');
-          
-          iframe.srcdoc = safeContent;
-          document.body.appendChild(iframe);
-
-          // 等待 iframe 加载完成
-          await new Promise<void>((resolve) => {
-            iframe.onload = () => {
-              console.log('[Cover] iframe loaded');
-              resolve();
-            };
-            setTimeout(resolve, 5000);
-          });
-
-          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-          if (!iframeDoc) {
-            throw new Error('Cannot access iframe document');
-          }
-
-          // 等待图片加载
-          const images = iframeDoc.querySelectorAll('img');
-          console.log('[Cover] Waiting for', images.length, 'images to load');
-          
-          await Promise.all(Array.from(images).map(img => {
-            if (img.complete) return Promise.resolve();
-            return new Promise(resolve => {
-              img.onload = resolve;
-              img.onerror = resolve;
-              setTimeout(resolve, 3000);
+        console.log('[Cover] Starting cover generation for item:', publishedId);
+        
+        // 注入 html2canvas 脚本到内容中
+        const html2canvasCDN = 'https://cdn.bootcdn.net/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        
+        // 移除原有脚本，但保留样式
+        let safeContent = fileContent
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+          .replace(/on\w+="[^"]*"/gi, '');
+        
+        // 在 </body> 或 </html> 前注入截图脚本
+        const captureScript = `
+          <script src="${html2canvasCDN}"><\/script>
+          <script>
+            window.addEventListener('load', function() {
+              setTimeout(function() {
+                var images = document.querySelectorAll('img');
+                var loadPromises = Array.from(images).map(function(img) {
+                  if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+                  return new Promise(function(resolve) {
+                    img.onload = resolve;
+                    img.onerror = resolve;
+                    setTimeout(resolve, 3000);
+                  });
+                });
+                
+                Promise.all(loadPromises).then(function() {
+                  setTimeout(function() {
+                    html2canvas(document.body, {
+                      useCORS: true,
+                      allowTaint: true,
+                      backgroundColor: '#ffffff',
+                      scale: 1,
+                      logging: false,
+                      width: 800,
+                      height: 600
+                    }).then(function(canvas) {
+                      var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                      window.parent.postMessage({ type: 'coverCaptured', dataUrl: dataUrl }, '*');
+                    }).catch(function(err) {
+                      window.parent.postMessage({ type: 'coverError', error: err.message }, '*');
+                    });
+                  }, 500);
+                });
+              }, 1000);
             });
-          }));
-
-          // 额外等待渲染（CSS 动画、字体加载等）
-          await new Promise(r => setTimeout(r, 1000));
-
-          const html2canvas = (await import('html2canvas')).default;
-          const canvas = await html2canvas(iframeDoc.body, {
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: '#ffffff',
-            scale: 1,
-            logging: false,
-            width: 800,
-            height: 600,
-            windowWidth: 800,
-            windowHeight: 600,
-            foreignObjectRendering: false,
-          });
-
-          // 清理
-          document.body.removeChild(iframe);
-
-          // 检查截图是否有效
-          const ctx = canvas.getContext('2d');
-          let nonWhitePixels = 0;
-          if (ctx) {
-            const imageData = ctx.getImageData(0, 0, Math.min(100, canvas.width), Math.min(100, canvas.height));
-            const pixels = imageData.data;
-            for (let i = 0; i < pixels.length; i += 4) {
-              if (pixels[i] < 250 || pixels[i+1] < 250 || pixels[i+2] < 250) {
-                nonWhitePixels++;
-              }
-            }
-            console.log('[Cover] Non-white pixels in sample:', nonWhitePixels);
-          }
-
-          // 如果是白屏，跳过上传
-          if (nonWhitePixels < 50) {
-            console.warn('[Cover] Screenshot appears to be blank, skipping upload');
-            return;
-          }
-
-          const coverDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          console.log('[Cover] Generated image size:', Math.round(coverDataUrl.length / 1024), 'KB');
-          
-          // 上传封面到服务器
-          const response = await fetch('/api/generate-cover', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ itemId: publishedId, coverDataUrl })
-          });
-
-          if (!response.ok) {
-            console.warn('[Cover] Failed to upload cover image');
-          } else {
-            const result = await response.json();
-            console.log('[Cover] Cover image generated successfully:', result.cover_url);
-          }
-        } catch (err) {
-          console.error('[Cover] Error generating cover image:', err);
-          // 确保清理 iframe
-          const existingIframe = document.getElementById('cover-generator-iframe');
-          if (existingIframe) {
-            document.body.removeChild(existingIframe);
-          }
+          <\/script>
+        `;
+        
+        // 注入脚本到内容末尾
+        if (safeContent.includes('</body>')) {
+          safeContent = safeContent.replace('</body>', captureScript + '</body>');
+        } else if (safeContent.includes('</html>')) {
+          safeContent = safeContent.replace('</html>', captureScript + '</html>');
+        } else {
+          safeContent = safeContent + captureScript;
         }
+        
+        // 创建 iframe
+        const iframe = document.createElement('iframe');
+        iframe.id = 'cover-generator-iframe';
+        iframe.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:600px;border:none;background:#fff;z-index:99999;opacity:0.01;';
+        
+        // 设置消息监听
+        const messageHandler = async (event: MessageEvent) => {
+          if (event.data?.type === 'coverCaptured') {
+            window.removeEventListener('message', messageHandler);
+            clearTimeout(timeoutId);
+            
+            const dataUrl = event.data.dataUrl;
+            console.log('[Cover] Screenshot captured, size:', Math.round(dataUrl.length / 1024), 'KB');
+            
+            // 检查是否是白屏
+            const img = new Image();
+            img.onload = async () => {
+              const testCanvas = document.createElement('canvas');
+              testCanvas.width = 100;
+              testCanvas.height = 100;
+              const ctx = testCanvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, 100, 100);
+                const imageData = ctx.getImageData(0, 0, 100, 100);
+                const pixels = imageData.data;
+                let nonWhitePixels = 0;
+                for (let i = 0; i < pixels.length; i += 4) {
+                  if (pixels[i] < 250 || pixels[i+1] < 250 || pixels[i+2] < 250) {
+                    nonWhitePixels++;
+                  }
+                }
+                
+                console.log('[Cover] Non-white pixels:', nonWhitePixels);
+                
+                if (nonWhitePixels < 50) {
+                  console.warn('[Cover] Screenshot appears to be blank, skipping upload');
+                  iframe.remove();
+                  return;
+                }
+              }
+              
+              // 上传封面
+              try {
+                const response = await fetch('/api/generate-cover', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ itemId: publishedId, coverDataUrl: dataUrl })
+                });
+                
+                if (response.ok) {
+                  const result = await response.json();
+                  console.log('[Cover] Cover image generated successfully:', result.cover_url);
+                } else {
+                  console.warn('[Cover] Failed to upload cover image');
+                }
+              } catch (e) {
+                console.error('[Cover] Upload error:', e);
+              }
+              
+              iframe.remove();
+            };
+            img.onerror = () => {
+              console.error('[Cover] Failed to load screenshot image');
+              iframe.remove();
+            };
+            img.src = dataUrl;
+            
+          } else if (event.data?.type === 'coverError') {
+            window.removeEventListener('message', messageHandler);
+            clearTimeout(timeoutId);
+            console.error('[Cover] Screenshot error:', event.data.error);
+            iframe.remove();
+          }
+        };
+        
+        window.addEventListener('message', messageHandler);
+        
+        // 超时处理
+        const timeoutId = setTimeout(() => {
+          window.removeEventListener('message', messageHandler);
+          console.warn('[Cover] Timeout waiting for screenshot');
+          iframe.remove();
+        }, 20000);
+        
+        // 使用 srcdoc 加载内容
+        iframe.srcdoc = safeContent;
+        document.body.appendChild(iframe);
+        
+        console.log('[Cover] iframe created, waiting for screenshot...');
       };
 
       // 延迟执行，确保页面渲染完成

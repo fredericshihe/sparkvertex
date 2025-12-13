@@ -109,135 +109,181 @@ export default function GenerateCoversPage() {
     ]);
   };
 
-  // 处理单个作品 - 使用 iframe + srcdoc 渲染完整 HTML
+  // 处理单个作品 - 在 iframe 内部执行 html2canvas
   const processItem = async (item: ItemToProcess): Promise<boolean> => {
     setCurrentItem(item);
     addLog(`处理中: ${item.title} (${item.id})`);
 
-    try {
-      // 创建 iframe 来渲染完整的 HTML 内容
-      const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:600px;border:none;background:#fff;z-index:9999;';
-      iframe.id = 'cover-generator-iframe';
-      
-      // 移除脚本标签以避免执行
-      const safeContent = item.content
-        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '<!-- script removed -->')
-        .replace(/on\w+="[^"]*"/gi, '');
-      
-      // 使用 srcdoc 加载完整 HTML
-      iframe.srcdoc = safeContent;
-      
-      document.body.appendChild(iframe);
+    return new Promise(async (resolve) => {
+      try {
+        // 移除之前的 iframe
+        const existingIframe = document.getElementById('cover-generator-iframe');
+        if (existingIframe) existingIframe.remove();
 
-      // 等待 iframe 加载完成
-      await new Promise<void>((resolve) => {
-        iframe.onload = () => {
-          addLog(`  iframe 加载完成`);
-          resolve();
-        };
-        // 超时保护
-        setTimeout(resolve, 5000);
-      });
-
-      // 获取 iframe 内容
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!iframeDoc) {
-        throw new Error('无法访问 iframe 文档');
-      }
-
-      // 等待图片加载
-      const images = iframeDoc.querySelectorAll('img');
-      addLog(`  等待 ${images.length} 张图片加载...`);
-      
-      await Promise.all(Array.from(images).map(img => {
-        if (img.complete) return Promise.resolve();
-        return new Promise(resolve => {
-          img.onload = resolve;
-          img.onerror = resolve;
-          setTimeout(resolve, 3000);
-        });
-      }));
-
-      // 额外等待渲染完成（等待 CSS 动画、字体加载等）
-      await new Promise(r => setTimeout(r, 1000));
-
-      const html2canvas = (await import('html2canvas')).default;
-      
-      const canvas = await withTimeout(
-        html2canvas(iframeDoc.body, {
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#ffffff',
-          scale: 1,
-          logging: false,
-          width: 800,
-          height: 600,
-          windowWidth: 800,
-          windowHeight: 600,
-          foreignObjectRendering: false,
-        }),
-        15000,
-        'html2canvas 超时'
-      );
-
-      // 清理
-      document.body.removeChild(iframe);
-
-      // 检查截图是否有效
-      const ctx = canvas.getContext('2d');
-      let isValidScreenshot = true;
-      let nonWhitePixelCount = 0;
-      if (ctx) {
-        const imageData = ctx.getImageData(0, 0, Math.min(100, canvas.width), Math.min(100, canvas.height));
-        const pixels = imageData.data;
-        for (let i = 0; i < pixels.length; i += 4) {
-          if (pixels[i] < 250 || pixels[i+1] < 250 || pixels[i+2] < 250) {
-            nonWhitePixelCount++;
-          }
-        }
-        if (nonWhitePixelCount < 50) {
-          addLog(`  ⚠️ 警告: 截图是白屏 (非白像素: ${nonWhitePixelCount})，跳过上传`);
-          isValidScreenshot = false;
+        // 创建 iframe
+        const iframe = document.createElement('iframe');
+        iframe.id = 'cover-generator-iframe';
+        iframe.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:600px;border:none;background:#fff;z-index:99999;';
+        
+        // 注入 html2canvas 脚本到内容中
+        const html2canvasCDN = 'https://cdn.bootcdn.net/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        
+        // 移除原有脚本，但保留样式
+        let safeContent = item.content
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+          .replace(/on\w+="[^"]*"/gi, '');
+        
+        // 在 </body> 或 </html> 前注入截图脚本
+        const captureScript = `
+          <script src="${html2canvasCDN}"><\/script>
+          <script>
+            window.addEventListener('load', function() {
+              // 等待额外时间让内容渲染
+              setTimeout(function() {
+                // 等待所有图片加载
+                var images = document.querySelectorAll('img');
+                var loadPromises = Array.from(images).map(function(img) {
+                  if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+                  return new Promise(function(resolve) {
+                    img.onload = resolve;
+                    img.onerror = resolve;
+                    setTimeout(resolve, 3000);
+                  });
+                });
+                
+                Promise.all(loadPromises).then(function() {
+                  setTimeout(function() {
+                    html2canvas(document.body, {
+                      useCORS: true,
+                      allowTaint: true,
+                      backgroundColor: '#ffffff',
+                      scale: 1,
+                      logging: false,
+                      width: 800,
+                      height: 600
+                    }).then(function(canvas) {
+                      var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                      window.parent.postMessage({ type: 'coverCaptured', dataUrl: dataUrl }, '*');
+                    }).catch(function(err) {
+                      window.parent.postMessage({ type: 'coverError', error: err.message }, '*');
+                    });
+                  }, 500);
+                });
+              }, 1000);
+            });
+          <\/script>
+        `;
+        
+        // 注入脚本到内容末尾
+        if (safeContent.includes('</body>')) {
+          safeContent = safeContent.replace('</body>', captureScript + '</body>');
+        } else if (safeContent.includes('</html>')) {
+          safeContent = safeContent.replace('</html>', captureScript + '</html>');
         } else {
-          addLog(`  检测到 ${nonWhitePixelCount} 个非白像素`);
+          safeContent = safeContent + captureScript;
         }
+        
+        // 设置消息监听
+        const messageHandler = async (event: MessageEvent) => {
+          if (event.data?.type === 'coverCaptured') {
+            window.removeEventListener('message', messageHandler);
+            clearTimeout(timeoutId);
+            
+            const dataUrl = event.data.dataUrl;
+            addLog(`  截图完成，大小: ${Math.round(dataUrl.length / 1024)} KB`);
+            
+            // 检查是否是白屏
+            const img = new Image();
+            img.onload = async () => {
+              const testCanvas = document.createElement('canvas');
+              testCanvas.width = 100;
+              testCanvas.height = 100;
+              const ctx = testCanvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, 100, 100);
+                const imageData = ctx.getImageData(0, 0, 100, 100);
+                const pixels = imageData.data;
+                let nonWhitePixels = 0;
+                for (let i = 0; i < pixels.length; i += 4) {
+                  if (pixels[i] < 250 || pixels[i+1] < 250 || pixels[i+2] < 250) {
+                    nonWhitePixels++;
+                  }
+                }
+                
+                addLog(`  非白像素数: ${nonWhitePixels}`);
+                
+                if (nonWhitePixels < 50) {
+                  addLog(`  ⚠️ 截图是白屏，跳过上传`);
+                  iframe.remove();
+                  resolve(false);
+                  return;
+                }
+              }
+              
+              // 上传封面
+              try {
+                const response = await fetch('/api/generate-cover', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ itemId: item.id, coverDataUrl: dataUrl })
+                });
+                
+                if (response.ok) {
+                  addLog(`  ✅ 成功生成封面`);
+                  iframe.remove();
+                  resolve(true);
+                } else {
+                  const err = await response.json();
+                  addLog(`  ❌ 上传失败: ${err.error}`);
+                  iframe.remove();
+                  resolve(false);
+                }
+              } catch (e: any) {
+                addLog(`  ❌ 上传出错: ${e.message}`);
+                iframe.remove();
+                resolve(false);
+              }
+            };
+            img.onerror = () => {
+              addLog(`  ❌ 无法加载截图图片`);
+              iframe.remove();
+              resolve(false);
+            };
+            img.src = dataUrl;
+            
+          } else if (event.data?.type === 'coverError') {
+            window.removeEventListener('message', messageHandler);
+            clearTimeout(timeoutId);
+            addLog(`  ❌ 截图出错: ${event.data.error}`);
+            iframe.remove();
+            resolve(false);
+          }
+        };
+        
+        window.addEventListener('message', messageHandler);
+        
+        // 超时处理
+        const timeoutId = setTimeout(() => {
+          window.removeEventListener('message', messageHandler);
+          addLog(`  ❌ 超时，未收到截图结果`);
+          iframe.remove();
+          resolve(false);
+        }, 20000);
+        
+        // 使用 srcdoc 加载内容
+        iframe.srcdoc = safeContent;
+        document.body.appendChild(iframe);
+        
+        addLog(`  iframe 已创建，等待截图...`);
+        
+      } catch (err: any) {
+        addLog(`  ❌ 处理出错: ${err.message}`);
+        const existingIframe = document.getElementById('cover-generator-iframe');
+        if (existingIframe) existingIframe.remove();
+        resolve(false);
       }
-
-      // 如果是白屏，跳过上传
-      if (!isValidScreenshot) {
-        return false;
-      }
-
-      const coverDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      addLog(`  生成图片大小: ${Math.round(coverDataUrl.length / 1024)} KB`);
-
-      // 上传封面
-      const response = await fetch('/api/generate-cover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: item.id, coverDataUrl })
-      });
-
-      if (response.ok) {
-        addLog(`  ✅ 成功生成封面${isValidScreenshot ? '' : ' (可能是白屏)'}`);
-        return true;
-      } else {
-        const err = await response.json();
-        addLog(`  ❌ 上传失败: ${err.error}`);
-        return false;
-      }
-    } catch (err: any) {
-      addLog(`  ❌ 处理出错: ${err.message}`);
-      // 确保清理 iframe
-      const existingIframe = document.getElementById('cover-generator-iframe');
-      if (existingIframe) {
-        document.body.removeChild(existingIframe);
-      }
-      return false;
-    }
+    });
   };
-
   // 开始批量处理
   const startProcessing = async () => {
     if (items.length === 0) {
