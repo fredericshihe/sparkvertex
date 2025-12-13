@@ -6,10 +6,10 @@ import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
 
 interface HeroProps {
-  initialItems?: any[];
+  // No props needed
 }
 
-export default function Hero({ initialItems = [] }: HeroProps) {
+export default function Hero({}: HeroProps) {
   const { t, language } = useLanguage();
   const [typingText, setTypingText] = useState('');
 

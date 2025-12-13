@@ -5,16 +5,15 @@ import dynamic from 'next/dynamic';
 import Hero from '@/components/Hero';
 import FeatureCreation from '@/components/landing/FeatureCreation';
 import FeatureBackend from '@/components/landing/FeatureBackend';
-import Showcase from '@/components/landing/Showcase';
 import CTASection from '@/components/landing/CTASection';
 
 const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
 
 interface HomeClientProps {
-  heroItems: any[];
+  // No props needed anymore
 }
 
-export default function HomeClient({ heroItems }: HomeClientProps) {
+export default function HomeClient() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -41,10 +40,9 @@ export default function HomeClient({ heroItems }: HomeClientProps) {
 
       {/* Scrollable Content */}
       <div className="relative z-10">
-        <Hero initialItems={heroItems} />
+        <Hero />
         <FeatureCreation />
         <FeatureBackend />
-        <Showcase items={heroItems} />
         <CTASection />
       </div>
     </div>
