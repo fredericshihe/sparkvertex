@@ -5,6 +5,7 @@ import { Item } from '@/types/supabase';
 import { getPreviewContent } from '@/lib/preview';
 import dynamic from 'next/dynamic';
 import { useLanguage } from '@/context/LanguageContext';
+import { KNOWN_CATEGORIES } from '@/lib/categories';
 
 const QRCodeSVG = dynamic(() => import('qrcode.react').then(mod => mod.QRCodeSVG), { ssr: false });
 
@@ -54,8 +55,8 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
         }
       },
       { 
-        // 移动端减少预加载距离，桌面端保持 200px
-        rootMargin: isMobile ? '50px' : '200px', 
+        // 移动端增加预加载距离，提升滑入时的加载体验
+        rootMargin: '200px', 
         threshold: 0.01 
       }
     );
@@ -79,6 +80,10 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
 
   // Memoize preview content
   const previewContent = showPreview && item.content ? getPreviewContent(item.content, { raw: true, appId: item.id ? String(item.id) : undefined }) : '';
+
+  // Get category icon
+  const categoryKey = item.category ? (KNOWN_CATEGORIES[item.category]?.key || 'tool') : 'tool';
+  const categoryIcon = KNOWN_CATEGORIES[item.category]?.icon || 'fa-code';
 
   return (
     <div 
@@ -115,21 +120,15 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
 
           <div className="h-40 md:h-44 relative bg-slate-800 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
             {/* 默认背景 - 当iframe未加载时显示 */}
-            {!iframeLoaded && (
-              <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-700 to-slate-800'} flex items-center justify-center z-5`}>
-                {showPreview ? (
-                  <div className="w-6 h-6 border-2 border-slate-600 border-t-brand-500 rounded-full animate-spin"></div>
-                ) : (
-                  <i className="fa-solid fa-code text-4xl text-white/30"></i>
-                )}
-              </div>
-            )}
+            <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-700 to-slate-800'} flex items-center justify-center z-5 transition-opacity duration-500 ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
+              <i className={`fa-solid ${categoryIcon} text-4xl text-white/20`}></i>
+            </div>
 
             {/* 动态 Iframe 预览 - 始终显示 */}
             {showPreview && item.content && (
                <iframe
                  srcDoc={previewContent}
-                 className={`w-[200%] h-[200%] border-0 origin-top-left scale-50 pointer-events-none select-none transition-opacity duration-300 ${
+                 className={`w-[200%] h-[200%] border-0 origin-top-left scale-50 pointer-events-none select-none transition-opacity duration-500 ${
                    iframeLoaded ? 'opacity-100' : 'opacity-0'
                  }`}
                  onLoad={() => setIframeLoaded(true)}
