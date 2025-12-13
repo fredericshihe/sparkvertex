@@ -32,16 +32,30 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   useEffect(() => {
     setIsClient(true);
     
-    // 当卡片进入可视区域时加载 iframe 预览
+    // 移动端优化：使用更严格的 IntersectionObserver
+    // 只有当卡片真正进入视口时才加载，离开时卸载（可选，为了性能建议卸载）
+    const isMobile = window.innerWidth < 768;
+    
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setShowPreview(true);
-          observer.disconnect();
+          // 桌面端加载后保持，移动端为了性能可以考虑离开视口卸载
+          // 但为了体验流畅，暂时保持加载状态，除非内存压力大
+          if (!isMobile) {
+            observer.disconnect();
+          }
+        } else {
+          // 移动端离开视口时卸载 iframe 以释放内存
+          if (isMobile) {
+            setShowPreview(false);
+            setIframeLoaded(false);
+          }
         }
       },
       { 
-        rootMargin: '200px', 
+        // 移动端减少预加载距离，桌面端保持 200px
+        rootMargin: isMobile ? '50px' : '200px', 
         threshold: 0.01 
       }
     );
@@ -123,6 +137,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                  allow="autoplay 'none'; camera 'none'; microphone 'none'"
                  scrolling="no"
                  title={`Preview of ${item.title}`}
+                 loading="lazy"
                />
             )}
 
