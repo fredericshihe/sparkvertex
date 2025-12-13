@@ -50,15 +50,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to upload cover image' }, { status: 500 });
     }
 
-    // 获取公开 URL
+    // 获取公开 URL（添加时间戳防止缓存）
     const { data: { publicUrl } } = supabaseAdmin.storage
       .from('icons')
       .getPublicUrl(fileName);
+    
+    // 添加时间戳参数来破坏浏览器和 CDN 缓存
+    const coverUrlWithCache = `${publicUrl}?t=${Date.now()}`;
 
     // 更新数据库中的 cover_url
     const { error: updateError } = await supabaseAdmin
       .from('items')
-      .update({ cover_url: publicUrl })
+      .update({ cover_url: coverUrlWithCache })
       .eq('id', itemId);
 
     if (updateError) {
@@ -68,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      cover_url: publicUrl 
+      cover_url: coverUrlWithCache 
     });
 
   } catch (error: any) {
