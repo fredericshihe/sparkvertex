@@ -1,5 +1,4 @@
 {
-  "regions": ["hkg1", "sin1", "icn1"],
   "crons": [
     {
       "path": "/api/cron/retry-credits",
