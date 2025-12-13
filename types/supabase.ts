@@ -20,6 +20,7 @@ export interface Item {
   color?: string;
   downloads?: number;
   icon_url?: string;
+  cover_url?: string; // 作品封面预览图
   is_public?: boolean;
   quality_score?: number;
   richness_score?: number;

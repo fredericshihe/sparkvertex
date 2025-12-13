@@ -467,6 +467,7 @@ function UploadContent() {
   
   // Share card states
   const shareRef = useRef<HTMLDivElement>(null);
+  const coverIframeRef = useRef<HTMLIFrameElement>(null);
   const [shareImageUrl, setShareImageUrl] = useState<string>('');
   const [generatingImage, setGeneratingImage] = useState(false);
   const [logoDataUrl, setLogoDataUrl] = useState<string>('');
@@ -565,6 +566,74 @@ function UploadContent() {
       }, 500);
     }
   }, [step, shareImageUrl]);
+
+  // Generate cover image (preview screenshot) when step 4 is reached
+  useEffect(() => {
+    if (step === 4 && publishedId && fileContent && coverIframeRef.current) {
+      const iframe = coverIframeRef.current;
+      
+      const generateCover = async () => {
+        try {
+          // 等待 iframe 加载完成
+          await new Promise<void>((resolve) => {
+            if (iframe.contentDocument?.readyState === 'complete') {
+              resolve();
+            } else {
+              iframe.onload = () => resolve();
+            }
+          });
+
+          // 额外等待动画和图片加载
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (!iframeDoc || !iframeDoc.body) {
+            console.warn('Cannot access iframe content for cover generation');
+            return;
+          }
+
+          const html2canvas = (await import('html2canvas')).default;
+          const canvas = await html2canvas(iframeDoc.body, {
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            scale: 1,
+            logging: false,
+            width: 800,
+            height: 600,
+            windowWidth: 800,
+            windowHeight: 600,
+            onclone: (clonedDoc) => {
+              // 确保克隆的文档中的所有元素可见
+              const body = clonedDoc.body;
+              if (body) {
+                body.style.overflow = 'hidden';
+              }
+            }
+          });
+
+          const coverDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          
+          // 上传封面到服务器
+          const response = await fetch('/api/generate-cover', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemId: publishedId, coverDataUrl })
+          });
+
+          if (!response.ok) {
+            console.warn('Failed to upload cover image');
+          } else {
+            console.log('Cover image generated successfully');
+          }
+        } catch (err) {
+          console.error('Error generating cover image:', err);
+        }
+      };
+
+      generateCover();
+    }
+  }, [step, publishedId, fileContent]);
 
   useEffect(() => {
     const init = async () => {
@@ -2721,6 +2790,17 @@ function UploadContent() {
       {/* Step 4: Success - Share Card */}
       {step === 4 && (
         <div className="animate-float-up">
+          {/* Hidden Cover Capture Iframe */}
+          <div style={{ position: 'fixed', left: '-9999px', top: 0, width: '800px', height: '600px' }}>
+            <iframe 
+              ref={coverIframeRef}
+              srcDoc={getPreviewContent(fileContent, { raw: true })}
+              className="w-full h-full border-0 bg-white"
+              sandbox="allow-scripts allow-same-origin"
+              style={{ width: '800px', height: '600px' }}
+            />
+          </div>
+
           {/* Hidden Capture Area - Same as ProductDetailClient */}
           <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
             <div 
