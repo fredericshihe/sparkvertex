@@ -94,27 +94,6 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
     }
   };
 
-  const generatePreviewHtml = (item: Item) => {
-    if (!item.content) {
-      return (
-        <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-700 to-slate-800'} opacity-20 flex items-center justify-center`}>
-          <i className="fa-solid fa-code text-4xl text-white/50"></i>
-        </div>
-      );
-    }
-
-    // Show loading spinner if preview is requested but not loaded
-    if (showPreview && !iframeLoaded) {
-      return (
-        <div className="absolute inset-0 bg-slate-800 flex items-center justify-center z-10">
-          <div className="w-6 h-6 border-2 border-slate-600 border-t-brand-500 rounded-full animate-spin"></div>
-        </div>
-      );
-    }
-
-    return null;
-  };
-
   // Memoize preview content
   const previewContent = showPreview && item.content ? getPreviewContent(item.content, { raw: true, appId: item.id ? String(item.id) : undefined }) : '';
 
@@ -151,13 +130,24 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
             <i className="fa-solid fa-qrcode mr-1"></i> {t.project_card.scan_experience}
           </div>
 
-          <div className="h-40 md:h-44 relative bg-black/20 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
-            {/* Iframe Preview - 只在悬停且加载完成时显示 */}
+          <div className="h-40 md:h-44 relative bg-slate-800 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
+            {/* 默认背景 - 当没有封面且iframe未加载时显示 */}
+            {!hasValidCover && !iframeLoaded && (
+              <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-700 to-slate-800'} flex items-center justify-center z-5`}>
+                {showPreview ? (
+                  <div className="w-6 h-6 border-2 border-slate-600 border-t-brand-500 rounded-full animate-spin"></div>
+                ) : (
+                  <i className="fa-solid fa-code text-4xl text-white/30"></i>
+                )}
+              </div>
+            )}
+
+            {/* Iframe Preview */}
             {showPreview && item.content && (
                <iframe
                  srcDoc={previewContent}
                  className={`w-[200%] h-[200%] border-0 origin-top-left scale-50 pointer-events-none select-none transition-opacity duration-300 ${
-                   iframeLoaded && isHovering ? 'opacity-100' : 'opacity-0'
+                   iframeLoaded ? 'opacity-100' : 'opacity-0'
                  }`}
                  onLoad={() => setIframeLoaded(true)}
                  sandbox="allow-scripts allow-same-origin"
@@ -167,10 +157,10 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                />
             )}
 
-            {/* Cover Image - 默认显示，悬停加载完成后淡出 */}
+            {/* Cover Image - 有封面时默认显示，鼠标悬停后淡出显示动态内容 */}
             {hasValidCover && (
               <div className={`absolute inset-0 z-20 bg-slate-900 transition-opacity duration-300 ${
-                iframeLoaded && isHovering ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                showPreview && iframeLoaded && isHovering ? 'opacity-0 pointer-events-none' : 'opacity-100'
               }`}>
                 <Image 
                   src={coverImage!} 
@@ -185,8 +175,6 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
 
             {/* Overlay to prevent interaction with iframe on mobile causing about:srcdoc */}
             <div className="absolute inset-0 z-10 w-full h-full bg-transparent" />
-
-            {generatePreviewHtml(item)}
             
             {/* Owner Actions */}
             {isOwner && (
