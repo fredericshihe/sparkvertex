@@ -74,6 +74,5 @@ export const VARIANT_CREDITS_MAP: Record<string, number> = {
   '1147295': 120,   // 体验包 (Basic)
   '1147321': 350,   // 创作者包 (Standard)
   '1147330': 800,   // 重度包 (Premium)
-  // TODO: 购买极客包后补充以下 ID
-  // '??????': 2000,  // 极客包 (Ultimate)
+  '1147339': 2000,  // 极客包 (Ultimate)
 };
