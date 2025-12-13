@@ -2217,7 +2217,7 @@ ${description}
                                 toastError(language === 'zh' ? '积分退回失败，请联系客服' : 'Refund failed, please contact support');
                             }
                         } else {
-                            console.warn('Cost is 0 or null, skipping refund.');
+                            console.log('Free model used, no refund needed.');
                         }
                     };
 
@@ -2440,18 +2440,38 @@ ${description}
              if (fullContent) {
                  let content = fullContent;
                  
-                 // Extract Plan
+                 // Extract Plan (Support Streaming)
+                 // 1. Try to match complete plan block first
                  const planMatch = content.match(/\/\/\/ PLAN \/\/\/([\s\S]*?)\/\/\//);
                  if (planMatch) {
-                     setAiPlan(planMatch[1].trim());
+                     const fullPlan = planMatch[1].trim();
+                     setAiPlan(fullPlan);
                      content = content.replace(planMatch[0], '');
                      setLoadingText(language === 'zh' ? '正在分析需求并制定计划...' : 'Analyzing requirements and planning...');
                      
                      // 🆕 更新工作流可视化 - 计划
                      setWorkflowDetails(prev => ({
                          ...prev,
-                         plan: planMatch[1].trim()
+                         plan: fullPlan
                      }));
+                 } else {
+                     // 2. If no complete block, check for partial/streaming plan
+                     const planStartMarker = '/// PLAN ///';
+                     const planStartIndex = content.indexOf(planStartMarker);
+                     if (planStartIndex !== -1) {
+                         // We have the start, but not the end (strict regex failed)
+                         const partialPlan = content.substring(planStartIndex + planStartMarker.length).trim();
+                         if (partialPlan) {
+                             setAiPlan(partialPlan);
+                             setWorkflowDetails(prev => ({
+                                 ...prev,
+                                 plan: partialPlan
+                             }));
+                             setLoadingText(language === 'zh' ? '正在思考构建方案...' : 'Thinking about the plan...');
+                         }
+                         // Remove the partial plan from streaming code to avoid showing raw tags
+                         content = content.substring(0, planStartIndex);
+                     }
                  }
                  
                  // 🆕 Extract Analysis - 显示为需求分析步骤 (支持多种格式，包括中英文冒号)
@@ -4631,8 +4651,8 @@ Please fix the code to make the app display properly.`;
   };
 
   const renderWizard = () => (
-    <div className="max-w-4xl mx-auto pt-20 md:pt-12 pb-12 px-4 min-h-screen flex flex-col">
-      <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-3xl p-8 shadow-2xl animate-fade-in relative overflow-hidden">
+    <div className="max-w-4xl mx-auto pt-16 md:pt-12 pb-12 px-4 min-h-screen flex flex-col items-center justify-center">
+      <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-3xl p-4 md:p-8 shadow-2xl animate-fade-in relative overflow-hidden w-full">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -4690,7 +4710,7 @@ Please fix the code to make the app display properly.`;
                   }}
                   className="text-slate-400 hover:text-white text-xs md:text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 transition"
                 >
-                  {language === 'zh' ? '跳过，稍后选择' : 'Skip for now'} <i className="fa-solid fa-arrow-right text-[10px]"></i>
+                  {language === 'zh' ? '跳过' : 'Skip'} <i className="fa-solid fa-arrow-right text-[10px]"></i>
                 </button>
               </div>
             </div>
@@ -4759,31 +4779,31 @@ Please fix the code to make the app display properly.`;
                   }}
                   className="text-slate-400 hover:text-white text-xs md:text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/5 transition"
                 >
-                  {language === 'zh' ? '跳过，稍后选择' : 'Skip for now'} <i className="fa-solid fa-arrow-right text-[10px]"></i>
+                  {language === 'zh' ? '跳过' : 'Skip'} <i className="fa-solid fa-arrow-right text-[10px]"></i>
                 </button>
               </div>
             </div>
           )}
 
           {step === 'concept' && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold text-white">{language === 'zh' ? '描述您的应用构思' : 'Describe your App Concept'}</h2>
-                <p className="text-slate-400">{language === 'zh' ? '越详细的描述，生成的应用越精准。您也可以使用下方的快捷标签。' : 'The more detailed the description, the better the result. You can also use the quick tags below.'}</p>
+            <div className="space-y-4 md:space-y-6 animate-fade-in">
+              <div className="text-center space-y-1">
+                <h2 className="text-xl md:text-3xl font-bold text-white">{language === 'zh' ? '描述您的应用构思' : 'Describe your App Concept'}</h2>
+                <p className="text-slate-400 text-sm md:text-base">{language === 'zh' ? '越详细的描述，生成的应用越精准。您也可以使用下方的快捷标签。' : 'The more detailed the description, the better the result. You can also use the quick tags below.'}</p>
               </div>
               
               {/* Main Input */}
-              <div className="bg-white/5 rounded-2xl border border-white/10 focus-within:border-white/20 transition-colors relative">
+              <div className="bg-white/5 rounded-xl md:rounded-2xl border border-white/10 focus-within:border-white/20 transition-colors relative">
                 <textarea
                   value={wizardData.description}
                   onChange={(e) => setWizardData(prev => ({ ...prev, description: e.target.value }))}
                   maxLength={5000}
                   // @ts-ignore
                   placeholder={t.placeholders?.[currentCategory] || (language === 'zh' ? '例如：我想做一个待办事项应用，风格要极简，支持暗黑模式...' : 'E.g. I want to build a Todo app, minimalist style, dark mode support...')}
-                  className="w-full h-48 bg-transparent border-none outline-none appearance-none p-4 pb-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-base leading-relaxed"
+                  className="w-full h-40 md:h-48 bg-transparent border-none outline-none appearance-none p-3 md:p-4 pb-4 text-white placeholder-slate-500 focus:ring-0 resize-none text-sm md:text-base leading-relaxed"
                 ></textarea>
                 
-                <div className="absolute bottom-4 right-4 text-xs text-slate-500">
+                <div className="absolute bottom-3 md:bottom-4 right-3 md:right-4 text-xs text-slate-500">
                   {wizardData.description.length}/5000
                 </div>
               </div>
@@ -4792,7 +4812,7 @@ Please fix the code to make the app display properly.`;
               <div className="flex items-center gap-2">
                  <button 
                    onClick={useMadLibsTemplate}
-                   className="text-xs bg-white/5 hover:bg-white/10 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1 border border-white/10"
+                   className="text-xs bg-white/5 hover:bg-white/10 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 border border-white/10"
                  >
                    <Edit3 size={12} />
                    {language === 'zh' ? '使用填空模板' : 'Use Template'}
@@ -4800,7 +4820,7 @@ Please fix the code to make the app display properly.`;
                  <button 
                    onClick={optimizePrompt}
                    disabled={isOptimizingPrompt || !wizardData.description.trim()}
-                   className="text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1 border border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed relative group"
+                   className="text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 border border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed relative group"
                  >
                    {isOptimizingPrompt ? (
                      <>
@@ -4821,10 +4841,10 @@ Please fix the code to make the app display properly.`;
                  </button>
               </div>
 
-              <div className="flex gap-4 pt-4">
+              <div className="flex gap-3 md:gap-4 pt-2 md:pt-4">
                 <button
                   onClick={() => setStep('style')}
-                  className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:text-white hover:bg-white/5 transition"
+                  className="flex-1 py-2.5 md:py-3 rounded-xl font-bold text-sm md:text-base text-slate-400 hover:text-white hover:bg-white/5 transition"
                 >
                   {t.create.btn_back}
                 </button>
@@ -4834,10 +4854,10 @@ Please fix the code to make the app display properly.`;
                     startGeneration(false, '', '', false, 'init');
                   }}
                   disabled={!wizardData.description}
-                  className={`flex-1 bg-white text-black hover:bg-slate-200 py-4 rounded-xl font-bold shadow-lg shadow-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
+                  className={`flex-1 bg-white text-black hover:bg-slate-200 py-2.5 md:py-4 rounded-xl font-bold text-sm md:text-base shadow-lg shadow-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
                 >
                   <span>{t.create.btn_generate}</span>
-                  <Wand2 size={18} />
+                  <Wand2 size={16} className="md:w-[18px] md:h-[18px]" />
                 </button>
               </div>
             </div>

@@ -464,6 +464,12 @@ function UploadContent() {
   const [publishedId, setPublishedId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [showBackendPanel, setShowBackendPanel] = useState(false);
+  
+  // Share card states
+  const shareRef = useRef<HTMLDivElement>(null);
+  const [shareImageUrl, setShareImageUrl] = useState<string>('');
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [logoDataUrl, setLogoDataUrl] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analysisSessionIdRef = useRef(0);
@@ -515,6 +521,50 @@ function UploadContent() {
       clearInterval(refreshInterval);
     };
   }, []);
+
+  // Load logo for share card
+  useEffect(() => {
+    const loadLogo = async () => {
+      try {
+        const logoResponse = await fetch('/logo.png');
+        const logoBlob = await logoResponse.blob();
+        const logoReader = new FileReader();
+        logoReader.onloadend = () => setLogoDataUrl(logoReader.result as string);
+        logoReader.readAsDataURL(logoBlob);
+      } catch (e) {
+        console.warn('Failed to load logo:', e);
+        setLogoDataUrl('/logo.png');
+      }
+    };
+    loadLogo();
+  }, []);
+
+  // Generate share image when step 4 is reached
+  useEffect(() => {
+    if (step === 4 && shareRef.current && !shareImageUrl) {
+      setGeneratingImage(true);
+      
+      setTimeout(async () => {
+        if (shareRef.current) {
+          try {
+            const html2canvas = (await import('html2canvas')).default;
+            const canvas = await html2canvas(shareRef.current, {
+              useCORS: true,
+              allowTaint: true,
+              backgroundColor: null,
+              scale: 2,
+              logging: false,
+            });
+            setShareImageUrl(canvas.toDataURL('image/png'));
+          } catch (err) {
+            console.error('Error generating share image:', err);
+          } finally {
+            setGeneratingImage(false);
+          }
+        }
+      }, 500);
+    }
+  }, [step, shareImageUrl]);
 
   useEffect(() => {
     const init = async () => {
@@ -947,6 +997,7 @@ function UploadContent() {
     setTags(['HTML5', 'Tool']);
     setTagInput('');
     setPublishedId(null);
+    setShareImageUrl(''); // Reset share image
     setAnalysisState({ status: 'idle', progress: 0, tasks: [], message: '', data: undefined });
     setIsAnalyzing(false);
     setIsSecuritySafe(false);
@@ -1760,7 +1811,8 @@ function UploadContent() {
 
   const copyShareLink = async () => {
     if (!publishedId) return;
-    const url = `${window.location.origin}/explore?work=${publishedId}`;
+    // Use the same URL as QR code: /p/[id]?mode=app
+    const url = `${window.location.origin}/p/${publishedId}?mode=app`;
     const success = await copyToClipboard(url);
     if (success) {
       toastSuccess(t.upload.copy_link);
@@ -2508,13 +2560,13 @@ function UploadContent() {
             </div>
           </div>
 
-          <div className="flex justify-between items-center gap-4 pt-4">
-            <button onClick={handleReset} className="px-6 py-3 rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/5 transition-colors">{t.upload.reupload}</button>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4">
+            <button onClick={handleReset} className="w-full md:w-auto px-6 py-3 rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/5 transition-colors whitespace-nowrap">{t.upload.reupload}</button>
             
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4 w-full md:w-auto">
                 <button 
                     onClick={handleEditInCreator}
-                    className="px-6 py-3 rounded-xl border border-indigo-500/30 text-indigo-400 hover:text-white hover:bg-indigo-500/10 transition flex items-center gap-2 font-medium"
+                    className="flex-1 md:flex-none justify-center px-6 py-3 rounded-xl border border-indigo-500/30 text-indigo-400 hover:text-white hover:bg-indigo-500/10 transition flex items-center gap-2 font-medium whitespace-nowrap"
                 >
                     <i className="fa-solid fa-pen-to-square"></i>
                     {t.upload.edit_code || (language === 'zh' ? '编辑代码' : 'Edit Code')}
@@ -2523,7 +2575,7 @@ function UploadContent() {
                 <button 
                 onClick={() => setStep(3)} 
                 disabled={isAnalyzing || !isSecuritySafe}
-                className={`px-8 py-3 rounded-xl font-bold transition flex items-center gap-2 shadow-lg ${
+                className={`flex-1 md:flex-none justify-center px-8 py-3 rounded-xl font-bold transition flex items-center gap-2 shadow-lg whitespace-nowrap ${
                     isAnalyzing || !isSecuritySafe 
                     ? 'bg-zinc-800 text-slate-500 cursor-not-allowed border border-white/5' 
                     : 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white shadow-indigo-500/20'
@@ -2636,19 +2688,7 @@ function UploadContent() {
                 )}
              </div>
 
-             {/* Version Info (Static for now) */}
-             <div className="p-4 md:p-6 flex items-center justify-between bg-black/20 gap-4">
-                <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
-                   <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20 flex-shrink-0">
-                      <i className="fa-solid fa-code-branch text-lg md:text-xl"></i>
-                   </div>
-                   <div className="min-w-0 flex-1">
-                      <h4 className="text-white font-bold text-base md:text-lg truncate">{language === 'zh' ? '版本' : 'Version'}</h4>
-                      <p className="text-xs md:text-sm text-slate-400 truncate">{language === 'zh' ? '初始版本' : 'Initial Release'}</p>
-                   </div>
-                </div>
-                <span className="font-mono text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 text-xs md:text-sm flex-shrink-0">v1.0.0</span>
-             </div>
+
           </div>
 
           {/* Action Buttons */}
@@ -2681,95 +2721,121 @@ function UploadContent() {
       {/* Step 4: Success - Share Card */}
       {step === 4 && (
         <div className="animate-float-up">
+          {/* Hidden Capture Area - Same as ProductDetailClient */}
+          <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
+            <div 
+              ref={shareRef} 
+              className="flex w-[375px] flex-col relative overflow-hidden bg-slate-950 text-white"
+              style={{ minHeight: '667px', fontFamily: 'sans-serif' }}
+            >
+              {/* Elegant Background */}
+              <div className="absolute inset-0 bg-slate-950"></div>
+              <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-black/50 to-transparent"></div>
+
+              {/* Main Content */}
+              <div className="relative z-10 flex flex-col h-full p-8">
+                
+                {/* Header: Brand */}
+                <div className="flex items-center mb-6">
+                  <img 
+                    src={logoDataUrl || "/logo.png"} 
+                    className="w-8 h-8 object-contain mix-blend-screen mt-5" 
+                    alt="Logo" 
+                    crossOrigin="anonymous"
+                  />
+                  <span className="font-bold text-xl tracking-tight text-white ml-3">Spark<span className="text-brand-500">Vertex</span> {language === 'zh' && '灵枢'}</span>
+                </div>
+
+                {/* App Icon - Centered & Elegant */}
+                <div className="flex justify-center mb-6 mt-4">
+                  <div className="w-40 h-40 rounded-[2.5rem] bg-gradient-to-br from-brand-500 to-blue-600 shadow-2xl shadow-brand-500/30 flex items-center justify-center relative overflow-hidden border border-white/10">
+                    {iconPreview ? (
+                      <img 
+                        src={iconPreview} 
+                        className="w-full h-full object-cover" 
+                        alt="App Icon" 
+                      />
+                    ) : (
+                      <i className="fa-solid fa-cube text-5xl text-white/80"></i>
+                    )}
+                  </div>
+                </div>
+
+                {/* Info Section */}
+                <div className="mb-8">
+                  <div className="flex items-center justify-center w-full px-2 mb-3">
+                    <h1 className="text-2xl font-bold text-white tracking-tight whitespace-nowrap overflow-hidden text-ellipsis pb-2 leading-relaxed">
+                      {title ? title.split(/[-|:：]/)[0].replace(/[^\w\s\u4e00-\u9fa5]/g, '').trim() : 'My App'}
+                    </h1>
+                  </div>
+                  <div className="flex items-center justify-center w-full">
+                    <span className="text-xs font-medium text-slate-400">{language === 'zh' ? '开发者：' : 'Developer: '}{user?.user_metadata?.nickname || user?.email?.split('@')[0] || 'Anonymous'}</span>
+                  </div>
+                </div>
+
+                {/* QR Section - Centered Single QR */}
+                <div className="mt-auto flex flex-col items-center">
+                  <div className="bg-white p-3 rounded-2xl shadow-xl mb-4">
+                    <QRCodeCanvas 
+                      value={`${typeof window !== 'undefined' ? window.location.origin : 'https://sparkvertex.com'}/p/${publishedId}?mode=app`}
+                      size={140}
+                      level={"H"}
+                      bgColor="#ffffff"
+                      fgColor="#000000"
+                      imageSettings={iconPreview ? {
+                        src: iconPreview,
+                        height: 28,
+                        width: 28,
+                        excavate: true,
+                      } : undefined}
+                    />
+                  </div>
+                  <span className="text-sm text-slate-400">{language === 'zh' ? '扫码体验作品' : 'Scan to experience'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Share Card Container */}
           <div className="max-w-md mx-auto">
-            {/* Share Card - 可保存的分享图片 */}
-            <div 
-              id="share-card"
-              className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 rounded-3xl p-6 border border-white/10 shadow-2xl"
-            >
-              {/* App Header */}
-              <div className="flex items-center gap-4 mb-6">
-                {/* Icon */}
-                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg overflow-hidden flex-shrink-0">
-                  {iconPreview ? (
-                    <img src={iconPreview} alt="App Icon" className="w-full h-full object-cover" />
-                  ) : (
-                    <i className="fa-solid fa-cube text-3xl text-white"></i>
-                  )}
-                </div>
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <h2 className="text-xl font-bold text-white truncate mb-1">{title || 'My App'}</h2>
-                  <p className="text-slate-400 text-sm line-clamp-2">{description || (language === 'zh' ? '一个精彩的应用' : 'An amazing app')}</p>
-                </div>
-              </div>
+            {/* Success Badge */}
+            <div className="flex items-center justify-center gap-2 mb-6 h-12 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+              <i className="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+              <span className="text-emerald-400 font-medium leading-none">
+                {(isEditing || isUpdating) ? t.upload.modify_success : t.upload.publish_success}
+              </span>
+            </div>
 
-              {/* Success Badge */}
-              <div className="flex items-center justify-center gap-2 mb-6 py-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-                <i className="fa-solid fa-circle-check text-emerald-400"></i>
-                <span className="text-emerald-400 font-medium">
-                  {(isEditing || isUpdating) ? t.upload.modify_success : t.upload.publish_success}
-                </span>
-              </div>
-
-              {/* QR Code Section */}
-              <div className="bg-white rounded-2xl p-4 mb-4">
-                <div className="flex items-center justify-center">
-                  <QRCodeCanvas
-                    value={`${typeof window !== 'undefined' ? window.location.origin : 'https://sparkvertex.com'}/p/${publishedId}`}
-                    size={180}
-                    level="H"
-                    marginSize={0}
-                    imageSettings={iconPreview ? {
-                      src: iconPreview,
-                      height: 36,
-                      width: 36,
-                      excavate: true,
-                    } : undefined}
-                  />
+            {/* Display Area */}
+            <div className="relative w-full mb-6 flex justify-center min-h-[400px]">
+              {generatingImage && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-slate-900/50 backdrop-blur-sm rounded-xl border border-slate-700/50">
+                  <i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500 mb-3"></i>
+                  <span className="text-slate-300 text-sm font-medium animate-pulse">{language === 'zh' ? '生成分享卡片...' : 'Generating share card...'}</span>
                 </div>
-              </div>
-
-              {/* Scan Hint */}
-              <p className="text-center text-slate-400 text-sm mb-4">
-                {language === 'zh' ? '扫码查看作品' : 'Scan to view'}
-              </p>
-
-              {/* Branding */}
-              <div className="flex items-center justify-center gap-2 pt-4 border-t border-white/5">
-                <div className="w-5 h-5 rounded bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-                  <i className="fa-solid fa-bolt text-[10px] text-white"></i>
-                </div>
-                <span className="text-slate-500 text-xs font-medium">SparkVertex</span>
-              </div>
+              )}
+              
+              {shareImageUrl ? (
+                <img src={shareImageUrl} className="w-full rounded-xl shadow-2xl animate-fade-in" alt="Share Card" />
+              ) : (
+                <div className="w-full aspect-[375/667] bg-slate-800/50 rounded-xl"></div>
+              )}
             </div>
 
             {/* Action Buttons */}
-            <div className="mt-6 space-y-3">
+            <div className="space-y-3">
               {/* Save to Album */}
               <button 
-                onClick={async () => {
-                  const card = document.getElementById('share-card');
-                  if (!card) return;
-                  try {
-                    const html2canvas = (await import('html2canvas')).default;
-                    const canvas = await html2canvas(card, {
-                      backgroundColor: '#000',
-                      scale: 2,
-                      useCORS: true,
-                    });
-                    const link = document.createElement('a');
-                    link.download = `${title || 'sparkvertex'}-share.png`;
-                    link.href = canvas.toDataURL('image/png');
-                    link.click();
-                    toastSuccess(language === 'zh' ? '图片已保存' : 'Image saved');
-                  } catch (err) {
-                    console.error('Save image error:', err);
-                    toastError(language === 'zh' ? '保存失败' : 'Save failed');
-                  }
+                onClick={() => {
+                  if (!shareImageUrl) return;
+                  const link = document.createElement('a');
+                  link.download = `${title || 'sparkvertex'}-share.png`;
+                  link.href = shareImageUrl;
+                  link.click();
+                  toastSuccess(language === 'zh' ? '图片已保存' : 'Image saved');
                 }}
-                className="w-full py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2"
+                disabled={!shareImageUrl}
+                className="w-full py-4 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-bold transition shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <i className="fa-solid fa-download"></i>
                 {language === 'zh' ? '保存分享图片' : 'Save Share Image'}

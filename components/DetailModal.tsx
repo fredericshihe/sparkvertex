@@ -12,6 +12,8 @@ import AddToHomeScreenGuide from '@/components/AddToHomeScreenGuide';
 import { copyToClipboard, getFingerprint } from '@/lib/utils';
 import { useLanguage } from '@/context/LanguageContext';
 import { itemDetailsCache } from '@/lib/cache';
+import ProductScoreSection from '@/components/ProductScoreSection';
+import ProductActionBar from '@/components/ProductActionBar';
 
 const QRCodeCanvas = dynamic(() => import('qrcode.react').then(mod => mod.QRCodeCanvas), { ssr: false });
 
@@ -380,7 +382,7 @@ export default function DetailModal() {
           {/* Preview Area */}
           <div className={`
             bg-black/20 relative group flex flex-col transition-all duration-300
-            ${viewMode === 'app' ? 'absolute inset-0 z-50 w-full h-full' : 'h-[40vh] md:h-auto md:flex-grow'}
+            ${viewMode === 'app' ? 'absolute inset-0 z-50 w-full h-full' : 'h-[35vh] md:h-auto md:flex-grow'}
           `}>
             
             <div 
@@ -465,7 +467,7 @@ export default function DetailModal() {
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                       <button 
                         onClick={handleShare}
-                        className="flex-1 sm:flex-none justify-center text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-full font-bold transition border border-slate-700 flex items-center gap-1 whitespace-nowrap"
+                        className="hidden md:flex flex-1 sm:flex-none justify-center text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-full font-bold transition border border-slate-700 items-center gap-1 whitespace-nowrap"
                       >
                         {showCopiedTip ? (
                           <>
@@ -501,57 +503,7 @@ export default function DetailModal() {
                   </div>
                   
                   {/* AI Analysis Score */}
-                  {(item?.total_score !== undefined && item?.total_score > 0) && (
-                    <div className="mb-8 bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xs font-bold text-brand-400 uppercase tracking-wider flex items-center gap-2">
-                          <i className="fa-solid fa-wand-magic-sparkles"></i> {t.detail.ai_analysis}
-                        </h3>
-                        <div className="flex items-center gap-1 bg-brand-500/20 px-2 py-1 rounded-lg border border-brand-500/30">
-                          <span className="text-xs text-brand-300 font-bold">{t.detail.score}</span>
-                          <span className="text-lg font-black text-brand-400 leading-none">{item.total_score}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-3 mb-4">
-                        {/* Quality */}
-                        <div>
-                          <div className="flex justify-between text-[10px] uppercase font-bold text-slate-500 mb-1">
-                            <span>{t.detail.quality}</span>
-                            <span>{item.quality_score || 0}</span>
-                          </div>
-                          <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${item.quality_score || 0}%` }}></div>
-                          </div>
-                        </div>
-                        {/* Richness */}
-                        <div>
-                          <div className="flex justify-between text-[10px] uppercase font-bold text-slate-500 mb-1">
-                            <span>{t.detail.richness}</span>
-                            <span>{item.richness_score || 0}</span>
-                          </div>
-                          <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                            <div className="h-full bg-purple-500 rounded-full" style={{ width: `${item.richness_score || 0}%` }}></div>
-                          </div>
-                        </div>
-                        {/* Utility */}
-                        <div>
-                          <div className="flex justify-between text-[10px] uppercase font-bold text-slate-500 mb-1">
-                            <span>{t.detail.utility}</span>
-                            <span>{item.utility_score || 0}</span>
-                          </div>
-                          <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                            <div className="h-full bg-green-500 rounded-full" style={{ width: `${item.utility_score || 0}%` }}></div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="text-xs text-slate-300 italic border-l-2 border-slate-600 pl-3 py-1">
-                        "{language === 'en' ? (item.analysis_reason_en || item.analysis_reason) : (item.analysis_reason || item.analysis_reason_en)}"
-                      </div>
-                    </div>
-                  )}
-
+                  {item && <ProductScoreSection item={item} language={language} t={t} />}
                   {/* Description */}
                   <div className="mb-8">
                     <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">{t.detail.about}</h3>
@@ -600,28 +552,15 @@ export default function DetailModal() {
 
                 {/* Bottom Action Bar */}
                 <div className="p-6 border-t border-white/10 bg-black/40 backdrop-blur relative">
-                  <div className="flex flex-wrap sm:flex-nowrap gap-3 mt-2">
-                    <button 
-                      onClick={handleLike}
-                      className={`w-12 h-12 rounded-xl border flex items-center justify-center transition group flex-shrink-0 ${isLiked ? 'bg-rose-500/10 text-rose-500 border-rose-500/50' : 'bg-white/5 text-slate-400 hover:text-rose-500 border-white/10 hover:bg-white/10'}`}
-                    >
-                      <i className={`fa-solid fa-heart text-lg group-hover:scale-110 transition-transform`}></i>
-                    </button>
-                    <button 
-                      onClick={enterAppMode}
-                      className="flex-1 min-w-[140px] bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white h-12 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition flex items-center justify-center gap-2 group whitespace-nowrap"
-                    >
-                      <i className="fa-solid fa-play group-hover:scale-110 transition-transform"></i>
-                      <span>{t.detail.launch_app}</span>
-                    </button>
-                    <button 
-                      onClick={handleDownload}
-                      className="flex-1 min-w-[140px] bg-white/5 hover:bg-white/10 text-white h-12 rounded-xl font-bold transition flex items-center justify-center gap-2 group border border-white/10 whitespace-nowrap"
-                    >
-                      <span>{t.detail.download_source}</span>
-                      <i className="fa-solid fa-download group-hover:translate-y-1 transition-transform text-slate-400 group-hover:text-white"></i>
-                    </button>
-                  </div>
+                  <ProductActionBar
+                    isLiked={isLiked}
+                    onLike={handleLike}
+                    onShare={handleShare}
+                    onLaunchApp={enterAppMode}
+                    onDownload={handleDownload}
+                    t={t}
+                    variant="modal"
+                  />
                 </div>
               </>
             )}

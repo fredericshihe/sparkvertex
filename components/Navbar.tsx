@@ -161,8 +161,8 @@ export default function Navbar() {
     <nav className={`fixed w-full z-50 transition-all duration-500 ${scrolled ? 'bg-black/40 backdrop-blur-md border-b border-white/5' : 'bg-transparent border-b border-transparent'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center">
-            <Link href="/" className="flex items-center cursor-pointer mr-12 group">
+          <div className="flex items-center flex-shrink-0">
+            <Link href="/" className="flex items-center cursor-pointer mr-12 group flex-shrink-0">
               <div className="flex-shrink-0 flex items-center">
                 <img 
                   src="/logo.png" 
@@ -271,30 +271,44 @@ export default function Navbar() {
               <Link 
                 href="/" 
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`block px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive('/')}`}
+                className={`flex items-center px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive('/')}`}
               >
-                <i className="fa-solid fa-home mr-2 text-brand-400"></i> {t.nav.home}
+                <span className="w-6 inline-flex justify-center"><i className="fa-solid fa-home text-brand-400"></i></span>
+                <span className="ml-3">{t.nav.home}</span>
               </Link>
               <Link 
                 href="/explore" 
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`block px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive('/explore')}`}
+                className={`flex items-center px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive('/explore')}`}
               >
-                <i className="fa-solid fa-compass mr-2 text-brand-400"></i> {t.nav.explore}
+                <span className="w-6 inline-flex justify-center"><i className="fa-solid fa-compass text-brand-400"></i></span>
+                <span className="ml-3">{t.nav.explore}</span>
               </Link>
               <Link 
                 href="/create" 
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`block px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive('/create')}`}
+                className={`flex items-center px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive('/create')}`}
               >
-                <i className="fa-solid fa-wand-magic-sparkles mr-2 text-brand-400"></i> {t.nav.create}
+                <span className="w-6 inline-flex justify-center"><i className="fa-solid fa-wand-magic-sparkles text-brand-400"></i></span>
+                <span className="ml-3">{t.nav.create}</span>
               </Link>
+              <button 
+                onClick={() => {
+                  openFeedbackModal();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center px-4 py-3 rounded-xl text-base font-medium text-white/80 hover:bg-white/5 transition-all"
+              >
+                <span className="w-6 inline-flex justify-center"><i className="fa-solid fa-comment-dots text-brand-400"></i></span>
+                <span className="ml-3">{t.nav.feedback}</span>
+              </button>
               <Link 
                 href="/upload" 
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`block px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive('/upload')}`}
+                className={`flex items-center px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive('/upload')}`}
               >
-                <i className="fa-solid fa-cloud-arrow-up mr-2 text-brand-400"></i> {t.nav.upload}
+                <span className="w-6 inline-flex justify-center"><i className="fa-solid fa-cloud-arrow-up text-brand-400"></i></span>
+                <span className="ml-3">{t.nav.upload}</span>
               </Link>
               
               <div className="border-t border-white/10 my-2 pt-2">
@@ -309,8 +323,8 @@ export default function Navbar() {
                       className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-base font-medium hover:bg-white/5 transition-all mb-1"
                     >
                       <div className="flex items-center">
-                        <i className="fa-solid fa-coins mr-2 text-amber-400"></i>
-                        <span className="text-white/80">{language === 'zh' ? '我的积分' : 'Credits'}</span>
+                        <span className="w-6 inline-flex justify-center"><i className="fa-solid fa-coins text-amber-400"></i></span>
+                        <span className="ml-3 text-white/80">{language === 'zh' ? '我的积分' : 'Credits'}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-amber-300 font-semibold">
@@ -327,12 +341,14 @@ export default function Navbar() {
                       onClick={() => setIsMobileMenuOpen(false)}
                       className="flex items-center px-4 py-3 rounded-xl text-base font-medium text-white/80 hover:bg-white/5 transition-all"
                     >
-                      <img 
-                        src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
-                        className="w-5 h-5 rounded-full border border-white/10 object-cover mr-2" 
-                        alt="Avatar"
-                      />
-                      <span>{language === 'zh' ? '个人中心' : 'Profile'}</span>
+                      <span className="w-6 inline-flex justify-center">
+                        <img 
+                          src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} 
+                          className="w-5 h-5 rounded-full border border-white/10 object-cover" 
+                          alt="Avatar"
+                        />
+                      </span>
+                      <span className="ml-3">{language === 'zh' ? '个人中心' : 'Profile'}</span>
                     </Link>
                   </>
                 ) : (
@@ -346,15 +362,6 @@ export default function Navbar() {
                     {t.nav.login}
                   </button>
                 )}
-                <button 
-                  onClick={() => {
-                    openFeedbackModal();
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-3 rounded-xl text-base font-medium text-white/80 hover:bg-white/5 transition-all flex items-center gap-2"
-                >
-                  <i className="fa-solid fa-comment-dots"></i> {t.nav.feedback}
-                </button>
               </div>
             </div>
           </motion.div>

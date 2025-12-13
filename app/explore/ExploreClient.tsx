@@ -331,23 +331,69 @@ export default function ExploreClient({ initialItems, initialCategories, initial
 
       {/* Main Content Area Wrapper */}
       <div className="flex-1 flex flex-col min-w-0 bg-transparent relative">
-        {/* Mobile Category Filter (Fixed at top) */}
-        <div className="md:hidden z-30 bg-black/80 backdrop-blur-md border-b border-white/10 px-4 py-3 flex gap-2 overflow-x-auto no-scrollbar flex-shrink-0">
-          {categories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => filterByCategory(cat.id)}
-              className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-bold border transition-colors flex items-center gap-2 ${
-                category === cat.id
-                  ? 'bg-white text-black border-white'
-                  : 'bg-slate-900/40 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              {getCategoryLabel(cat)}
-              {(cat as any).count > 0 && <span className="opacity-60">{(cat as any).count}</span>}
-            </button>
-          ))}
+        {/* Mobile: Combined AI badges + Category Filter + Search in one row */}
+        <div className="md:hidden z-30 bg-black/80 backdrop-blur-md border-b border-white/10 px-3 py-2 flex items-center gap-2 flex-shrink-0">
+          {/* AI badges - compact */}
+          <button 
+            onClick={() => setShowAIBadgeInfo(!showAIBadgeInfo)}
+            className="flex items-center gap-1 px-2 rounded-lg bg-slate-900/40 border border-white/10 flex-shrink-0 hover:bg-white/10 active:scale-95 transition-all h-[34px] relative"
+          >
+            <i className="fa-solid fa-shield-halved text-green-400 text-xs"></i>
+            <i className="fa-solid fa-bolt text-yellow-400 text-xs"></i>
+          </button>
+          
+          {/* Category Filter - scrollable */}
+          <div className="flex-1 flex gap-1.5 overflow-x-auto no-scrollbar min-w-0">
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => filterByCategory(cat.id)}
+                className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
+                  category === cat.id
+                    ? 'bg-white text-black border-white'
+                    : 'bg-slate-900/40 border-white/10 text-slate-400'
+                }`}
+              >
+                {getCategoryLabel(cat)}
+              </button>
+            ))}
+          </div>
+          
+          {/* Search button */}
+          <button 
+            onClick={handleSearch}
+            className="flex items-center justify-center rounded-lg bg-slate-900/40 border border-white/10 hover:bg-white/10 active:scale-95 transition-all flex-shrink-0 h-[34px] w-[34px]"
+          >
+            <i className="fa-solid fa-search text-slate-400 text-xs"></i>
+          </button>
         </div>
+        
+        {/* AI Badge Info Popup - moved outside for better z-index */}
+        {showAIBadgeInfo && (
+          <>
+            <div className="fixed inset-0 z-40 md:hidden" onClick={() => setShowAIBadgeInfo(false)} />
+            <div className="absolute top-12 left-3 z-50 w-64 p-4 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/20 shadow-2xl md:hidden">
+              <div className="space-y-3">
+                <div className="flex items-start gap-2">
+                  <i className="fa-solid fa-microchip text-purple-400 text-sm mt-0.5"></i>
+                  <div className="text-white text-xs font-bold">{t.explore.ai_badge_driven}</div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <i className="fa-solid fa-shield-halved text-green-400 text-sm mt-0.5"></i>
+                  <div className="text-white text-xs font-bold">{t.explore.ai_badge_security}</div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <i className="fa-solid fa-bolt text-yellow-400 text-sm mt-0.5"></i>
+                  <div className="text-white text-xs font-bold">{t.explore.ai_badge_recommendation}</div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <i className="fa-solid fa-copyright text-blue-400 text-sm mt-0.5"></i>
+                  <div className="text-white text-xs font-bold">{t.explore.ai_badge_copyright}</div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         <main ref={mainRef} className="flex-1 overflow-y-auto custom-scrollbar relative" style={{ scrollBehavior: 'auto' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-32 md:pb-8">
@@ -355,13 +401,9 @@ export default function ExploreClient({ initialItems, initialCategories, initial
           {/* Header & Search */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
             <div className="hidden md:block">
-              <h1 className="text-3xl font-bold text-white mb-2">
-                {getCategoryLabel(categories.find(c => c.id === category) || categories[0])}
-              </h1>
-
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                 {/* AI Features Badge */}
-                <div className="flex flex-wrap items-center gap-3 px-3 py-1 rounded-lg bg-slate-900/40 backdrop-blur-md border border-white/10 self-start sm:self-auto">
+                <div className="flex flex-wrap items-center gap-3 px-3 py-2.5 rounded-lg bg-slate-900/40 backdrop-blur-md border border-white/10 self-start sm:self-auto h-[42px]">
                     <span className="flex items-center gap-1.5 text-xs font-medium text-slate-300">
                        <i className="fa-solid fa-microchip text-purple-400"></i>
                        {t.explore.ai_badge_driven}
@@ -385,76 +427,6 @@ export default function ExploreClient({ initialItems, initialCategories, initial
               </div>
             </div>
 
-            {/* Mobile: AI badges + Search in one row */}
-            <div className="flex md:hidden items-stretch gap-2 w-full relative">
-              {/* Simplified AI badges for mobile - clickable */}
-              <button 
-                onClick={() => setShowAIBadgeInfo(!showAIBadgeInfo)}
-                className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg bg-slate-900/40 backdrop-blur-md border border-white/10 flex-shrink-0 hover:bg-white/10 active:scale-95 transition-all"
-              >
-                <i className="fa-solid fa-microchip text-purple-400 text-sm"></i>
-                <i className="fa-solid fa-shield-halved text-green-400 text-sm"></i>
-                <i className="fa-solid fa-bolt text-yellow-400 text-sm"></i>
-                <i className="fa-solid fa-copyright text-blue-400 text-sm"></i>
-              </button>
-              
-              <div className="flex-1"></div>
-              
-              {/* Compact search input - icon only on the right */}
-              <button 
-                onClick={handleSearch}
-                className="flex items-center justify-center w-10 h-10 rounded-lg bg-slate-900/40 backdrop-blur-md border border-white/10 hover:bg-white/10 active:scale-95 transition-all flex-shrink-0"
-              >
-                <i className="fa-solid fa-search text-slate-400 text-sm"></i>
-              </button>
-              
-              {searchQuery && (
-                <input
-                  type="text"
-                  className="absolute right-12 top-0 w-40 h-10 px-3 border border-white/10 rounded-lg bg-slate-900/40 backdrop-blur-md text-slate-300 focus:outline-none focus:bg-slate-900/60 focus:border-white/20 text-xs transition-all"
-                  placeholder=""
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  autoFocus
-                />
-              )}
-
-              {/* AI Badge Info Popup */}
-              {showAIBadgeInfo && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowAIBadgeInfo(false)} />
-                  <div className="absolute top-full left-0 mt-2 z-50 w-64 p-4 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/20 shadow-2xl">
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-2">
-                        <i className="fa-solid fa-microchip text-purple-400 text-sm mt-0.5"></i>
-                        <div>
-                          <div className="text-white text-xs font-bold">{t.explore.ai_badge_driven}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <i className="fa-solid fa-shield-halved text-green-400 text-sm mt-0.5"></i>
-                        <div>
-                          <div className="text-white text-xs font-bold">{t.explore.ai_badge_security}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <i className="fa-solid fa-bolt text-yellow-400 text-sm mt-0.5"></i>
-                        <div>
-                          <div className="text-white text-xs font-bold">{t.explore.ai_badge_recommendation}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <i className="fa-solid fa-copyright text-blue-400 text-sm mt-0.5"></i>
-                        <div>
-                          <div className="text-white text-xs font-bold">{t.explore.ai_badge_copyright}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
             
             {/* Desktop search */}
             <div className="relative w-full md:w-80 group hidden md:block">
@@ -463,7 +435,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
               </div>
               <input
                 type="text"
-                className="block w-full pl-10 pr-3 py-2.5 border border-white/10 rounded-xl leading-5 bg-slate-900/40 backdrop-blur-md text-slate-300 placeholder-slate-500 focus:outline-none focus:bg-slate-900/60 focus:border-white/20 focus:ring-1 focus:ring-white/20 sm:text-sm transition-all shadow-sm"
+                className="block w-full pl-10 pr-3 border border-white/10 rounded-xl leading-5 bg-slate-900/40 backdrop-blur-md text-slate-300 placeholder-slate-500 focus:outline-none focus:bg-slate-900/60 focus:border-white/20 focus:ring-1 focus:ring-white/20 sm:text-sm transition-all shadow-sm h-[42px]"
                 placeholder={t.explore.search_placeholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -474,13 +446,13 @@ export default function ExploreClient({ initialItems, initialCategories, initial
 
           {/* Top 1 Featured Hero (App Store Style) */}
           {!searchQuery && topItems.length > 0 && topItems[0] && (
-            <div className="mb-8 md:mb-16 mt-6 md:mt-8">
+            <div className="mb-6 md:mb-16 mt-4 md:mt-8">
                {/* Hero Card */}
                <div className="relative group rounded-2xl md:rounded-3xl bg-slate-900/40 backdrop-blur-md border border-white/10 overflow-hidden shadow-2xl transition-all hover:shadow-white/5 hover:border-white/20">
                   {/* Background Gradient Mesh */}
                   <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-white/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
                   
-                  <div className="flex flex-row min-h-[200px] md:min-h-[350px]">
+                  <div className="flex flex-row min-h-[160px] md:min-h-[350px]">
                     {/* Left: Content */}
                     <div className="w-1/2 md:flex-1 p-4 md:p-8 lg:p-10 flex flex-col justify-center relative z-10">
                        <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">

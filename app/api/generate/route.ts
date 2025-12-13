@@ -217,12 +217,29 @@ async function handleSSERequest(request: Request) {
           const architectureSummary = generateArchitectureSummary(chunks);
           console.log(`[ArchitectureSummary] Generated ${architectureSummary.length} chars summary for ${chunks.length} chunks`);
 
-          // 🚀 DeepSeek Only 模式：强制使用 DeepSeek，跳过本地分类器
-          const intentRes = await classifyUserIntent(body.user_prompt, { 
-            fileTree: architectureSummary,  // 🆕 使用架构摘要作为 fileTree
-            forceDeepSeek: true  // 🔧 强制调用 DeepSeek，确保 100% 准确率
-          });
-          intentResult = intentRes;
+          // ⏳ 启动心跳定时器，安抚用户等待焦虑
+          const heartbeatInterval = setInterval(() => {
+            const messages = [
+              '正在进行深度推理...',
+              '正在分析代码结构...',
+              '正在规划修改方案...',
+              '思考仍在继续，请耐心等待...'
+            ];
+            const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+            send({ type: 'progress', data: { stage: 'intent', message: randomMsg } as ProgressEventData });
+          }, 3000);
+
+          try {
+            // 🚀 DeepSeek Only 模式：强制使用 DeepSeek，跳过本地分类器
+            const intentRes = await classifyUserIntent(body.user_prompt, { 
+              fileTree: architectureSummary,  // 🆕 使用架构摘要作为 fileTree
+              forceDeepSeek: true  // 🔧 强制调用 DeepSeek，确保 100% 准确率
+            });
+            intentResult = intentRes;
+          } finally {
+            clearInterval(heartbeatInterval);
+          }
+          
           intentLatencyMs = intentResult.latencyMs;
 
           console.log(`[SSE] 🤖 DeepSeek Intent: ${intentResult.intent}, source: ${intentResult.source}, reasoning: ${intentResult.reasoning?.substring(0, 100)}...`);

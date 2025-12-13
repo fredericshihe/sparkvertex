@@ -155,7 +155,8 @@ export const CreationChat: React.FC<CreationChatProps> = ({
     <div 
       className={`w-full border-r border-white/10 bg-black flex flex-col 
         order-2 lg:order-1 
-        h-full shrink-0 z-10 relative shadow-[0_-4px_20px_rgba(0,0,0,0.3)] lg:shadow-none
+        h-full shrink-0 relative shadow-[0_-4px_20px_rgba(0,0,0,0.3)] lg:shadow-none
+        ${showModelInfo ? 'z-[60]' : 'z-10'}
         ${activeMobileTab === 'chat' ? 'flex pb-[80px] lg:pb-0' : 'hidden lg:flex'}
       `}
       style={{ width: isDesktop ? sidebarWidth : '100%' }}
@@ -369,9 +370,6 @@ export const CreationChat: React.FC<CreationChatProps> = ({
                 >
                   <span>{config.icon}</span>
                   <span className="hidden sm:inline">{config.description}</span>
-                  {config.isFree && selectedModel !== key && (
-                    <span className="text-[8px] px-1 py-0.5 bg-green-500/20 text-green-400 rounded border border-green-500/30">FREE</span>
-                  )}
                 </button>
               ))}
             </div>
@@ -485,7 +483,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 mb-2 leading-relaxed">
-                  {language === 'zh' ? '适合初次生成、简单问答或非代码类任务。' : 'Best for initial generation, simple Q&A, or non-code tasks.'}
+                  {language === 'zh' ? '适合简单逻辑修改，有修改失败风险。' : 'Best for simple logic changes, may fail on complex edits.'}
                 </p>
                 <div className="flex items-start gap-2 text-[10px] text-amber-400 bg-amber-500/10 p-2 rounded border border-amber-500/20">
                   <i className="fa-solid fa-triangle-exclamation mt-0.5"></i>

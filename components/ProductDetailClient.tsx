@@ -14,6 +14,8 @@ import { saveToHistory } from '@/lib/db';
 import { copyToClipboard, getFingerprint } from '@/lib/utils';
 import { useLanguage } from '@/context/LanguageContext';
 import { translations } from '@/lib/i18n/translations';
+import ProductScoreSection from '@/components/ProductScoreSection';
+import ProductActionBar from '@/components/ProductActionBar';
 
 
 interface ProductDetailClientProps {
@@ -51,7 +53,6 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   const [defaultIconDataUrl, setDefaultIconDataUrl] = useState<string>('');
   const [apiBaseUrl, setApiBaseUrl] = useState<string>('');
   const [currentUser, setCurrentUser] = useState<any>(null);
-
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -377,8 +378,8 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
       <div className="flex-grow flex flex-col md:flex-row overflow-hidden relative w-full">
         {/* Preview Area / App Mode Container */}
         <div className={`
-            transition-all duration-300 bg-slate-900 relative group flex flex-col
-            ${viewMode === 'app' ? 'fixed inset-0 z-[9999] w-screen h-[100dvh] overscroll-none touch-none bg-black' : 'h-[50vh] md:h-auto md:flex-grow'}
+            transition-all duration-300 bg-slate-900 relative group flex flex-col min-w-0
+            ${viewMode === 'app' ? 'fixed inset-0 z-[9999] w-screen h-[100dvh] overscroll-none touch-none bg-black' : 'h-[35vh] md:h-auto md:flex-1'}
         `}>
           {/* Back Button (Only in App Mode & Not Standalone & Not Initial App Mode) */}
           {viewMode === 'app' && !isStandalone && initialMode !== 'app' && (
@@ -433,7 +434,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
 
         {/* Sidebar Info - Hidden in App Mode */}
         <div className={`
-            flex-1 md:w-96 md:flex-none bg-slate-900 border-t md:border-t-0 md:border-l border-slate-800 flex-col z-20 shadow-2xl overflow-hidden
+            flex-1 md:w-96 md:flex-shrink-0 bg-slate-900 border-t md:border-t-0 md:border-l border-slate-800 flex-col z-20 shadow-2xl overflow-hidden
             ${viewMode === 'app' ? 'hidden' : 'flex'}
         `}>
           <div className="p-6 flex-grow overflow-y-auto custom-scrollbar">
@@ -449,7 +450,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
               <div className="flex items-center gap-2">
                 <button 
                   onClick={handleShare}
-                  className="text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-full font-bold transition border border-slate-700 flex items-center gap-1"
+                  className="hidden md:flex text-xs bg-slate-800 hover:bg-slate-700 text-brand-400 px-3 py-1.5 rounded-full font-bold transition border border-slate-700 items-center gap-1"
                 >
                   {showCopiedTip ? (
                     <>
@@ -485,56 +486,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
             </div>
             
             {/* AI Analysis Score */}
-            {(item.total_score !== undefined && item.total_score > 0) && (
-              <div className="mb-8 bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-bold text-brand-400 uppercase tracking-wider flex items-center gap-2">
-                    <i className="fa-solid fa-wand-magic-sparkles"></i> {t.detail.ai_analysis}
-                  </h3>
-                  <div className="flex items-center gap-1 bg-brand-500/20 px-2 py-1 rounded-lg border border-brand-500/30">
-                    <span className="text-xs text-brand-300 font-bold">{t.detail.score}</span>
-                    <span className="text-lg font-black text-brand-400 leading-none">{item.total_score}</span>
-                  </div>
-                </div>
-                
-                <div className="space-y-3 mb-4">
-                  {/* Quality */}
-                  <div>
-                    <div className="flex justify-between text-[10px] uppercase font-bold text-slate-500 mb-1">
-                      <span>{t.detail.quality}</span>
-                      <span>{item.quality_score || 0}</span>
-                    </div>
-                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${item.quality_score || 0}%` }}></div>
-                    </div>
-                  </div>
-                  {/* Richness */}
-                  <div>
-                    <div className="flex justify-between text-[10px] uppercase font-bold text-slate-500 mb-1">
-                      <span>{t.detail.richness}</span>
-                      <span>{item.richness_score || 0}</span>
-                    </div>
-                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                      <div className="h-full bg-purple-500 rounded-full" style={{ width: `${item.richness_score || 0}%` }}></div>
-                    </div>
-                  </div>
-                  {/* Utility */}
-                  <div>
-                    <div className="flex justify-between text-[10px] uppercase font-bold text-slate-500 mb-1">
-                      <span>{t.detail.utility}</span>
-                      <span>{item.utility_score || 0}</span>
-                    </div>
-                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500 rounded-full" style={{ width: `${item.utility_score || 0}%` }}></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-xs text-slate-300 italic border-l-2 border-slate-600 pl-3 py-1">
-                  "{language === 'en' ? (item.analysis_reason_en || item.analysis_reason) : (item.analysis_reason || item.analysis_reason_en)}"
-                </div>
-              </div>
-            )}
+            <ProductScoreSection item={item} language={language} t={t} />
             
             {/* Description */}
             <div className="mb-8">
@@ -582,28 +534,14 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
 
           {/* Bottom Action Bar */}
           <div className="p-6 border-t border-slate-800 bg-slate-900/95 backdrop-blur relative">
-            <div className="flex gap-3">
-              <button 
-                onClick={handleLike}
-                className={`w-12 h-12 rounded-xl border flex items-center justify-center transition group ${isLiked ? 'bg-rose-500/10 text-rose-500 border-rose-500/50' : 'bg-slate-800 text-slate-400 hover:text-rose-500 border-slate-700 hover:bg-slate-700'}`}
-              >
-                <i className={`fa-solid fa-heart text-lg group-hover:scale-110 transition-transform`}></i>
-              </button>
-              <button 
-                onClick={enterAppMode}
-                className="flex-grow bg-gradient-to-r from-brand-600 to-blue-600 hover:from-brand-500 hover:to-blue-500 text-white h-12 rounded-xl font-bold shadow-lg shadow-brand-500/20 transition flex items-center justify-center gap-2 group"
-              >
-                <i className="fa-solid fa-play group-hover:scale-110 transition-transform"></i>
-                <span>{t.detail.launch_app}</span>
-              </button>
-              <button 
-                onClick={handleDownload}
-                className="flex-grow bg-slate-800 hover:bg-slate-700 text-white h-12 rounded-xl font-bold transition flex items-center justify-center gap-2 group border border-slate-700"
-              >
-                <span>{t.detail.download_source}</span>
-                <i className="fa-solid fa-download group-hover:translate-y-1 transition-transform text-slate-400 group-hover:text-white"></i>
-              </button>
-            </div>
+            <ProductActionBar
+              isLiked={isLiked}
+              onLike={handleLike}
+              onShare={handleShare}
+              onLaunchApp={enterAppMode}
+              onDownload={handleDownload}
+              t={t}
+            />
           </div>
         </div>
       </div>
