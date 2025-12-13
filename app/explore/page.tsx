@@ -1,5 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+// import { cookies } from 'next/headers'; // Removed to enable static optimization/ISR
 import ExploreClient from './ExploreClient';
 import { Item } from '@/types/supabase';
 import { KNOWN_CATEGORIES, CORE_CATEGORY_KEYS } from '@/lib/categories';
@@ -12,14 +12,14 @@ const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
 export const revalidate = 60;  // ISR: 缓存 60 秒
 
 export default async function ExplorePage() {
-  const cookieStore = cookies();
+  // const cookieStore = cookies(); // Removed to enable static optimization
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         get(name: string) {
-          return cookieStore.get(name)?.value
+          return undefined; // No cookies needed for public data fetch
         },
       },
     }

@@ -8,9 +8,7 @@ import { useToast } from '@/context/ToastContext';
 import { copyToClipboard } from '@/lib/utils';
 import { getPreviewContent } from '@/lib/preview';
 import { X, RefreshCw, MessageSquare, Eye, Wand2, Edit3, Play } from 'lucide-react';
-import { applyPatches, applyPatchesWithDetails } from '@/lib/patch';
 import { useLanguage } from '@/context/LanguageContext';
-import { QRCodeSVG } from 'qrcode.react';
 import { type WorkflowStage, type StageDetails } from '@/components/AIWorkflowProgress';
 import { GET_BACKEND_CONFIG_PROMPT } from '@/lib/prompts';
 import dynamic from 'next/dynamic';
@@ -1947,6 +1945,9 @@ ${description}
                     // 如果第一次失败，尝试开启 relaxedMode（宽松匹配）
                     let patched = '';
                     let patchStats = null;
+
+                    // Dynamic import for heavy patch library
+                    const { applyPatchesWithDetails } = await import('@/lib/patch');
 
                     try {
                         const result = applyPatchesWithDetails(generatedCode, rawCode, relaxedMode, targets);
