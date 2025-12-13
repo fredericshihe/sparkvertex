@@ -4,14 +4,13 @@
 import { createSafeClient } from '@/lib/supabase-server-safe';
 import { NextResponse } from 'next/server';
 
-const supabase = createSafeClient();
-
 const APP_ID_REGEX = /^app_[a-f0-9-]+_[a-f0-9-]+$/;
 
 export async function GET(
   req: Request,
   { params }: { params: { appId: string } }
 ) {
+  const supabase = createSafeClient();
   try {
     const { appId } = params;
     

@@ -1,9 +1,8 @@
 import { createSafeClient } from '@/lib/supabase-server-safe';
 import { NextResponse } from 'next/server';
 
-const supabase = createSafeClient();
-
 export async function GET(req: Request) {
+  const supabase = createSafeClient();
   const { searchParams } = new URL(req.url);
   const appId = searchParams.get('appId');
   const slug = searchParams.get('slug');

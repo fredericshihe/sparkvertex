@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Item } from '@/types/supabase';
 import { getPreviewContent } from '@/lib/preview';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import { useLanguage } from '@/context/LanguageContext';
 
 const QRCodeSVG = dynamic(() => import('qrcode.react').then(mod => mod.QRCodeSVG), { ssr: false });
@@ -36,7 +37,11 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setShowPreview(true);
+          // 性能优化：移动端如果有封面图，不自动加载 iframe，减少内存占用和卡顿
+          const isMobile = window.innerWidth < 768;
+          if (!isMobile || !item.icon_url) {
+            setShowPreview(true);
+          }
           observer.disconnect();
         }
       },
@@ -132,6 +137,19 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                  scrolling="no"
                  title={`Preview of ${item.title}`}
                />
+            )}
+
+            {/* Cover Image Optimization */}
+            {item.icon_url && (!showPreview || !iframeLoaded) && (
+              <div className="absolute inset-0 z-20 bg-slate-900">
+                <Image 
+                  src={item.icon_url} 
+                  alt={item.title} 
+                  fill 
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                />
+              </div>
             )}
 
             {/* Overlay to prevent interaction with iframe on mobile causing about:srcdoc */}

@@ -45,6 +45,7 @@ export default async function Home() {
         tags: item.tags || [],
         content: item.content,
         prompt: item.prompt,
+        icon_url: item.icon_url,
         author: Array.isArray(item.profiles) ? item.profiles[0]?.username : item.profiles?.username || 'Unknown',
         authorAvatar: Array.isArray(item.profiles) ? item.profiles[0]?.avatar_url : item.profiles?.avatar_url,
         likes: item.likes || 0,
