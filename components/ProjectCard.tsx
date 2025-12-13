@@ -27,9 +27,17 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   const [showPreview, setShowPreview] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [iconError, setIconError] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
+
+  // Validate icon_url: must be a valid URL string
+  const hasValidIcon = item.icon_url && 
+    typeof item.icon_url === 'string' && 
+    item.icon_url.trim() !== '' && 
+    (item.icon_url.startsWith('http://') || item.icon_url.startsWith('https://') || item.icon_url.startsWith('/')) &&
+    !iconError;
 
   useEffect(() => {
     setIsClient(true);
@@ -39,7 +47,11 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
         if (entry.isIntersecting) {
           // 性能优化：移动端如果有封面图，不自动加载 iframe，减少内存占用和卡顿
           const isMobile = window.innerWidth < 768;
-          if (!isMobile || !item.icon_url) {
+          const hasIcon = item.icon_url && 
+            typeof item.icon_url === 'string' && 
+            item.icon_url.trim() !== '' && 
+            (item.icon_url.startsWith('http://') || item.icon_url.startsWith('https://') || item.icon_url.startsWith('/'));
+          if (!isMobile || !hasIcon) {
             setShowPreview(true);
           }
           observer.disconnect();
@@ -140,14 +152,15 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
             )}
 
             {/* Cover Image Optimization */}
-            {item.icon_url && (!showPreview || !iframeLoaded) && (
+            {hasValidIcon && (!showPreview || !iframeLoaded) && (
               <div className="absolute inset-0 z-20 bg-slate-900">
                 <Image 
-                  src={item.icon_url} 
+                  src={item.icon_url!} 
                   alt={item.title} 
                   fill 
                   className="object-cover"
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  onError={() => setIconError(true)}
                 />
               </div>
             )}
