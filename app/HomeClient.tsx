@@ -7,38 +7,32 @@ import FeatureCreation from '@/components/landing/FeatureCreation';
 import FeatureBackend from '@/components/landing/FeatureBackend';
 import CTASection from '@/components/landing/CTASection';
 
-const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
+// Galaxy 使用低优先级加载，不阻塞主内容
+const Galaxy = dynamic(() => import('@/components/Galaxy'), { 
+  ssr: false,
+  loading: () => null // 不显示加载占位符，让背景直接显示黑色
+});
 
 interface HomeClientProps {
   // No props needed anymore
 }
 
 export default function HomeClient() {
-  const [mounted, setMounted] = useState(false);
   const [showGalaxy, setShowGalaxy] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
     
-    // Delay Galaxy loading using requestIdleCallback for better performance
-    // This allows the main content to render first before initializing WebGL
-    if ('requestIdleCallback' in window) {
-      (window as any).requestIdleCallback(() => {
-        setShowGalaxy(true);
-      }, { timeout: 2000 });
-    } else {
-      // Fallback for browsers that don't support requestIdleCallback
-      setTimeout(() => {
-        setShowGalaxy(true);
-      }, 500);
-    }
+    // 延迟加载 Galaxy，让主内容先渲染完成
+    // 使用 requestAnimationFrame 确保在下一帧才开始加载 Galaxy
+    requestAnimationFrame(() => {
+      setShowGalaxy(true);
+    });
     
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
@@ -48,13 +42,9 @@ export default function HomeClient() {
       {/* Fixed background - ensures full coverage on all devices */}
       <div className="fixed inset-0 bg-black -z-20" />
       
-      {/* Global Fixed Background */}
-      <div 
-        className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-[2000ms] ease-in-out ${
-          mounted ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        {showGalaxy && (
+      {/* Global Fixed Background - Galaxy loads after main content */}
+      {showGalaxy && (
+        <div className="fixed inset-0 z-0 pointer-events-none">
           <Galaxy 
             mouseRepulsion={true}
             mouseInteraction={true}
@@ -64,10 +54,10 @@ export default function HomeClient() {
             hueShift={240}
             isMobile={isMobile}
           />
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Scrollable Content */}
+      {/* Scrollable Content - 立即渲染，无需等待 */}
       <div className="relative z-10">
         <Hero />
         <FeatureCreation />

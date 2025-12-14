@@ -11,39 +11,34 @@ interface HeroProps {
 
 export default function Hero({}: HeroProps) {
   const { t, language } = useLanguage();
-  const [typingText, setTypingText] = useState('');
+  // 立即显示第一段文字，不需要等待
+  const [typingText, setTypingText] = useState(() => t.home.typing_texts?.[0] || '');
 
   useEffect(() => {
     const texts = t.home.typing_texts;
+    if (!texts || texts.length === 0) return;
+    
     let count = 0;
-    let index = 0;
-    let currentText = '';
-    let letter = '';
+    let index = texts[0].length; // 从第一段文字的末尾开始
     let timeoutId: NodeJS.Timeout;
 
-    // 立即重置并开始新的打字动画
-    setTypingText('');
-
     const type = () => {
-      if (count === texts.length) {
-        count = 0;
-      }
-      currentText = texts[count];
-      letter = currentText.slice(0, ++index);
-
-      setTypingText(letter);
-
-      if (letter.length === currentText.length) {
-        count++;
+      const currentText = texts[count];
+      
+      if (index < currentText.length) {
+        // 正在打字
+        setTypingText(currentText.slice(0, ++index));
+        timeoutId = setTimeout(type, 100);
+      } else {
+        // 当前文字打完，等待后切换下一段
+        count = (count + 1) % texts.length;
         index = 0;
         timeoutId = setTimeout(type, 2000);
-      } else {
-        timeoutId = setTimeout(type, 150);
       }
     };
 
-    // 立即开始第一个字符的打字
-    timeoutId = setTimeout(type, 150);
+    // 等待 2 秒后开始切换到下一段
+    timeoutId = setTimeout(type, 2000);
     
     return () => {
       clearTimeout(timeoutId);
@@ -87,6 +82,7 @@ export default function Hero({}: HeroProps) {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
           <Link 
             href="/create"
+            prefetch={true}
             className="px-8 py-4 rounded-full bg-white text-black font-bold text-lg hover:bg-slate-200 transition-all hover:scale-105 shadow-[0_0_20px_rgba(255,255,255,0.3)] flex items-center gap-2"
           >
             <i className="fa-solid fa-wand-magic-sparkles"></i>
