@@ -4,7 +4,10 @@ import RunClient from './RunClient';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 
-export const revalidate = 3600;
+// 极致缓存：24小时 + 强制静态生成
+export const revalidate = 86400; // 24 hours
+export const dynamic = 'force-static';
+export const dynamicParams = true;
 
 interface Props {
   params: { id: string };
@@ -71,4 +74,21 @@ export default async function RunPage({ params }: Props) {
   };
 
   return <RunClient item={formattedItem} />;
+}
+
+// 预生成热门作品的静态页面
+export async function generateStaticParams() {
+  const supabase = createSafeAnonClient();
+  
+  // 获取前 100 个热门作品进行预生成
+  const { data: items } = await supabase
+    .from('items')
+    .select('id')
+    .eq('visibility', 'public')
+    .order('view_count', { ascending: false })
+    .limit(100);
+  
+  return (items || []).map((item) => ({
+    id: String(item.id),
+  }));
 }

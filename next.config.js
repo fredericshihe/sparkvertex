@@ -91,6 +91,13 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // 压缩优化
+  compress: true,
+  // 实验性优化
+  experimental: {
+    // 优化打包体积
+    optimizePackageImports: ['lucide-react', 'framer-motion'],
+  },
   images: {
     remotePatterns: [
       {
