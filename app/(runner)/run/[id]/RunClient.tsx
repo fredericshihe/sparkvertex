@@ -9,8 +9,11 @@ export default function RunClient({ item }: { item: Item }) {
   const content = useMemo(() => {
     // 在客户端获取 origin
     const apiBaseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    return getPreviewContent(item.content || '', { raw: true, appId: String(item.id), apiBaseUrl });
-  }, [item.content, item.id]);
+    // 🚀 优先使用预编译内容（无需浏览器端 Babel，节省 1.4MB + 2-3秒解析时间）
+    const contentToRender = item.compiled_content || item.content || '';
+    const isPrecompiled = !!item.compiled_content;
+    return getPreviewContent(contentToRender, { raw: true, appId: String(item.id), apiBaseUrl, isPrecompiled });
+  }, [item.content, item.compiled_content, item.id]);
 
   return (
     <div className="fixed inset-0 w-full h-full bg-white">

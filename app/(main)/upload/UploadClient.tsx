@@ -1695,6 +1695,27 @@ function UploadContent() {
         watermarkedContent = removeSparkBackendCode(watermarkedContent);
       }
       
+      // 🚀 性能优化: 服务端预编译 JSX
+      // 将 <script type="text/babel"> 编译为普通 JS，移除 1.4MB 的 Babel standalone
+      let compiledContent: string | null = null;
+      try {
+        const compileRes = await fetch('/api/compile-jsx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: watermarkedContent })
+        });
+        
+        if (compileRes.ok) {
+          const compileData = await compileRes.json();
+          if (compileData.success && compileData.wasCompiled) {
+            compiledContent = compileData.compiled;
+            console.log('[JSX Pre-compile] Success, saved', compileData.stats?.savedBytes, 'bytes');
+          }
+        }
+      } catch (e) {
+        console.warn('[JSX Pre-compile] Failed, will use original content:', e);
+      }
+      
       // Recalculate hash based on the final content to be stored
       // This ensures the hash in DB matches the content in DB (important for duplicate detection)
       const finalContentHash = await calculateContentHash(watermarkedContent);
@@ -1747,6 +1768,11 @@ function UploadContent() {
         if (iconUrl) updateData.icon_url = iconUrl;
         if (finalEmbedding) updateData.embedding = finalEmbedding;
         
+        // 🚀 添加预编译内容（如果编译成功）
+        if (compiledContent) {
+          updateData.compiled_content = compiledContent;
+        }
+        
         // Update hash as well
         updateData.content_hash = finalContentHash;
 
@@ -1771,7 +1797,7 @@ function UploadContent() {
         error = result.error;
       } else {
         // Create new item
-        const insertPayload = {
+        const insertPayload: Record<string, any> = {
           title,
           description,
           content: watermarkedContent,
@@ -1788,6 +1814,11 @@ function UploadContent() {
           content_hash: finalContentHash,
           embedding: finalEmbedding
         };
+        
+        // 🚀 添加预编译内容（如果编译成功）
+        if (compiledContent) {
+          insertPayload.compiled_content = compiledContent;
+        }
 
         let result = await supabase.from('items').insert(insertPayload).select().single();
 

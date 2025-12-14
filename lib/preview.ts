@@ -35,9 +35,20 @@ export const getLightPreviewContent = (content: string | null): string => {
  * Minimal modifications for maximum fidelity to double-click open behavior.
  * 
  * @param content - The HTML content to process
- * @param options - Configuration options (kept for backward compatibility, currently ignored)
+ * @param options - Configuration options
+ *   - raw: Return raw content without processing
+ *   - appId: App ID for backend integration
+ *   - userId: User ID for draft mode
+ *   - apiBaseUrl: API base URL
+ *   - isPrecompiled: If true, content has pre-compiled JSX (no Babel needed)
  */
-export const getPreviewContent = (content: string | null, options?: { raw?: boolean; appId?: string; userId?: string; apiBaseUrl?: string }): string => {
+export const getPreviewContent = (content: string | null, options?: { 
+  raw?: boolean; 
+  appId?: string; 
+  userId?: string; 
+  apiBaseUrl?: string;
+  isPrecompiled?: boolean;  // 🚀 新增: 标记内容已预编译
+}): string => {
   if (!content) return '';
 
   // Generate SPARK_APP_ID for backend integration
