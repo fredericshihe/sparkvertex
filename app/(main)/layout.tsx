@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import './globals.css';
+import '../../globals.css';
 
 // 使用系统字体替代 Google Fonts，避免国内访问问题
 const systemFontClass = 'font-sans';
@@ -34,7 +34,7 @@ import PaymentModal from '@/components/PaymentModal';
 import RewardModal from '@/components/RewardModal';
 import CreditPurchaseModal from '@/components/CreditPurchaseModal';
 import ConfirmModal from '@/components/ConfirmModal';
-import CityBackground from '@/components/CityBackground';
+// import CityBackground from '@/components/CityBackground';
 import WeChatGuard from '@/components/WeChatGuard';
 import StorageManager from '@/components/StorageManager';
 import { ModalProvider } from '@/context/ModalContext';
@@ -43,7 +43,7 @@ import { LanguageProvider } from '@/context/LanguageContext';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import ConsoleSilencer from '@/components/ConsoleSilencer';
 
-export default function RootLayout({
+export default function MainLayout({
   children,
 }: {
   children: React.ReactNode;
