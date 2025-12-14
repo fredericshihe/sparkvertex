@@ -13,6 +13,7 @@ import { getPreviewContent } from '@/lib/preview';
 import { copyToClipboard, detectSparkBackendCode, removeSparkBackendCode } from '@/lib/utils';
 import { sha256 } from '@/lib/sha256';
 import BackendDataPanel from '@/components/BackendDataPanel';
+import { smartCompressImage } from '@/lib/image-compress';
 
 // --- 封面截图生成函数 ---
 async function generateCoverScreenshot(itemId: string | number, htmlContent: string): Promise<void> {
@@ -1736,7 +1737,20 @@ function UploadContent() {
       }
 
       if (fileToUpload) {
-        const fileExt = fileToUpload.name.split('.').pop() || 'png';
+        // 🚀 图片压缩优化：将大 PNG 转为 WebP（724KB → ~50KB）
+        try {
+          fileToUpload = await smartCompressImage(fileToUpload, {
+            maxWidth: 512,
+            maxHeight: 512,
+            quality: 0.85,
+            format: 'webp',
+            maxSizeKB: 100  // 超过 100KB 才压缩
+          });
+        } catch (e) {
+          console.warn('Failed to compress icon, using original:', e);
+        }
+        
+        const fileExt = fileToUpload.name.split('.').pop() || 'webp';
         const fileName = `${session.user.id}/${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
           .from('icons')
