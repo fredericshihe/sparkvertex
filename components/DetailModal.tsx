@@ -23,6 +23,7 @@ export default function DetailModal() {
   const router = useRouter();
   const [item, setItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
+  const [iframeLoaded, setIframeLoaded] = useState(false); // iframe 加载状态
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
@@ -109,6 +110,9 @@ export default function DetailModal() {
 
   useEffect(() => {
     if (isDetailModalOpen && detailItemId) {
+      // 重置 iframe 加载状态
+      setIframeLoaded(false);
+      
       const cachedItem = itemDetailsCache.get(detailItemId);
       const initialItem = detailItemData || cachedItem;
 
@@ -411,11 +415,29 @@ export default function DetailModal() {
                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-slate-800 rounded-b-2xl z-20 pointer-events-none"></div>
                     )}
 
+                    {/* 封面占位图 - iframe 加载完成前显示 */}
+                    {!iframeLoaded && (item?.cover_url || item?.icon_url) && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900">
+                        <img 
+                          src={item.cover_url || item.icon_url} 
+                          alt={item.name || 'Preview'} 
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <div className="flex flex-col items-center gap-3">
+                            <i className="fa-solid fa-circle-notch fa-spin text-white text-2xl"></i>
+                            <span className="text-white/80 text-sm">加载预览中...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <iframe 
                       srcDoc={getPreviewContent(item?.content || '', { raw: true, appId: item?.id ? String(item.id) : undefined })} 
-                      className="w-full h-full border-0" 
+                      className={`w-full h-full border-0 transition-opacity duration-300 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
                       sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
                       allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay"
+                      onLoad={() => setIframeLoaded(true)}
                     />
 
                     {/* Mobile Overlay to prevent about:srcdoc */}
