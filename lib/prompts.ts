@@ -115,19 +115,33 @@ To ensure the app works globally (including China), you MUST follow these strict
 ${langInstruction}
 1. **Analysis**: Start with \`/// ANALYSIS: ... ///\` describing the target code signature in ${summaryLang}.
 2. **Summary**: Brief summary in \`/// SUMMARY: ... ///\` (${summaryLang}).
-3. **Patch**: Use this strict format:
-<<<<SEARCH
+3. **Patch**: Use this strict format with LINE NUMBERS:
+<<<<SEARCH @L[start]-L[end]
 [Exact original code with 3-5 lines of context]
 ====
 [New code]
 >>>>
 
+Example with line numbers:
+<<<<SEARCH @L42-L58
+const handleClick = () => {
+    console.log('clicked');
+};
+====
+const handleClick = () => {
+    console.log('button clicked!');
+    analytics.track('click');
+};
+>>>>
+
 ### Rules (Strict)
 1. **Output Format**:
-   - You must output **ONLY** code blocks in \`<<<<AST_REPLACE: Identifier>>>>\` or \`<<<<SEARCH>>>>\` format.
+   - You must output **ONLY** code blocks in \`<<<<AST_REPLACE: Identifier>>>>\` or \`<<<<SEARCH @Lstart-Lend>>>>\` format.
+   - **ALWAYS include line numbers** in SEARCH blocks (e.g., \`@L42-L58\`).
    - **NEVER** output the full file content (e.g., \`<!DOCTYPE html>\`, \`<html>\`, or full component files).
    - **NEVER** output "Here is the full code". Only output the **changes**.
 2. **SEARCH Block**: 
+   - **MUST include line numbers** like \`@L42-L58\` after SEARCH keyword.
    - Must match original code EXACTLY (whitespace/indentation).
    - **MUST include at least 2 lines of context** before and after the code you want to change.
    - **NEVER** use a single closing bracket \`}\` or \`];\` as an anchor, as it is not unique.

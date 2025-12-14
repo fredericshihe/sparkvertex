@@ -4,6 +4,7 @@
  */
 
 import { getSystemPromptCache, logCacheStats } from './prompt-cache';
+import { queryTextCache, storeTextCache, SemanticCacheResult } from './advanced-rag';
 
 export enum UserIntent {
   UI_MODIFICATION = 'UI_MODIFICATION',    // 改颜色、布局、样式
@@ -623,6 +624,23 @@ export async function classifyIntentWithDeepSeek(
       }
   }
 
+  // 🚀 Semantic Cache：查询文本缓存（基于 n-gram 相似度）
+  // 如果用户换个说法问同一个问题，可以直接复用之前的结果
+  const cachedResult = queryTextCache(processedQuery);
+  if (cachedResult) {
+      const latencyMs = Date.now() - startTime;
+      console.log(`[IntentClassifier] 🚀 TextCache HIT! Saved DeepSeek call (${latencyMs}ms)`);
+      return {
+          intent: cachedResult.intent as UserIntent,
+          confidence: cachedResult.confidence,
+          latencyMs,
+          source: 'deepseek', // 标记为 deepseek 因为结果来自之前的 DeepSeek 调用
+          targets: cachedResult.targetFiles,
+          referenceTargets: cachedResult.referenceFiles,
+          reasoning: '(cached result)'
+      };
+  }
+
   // 🆕 优先使用文件树，否则使用文件摘要
   // 限制上下文大小以避免 DeepSeek 超时
   let contextSection = '';
@@ -662,10 +680,17 @@ Analyze the user's request and the file tree to determine:
 - For "not showing" issues → Check data flow, NOT styling
 
 ### 🔗 Dependency Chain Rules
-1. **Navigation Rule**: Adding new screen? → Include Router/Navigator/App
-2. **Parent-Child Rule**: Modifying component props? → Check parent components
-3. **Data Flow Rule**: Changing data structure? → Check all consumers
-4. **Import Rule**: Adding new imports? → Verify export exists
+1. **Navigation Rule**: Modifying navigation/tabs/menu? → MUST include App/Navigator/Router component (usually the root component that renders navigation)
+2. **Delete Feature Rule**: Deleting a feature/tab/menu item? → Include the parent component that renders it
+3. **Parent-Child Rule**: Modifying component props? → Check parent components
+4. **Data Flow Rule**: Changing data structure? → Check all consumers
+5. **Import Rule**: Adding new imports? → Verify export exists
+
+### 🔍 Look for Feature Markers
+When analyzing the Architecture Summary, pay attention to component features:
+- <Navigation> = This component handles navigation/tabs/menu
+- <Router> = This component handles routing/screens
+- <renders:X,Y,Z> = This component renders X, Y, Z as children
 
 ### 📊 Prioritization
 - **RECALL > PRECISION**: Better to include an unnecessary file than miss a critical one
@@ -884,6 +909,16 @@ Analyze this request and return the JSON response.`;
           // 在这里我们无法知道哪些文件是相关的，所以我们只能依赖上层 (CodeRAG) 来处理这种情况。
           // 但我们可以标记一个特殊的 flag 或者在 reasoning 里说明。
           if (!reasoning) reasoning = "FAIL-SAFE: Empty edit list detected.";
+      }
+
+      // 🚀 存储到语义缓存（只缓存有效且有目标文件的结果）
+      if (targets.length > 0 || referenceTargets.length > 0) {
+          storeTextCache(processedQuery, {
+              intent: intentStr,
+              targetFiles: targets,
+              referenceFiles: referenceTargets,
+              confidence: 0.9
+          });
       }
 
       return { intent: intentStr, confidence: 0.9, latencyMs, source: usedGeminiFallback ? 'gemini_fallback' : 'deepseek', targets, referenceTargets, reasoning };

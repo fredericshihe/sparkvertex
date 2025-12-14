@@ -11,6 +11,17 @@ import {
     filterFilesByStrategy,
     prioritizeFilesByStrategy 
 } from './intent-classifier';
+import { 
+    generateTypeDefinition, 
+    smartCompress,
+    pruneGraphByPageRank,       // 🆕 P3: PageRank 剪枝
+    applyUnifiedDiff,           // 🆕 P4: Unified Diff 应用
+    isDiffOutput,               // 🆕 P4: Diff 输出检测
+    buildDiffOutputInstructions // 🆕 P4: Diff 输出指令
+} from './advanced-rag';
+
+// Re-export P3 and P4 utilities
+export { pruneGraphByPageRank, applyUnifiedDiff, isDiffOutput, buildDiffOutputInstructions } from './advanced-rag';
 
 // Re-export for external use
 export type { SearchStrategy } from './intent-classifier';
@@ -72,6 +83,95 @@ export interface CodeChunk {
     endIndex?: number;
 }
 
+// ========================================
+// 🆕 P3: 语义压缩预处理 (Semantic Compression Preprocessing)
+// ========================================
+// 在发送给 AI 之前，对代码进行轻量级压缩：
+// 1. 删除纯注释行（保留 JSDoc）
+// 2. 合并连续空行
+// 3. 删除 console.log 调试语句
+// 4. 压缩长字符串字面量
+
+/**
+ * 🆕 P3: 语义压缩预处理
+ * 在发送给 AI 之前，对代码进行轻量级压缩以节省 tokens
+ * 
+ * @param code - 原始代码
+ * @param options - 压缩选项
+ * @returns 压缩后的代码和统计信息
+ */
+export function semanticPrecompress(code: string, options: {
+    removeComments?: boolean;      // 删除单行注释（保留 JSDoc）
+    collapseBlankLines?: boolean;  // 合并连续空行
+    removeConsoleLogs?: boolean;   // 删除 console.log/debug/warn
+    truncateLongStrings?: boolean; // 截断超长字符串字面量
+    maxStringLength?: number;      // 字符串最大长度（默认 200）
+} = {}): { code: string; stats: { originalChars: number; compressedChars: number; savedPercent: number } } {
+    const {
+        removeComments = true,
+        collapseBlankLines = true,
+        removeConsoleLogs = true,
+        truncateLongStrings = true,
+        maxStringLength = 200
+    } = options;
+    
+    const originalChars = code.length;
+    let result = code;
+    
+    // 1. 删除单行注释（但保留 JSDoc /** */ 和重要的 TODO/FIXME）
+    if (removeComments) {
+        // 删除行末注释: code; // comment
+        result = result.replace(/([^:])\/\/(?!\/)[^\n]*$/gm, '$1');
+        // 删除独立的注释行（但保留 /// 分析标记）
+        result = result.replace(/^\s*\/\/(?!\/)[^\n]*\n/gm, '');
+        // 删除多行注释（但保留 JSDoc）
+        result = result.replace(/\/\*(?!\*)[^*]*\*+(?:[^/*][^*]*\*+)*\//g, '');
+    }
+    
+    // 2. 合并连续空行（最多保留 1 个空行）
+    if (collapseBlankLines) {
+        result = result.replace(/\n{3,}/g, '\n\n');
+        // 删除文件开头的空行
+        result = result.replace(/^\s*\n/, '');
+    }
+    
+    // 3. 删除调试语句
+    if (removeConsoleLogs) {
+        // 删除 console.log/debug/warn/info（保留 console.error）
+        result = result.replace(/^\s*console\.(log|debug|warn|info)\([^)]*\);?\s*\n?/gm, '');
+        // 删除 debugger 语句
+        result = result.replace(/^\s*debugger;?\s*\n?/gm, '');
+    }
+    
+    // 4. 截断超长字符串字面量
+    if (truncateLongStrings) {
+        // 匹配长字符串（单引号、双引号、模板字符串）
+        result = result.replace(/(["'`])([^"'`\n]{200,})\1/g, (match, quote, content) => {
+            if (content.length > maxStringLength) {
+                const truncated = content.substring(0, maxStringLength);
+                return `${quote}${truncated}.../* ${content.length - maxStringLength} chars truncated */${quote}`;
+            }
+            return match;
+        });
+    }
+    
+    const compressedChars = result.length;
+    const savedPercent = originalChars > 0 ? Math.round((1 - compressedChars / originalChars) * 100) : 0;
+    
+    if (savedPercent > 5) {
+        console.log(`[SemanticPrecompress] 💨 压缩 ${originalChars} → ${compressedChars} 字符 (节省 ${savedPercent}%)`);
+    }
+    
+    return {
+        code: result,
+        stats: {
+            originalChars,
+            compressedChars,
+            savedPercent
+        }
+    };
+}
+
 // Helper to calculate cosine similarity
 function cosineSimilarity(vecA: number[], vecB: number[]) {
     let dotProduct = 0;
@@ -83,6 +183,158 @@ function cosineSimilarity(vecA: number[], vecB: number[]) {
         normB += vecB[i] * vecB[i];
     }
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+// ========================================
+// 🆕 P2: GraphRAG 增强 (Dependency Graph Analysis)
+// ========================================
+// 建立代码块之间的依赖图，实现智能上下文扩展
+
+export interface DependencyGraph {
+    /** 节点 ID -> 依赖的节点 ID 列表 */
+    dependencies: Map<string, string[]>;
+    /** 节点 ID -> 被依赖的节点 ID 列表（反向索引） */
+    dependents: Map<string, string[]>;
+    /** 所有节点 ID */
+    nodes: string[];
+}
+
+/**
+ * 🆕 P2: 构建依赖图
+ * 分析代码块之间的依赖关系，用于智能上下文扩展
+ */
+export function buildDependencyGraph(chunks: CodeChunk[]): DependencyGraph {
+    const allChunkIds = chunks.map(c => c.id);
+    const dependencies = new Map<string, string[]>();
+    const dependents = new Map<string, string[]>();
+    
+    // 初始化
+    for (const id of allChunkIds) {
+        dependencies.set(id, []);
+        dependents.set(id, []);
+    }
+    
+    // 分析每个块的依赖
+    for (const chunk of chunks) {
+        if (chunk.type !== 'js') continue;
+        
+        const deps = extractDependencies(chunk.content, allChunkIds);
+        dependencies.set(chunk.id, deps);
+        
+        // 更新反向索引
+        for (const dep of deps) {
+            const existing = dependents.get(dep) || [];
+            if (!existing.includes(chunk.id)) {
+                existing.push(chunk.id);
+                dependents.set(dep, existing);
+            }
+        }
+    }
+    
+    console.log(`[GraphRAG] 📊 构建依赖图: ${allChunkIds.length} 节点, ${Array.from(dependencies.values()).flat().length} 条边`);
+    
+    return {
+        dependencies,
+        dependents,
+        nodes: allChunkIds
+    };
+}
+
+/**
+ * 🆕 P2: 智能上下文扩展
+ * 给定目标节点，自动扩展相关的依赖和被依赖节点
+ * 
+ * @param targetIds - 需要修改的目标节点
+ * @param graph - 依赖图
+ * @param options - 扩展选项
+ * @returns 扩展后的节点集合 { edit: 需要编辑的, read: 仅需阅读的 }
+ */
+export function expandContextByGraph(
+    targetIds: string[], 
+    graph: DependencyGraph,
+    options: {
+        expandDependencies?: boolean;  // 向下扩展（目标依赖的）
+        expandDependents?: boolean;    // 向上扩展（依赖目标的）
+        maxDepth?: number;             // 最大扩展深度
+        maxNodes?: number;             // 最大节点数
+    } = {}
+): { edit: string[]; read: string[] } {
+    const {
+        expandDependencies = true,
+        expandDependents = true,
+        maxDepth = 2,
+        maxNodes = 15
+    } = options;
+    
+    const editSet = new Set<string>(targetIds);
+    const readSet = new Set<string>();
+    const visited = new Set<string>();
+    
+    // BFS 扩展
+    const queue: { id: string; depth: number; direction: 'dep' | 'parent' }[] = [];
+    
+    // 初始化队列
+    for (const id of targetIds) {
+        if (expandDependencies) {
+            for (const dep of graph.dependencies.get(id) || []) {
+                queue.push({ id: dep, depth: 1, direction: 'dep' });
+            }
+        }
+        if (expandDependents) {
+            for (const parent of graph.dependents.get(id) || []) {
+                queue.push({ id: parent, depth: 1, direction: 'parent' });
+            }
+        }
+        visited.add(id);
+    }
+    
+    // BFS 遍历
+    while (queue.length > 0 && (editSet.size + readSet.size) < maxNodes) {
+        const { id, depth, direction } = queue.shift()!;
+        
+        if (visited.has(id)) continue;
+        visited.add(id);
+        
+        // 深度 1 的直接依赖加入 edit，更深的加入 read
+        if (depth === 1) {
+            if (direction === 'parent') {
+                // 父节点（依赖目标的）可能也需要修改
+                editSet.add(id);
+            } else {
+                // 子节点（目标依赖的）通常只需阅读
+                readSet.add(id);
+            }
+        } else {
+            readSet.add(id);
+        }
+        
+        // 继续扩展（如果未达最大深度）
+        if (depth < maxDepth) {
+            if (expandDependencies) {
+                for (const dep of graph.dependencies.get(id) || []) {
+                    queue.push({ id: dep, depth: depth + 1, direction: 'dep' });
+                }
+            }
+            // 只在第一层扩展父节点
+            if (expandDependents && depth === 1) {
+                for (const parent of graph.dependents.get(id) || []) {
+                    queue.push({ id: parent, depth: depth + 1, direction: 'parent' });
+                }
+            }
+        }
+    }
+    
+    // 从 readSet 中移除已经在 editSet 中的
+    Array.from(editSet).forEach(id => {
+        readSet.delete(id);
+    });
+    
+    console.log(`[GraphRAG] 🎯 上下文扩展: ${targetIds.length} 目标 → ${editSet.size} 编辑 + ${readSet.size} 阅读`);
+    
+    return {
+        edit: Array.from(editSet),
+        read: Array.from(readSet)
+    };
 }
 
 // Helper: Extract dependencies from a component using AST + regex fallback
@@ -343,6 +595,207 @@ export function chunkCode(code: string): { id: string, content: string, type: st
     }
 
     return chunks;
+}
+
+// ========================================
+// 🆕 P2: 函数级切片 (Function-Level Chunking)
+// ========================================
+// 将组件进一步拆分为单独的函数，实现更精细的 RAG 选择
+
+/**
+ * 🆕 P2: 函数级切片
+ * 将代码按函数级别拆分，用于更精细的 RAG 选择
+ * 
+ * @param code - 完整代码
+ * @returns 函数级别的代码块
+ */
+export function chunkCodeByFunctions(code: string): CodeChunk[] {
+    const chunks: CodeChunk[] = [];
+    
+    // 先获取组件级切片
+    const componentChunks = chunkCode(code);
+    
+    // 对每个 JS 组件进行函数级拆分
+    for (const chunk of componentChunks) {
+        if (chunk.type !== 'js') {
+            chunks.push(chunk);
+            continue;
+        }
+        
+        const content = chunk.content;
+        const componentName = chunk.id.replace('component-', '');
+        
+        // 如果组件很小（<50行），不拆分
+        const lineCount = content.split('\n').length;
+        if (lineCount < 50) {
+            chunks.push(chunk);
+            continue;
+        }
+        
+        // 提取组件内的函数定义
+        const functionChunks = extractFunctionsFromComponent(content, componentName, chunk.startIndex || 0);
+        
+        if (functionChunks.length > 1) {
+            // 成功拆分为多个函数
+            console.log(`[FunctionChunk] 📦 ${componentName}: 拆分为 ${functionChunks.length} 个函数块`);
+            chunks.push(...functionChunks);
+        } else {
+            // 无法拆分，保持原样
+            chunks.push(chunk);
+        }
+    }
+    
+    return chunks;
+}
+
+/**
+ * 从组件中提取函数定义
+ */
+function extractFunctionsFromComponent(content: string, parentName: string, baseOffset: number): CodeChunk[] {
+    const chunks: CodeChunk[] = [];
+    
+    // 函数定义模式
+    const functionPatterns = [
+        // const handleClick = () => { ... }
+        /(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{/g,
+        // const handleClick = async () => { ... }
+        /(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*async\s*\([^)]*\)\s*=>\s*\{/g,
+        // function handleClick() { ... }
+        /function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\([^)]*\)\s*\{/g,
+        // const handleClick = function() { ... }
+        /(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*function\s*\([^)]*\)\s*\{/g,
+    ];
+    
+    // 收集所有函数位置
+    const functionPositions: { name: string; start: number; end: number }[] = [];
+    
+    for (const pattern of functionPatterns) {
+        let match;
+        // 重置 lastIndex
+        pattern.lastIndex = 0;
+        
+        while ((match = pattern.exec(content)) !== null) {
+            const funcName = match[1];
+            const funcStart = match.index;
+            
+            // 找到函数体的结束位置（匹配大括号）
+            const funcEnd = findMatchingBrace(content, funcStart + match[0].length - 1);
+            
+            if (funcEnd > funcStart) {
+                functionPositions.push({
+                    name: funcName,
+                    start: funcStart,
+                    end: funcEnd
+                });
+            }
+        }
+    }
+    
+    // 如果没有找到函数，或者只有一个函数（就是组件本身），返回空
+    if (functionPositions.length < 2) {
+        return [];
+    }
+    
+    // 按位置排序
+    functionPositions.sort((a, b) => a.start - b.start);
+    
+    // 创建函数块
+    let lastEnd = 0;
+    
+    for (const func of functionPositions) {
+        // 添加函数之前的代码（如果有）
+        if (func.start > lastEnd && func.start - lastEnd > 30) {
+            const preamble = content.substring(lastEnd, func.start).trim();
+            if (preamble.length > 20) {
+                chunks.push({
+                    id: `${parentName}::preamble-${lastEnd}`,
+                    content: preamble,
+                    type: 'js',
+                    startIndex: baseOffset + lastEnd,
+                    endIndex: baseOffset + func.start
+                });
+            }
+        }
+        
+        // 添加函数块
+        const funcContent = content.substring(func.start, func.end + 1).trim();
+        chunks.push({
+            id: `${parentName}::${func.name}`,
+            content: funcContent,
+            type: 'js',
+            startIndex: baseOffset + func.start,
+            endIndex: baseOffset + func.end + 1
+        });
+        
+        lastEnd = func.end + 1;
+    }
+    
+    // 添加剩余代码
+    if (lastEnd < content.length - 1) {
+        const remainder = content.substring(lastEnd).trim();
+        if (remainder.length > 30) {
+            chunks.push({
+                id: `${parentName}::remainder`,
+                content: remainder,
+                type: 'js',
+                startIndex: baseOffset + lastEnd,
+                endIndex: baseOffset + content.length
+            });
+        }
+    }
+    
+    return chunks;
+}
+
+/**
+ * 找到匹配的右大括号位置
+ */
+function findMatchingBrace(content: string, startPos: number): number {
+    let depth = 0;
+    let inString = false;
+    let stringChar = '';
+    let escaped = false;
+    
+    for (let i = startPos; i < content.length; i++) {
+        const char = content[i];
+        
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        
+        if (char === '\\') {
+            escaped = true;
+            continue;
+        }
+        
+        // 处理字符串
+        if ((char === '"' || char === "'" || char === '`') && !inString) {
+            inString = true;
+            stringChar = char;
+            continue;
+        }
+        
+        if (char === stringChar && inString) {
+            inString = false;
+            stringChar = '';
+            continue;
+        }
+        
+        if (inString) continue;
+        
+        // 匹配大括号
+        if (char === '{') {
+            depth++;
+        } else if (char === '}') {
+            depth--;
+            if (depth === 0) {
+                return i;
+            }
+        }
+    }
+    
+    return -1; // 未找到匹配
 }
 
 // Helper: Extract semantic signature from a component
@@ -1134,11 +1587,24 @@ export function compressCode(
     explicitTargets: string[] = [],
     intent?: string, // Optional: UserIntent from intent-classifier
     referenceTargets: string[] = [], // NEW: Targets that only need skeleton (interface only)
-    preChunkedData?: CodeChunk[] // 🚀 NEW: Pass pre-chunked data to avoid re-parsing
+    preChunkedData?: CodeChunk[], // 🚀 NEW: Pass pre-chunked data to avoid re-parsing
+    enableSemanticPrecompress?: boolean // 🆕 P3: 启用语义压缩预处理
 ): string {
+    // 🆕 P3: 先进行语义压缩预处理
+    let processedCode = code;
+    if (enableSemanticPrecompress !== false) {
+        const precompressResult = semanticPrecompress(code, {
+            removeComments: true,
+            collapseBlankLines: true,
+            removeConsoleLogs: true,
+            truncateLongStrings: false // 保留原始字符串，避免破坏代码
+        });
+        processedCode = precompressResult.code;
+    }
+    
     // 🚀 OPTIMIZATION: Use pre-chunked data if available (from RAG)
     // This avoids calling chunkCode() twice on the same HTML
-    const chunks = preChunkedData || chunkCode(code);
+    const chunks = preChunkedData || chunkCode(processedCode);
     
     if (preChunkedData) {
         console.log(`[Compression] 🚀 Using pre-chunked data (${preChunkedData.length} chunks, skipped re-parse)`);
@@ -1500,20 +1966,30 @@ export interface TrustModeCompressionResult {
  * 流程：
  * 1. 根据 files_to_edit 和 files_to_read 过滤 chunks
  * 2. files_to_edit → 全量代码
- * 3. files_to_read → 智能压缩
+ * 3. files_to_read → P1 类型定义压缩 (优先) 或骨架压缩 (fallback)
  * 4. 其他文件 → 丢弃
+ * 
+ * 🆕 P1 优化：参考文件使用类型定义压缩，节省 30-50% Token
  */
 export function applyTrustModeCompression(
     chunks: CodeChunk[],
     filesToEdit: string[],
-    filesToRead: string[]
+    filesToRead: string[],
+    options?: {
+        useTypeDefinitions?: boolean;  // 🆕 P1: 使用类型定义压缩
+        userRequest?: string;          // 🆕 用于程序切片的用户请求
+    }
 ): TrustModeCompressionResult {
+    const { useTypeDefinitions = true, userRequest } = options || {};
+    
     console.log(`[CodeRAG] 🎯 Trust Mode: ${filesToEdit.length} edit files, ${filesToRead.length} read files`);
+    console.log(`[CodeRAG] 📝 P1 Type Definitions: ${useTypeDefinitions ? 'ENABLED' : 'DISABLED'}`);
     
     const editFiles: TrustModeCompressionResult['editFiles'] = [];
     const readFiles: TrustModeCompressionResult['readFiles'] = [];
     let discardedCount = 0;
     let totalSize = 0;
+    let typeDefSavedTokens = 0; // 🆕 统计类型定义节省的 Token
     
     // 构建匹配函数（模糊匹配文件名）
     const matchesTarget = (chunkId: string, targets: string[]): boolean => {
@@ -1532,33 +2008,67 @@ export function applyTrustModeCompression(
         const isReadTarget = matchesTarget(chunk.id, filesToRead);
         
         if (isEditTarget) {
-            // files_to_edit → 全量代码（不压缩）
-            editFiles.push({
-                id: chunk.id,
-                content: chunk.content,
-                compressed: false
-            });
-            totalSize += chunk.content.length;
-            console.log(`[CodeRAG] ✏️ EDIT: ${chunk.id} (${chunk.content.length} chars, FULL)`);
+            // files_to_edit → 全量代码（可选程序切片）
+            if (userRequest && chunk.content.split('\n').length > 500) {
+                // 🆕 大文件使用程序切片
+                const sliceResult = smartCompress(chunk.content, 'edit', userRequest);
+                editFiles.push({
+                    id: chunk.id,
+                    content: sliceResult.code,
+                    compressed: sliceResult.savedPercent > 0
+                });
+                totalSize += sliceResult.code.length;
+                console.log(`[CodeRAG] ✏️ EDIT: ${chunk.id} (${chunk.content.length} → ${sliceResult.code.length} chars, ${sliceResult.strategy})`);
+            } else {
+                editFiles.push({
+                    id: chunk.id,
+                    content: chunk.content,
+                    compressed: false
+                });
+                totalSize += chunk.content.length;
+                console.log(`[CodeRAG] ✏️ EDIT: ${chunk.id} (${chunk.content.length} chars, FULL)`);
+            }
         } else if (isReadTarget) {
-            // files_to_read → 智能压缩
+            // files_to_read → 🆕 P1 类型定义压缩 (优先) 或骨架压缩 (fallback)
             const originalSize = chunk.content.length;
-            // 对于 read 文件，使用 skeletonizeCode 进行压缩
-            const skeleton = skeletonizeCode(chunk.content, chunk.id);
-            const compressed = skeleton.wasModified ? skeleton.code : chunk.content;
+            let compressed: string;
+            let compressionStrategy: string;
+            
+            if (useTypeDefinitions) {
+                // 🆕 P1: 使用类型定义生成器
+                const typeDefResult = generateTypeDefinition(chunk.content);
+                
+                if (typeDefResult.savedPercent >= 20 && typeDefResult.typeDefinition.length > 50) {
+                    // 类型定义有效，使用它
+                    compressed = `// Type definitions for ${chunk.id} (${typeDefResult.exports.length} exports)\n${typeDefResult.typeDefinition}`;
+                    compressionStrategy = 'type-definition';
+                    typeDefSavedTokens += typeDefResult.originalTokens - typeDefResult.compressedTokens;
+                } else {
+                    // 类型定义无效，fallback 到骨架压缩
+                    const skeleton = skeletonizeCode(chunk.content, chunk.id);
+                    compressed = skeleton.wasModified ? skeleton.code : chunk.content;
+                    compressionStrategy = skeleton.wasModified ? 'skeleton' : 'full';
+                }
+            } else {
+                // 传统骨架压缩
+                const skeleton = skeletonizeCode(chunk.content, chunk.id);
+                compressed = skeleton.wasModified ? skeleton.code : chunk.content;
+                compressionStrategy = skeleton.wasModified ? 'skeleton' : 'full';
+            }
+            
             const compressedSize = compressed.length;
             
             readFiles.push({
                 id: chunk.id,
                 content: compressed,
-                compressed: skeleton.wasModified,
+                compressed: compressedSize < originalSize,
                 originalSize,
                 compressedSize
             });
             totalSize += compressedSize;
             
             const ratio = originalSize > 0 ? ((1 - compressedSize / originalSize) * 100).toFixed(1) : '0';
-            console.log(`[CodeRAG] 📖 READ: ${chunk.id} (${originalSize} → ${compressedSize} chars, -${ratio}%)`);
+            console.log(`[CodeRAG] 📖 READ: ${chunk.id} (${originalSize} → ${compressedSize} chars, -${ratio}%, ${compressionStrategy})`);
         } else {
             // 其他文件 → 丢弃
             discardedCount++;
@@ -1567,6 +2077,9 @@ export function applyTrustModeCompression(
     
     console.log(`[CodeRAG] 🗑️ Discarded ${discardedCount} irrelevant chunks`);
     console.log(`[CodeRAG] 📊 Total context size: ${totalSize} chars`);
+    if (typeDefSavedTokens > 0) {
+        console.log(`[CodeRAG] 💨 P1 Type Definitions saved ~${typeDefSavedTokens} tokens`);
+    }
     
     return { editFiles, readFiles, discardedCount, totalSize };
 }
@@ -1896,12 +2409,17 @@ export async function findRelevantCodeChunks(
             }
         }
         
-        // Step 4: Dependency Graph Expansion with DEPTH LIMIT
-        // Only include DIRECT dependencies (Depth=1) to prevent "recursion bomb"
+        // Step 4: 🆕 P2 GraphRAG 增强 - 智能依赖图扩展
+        // 使用 BFS 遍历依赖图，区分「需要编辑」和「仅需阅读」的文件
         const dependencySet = new Set<string>(relevantChunks.map(c => c.id));
+        const readOnlySet = new Set<string>(); // 🆕 仅需阅读的依赖文件
         const MAX_DEPENDENCY_SIZE = isGlobalReview ? 50000 : 20000; // 全局审查模式允许更大
-        const MAX_TOTAL_CHUNKS = dynamicMaxChunks; // 🆕 使用动态计算的限制
+        const MAX_TOTAL_CHUNKS = dynamicMaxChunks; // 使用动态计算的限制
         let totalDependencySize = 0;
+        
+        // 🆕 Step 4.0: 构建完整依赖图（用于智能扩展）
+        const dependencyGraph = buildDependencyGraph(chunks);
+        console.log(`[CodeRAG] 📊 Built dependency graph: ${dependencyGraph.nodes.length} nodes, ${Array.from(dependencyGraph.dependencies.values()).flat().length} edges`);
         
         // 🆕 Step 4.1: 强制包含用户显式指定的文件
         if (explicitTargets.length > 0) {
@@ -1935,39 +2453,81 @@ export async function findRelevantCodeChunks(
             return 0;
         });
         
-        for (const chunk of initialQueue) {
-            // initialQueue is frozen, no need for originalChunkIds check
+        // 🆕 P2 GraphRAG: 使用智能上下文扩展替代简单的依赖遍历
+        const targetIds = initialQueue.map(c => c.id);
+        const expansion = expandContextByGraph(targetIds, dependencyGraph, {
+            expandDependencies: true,
+            expandDependents: true,
+            maxDepth: 2,
+            maxNodes: MAX_TOTAL_CHUNKS
+        });
+        
+        console.log(`[CodeRAG] 🎯 GraphRAG expansion: ${targetIds.length} targets → ${expansion.edit.length} edit + ${expansion.read.length} read`);
+        
+        // 🆕 P3: PageRank 剪枝 - 对大型依赖图进行智能剪枝
+        let prunedEditIds = expansion.edit;
+        let prunedReadIds = expansion.read;
+        
+        if (dependencyGraph.nodes.length > 15) {
+            // 只对大型项目启用 PageRank 剪枝
+            console.log(`[CodeRAG] 📊 P3: Applying PageRank pruning (${dependencyGraph.nodes.length} nodes)`);
             
-            // 检查是否已达到总块数限制
-            if (dependencySet.size >= MAX_TOTAL_CHUNKS) {
-                console.log(`[CodeRAG] Reached max chunk limit (${MAX_TOTAL_CHUNKS}), stopping dependency expansion`);
-                break;
-            }
+            const pruneResult = pruneGraphByPageRank(dependencyGraph, targetIds, {
+                keepTopPercent: 70,
+                minNodes: 5,
+                maxNodes: MAX_TOTAL_CHUNKS,
+                boostTargets: explicitTargets
+            });
             
-            const deps = extractDependencies(chunk.content, allChunkIds);
-            for (const depId of deps) {
-                if (!dependencySet.has(depId)) {
-                    // 再次检查总块数限制
-                    if (dependencySet.size >= MAX_TOTAL_CHUNKS) break;
-                    
-                    const depChunk = scoredChunks.find(c => c.id === depId);
-                    if (depChunk) {
-                        // Check size limit
-                        const depSize = depChunk.content.length;
-                        if (totalDependencySize + depSize > MAX_DEPENDENCY_SIZE) {
-                            console.log(`[CodeRAG] Skipping ${depId} (dependency size limit reached)`);
-                            continue;
-                        }
-                        console.log(`[CodeRAG] Adding ${depId} (dependency of ${chunk.id}, ${depSize} chars)`);
-                        dependencySet.add(depId);
+            // 过滤 edit 和 read 列表，只保留 PageRank 高的节点
+            const keptSet = new Set(pruneResult.kept);
+            prunedEditIds = expansion.edit.filter(id => keptSet.has(id) || targetIds.includes(id));
+            prunedReadIds = expansion.read.filter(id => keptSet.has(id));
+            
+            console.log(`[CodeRAG] ✂️ P3: Pruned ${expansion.edit.length - prunedEditIds.length} edit + ${expansion.read.length - prunedReadIds.length} read nodes`);
+        }
+        
+        // 将扩展的编辑节点加入 dependencySet
+        for (const id of prunedEditIds) {
+            if (!dependencySet.has(id)) {
+                const chunk = scoredChunks.find(c => c.id === id);
+                if (chunk) {
+                    const depSize = chunk.content.length;
+                    if (totalDependencySize + depSize <= MAX_DEPENDENCY_SIZE) {
+                        dependencySet.add(id);
                         totalDependencySize += depSize;
+                        console.log(`[CodeRAG] 📝 Adding ${id} (GraphRAG edit target, ${depSize} chars)`);
+                    }
+                }
+            }
+        }
+        
+        // 将扩展的只读节点加入 readOnlySet（不计入主 dependencySet）
+        // 🆕 P3: 使用剪枝后的列表
+        for (const id of prunedReadIds) {
+            if (!dependencySet.has(id) && !readOnlySet.has(id)) {
+                const chunk = scoredChunks.find(c => c.id === id);
+                if (chunk) {
+                    const depSize = chunk.content.length;
+                    // 只读依赖使用较小的 size 限制
+                    if (totalDependencySize + depSize <= MAX_DEPENDENCY_SIZE * 0.5) {
+                        readOnlySet.add(id);
+                        console.log(`[CodeRAG] 📖 Adding ${id} (GraphRAG read-only context, ${depSize} chars)`);
                     }
                 }
             }
         }
         
         // Rebuild relevantChunks with dependencies
-        relevantChunks = scoredChunks.filter(c => dependencySet.has(c.id));
+        // 🆕 标记只读块
+        relevantChunks = scoredChunks
+            .filter(c => dependencySet.has(c.id) || readOnlySet.has(c.id))
+            .map(c => ({
+                ...c,
+                isReadOnly: readOnlySet.has(c.id) // 🆕 添加只读标记
+            }));
+        
+        console.log(`[CodeRAG] 📊 Final selection: ${dependencySet.size} edit + ${readOnlySet.size} read = ${relevantChunks.length} total`);
         
         // Step 5: Always include Imports/Setup (hook definitions, constants)
         const importsChunk = scoredChunks.find(c => c.id.includes('Imports'));
@@ -2244,8 +2804,11 @@ export async function findRelevantCodeWithDeepSeek(
         };
     }
     
-    // 应用信任模式压缩
-    const compressionResult = applyTrustModeCompression(chunks, filesToEdit, filesToRead);
+    // 应用信任模式压缩（🆕 启用 P1 类型定义压缩）
+    const compressionResult = applyTrustModeCompression(chunks, filesToEdit, filesToRead, {
+        useTypeDefinitions: true,  // 🆕 P1: 启用类型定义压缩
+        userRequest: userPrompt     // 🆕 传递用户请求用于程序切片
+    });
     
     phases.compression = Date.now() - phase3Start;
     const totalLatency = Date.now() - startTime;
@@ -2440,9 +3003,14 @@ function extractCodeSignature(name: string, content: string): { type: string; su
                 const props = propsStr ? `{${propsStr.split(',').slice(0, 3).map(p => p.trim().split(':')[0].split('=')[0].trim()).filter(Boolean).join(', ')}}` : '';
                 const hooksUsed = extractHooksUsed(content);
                 const hookInfo = hooksUsed.length > 0 ? ` [uses: ${hooksUsed.slice(0, 3).join(', ')}${hooksUsed.length > 3 ? '...' : ''}]` : '';
+                
+                // 🆕 提取组件功能特征，帮助 DeepSeek 理解组件用途
+                const features = extractComponentFeatures(content);
+                const featureInfo = features.length > 0 ? ` <${features.join(', ')}>` : '';
+                
                 return {
                     type: 'component',
-                    summary: `${componentName}(${props})${hookInfo}`
+                    summary: `${componentName}(${props})${hookInfo}${featureInfo}`
                 };
             }
         }
@@ -2520,6 +3088,85 @@ function extractCodeSignature(name: string, content: string): { type: string; su
         type: 'unknown',
         summary: name
     };
+}
+
+/**
+ * 🆕 提取组件功能特征，帮助 DeepSeek 更好地理解组件用途
+ * 检测导航、路由、表单、状态管理等关键功能
+ */
+function extractComponentFeatures(content: string): string[] {
+    const features: string[] = [];
+    const contentLower = content.toLowerCase();
+    
+    // 导航相关
+    if (contentLower.includes('navigation') || contentLower.includes('navigator') || 
+        contentLower.includes('nav') || contentLower.includes('menu') ||
+        contentLower.includes('tabbar') || contentLower.includes('tab-bar') ||
+        contentLower.includes('底部导航') || contentLower.includes('导航栏') ||
+        contentLower.includes('bottomtab') || contentLower.includes('bottom-tab')) {
+        features.push('Navigation');
+    }
+    
+    // 路由相关
+    if (contentLower.includes('router') || contentLower.includes('route') ||
+        contentLower.includes('screen') || contentLower.includes('page') ||
+        contentLower.includes('navigate(') || contentLower.includes('push(') ||
+        contentLower.includes('setcurrentview') || contentLower.includes('setactivescreen') ||
+        contentLower.includes('currentscreen') || contentLower.includes('activeview')) {
+        features.push('Router');
+    }
+    
+    // 表单相关
+    if (contentLower.includes('form') || contentLower.includes('input') ||
+        contentLower.includes('submit') || contentLower.includes('validate')) {
+        features.push('Form');
+    }
+    
+    // 状态管理相关
+    if (contentLower.includes('context') || contentLower.includes('provider') ||
+        contentLower.includes('reducer') || contentLower.includes('store') ||
+        contentLower.includes('globalstate')) {
+        features.push('StateManager');
+    }
+    
+    // 数据获取相关
+    if (contentLower.includes('fetch') || contentLower.includes('api') ||
+        contentLower.includes('axios') || contentLower.includes('request')) {
+        features.push('DataFetching');
+    }
+    
+    // 布局/容器相关
+    if (contentLower.includes('layout') || contentLower.includes('container') ||
+        contentLower.includes('wrapper') || contentLower.includes('root')) {
+        features.push('Layout');
+    }
+    
+    // 模态框/弹窗相关
+    if (contentLower.includes('modal') || contentLower.includes('dialog') ||
+        contentLower.includes('popup') || contentLower.includes('overlay')) {
+        features.push('Modal');
+    }
+    
+    // 列表/网格相关
+    if (contentLower.includes('list') || contentLower.includes('grid') ||
+        contentLower.includes('table') || contentLower.includes('item')) {
+        features.push('List');
+    }
+    
+    // 检测渲染的子组件（帮助理解组件层级）
+    const renderedComponents: string[] = [];
+    const jsxPattern = /<([A-Z][a-zA-Z0-9]*)[^>]*[/>]/g;
+    let match;
+    while ((match = jsxPattern.exec(content)) !== null) {
+        if (!renderedComponents.includes(match[1]) && match[1] !== 'Fragment') {
+            renderedComponents.push(match[1]);
+        }
+    }
+    if (renderedComponents.length > 0 && renderedComponents.length <= 5) {
+        features.push(`renders:${renderedComponents.slice(0, 3).join(',')}`);
+    }
+    
+    return features.slice(0, 4); // 最多返回 4 个特征
 }
 
 /**

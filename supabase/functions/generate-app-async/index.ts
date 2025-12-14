@@ -71,21 +71,14 @@ serve(async (req) => {
       .single();
       
     if (profileError || !profile) {
-       console.error('Profile fetch error:', profileError);
+       console.error('获取用户资料失败:', profileError);
        return new Response(JSON.stringify({ error: 'Profile not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
     
     const currentCredits = Number(profile.credits || 0);
-    console.log(`User ${user.id} has ${currentCredits} credits. Min required: ${MIN_REQUIRED}. Free model: ${isFreeModel}`);
 
     if (!isFreeModel && currentCredits < MIN_REQUIRED) {
        return new Response(JSON.stringify({ error: 'Insufficient credits' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    }
-    
-    if (isFreeModel) {
-        console.log(`🆓 使用免费模型 DeepSeek V3，不消耗积分`);
-    } else {
-        console.log(`余额充足，生成完成后将根据实际 Token 扣除积分`);
     }
 
     // Update status to processing
@@ -121,13 +114,10 @@ serve(async (req) => {
     // 确定积分汇率（使用前端传来的值或根据模型默认值）
     const tokensPerCredit = tokens_per_credit || DEFAULT_TOKENS_PER_CREDIT[modelName] || 3000;
     
-    console.log(`使用模型: ${modelName}, 积分汇率: 1积分=${tokensPerCredit}tokens`);
-    
     // 环境变量可覆盖（仅用于调试）
     const envModel = Deno.env.get('GOOGLE_MODEL_NAME');
     if (envModel) {
         modelName = envModel;
-        console.log(`环境变量覆盖模型为: ${envModel}`);
     }
 
     // 检查 API Key
@@ -138,10 +128,50 @@ serve(async (req) => {
         throw new Error('缺少 Google API Key');
     }
 
-    // 优化2: 隐式缓存设置
-    // 系统提示词设计为稳定且足够长(>1024 tokens)以触发Gemini隐式缓存
-    // 关键点：system prompt保持不变，user prompt包含变化的内容
+    // ============================================================
+    // 🚀 隐式缓存优化 (Implicit Caching Optimization)
+    // ============================================================
+    // 
+    // Gemini 隐式缓存触发条件（必须同时满足）：
+    // 1. Token 数量 >= 1024 (Flash) 或 >= 4096 (Pro)
+    // 2. 相同内容在多次请求中作为**前缀**出现
+    // 3. 请求在短时间内发送（约 5-60 分钟有效期）
+    // 4. 使用相同的 model 参数
+    //
+    // 缓存诊断：检查 response 中的 usage_metadata.cached_content_token_count
+    // 
+    // 参考文档：https://ai.google.dev/gemini-api/docs/caching?hl=zh-cn
+    // ============================================================
+    
     const finalSystemPrompt = system_prompt || 'You are a helpful assistant.';
+    const userPromptStr = String(user_prompt);
+    
+    // 计算 System Prompt 的 token 估算（1 token ≈ 4 chars for English, ≈ 1.5 chars for Chinese）
+    const systemPromptChars = finalSystemPrompt.length;
+    const estimatedSystemTokens = Math.round(systemPromptChars / 3); // 保守估计
+    
+    // 简单哈希函数，用于检测 System Prompt 变化
+    const hashString = (str: string): string => {
+        let hash = 0;
+        for (let i = 0; i < Math.min(str.length, 5000); i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return Math.abs(hash).toString(16).padStart(8, '0');
+    };
+    
+    const systemPromptHash = hashString(finalSystemPrompt);
+    
+    // 简化的请求摘要日志
+    const minTokensRequired = modelName.includes('flash') ? 1024 : 4096;
+    const cacheEligible = estimatedSystemTokens >= minTokensRequired;
+    
+    console.log(`\n┌─────────────────── 📤 生成请求 ───────────────────┐`);
+    console.log(`│ 模型: ${modelName.padEnd(20)} 积分: ${currentCredits.toString().padEnd(10)} ${isFreeModel ? '🆓 免费' : ''} │`);
+    console.log(`│ 系统提示: ${estimatedSystemTokens} tokens (哈希: ${systemPromptHash})  缓存: ${cacheEligible ? '✅' : '⚠️'}  │`);
+    console.log(`│ 用户提示: ${Math.round(userPromptStr.length/1000)}k 字符                                              │`);
+    console.log(`└──────────────────────────────────────────────────────────────┘`);
 
     // 构建消息数组以支持隐式缓存
     // 对于修改操作，将现有代码作为缓存内容放在messages数组前面
@@ -152,7 +182,6 @@ serve(async (req) => {
     // 尝试拆分 user_prompt 以提高缓存命中率
     // 如果 user_prompt 包含 "# EXISTING CODE"，则将其拆分为独立的消息
     const existingCodeMarker = '# EXISTING CODE (for context)';
-    const userPromptStr = String(user_prompt);
     
     if (!image_url && userPromptStr.includes(existingCodeMarker)) {
         // 这是一个修改请求，包含代码上下文
@@ -191,7 +220,7 @@ serve(async (req) => {
                 try {
                     controller.enqueue(encoder.encode(JSON.stringify({ status: 'started' }) + '\n'));
                 } catch (e) {
-                    console.log('Client disconnected immediately');
+                    console.log('客户端立即断开连接');
                     return;
                 }
 
@@ -202,7 +231,6 @@ serve(async (req) => {
 
                 // 🆓 调用 DeepSeek API (免费模型)
                 const fetchDeepSeekCompletion = async () => {
-                    console.log('🆓 调用 DeepSeek V3 免费模型...');
                     return await fetch('https://api.deepseek.com/chat/completions', {
                         method: 'POST',
                         headers: {
@@ -245,7 +273,6 @@ serve(async (req) => {
 
                 while (true) {
                     try {
-                        console.log(`尝试使用 ${currentModel} 生成...`);
                         response = await fetchCompletion(currentModel);
 
                         if (response.ok) break;
@@ -363,26 +390,35 @@ serve(async (req) => {
                                   const content = data.choices?.[0]?.delta?.content || '';
                                   fullContent += content;
                                   
-                                  // 隐式缓存监控：检查usage_metadata以追踪缓存命中情况
-                                  // Gemini会在响应中返回cached_content_token_count
-                                  if (data.usage_metadata) {
-                                      const usage = data.usage_metadata;
-                                      const cachedTokens = usage.cached_content_token_count || 0;
-                                      const totalPromptTokens = usage.prompt_token_count || 0;
-                                      const completionTokens = usage.candidates_token_count || 0;
-                                      const cacheHitRate = totalPromptTokens > 0 ? (cachedTokens / totalPromptTokens * 100).toFixed(1) : '0';
+                                  // 隐式缓存监控：同时支持两种 API 格式
+                                  // 1. Gemini 原生 API: usage_metadata.cached_content_token_count
+                                  // 2. OpenAI 兼容 API: usage.cached_tokens 或 usage.prompt_tokens_details.cached_tokens
+                                  // 注意：usage 通常只在流的最后一个 chunk 中返回
+                                  
+                                  const usageMetadata = data.usage_metadata;  // Gemini 原生格式
+                                  const usage = data.usage;  // OpenAI 兼容格式
+                                  
+                                  if (usageMetadata || usage) {
+                                      // 提取 Token 使用数据（支持两种 API 格式）
+                                      let cachedTokens = 0;
+                                      let totalPromptTokens = 0;
+                                      let completionTokens = 0;
                                       
-                                      console.log(`🚀 Implicit Cache Stats: ${cachedTokens}/${totalPromptTokens} tokens cached (${cacheHitRate}% hit rate)`);
-                                      console.log(`📊 Token Usage: Input=${totalPromptTokens}, Output=${completionTokens}, Cached=${cachedTokens}`);
+                                      if (usageMetadata) {
+                                          cachedTokens = usageMetadata.cached_content_token_count || 0;
+                                          totalPromptTokens = usageMetadata.prompt_token_count || 0;
+                                          completionTokens = usageMetadata.candidates_token_count || 0;
+                                      } else if (usage) {
+                                          cachedTokens = usage.cached_tokens || usage.prompt_tokens_details?.cached_tokens || 0;
+                                          totalPromptTokens = usage.prompt_tokens || 0;
+                                          completionTokens = usage.completion_tokens || 0;
+                                      }
                                       
-                                      // 如果缓存命中率>80%，说明隐式缓存工作良好
-                                      if (cachedTokens > 0) {
-                                          // 计算节省的费用（Gemini 缓存 token 价格为正常价格的 25%）
-                                          const savedCost = (cachedTokens * 0.75 * 0.0001).toFixed(4);
-                                          console.log(`✅ Cache hit! Saved ${cachedTokens} tokens (~$${savedCost})`);
-                                      } else if (totalPromptTokens > 2000) {
-                                          // 大于 2000 tokens 但没有缓存命中，提示可能的优化机会
-                                          console.log(`⚠️ No cache hit with ${totalPromptTokens} input tokens. Consider optimizing prompt structure.`);
+                                      // 只在有数据时打印（通常在流结束时）
+                                      if (totalPromptTokens > 0) {
+                                          const cacheHitRate = cachedTokens > 0 ? ((cachedTokens / totalPromptTokens) * 100).toFixed(1) : '0';
+                                          const cacheIcon = cachedTokens > 0 ? '✅' : '❌';
+                                          console.log(`│ 📊 Token统计: 输入=${totalPromptTokens} 输出=${completionTokens} 缓存=${cachedTokens} (${cacheHitRate}%) ${cacheIcon}`);
                                       }
                                   }
                               } catch (e) {
@@ -410,7 +446,7 @@ serve(async (req) => {
                           try {
                               await taskChannel.httpSend('chunk', payload);
                           } catch (rtError) {
-                              console.warn('Realtime 发送失败:', rtError);
+                              console.warn('Realtime广播失败:', rtError);
                           }
                           
                           lastBroadcastLength = fullContent.length;
@@ -439,24 +475,44 @@ serve(async (req) => {
                   }
                 }
                 
-                // 检查 AI 响应是否完整
-                // 如果内容太短且只有 PLAN，说明响应被截断
-                const isIncompleteResponse = fullContent.length < 500 && 
-                                              fullContent.includes('/// PLAN') && 
-                                              !fullContent.includes('<<<<SEARCH') &&
-                                              !fullContent.includes('<!DOCTYPE') &&
-                                              !fullContent.includes('<html');
+                // 流结束后的诊断日志
+                console.log(`│ 📝 流结束: 接收到 ${fullContent.length} 字符`);
+                if (fullContent.length === 0) {
+                    console.log(`│ ⚠️ 警告: AI 返回空响应!`);
+                } else if (fullContent.length < 100) {
+                    console.log(`│ ⚠️ 响应过短: "${fullContent.substring(0, 100)}"`);
+                }
                 
-                if (isIncompleteResponse) {
-                    console.error('AI 响应不完整：只有 PLAN 没有代码');
-                    console.log('内容长度:', fullContent.length);
-                    console.log('内容预览:', fullContent.substring(0, 300));
-                    throw new Error('AI 响应不完整，请重试');
+                // 检查 AI 响应是否完整
+                // 修改操作：需要包含 SEARCH/REPLACE 块
+                // 创建操作：需要包含 HTML 内容
+                const hasPatchContent = fullContent.includes('<<<<SEARCH') || fullContent.includes('<<<< SEARCH');
+                const hasHtmlContent = fullContent.includes('<!DOCTYPE') || fullContent.includes('<html');
+                
+                // 检测各种"只有分析/计划"的模式
+                const hasAnalysisOnly = fullContent.includes('/// ANALYSIS') || 
+                                        fullContent.includes('/// SUMMARY') ||
+                                        fullContent.includes('/// PLAN') ||
+                                        fullContent.includes('无法完成') ||
+                                        fullContent.includes('无法执行');
+                
+                // 如果内容太短，且没有有效的代码内容，则认为响应不完整
+                const isIncompleteResponse = fullContent.length < 200 && !hasPatchContent && !hasHtmlContent;
+                
+                // 如果只有分析/计划没有代码，也是不完整的（AI 拒绝执行）
+                const hasOnlyAnalysis = hasAnalysisOnly && !hasPatchContent && !hasHtmlContent && fullContent.length < 2000;
+                
+                if (isIncompleteResponse || hasOnlyAnalysis) {
+                    console.log(`\n┌─────────────────── ⚠️ 响应不完整 ────────────────────┐`);
+                    console.log(`│ 长度: ${fullContent.length} 字符`);
+                    console.log(`│ 包含补丁: ${hasPatchContent} │ 包含HTML: ${hasHtmlContent} │ 仅分析: ${hasAnalysisOnly}`);
+                    console.log(`│ 原因: ${isIncompleteResponse ? '内容过短 (<200)' : '仅有分析/计划，无实际代码'}`);
+                    console.log(`│ 预览: ${fullContent.substring(0, 300).replace(/\n/g, '↵')}`);
+                    console.log(`└───────────────────────────────────────────────────────────────┘`);
+                    throw new Error(`AI 无法执行修改，可能是代码上下文不足。请尝试刷新页面后重试。`);
                 }
 
                 // 最终更新 - 即使客户端断开也要保存到数据库
-                console.log('生成完成，正在保存结果...');
-                console.log(`原始内容长度: ${fullContent.length}`);
                 
                 // 检测是否为 Patch 格式（用于修改操作）
                 const isPatchFormat = fullContent.includes('<<<<SEARCH') || fullContent.includes('<<<< SEARCH');
@@ -466,10 +522,8 @@ serve(async (req) => {
                 
                 if (isPatchFormat) {
                     // Patch 格式（修改作品）：不做任何清洗，直接使用原始内容
-                    console.log('检测到 Patch 格式（修改作品），不进行清洗');
                 } else {
                     // 全量生成格式（创建作品）：需要清洗
-                    console.log('全量生成格式（创建作品），进行清洗');
                     
                     // 1. 检查是否有 markdown 代码块包裹
                     const hasMarkdownWrapper = /^[\s\S]*?```(?:html)?\s*\n/i.test(cleanContent);
@@ -497,17 +551,11 @@ serve(async (req) => {
                     cleanContent = cleanContent.replace(/\n```\s*$/, '');
                 }
                 
-                console.log(`清洗后内容长度: ${cleanContent.length}`);
-                
                 // 安全检查：如果清洗后内容过短（相比原始内容），可能清洗出错了
                 if (cleanContent.length < 100 && fullContent.length > 500) {
-                    console.error('警告：清洗后内容过短，可能清洗逻辑有问题');
-                    console.log('原始内容长度:', fullContent.length);
-                    console.log('清洗后内容预览:', cleanContent.substring(0, 200));
-                    console.log('原始内容预览:', fullContent.substring(0, 500));
+                    console.warn(`⚠️ 清洗异常: ${fullContent.length} → ${cleanContent.length} chars`);
                     // 如果原始内容包含有效HTML，尝试直接使用原始内容
                     if (fullContent.includes('<!DOCTYPE html>') || fullContent.includes('<html')) {
-                        console.log('尝试从原始内容中提取HTML...');
                         const fallbackDocType = fullContent.indexOf('<!DOCTYPE html>');
                         const fallbackHtml = fullContent.indexOf('<html');
                         if (fallbackDocType !== -1) {
@@ -515,9 +563,7 @@ serve(async (req) => {
                         } else if (fallbackHtml !== -1) {
                             cleanContent = fullContent.substring(fallbackHtml);
                         }
-                        // 移除末尾的 markdown 标记
                         cleanContent = cleanContent.replace(/\n```\s*$/, '');
-                        console.log('回退后内容长度:', cleanContent.length);
                     }
                 }
 
@@ -557,20 +603,14 @@ serve(async (req) => {
                     return Math.ceil(totalTokens / effectiveTokensPerCredit);
                 })();
 
-                // 保存结果和 cost 到数据库（cost 用于退款时查询）
+                // 保存结果和 cost 到数据库
                 await supabaseAdmin
                     .from('generation_tasks')
                     .update({ result_code: sanitizedContent, status: 'completed', cost: actualCost })
                     .eq('id', taskId);
-                console.log('结果保存成功');
                 
-                // 生成成功，现在扣除积分（免费模型跳过）
-                console.log(`生成成功，Token统计: 输入=${inputTokens}, 输出=${outputTokens}, 总计=${totalTokens}`);
-                
-                if (isFreeModel) {
-                    console.log(`🆓 使用免费模型 DeepSeek V3，不扣除积分`);
-                } else {
-                    console.log(`扣除 ${actualCost} 积分 (模型: ${modelName})...`);
+                // 扣除积分（免费模型跳过）
+                if (!isFreeModel) {
 
                     const { data: finalProfile } = await supabaseAdmin
                         .from('profiles')
@@ -584,9 +624,8 @@ serve(async (req) => {
                             .from('profiles')
                             .update({ credits: Math.max(0, newBalance) })
                             .eq('id', user.id);
-                        console.log(`积分已扣除。剩余: ${Math.max(0, newBalance)}`);
                         
-                        // 记录用户活动日志（用于分析）
+                        // 记录用户活动日志
                         const actionType = type === 'modification' ? 'modify' : 'create';
                         try {
                             await supabaseAdmin.rpc('log_user_activity', {
@@ -595,93 +634,74 @@ serve(async (req) => {
                                 p_action_detail: { task_id: taskId, type: type, tokens: totalTokens, model: modelName },
                                 p_credits_consumed: actualCost
                             });
-                            console.log(`活动日志已记录: ${actionType}, 消耗 ${actualCost} 积分`);
                         } catch (logErr) {
-                            console.warn('活动日志记录失败:', logErr);
+                            // 活动日志记录失败不影响主流程
                         }
-                    } else {
-                        console.warn('无法扣除积分：找不到用户档案');
+                        
+                        // 完成摘要日志
+                        console.log(`├─────────────────── ✅ 完成 ────────────────────┤`);
+                        console.log(`│ 输出: ${Math.round(cleanContent.length/1000)}k 字符 │ Token: ${totalTokens} │ 消耗: ${actualCost} │ 余额: ${Math.max(0, newBalance)}`);
+                        console.log(`└─────────────────────────────────────────────────────┘`);
                     }
+                } else {
+                    // 免费模型完成日志
+                    console.log(`├─────────────────── ✅ 完成 (免费) ─────────────┤`);
+                    console.log(`│ 输出: ${Math.round(cleanContent.length/1000)}k 字符 │ Token: ${totalTokens} │ 🆓 免费`);
+                    console.log(`└─────────────────────────────────────────────────────┘`);
                 }
                 
                 // 通过 Realtime 广播完成状态
                 try {
-                    // httpSend(event: string, payload: any, opts?: { timeout?: number })
-                    // 发送清洗后的内容，确保前端预览正常
                     await taskChannel.httpSend('completed', { taskId, fullContent: sanitizedContent, cost: actualCost });
                 } catch (rtErr) {
-                    console.log('Realtime 完成广播失败:', rtErr);
+                    // Realtime 失败不影响结果
                 }
                 
                 // 清理频道
                 try {
                     await supabaseAdmin.removeChannel(taskChannel);
                 } catch (e) {
-                    console.log('频道清理警告:', e);
+                    // 忽略清理错误
                 }
                 
-                // 仅在客户端仍连接时发送最终消息
+                // 发送最终消息并关闭流
                 if (!clientDisconnected) {
                     try {
                         controller.enqueue(encoder.encode(JSON.stringify({ status: 'completed' }) + '\n'));
-                    } catch (e) {
-                        console.log('客户端已断开，跳过最终消息');
-                        clientDisconnected = true;
-                    }
-                }
-                
-                // 只在客户端未断开时尝试关闭流
-                if (!clientDisconnected) {
-                    try {
                         controller.close();
-                        clientDisconnected = true;
-                    } catch (e: any) {
-                        // 忽略流关闭错误（Http: connection closed before message completed）
-                        if (e.name === 'Http' || e.message?.includes('connection closed') || e.message?.includes('cannot close')) {
-                            console.log('客户端已提前关闭连接（正常，生成已完成保存）');
-                        } else {
-                            console.warn('流关闭错误:', e);
-                        }
-                        clientDisconnected = true;
+                    } catch (e) {
+                        // 客户端已断开，正常情况
                     }
+                    clientDisconnected = true;
                 }
             } catch (error: any) {
-                console.error('异步生成错误:', error);
-                
                 const errorMessage = error.message || '生成过程中发生未知错误';
+                
+                console.log(`├─────────────────── ❌ 失败 ────────────────────────┤`);
+                console.log(`│ 错误: ${errorMessage.substring(0, 50)}${errorMessage.length > 50 ? '...' : ''}`);
+                console.log(`└─────────────────────────────────────────────────────┘`);
 
-                // 尝试更新任务状态为失败（不需要退款，因为还没扣费）
+                // 更新任务状态为失败
                 try {
                     if (taskId) {
                         await supabaseAdmin
                             .from('generation_tasks')
                             .update({ status: 'failed', error_message: errorMessage })
                             .eq('id', taskId);
-                        console.log(`生成失败 (${errorMessage})，未扣除积分`);
                     }
                 } catch (e) {
-                    console.error('状态更新失败:', e);
+                    // 忽略状态更新错误
                 }
                 
-                // 如果客户端仍连接，尝试发送错误消息
+                // 发送错误并关闭流
                 if (!clientDisconnected) {
                     try {
                         controller.enqueue(encoder.encode(JSON.stringify({ error: errorMessage }) + '\n'));
-                    } catch (e) {
-                        console.log('无法发送错误，客户端已断开');
-                        clientDisconnected = true;
-                    }
-                }
-                
-                // 只在客户端未断开时尝试关闭流
-                if (!clientDisconnected) {
-                    try {
                         controller.close();
-                        clientDisconnected = true;
                     } catch (e) {
-                        console.log('流已关闭');
-                        clientDisconnected = true;
+                        // 忽略
                     }
+                    clientDisconnected = true;
                 }
             }
         }

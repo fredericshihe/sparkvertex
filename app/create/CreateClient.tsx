@@ -1942,12 +1942,13 @@ ${description}
                     }
 
                     // 尝试应用补丁
-                    // 如果第一次失败，尝试开启 relaxedMode（宽松匹配）
+                    // 现在使用 Self-Repair 系统：失败时自动分析并尝试快速修复
                     let patched = '';
                     let patchStats = null;
 
-                    // Dynamic import for heavy patch library
+                    // Dynamic import for heavy patch library and self-repair
                     const { applyPatchesWithDetails } = await import('@/lib/patch');
+                    const { tryQuickFix, analyzePatchFailure } = await import('@/lib/self-repair');
 
                     try {
                         const result = applyPatchesWithDetails(generatedCode, rawCode, relaxedMode, targets);
@@ -1956,7 +1957,20 @@ ${description}
 
                         // Check if ALL patches failed (Total Failure)
                         if (patchStats.total > 0 && patchStats.success === 0) {
-                             throw new Error(patchStats.failures[0] || 'All patches failed');
+                            // 🔄 Self-Repair Step 1: 尝试快速修复（不调用 LLM）
+                            console.log('[SelfRepair] Attempting quick fix...');
+                            const quickFixResult = tryQuickFix(generatedCode, rawCode);
+                            
+                            if (quickFixResult && quickFixResult.stats.success > 0) {
+                                console.log('[SelfRepair] ✅ Quick fix succeeded!');
+                                patched = quickFixResult.code;
+                                patchStats = quickFixResult.stats;
+                            } else {
+                                // 分析失败原因用于日志
+                                const analysis = analyzePatchFailure(generatedCode, rawCode, patchStats);
+                                console.warn('[SelfRepair] Quick fix failed. Failure analysis:', analysis);
+                                throw new Error(patchStats.failures[0] || 'All patches failed');
+                            }
                         }
                     } catch (patchError: any) {
                         console.warn('Standard patch failed, retrying with relaxed mode...', patchError.message);
@@ -2152,6 +2166,11 @@ ${description}
                     // 最终结论消息不包含思考过程
                     setChatHistory(prev => [...prev, { role: 'ai', content: finalContent, cost: currentTaskCostRef.current || undefined }]);
                     currentTaskReasoningRef.current = null;
+                    
+                    // 🆕 FIX: 确保在 Diff Mode 成功后重置状态
+                    setIsGenerating(false);
+                    setWorkflowStage('completed');
+                    setCurrentTaskId(null);
                 } catch (e: any) {
                     console.error('Patch failed:', e);
                     
@@ -2560,10 +2579,10 @@ ${description}
         .on(
           'broadcast',
           { event: 'completed' },
-          (payload) => {
-             const { cost } = payload.payload;
+          async (payload) => {
+             const { cost, taskId: completedTaskId, fullContent } = payload.payload;
              if (cost !== undefined) {
-                 console.log(`Task completed. Cost: ${cost} credits`);
+                 console.log(`Task completed (broadcast). Cost: ${cost} credits`);
                  currentTaskCostRef.current = cost;
 
                  // Update local credits immediately
@@ -2585,6 +2604,21 @@ ${description}
                  toastSuccess(language === 'zh' ? `生成完成，消耗 ${cost} 积分` : `Generation complete. Cost: ${cost} credits`);
                  // Refresh profile to sync with server
                  checkAuth();
+             }
+             
+             // 🔧 FIX: Actively trigger handleTaskUpdate when completed broadcast is received
+             // This ensures we don't rely solely on postgres_changes which can be delayed
+             if (!isFinished) {
+                 console.log('[Broadcast] Received completed event, fetching task data to trigger handleTaskUpdate...');
+                 try {
+                     const { data, error } = await supabase.from('generation_tasks').select('*').eq('id', taskId).single();
+                     if (data && !error && data.status === 'completed') {
+                         console.log('[Broadcast] Triggering handleTaskUpdate with completed task data');
+                         handleTaskUpdate(data);
+                     }
+                 } catch (e) {
+                     console.warn('[Broadcast] Failed to fetch task data:', e);
+                 }
              }
           }
         )
@@ -3435,15 +3469,46 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
           console.log('[Full Code Mode] Sending complete uncompressed code to AI');
       }
 
+      // 🔧 隐式缓存优化：将 RAG/Code Context 移到 User Prompt 开头
+      // 原因：System Prompt 必须保持完全稳定才能触发 Gemini 隐式缓存
+      // Gemini 缓存基于"最长公共前缀"，如果 System Prompt 每次变化，缓存永远不会命中
+      // 
+      // 新结构：
+      // - System Prompt: 固定不变 (~3000 tokens)
+      // - User Prompt: [RAG Context] + [Code Context] + [现有代码] + [用户请求]
+      
+      let contextPrefix = '';
+      
       if (ragContext) {
-          console.log('Injecting RAG Context into System Prompt');
-          finalSystemPrompt += ragContext;
+          console.log('[CacheOptimization] Moving RAG Context to User Prompt prefix');
+          contextPrefix += `\n### Reference Documentation\n${ragContext}\n`;
       }
       
       // Inject Code RAG Context (Relevant Chunks)
       if (codeContext) {
-          console.log('Injecting Code RAG Context into System Prompt');
-          finalSystemPrompt += codeContext;
+          console.log('[CacheOptimization] Moving Code RAG Context to User Prompt prefix');
+          contextPrefix += `\n### Relevant Code Snippets\n${codeContext}\n`;
+      }
+      
+      // 将上下文前缀添加到 User Prompt 开头
+      if (contextPrefix) {
+          finalUserPrompt = contextPrefix + '\n---\n\n' + finalUserPrompt;
+          console.log(`[CacheOptimization] Context prefix added (${contextPrefix.length} chars)`);
+      }
+      
+      // 确保 System Prompt 保持不变（除了后端配置模式）
+      console.log(`[CacheOptimization] System Prompt length: ${finalSystemPrompt.length} chars (should be stable across requests)`);
+      console.log(`[CacheOptimization] System Prompt hash: ${hashString(finalSystemPrompt).slice(0, 8)}`);
+      
+      // 简单的字符串哈希函数，用于检测 System Prompt 变化
+      function hashString(str: string): string {
+          let hash = 0;
+          for (let i = 0; i < str.length; i++) {
+              const char = str.charCodeAt(i);
+              hash = ((hash << 5) - hash) + char;
+              hash = hash & hash;
+          }
+          return Math.abs(hash).toString(16);
       }
 
       // 注意：积分扣除在后端Edge Function中进行，避免双重扣费

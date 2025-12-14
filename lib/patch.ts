@@ -262,21 +262,36 @@ export function applyPatchesWithDetails(source: string, patchText: string, relax
         };
     }
     
-    // 1. Parse Patches
-    let matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*([\s\S]*?)\s*>>>>/g));
+    // 1. Parse Patches (支持行号锚定格式: <<<<SEARCH @L42-L58)
+    // 新格式: <<<<SEARCH @L[start]-L[end] ... ==== ... >>>>
+    // 行号锚定正则：捕获 @L123-L456 格式
+    
+    // 提取行号信息的辅助函数
+    const extractLineNumbers = (fullMatch: string): { startLine?: number; endLine?: number } => {
+        const lineMatch = fullMatch.match(/@L(\d+)(?:-L(\d+))?/);
+        if (lineMatch) {
+            return {
+                startLine: parseInt(lineMatch[1], 10),
+                endLine: lineMatch[2] ? parseInt(lineMatch[2], 10) : undefined
+            };
+        }
+        return {};
+    };
+    
+    let matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*(?:@L\d+(?:-L\d+)?)?\s*([\s\S]*?)\s*====\s*([\s\S]*?)\s*>>>>/g));
     
     if (matches.length === 0) {
         // Fallback 1: Loose matches (no spaces or different spacing)
-        matches = Array.from(patchText.matchAll(/<<<<SEARCH([\s\S]*?)====([\s\S]*?)>>>>/g));
+        matches = Array.from(patchText.matchAll(/<<<<SEARCH(?:\s*@L\d+(?:-L\d+)?)?([\s\S]*?)====([\s\S]*?)>>>>/g));
         
         // Fallback 2: Handle "==== REPLACE" variation
         if (matches.length === 0) {
-             matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*REPLACE\s*([\s\S]*?)\s*>>>>/g));
+             matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*(?:@L\d+(?:-L\d+)?)?\s*([\s\S]*?)\s*====\s*REPLACE\s*([\s\S]*?)\s*>>>>/g));
         }
 
         // Fallback 3: Handle missing closing >>>> (truncated response)
         if (matches.length === 0) {
-             matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*([\s\S]*?)\s*====\s*([\s\S]*?)$/g));
+             matches = Array.from(patchText.matchAll(/<<<<\s*SEARCH\s*(?:@L\d+(?:-L\d+)?)?\s*([\s\S]*?)\s*====\s*([\s\S]*)$/g));
         }
     }
 
@@ -770,16 +785,114 @@ function applyPatchesInternalWithStats(
         }
     }
 
+    // 🆕 P1: 行号锚定辅助函数
+    const extractLineNumbers = (fullMatch: string): { startLine?: number; endLine?: number } => {
+        const lineMatch = fullMatch.match(/@L(\d+)(?:-L(\d+))?/);
+        if (lineMatch) {
+            return {
+                startLine: parseInt(lineMatch[1], 10),
+                endLine: lineMatch[2] ? parseInt(lineMatch[2], 10) : undefined
+            };
+        }
+        return {};
+    };
+    
+    // 🆕 P1: 行号优先匹配策略
+    const applyLineAnchoredPatch = (
+        source: string, 
+        searchBlock: string, 
+        replaceBlock: string, 
+        lineInfo: { startLine?: number; endLine?: number }
+    ): string | null => {
+        if (!lineInfo.startLine) return null;
+        
+        const sourceLines = source.split('\n');
+        const searchLines = searchBlock.trim().split('\n');
+        
+        // 行号是 1-based，转换为 0-based
+        const startIdx = lineInfo.startLine - 1;
+        const endIdx = lineInfo.endLine ? lineInfo.endLine - 1 : startIdx + searchLines.length - 1;
+        
+        // 边界检查
+        if (startIdx < 0 || endIdx >= sourceLines.length) {
+            console.warn(`[Patch] 行号越界: L${lineInfo.startLine}-L${lineInfo.endLine || 'auto'} (文件共 ${sourceLines.length} 行)`);
+            return null;
+        }
+        
+        // 验证行号范围内的内容是否与 searchBlock 匹配
+        const targetLines = sourceLines.slice(startIdx, endIdx + 1);
+        const targetContent = targetLines.join('\n').trim();
+        const searchContent = searchBlock.trim();
+        
+        // 使用归一化比较（忽略首尾空白）
+        const normalizedTarget = targetContent.replace(/^\s+|\s+$/gm, '');
+        const normalizedSearch = searchContent.replace(/^\s+|\s+$/gm, '');
+        
+        // 计算相似度（简单的行匹配率）
+        const targetLinesTrimmed = normalizedTarget.split('\n');
+        const searchLinesTrimmed = normalizedSearch.split('\n');
+        let matchedLines = 0;
+        const minLen = Math.min(targetLinesTrimmed.length, searchLinesTrimmed.length);
+        
+        for (let i = 0; i < minLen; i++) {
+            if (targetLinesTrimmed[i].trim() === searchLinesTrimmed[i].trim()) {
+                matchedLines++;
+            }
+        }
+        
+        const similarity = minLen > 0 ? matchedLines / minLen : 0;
+        
+        if (similarity >= 0.7) {
+            // 70% 以上的行匹配，接受这个定位
+            console.log(`[Patch] ✅ 行号锚定成功: L${lineInfo.startLine}-L${endIdx + 1} (相似度: ${(similarity * 100).toFixed(0)}%)`);
+            
+            // 替换这些行
+            const before = sourceLines.slice(0, startIdx);
+            const after = sourceLines.slice(endIdx + 1);
+            const result = [...before, replaceBlock.trim(), ...after].join('\n');
+            return result;
+        } else {
+            console.warn(`[Patch] ⚠️ 行号锚定失败: L${lineInfo.startLine}-L${endIdx + 1} 相似度过低 (${(similarity * 100).toFixed(0)}%)`);
+            return null;
+        }
+    };
+
     for (const match of matches) {
-        const [_, searchBlock, replaceBlock] = match;
+        const [fullMatch, searchBlock, replaceBlock] = match;
         const patchIndex = matches.indexOf(match);
         const previousSource = workingSource; // Save for potential rollback
+        
+        // 🆕 P1: 提取行号信息
+        const lineInfo = extractLineNumbers(fullMatch);
+        if (lineInfo.startLine) {
+            console.log(`[Patch] 🎯 发现行号锚定: @L${lineInfo.startLine}${lineInfo.endLine ? `-L${lineInfo.endLine}` : ''}`);
+        }
         
         // Helper to record failure
         const recordFailure = (reason: string) => {
             failedBlocks.push(reason);
             failCount++;
         };
+
+        // 🆕 P1: Strategy -1: 行号锚定优先匹配
+        if (lineInfo.startLine) {
+            const lineResult = applyLineAnchoredPatch(workingSource, searchBlock, replaceBlock, lineInfo);
+            if (lineResult) {
+                const validation = validateIncrementalPatch(previousSource, lineResult, originalDefinitions, patchIndex);
+                if (!validation.valid) {
+                    console.error(`[Patch] ROLLBACK (行号锚定): ${validation.reason}`);
+                    recordFailure(`Line Anchored Patch (rolled back): ${validation.reason}`);
+                    // 继续尝试其他策略
+                } else {
+                    workingSource = lineResult;
+                    appliedPatches.push({ index: patchIndex, before: previousSource, after: workingSource });
+                    successCount++;
+                    continue; // 成功，跳到下一个 patch
+                }
+            }
+            // 行号锚定失败，回退到模糊匹配
+            console.log(`[Patch] 行号锚定未成功，回退到模糊匹配...`);
+        }
 
         // Strategy 0: AST Smart Patch (Conflict Detection)
         const astResult = applySmartASTPatch(workingSource, replaceBlock);
