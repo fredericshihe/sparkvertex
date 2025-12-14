@@ -126,6 +126,15 @@ input, textarea, [contenteditable] {
     transform: translateZ(20px);
 }
 
+/* 骨架屏微光动画 - 高性能 CSS 动画 */
+@keyframes skeletonShimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+.skeleton-shimmer {
+    animation: skeletonShimmer 1.5s infinite;
+}
+
 /* Animated Text Gradient */
 .animate-gradient-text {
     background-size: 200% auto;

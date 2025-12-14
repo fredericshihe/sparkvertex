@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { Item } from '@/types/supabase';
-import { getLightPreviewContent } from '@/lib/preview';
 import dynamic from 'next/dynamic';
 import { useLanguage } from '@/context/LanguageContext';
 import { KNOWN_CATEGORIES } from '@/lib/categories';
@@ -22,26 +21,30 @@ interface ProjectCardProps {
   className?: string;
 }
 
-export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onUpdate, onDelete, onHover, className = '' }: ProjectCardProps) {
+function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onUpdate, onDelete, onHover, className = '' }: ProjectCardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
 
+  // 使用 cover_url 静态图片，如果没有则使用占位符
+  const coverUrl = item.cover_url || item.icon_url;
+  
   useEffect(() => {
     setIsClient(true);
-    
-    // 移动端使用更小的预加载距离以节省资源
-    // 桌面端保持较大距离实现无感体验
-    const isMobile = window.innerWidth < 768;
-    const rootMarginValue = isMobile ? '200px' : '600px';
+  }, []);
+
+  // 懒加载：只在卡片进入视口附近时才加载图片
+  useEffect(() => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    const rootMarginValue = isMobile ? '100px' : '200px';
     
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setShowPreview(true);
+          setIsVisible(true);
           observer.disconnect();
         }
       },
@@ -55,25 +58,29 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
       observer.observe(cardRef.current);
     }
 
-    return () => {
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   }, []);
 
-  const handleMouseEnter = () => {
+  const handleMouseEnter = useCallback(() => {
     if (onHover) onHover(item);
-  };
+  }, [onHover, item]);
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     setIsFlipped(false);
-  };
+  }, []);
 
-  // 使用轻量级预览 - 不注入 JavaScript，大幅提升移动端性能
-  const previewContent = showPreview && item.content ? getLightPreviewContent(item.content) : '';
+  const handleImageLoad = useCallback(() => {
+    setImageLoaded(true);
+  }, []);
 
   // Get category icon
   const categoryKey = item.category ? (KNOWN_CATEGORIES[item.category]?.key || 'tool') : 'tool';
   const categoryIcon = KNOWN_CATEGORIES[item.category]?.icon || 'fa-code';
+  
+  // 生成基于内容的渐变背景色（用于没有封面的情况）
+  const gradientSeed = item.id?.slice(-6) || '000000';
+  const hue1 = parseInt(gradientSeed.slice(0, 2), 16) % 360;
+  const hue2 = (hue1 + 40) % 360;
 
   return (
     <div 
@@ -109,29 +116,46 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
           </div>
 
           <div className="h-40 md:h-44 relative bg-slate-900 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
-            {/* 默认背景 - 深色占位，加载时无明显颜色 */}
-            <div className={`absolute inset-0 bg-slate-900 z-5 transition-opacity duration-700 ease-out ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
-              {/* 微妙的加载动画效果 */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-800/50 to-transparent animate-pulse" />
+            {/* 渐变背景占位符 - 秒开体验 */}
+            <div 
+              className={`absolute inset-0 transition-opacity duration-300 ${imageLoaded ? 'opacity-0' : 'opacity-100'}`}
+              style={{
+                background: coverUrl 
+                  ? 'linear-gradient(135deg, rgb(30, 41, 59), rgb(15, 23, 42))'
+                  : `linear-gradient(135deg, hsl(${hue1}, 40%, 25%), hsl(${hue2}, 50%, 15%))`
+              }}
+            >
+              {/* 分类图标占位 */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <i className={`fa-solid ${categoryIcon} text-3xl text-white/20`}></i>
+              </div>
             </div>
 
-            {/* 轻量级 Iframe 预览 - 无 JavaScript，极速加载 */}
-            {showPreview && item.content && (
-               <iframe
-                 srcDoc={previewContent}
-                 className={`w-[200%] h-[200%] border-0 origin-top-left scale-50 pointer-events-none select-none transition-opacity duration-700 ease-out ${
-                   iframeLoaded ? 'opacity-100' : 'opacity-0'
-                 }`}
-                 onLoad={() => setIframeLoaded(true)}
-                 sandbox="allow-same-origin"
-                 scrolling="no"
-                 title={`Preview of ${item.title}`}
-                 loading="lazy"
-               />
+            {/* 静态封面图片 - 极速加载 */}
+            {isVisible && coverUrl && (
+              <img
+                src={coverUrl}
+                alt={item.title}
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                  imageLoaded ? 'opacity-100' : 'opacity-0'
+                }`}
+                onLoad={handleImageLoad}
+                loading="lazy"
+                decoding="async"
+              />
             )}
-
-            {/* Overlay to prevent interaction with iframe on mobile causing about:srcdoc */}
-            <div className="absolute inset-0 z-10 w-full h-full bg-transparent" />
+            
+            {/* 无封面时显示渐变 + 图标 */}
+            {isVisible && !coverUrl && (
+              <div 
+                className="absolute inset-0 flex items-center justify-center"
+                style={{
+                  background: `linear-gradient(135deg, hsl(${hue1}, 40%, 25%), hsl(${hue2}, 50%, 15%))`
+                }}
+              >
+                <i className={`fa-solid ${categoryIcon} text-4xl text-white/30`}></i>
+              </div>
+            )}
             
             {/* Owner Actions */}
             {isOwner && (
@@ -248,3 +272,13 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
     </div>
   );
 }
+
+// 使用 memo 防止不必要的重渲染
+export default memo(ProjectCard, (prevProps, nextProps) => {
+  return (
+    prevProps.item.id === nextProps.item.id &&
+    prevProps.isLiked === nextProps.isLiked &&
+    prevProps.item.likes === nextProps.item.likes &&
+    prevProps.isOwner === nextProps.isOwner
+  );
+});

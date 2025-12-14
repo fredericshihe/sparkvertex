@@ -31,11 +31,26 @@ export default async function ExplorePage() {
     Promise.resolve(supabase.rpc('get_tag_counts')).catch(() => ({ data: null, error: { message: 'RPC failed' } })),
     // 2. 获取总数
     supabase.from('items').select('*', { count: 'exact', head: true }).eq('is_public', true),
-    // 3. 获取作品列表 - 减少初始加载数量以提升移动端性能
+    // 3. 获取作品列表 - 只查询必要字段，不传输 content 以提升性能
     supabase
       .from('items')
       .select(`
-        *,
+        id,
+        title,
+        description,
+        author_id,
+        category,
+        tags,
+        views,
+        page_views,
+        likes,
+        total_score,
+        daily_rank,
+        is_public,
+        is_draft,
+        icon_url,
+        cover_url,
+        created_at,
         profiles:author_id (
           username,
           avatar_url

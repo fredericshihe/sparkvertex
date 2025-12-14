@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState, useRef, useLayoutEffect } from 'react';
+import { useEffect, useState, useRef, useLayoutEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Item } from '@/types/supabase';
 import ProjectCard from '@/components/ProjectCard';
+import CardSkeleton from '@/components/CardSkeleton';
 import { useModal } from '@/context/ModalContext';
 import { exploreCache, itemDetailsCache } from '@/lib/cache';
-import { getLightPreviewContent } from '@/lib/preview';
 import { useLanguage } from '@/context/LanguageContext';
 import { translations } from '@/lib/i18n/translations';
 import { KNOWN_CATEGORIES } from '@/lib/categories';
@@ -124,10 +124,26 @@ export default function ExploreClient({ initialItems, initialCategories, initial
     const rangeStart = pageIndex === 0 ? 0 : (pageIndex * ITEMS_PER_PAGE) + 1;
     const rangeEnd = rangeStart + fetchLimit - 1;
 
+    // 只查询必要字段，不传输 content 以大幅提升加载速度
     let query = supabase
       .from('items')
       .select(`
-        *,
+        id,
+        title,
+        description,
+        author_id,
+        category,
+        tags,
+        views,
+        page_views,
+        likes,
+        total_score,
+        daily_rank,
+        is_public,
+        is_draft,
+        icon_url,
+        cover_url,
+        created_at,
         profiles:author_id (
           username,
           avatar_url
@@ -500,23 +516,26 @@ export default function ExploreClient({ initialItems, initialCategories, initial
                        </div>
                     </div>
 
-                    {/* Right: Preview Visual */}
+                    {/* Right: Preview Visual - 使用静态封面图 */}
                     <div className="w-1/2 md:w-[45%] relative bg-black/20 border-l border-white/5 overflow-hidden group-hover:bg-black/30 transition-colors">
-                       <div className="absolute inset-0 flex items-center justify-center bg-transparent">
-                          {topItems[0]?.content ? (
-                            <iframe 
-                                srcDoc={getLightPreviewContent(topItems[0]?.content)} 
-                                className="w-[200%] h-[200%] border-0 transform scale-50 origin-center pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity bg-slate-900" 
-                                tabIndex={-1}
-                                scrolling="no"
-                                sandbox="allow-same-origin"
-                                allow="autoplay 'none'; camera 'none'; microphone 'none'"
-                                title="Featured App Preview"
+                       <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
+                          {/* 静态封面图片 - 极速加载 */}
+                          {(topItems[0]?.cover_url || topItems[0]?.icon_url) ? (
+                            <img 
+                              src={topItems[0]?.cover_url || topItems[0]?.icon_url}
+                              alt={topItems[0]?.title}
+                              className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                              loading="eager"
                             />
                           ) : (
-                            <div className="flex flex-col items-center justify-center text-slate-600">
-                                <i className="fa-solid fa-image text-4xl mb-2"></i>
-                                <span className="text-xs">No Preview</span>
+                            // 无封面时显示渐变背景 + 分类图标
+                            <div 
+                              className="absolute inset-0 flex items-center justify-center"
+                              style={{
+                                background: `linear-gradient(135deg, hsl(${(topItems[0]?.id?.charCodeAt(0) || 0) % 360}, 40%, 25%), hsl(${((topItems[0]?.id?.charCodeAt(0) || 0) + 40) % 360}, 50%, 15%))`
+                              }}
+                            >
+                              <i className={`fa-solid ${KNOWN_CATEGORIES[topItems[0]?.category || '']?.icon || 'fa-code'} text-6xl text-white/20`}></i>
                             </div>
                           )}
                            {/* Overlay for click */}
@@ -540,6 +559,11 @@ export default function ExploreClient({ initialItems, initialCategories, initial
               <h3 className="text-lg font-bold text-white mb-2">{t.explore.no_apps}</h3>
               <p>{t.explore.no_apps_desc}</p>
             </div>
+          ) : loading ? (
+            // 骨架屏 - 秒开体验
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+              <CardSkeleton count={8} />
+            </div>
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
               {items.map(item => (
@@ -552,12 +576,6 @@ export default function ExploreClient({ initialItems, initialCategories, initial
                   onHover={prefetchItem}
                 />
               ))}
-            </div>
-          )}
-
-          {loading && (
-            <div className="flex justify-center py-20">
-              <div className="w-10 h-10 border-4 border-slate-800 border-t-brand-500 rounded-full animate-spin"></div>
             </div>
           )}
 
