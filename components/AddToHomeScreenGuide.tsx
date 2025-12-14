@@ -18,6 +18,15 @@ export default function AddToHomeScreenGuide({ isActive = true }: AddToHomeScree
       return;
     }
 
+    const ua = navigator.userAgent.toLowerCase();
+    
+    // 在微信浏览器中不显示添加主屏幕引导（因为需要先跳转到系统浏览器）
+    const isWeChatBrowser = ua.includes('micromessenger') || ua.includes('wxwork');
+    if (isWeChatBrowser) {
+      setShowGuide(false);
+      return;
+    }
+
     // Check if running in standalone mode
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     
