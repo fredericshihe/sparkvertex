@@ -27,8 +27,8 @@ export default async function ExplorePage() {
 
   // 并行执行所有数据库查询，大幅提升加载速度
   const [tagCountsResult, totalCountResult, itemsResult] = await Promise.all([
-    // 1. 获取分类统计
-    supabase.rpc('get_tag_counts').catch(() => ({ data: null, error: true })),
+    // 1. 获取分类统计 - 使用 Promise.resolve 包装以支持 .catch
+    Promise.resolve(supabase.rpc('get_tag_counts')).catch(() => ({ data: null, error: { message: 'RPC failed' } })),
     // 2. 获取总数
     supabase.from('items').select('*', { count: 'exact', head: true }).eq('is_public', true),
     // 3. 获取作品列表
