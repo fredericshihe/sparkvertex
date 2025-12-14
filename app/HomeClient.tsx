@@ -44,7 +44,10 @@ export default function HomeClient() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col relative bg-black">
+    <div className="min-h-screen flex flex-col relative">
+      {/* Fixed background - ensures full coverage on all devices */}
+      <div className="fixed inset-0 bg-black -z-20" />
+      
       {/* Global Fixed Background */}
       <div 
         className={`fixed inset-0 z-0 pointer-events-none transition-opacity duration-[2000ms] ease-in-out ${

@@ -3,10 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 import ExploreClient from './ExploreClient';
 import { Item } from '@/types/supabase';
 import { KNOWN_CATEGORIES, CORE_CATEGORY_KEYS } from '@/lib/categories';
-import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
-
-const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
 
 // export const runtime = 'edge'; // 使用边缘运行时，降低延迟
 export const revalidate = 300;  // ISR: 缓存 5 分钟，减少重复查询
@@ -119,8 +116,10 @@ export default async function ExplorePage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 relative">
-      <div className="relative z-10">
+    <div className="min-h-[100dvh] h-[100dvh] bg-zinc-950 relative overflow-hidden">
+      {/* Fixed background to prevent edge visibility on scroll */}
+      <div className="fixed inset-0 bg-zinc-950 -z-10" />
+      <div className="relative z-10 h-full">
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-slate-600 border-t-brand-500 rounded-full animate-spin" /></div>}>
           <ExploreClient 
             initialItems={initialItems} 

@@ -1,6 +1,9 @@
 export default function Loading() {
   return (
-    <div className="flex h-[100dvh] pt-20 md:pt-16 bg-zinc-950 overflow-hidden">
+    <div className="flex h-[100dvh] pt-20 md:pt-16 overflow-hidden relative">
+      {/* Fixed background to prevent edge visibility */}
+      <div className="fixed inset-0 bg-zinc-950 -z-10" />
+      
       {/* Sidebar Skeleton */}
       <aside className="w-64 flex-shrink-0 border-r border-white/5 bg-zinc-900/30 backdrop-blur-xl hidden md:flex flex-col">
         <div className="p-6">
@@ -17,7 +20,7 @@ export default function Loading() {
       </aside>
 
       {/* Main Content Skeleton */}
-      <div className="flex-1 flex flex-col min-w-0 bg-zinc-950 relative">
+      <div className="flex-1 flex flex-col min-w-0 relative">
         {/* Mobile header skeleton */}
         <div className="md:hidden z-30 bg-black/80 border-b border-white/10 px-3 py-2 flex items-center gap-2 flex-shrink-0">
           <div className="h-8 w-8 bg-slate-800 rounded-lg"></div>

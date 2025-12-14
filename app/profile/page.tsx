@@ -8,8 +8,6 @@ import { exploreCache } from '@/lib/cache';
 import ProjectCard from '@/components/ProjectCard';
 import { useLanguage } from '@/context/LanguageContext';
 import BackendDataPanel from '@/components/BackendDataPanel';
-import Galaxy from '@/components/Galaxy';
-
 import { useRouter } from 'next/navigation';
 
 export default function Profile() {
@@ -309,7 +307,10 @@ export default function Profile() {
   });
 
   return (
-    <div className="min-h-screen bg-black text-white pt-24 pb-32 md:pb-20">
+    <div className="min-h-screen text-white pt-24 pb-32 md:pb-20 relative">
+      {/* Fixed background - ensures full coverage on all devices */}
+      <div className="fixed inset-0 bg-black -z-10" />
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Profile Header */}
         <div className="flex flex-col md:flex-row items-start gap-8 mb-12">

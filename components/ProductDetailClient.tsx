@@ -373,7 +373,10 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   };
 
   return (
-    <div className={`h-[100dvh] bg-slate-900 flex flex-col overflow-hidden ${viewMode === 'app' ? 'pt-0' : 'pt-16'}`}>
+    <div className={`h-[100dvh] flex flex-col overflow-hidden relative ${viewMode === 'app' ? 'pt-0' : 'pt-16'}`}>
+      {/* Fixed background - ensures full coverage on all devices */}
+      <div className="fixed inset-0 bg-slate-900 -z-10" />
+      
       {/* Content */}
       <div className="flex-grow flex flex-col md:flex-row overflow-hidden relative w-full">
         {/* Preview Area / App Mode Container */}

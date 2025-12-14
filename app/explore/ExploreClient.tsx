@@ -303,7 +303,10 @@ export default function ExploreClient({ initialItems, initialCategories, initial
   };
 
   return (
-    <div className="flex h-[100dvh] pt-20 md:pt-16 bg-transparent overflow-hidden">
+    <div className="flex h-[100dvh] pt-20 md:pt-16 overflow-hidden relative">
+      {/* Fixed background - ensures full coverage on all devices */}
+      <div className="fixed inset-0 bg-zinc-950 -z-10" />
+      
       {/* Sidebar Navigation */}
       <aside className="w-64 flex-shrink-0 border-r border-white/10 bg-black/20 backdrop-blur-xl hidden md:flex flex-col">
         <div className="p-6">

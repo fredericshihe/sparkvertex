@@ -1889,7 +1889,10 @@ function UploadContent() {
   };
 
   return (
-    <div className="min-h-screen bg-black pt-24 px-4 pb-32 md:pb-20">
+    <div className="min-h-screen pt-24 px-4 pb-32 md:pb-20 relative">
+      {/* Fixed background - ensures full coverage on all devices */}
+      <div className="fixed inset-0 bg-black -z-10" />
+      
       <div className="max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold text-white mb-8 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
