@@ -503,7 +503,8 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
         }
       });
 
-      // Intercept Link Clicks to prevent navigation to homepage or internal pages
+      // Intercept Link Clicks to prevent navigation to homepage
+      // Use Bubble phase (false) to allow React/other frameworks to handle events first
       document.addEventListener('click', function(e) {
         var target = e.target;
         while (target && target.tagName !== 'A') {
@@ -511,36 +512,50 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
         }
         
         if (target && target.tagName === 'A') {
+          // 1. Respect existing event handlers (e.g. React Router)
+          // If a framework already handled it (called preventDefault), we don't interfere
+          if (e.defaultPrevented) return;
+          
+          // 2. Allow links that open in new tab
+          if (target.getAttribute('target') === '_blank') return;
+
           var href = target.getAttribute('href');
           
-          // 1. Prevent navigation for empty links, # links, or root links
-          if (!href || href === '#' || href === '') {
-            e.preventDefault();
-            // Optional: If it's a hash link, we might want to scroll (if it's not just #)
-            if (href && href.startsWith('#') && href.length > 1) {
+          // 3. Allow javascript: links
+          if (href && href.startsWith('javascript:')) return;
+
+          // 4. Allow hash links (internal anchors)
+          if (href && href.startsWith('#')) {
+             // Optional: smooth scroll logic
+             if (href.length > 1) {
                 var id = href.substring(1);
                 var el = document.getElementById(id);
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-            }
-            return;
+                if (el) {
+                    e.preventDefault();
+                    el.scrollIntoView({ behavior: 'smooth' });
+                }
+             }
+             return;
           }
-
-          // 2. Prevent navigation to internal platform pages (starts with /)
-          // This fixes the issue where clicking a button navigates the iframe to /create or other platform pages
-          if (href.startsWith('/')) {
-            e.preventDefault();
-            console.log('[Spark] Prevented internal navigation to:', href);
-            // Show a toast or alert to the user?
-            // For now, just log it. The user might have generated a link to "/login" or similar.
-            return;
-          }
-
-          // 3. Force external links to open in new tab
-          if (href.startsWith('http://') || href.startsWith('https://')) {
+          
+          // 5. Handle external links (http/https) -> Force new tab
+          if (href && (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//'))) {
              target.setAttribute('target', '_blank');
+             return;
           }
+          
+          // 6. Handle mailto/tel -> Allow
+          if (href && (href.startsWith('mailto:') || href.startsWith('tel:'))) {
+             return;
+          }
+
+          // 7. Block all other navigation (relative paths, root, etc.)
+          // This prevents the iframe from navigating to the parent platform's pages (e.g. /create, /explore)
+          // which would break the preview experience
+          e.preventDefault();
+          console.warn('[Spark] Prevented navigation to:', href);
         }
-      }, true);
+      }, false);
       
       console.log('[Spark] Initialized with APP_ID:', window.SPARK_APP_ID, 'USER_ID:', window.SPARK_USER_ID);
     })();
