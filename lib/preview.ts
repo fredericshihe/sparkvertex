@@ -503,7 +503,7 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
         }
       });
 
-      // Intercept Link Clicks to prevent navigation to homepage
+      // Intercept Link Clicks to prevent navigation to homepage or internal pages
       document.addEventListener('click', function(e) {
         var target = e.target;
         while (target && target.tagName !== 'A') {
@@ -513,11 +513,9 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
         if (target && target.tagName === 'A') {
           var href = target.getAttribute('href');
           
-          // Prevent navigation for empty links, # links, or root links
-          if (!href || href === '#' || href === '/' || href === '') {
+          // 1. Prevent navigation for empty links, # links, or root links
+          if (!href || href === '#' || href === '') {
             e.preventDefault();
-            console.log('[Spark] Prevented navigation to:', href);
-            
             // Optional: If it's a hash link, we might want to scroll (if it's not just #)
             if (href && href.startsWith('#') && href.length > 1) {
                 var id = href.substring(1);
@@ -525,6 +523,21 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
             }
             return;
+          }
+
+          // 2. Prevent navigation to internal platform pages (starts with /)
+          // This fixes the issue where clicking a button navigates the iframe to /create or other platform pages
+          if (href.startsWith('/')) {
+            e.preventDefault();
+            console.log('[Spark] Prevented internal navigation to:', href);
+            // Show a toast or alert to the user?
+            // For now, just log it. The user might have generated a link to "/login" or similar.
+            return;
+          }
+
+          // 3. Force external links to open in new tab
+          if (href.startsWith('http://') || href.startsWith('https://')) {
+             target.setAttribute('target', '_blank');
           }
         }
       }, true);
