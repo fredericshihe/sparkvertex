@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useLanguage } from '@/context/LanguageContext';
 
-export default function WeChatGuard() {
+function WeChatGuardContent() {
   const [isWeChat, setIsWeChat] = useState(false);
   const { t } = useLanguage();
   const pathname = usePathname();
@@ -112,5 +112,14 @@ export default function WeChatGuard() {
         </div>
       </div>
     </div>
+  );
+}
+
+// 导出包装后的组件，使用 Suspense 避免静态生成错误
+export default function WeChatGuard() {
+  return (
+    <Suspense fallback={null}>
+      <WeChatGuardContent />
+    </Suspense>
   );
 }
