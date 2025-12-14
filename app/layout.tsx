@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { Suspense } from 'react';
-import Script from 'next/script';
 
 // 使用系统字体替代 Google Fonts，避免国内访问问题
 const systemFontClass = 'font-sans';
@@ -53,33 +51,16 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <head>
+        {/* PWA 标准 meta 标签 */}
+        <meta name="mobile-web-app-capable" content="yes" />
+        {/* Font Awesome 本地自托管 - 避免 CDN 依赖，确保国内秒加载 */}
+        <link rel="stylesheet" href="/fontawesome/css/all.min.css" />
         {/* DNS Prefetch & Preconnect for critical domains */}
         <link rel="dns-prefetch" href="https://waesizzoqodntrlvrwhw.supabase.co" />
         <link rel="preconnect" href="https://waesizzoqodntrlvrwhw.supabase.co" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://cdn.bootcdn.net" />
-        <link rel="preconnect" href="https://cdn.bootcdn.net" crossOrigin="anonymous" />
         <link rel="icon" href="/logo.png" />
       </head>
       <body className={systemFontClass}>
-        {/* Font Awesome 优化加载 - 添加 font-display: swap 防止 FOIT */}
-        <Script
-          id="font-awesome-loader"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              // 1. 先注入 font-display: swap 规则，防止字体加载时图标不可见
-              var style = document.createElement('style');
-              style.textContent = '@font-face { font-family: "Font Awesome 6 Free"; font-display: swap; } @font-face { font-family: "Font Awesome 6 Brands"; font-display: swap; }';
-              document.head.appendChild(style);
-              
-              // 2. 加载 Font Awesome CSS
-              var link = document.createElement('link');
-              link.rel = 'stylesheet';
-              link.href = 'https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css';
-              document.head.appendChild(link);
-            `
-          }}
-        />
         <StorageManager />
         <ServiceWorkerRegister />
         <LanguageProvider>

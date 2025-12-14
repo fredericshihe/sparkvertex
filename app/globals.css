@@ -40,23 +40,6 @@ body {
     --sal: env(safe-area-inset-left);
 }
 
-/* Font Awesome 图标占位符 - 字体加载前显示骨架 */
-.fa-solid::before,
-.fa-regular::before,
-.fa-brands::before {
-    display: inline-block;
-    min-width: 1em;
-}
-
-/* 如果字体未加载，显示空白占位而不是乱码 */
-@supports (font-variation-settings: normal) {
-    .fa-solid:not(:empty)::before,
-    .fa-regular:not(:empty)::before,
-    .fa-brands:not(:empty)::before {
-        visibility: visible;
-    }
-}
-
 /* Safe Area Utilities */
 .pt-safe { padding-top: var(--sat); }
 .pb-safe { padding-bottom: var(--sab); }
