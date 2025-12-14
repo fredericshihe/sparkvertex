@@ -1,38 +1,34 @@
 'use client';
 
-import { useEffect, useState, memo } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import Hero from '@/components/Hero';
 
-// 懒加载非首屏组件 - 减少首屏 JS 体积
+// 延迟加载非首屏组件
 const FeatureCreation = dynamic(() => import('@/components/landing/FeatureCreation'), {
   ssr: false,
-  loading: () => <div className="py-20 min-h-[600px]" />
+  loading: () => <div className="h-[600px] bg-transparent" />
 });
+
 const FeatureBackend = dynamic(() => import('@/components/landing/FeatureBackend'), {
   ssr: false,
-  loading: () => <div className="py-20 min-h-[500px]" />
+  loading: () => <div className="h-[500px] bg-transparent" />
 });
+
 const CTASection = dynamic(() => import('@/components/landing/CTASection'), {
   ssr: false,
-  loading: () => <div className="py-20 min-h-[300px]" />
+  loading: () => <div className="h-[300px] bg-transparent" />
 });
 
-// Galaxy 背景懒加载
 const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
 
-interface HomeClientProps {
-  // No props needed anymore
-}
-
-function HomeClient() {
+export default function HomeClient() {
   const [mounted, setMounted] = useState(false);
   const [showGalaxy, setShowGalaxy] = useState(false);
   const [showBelowFold, setShowBelowFold] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    // 立即标记 mounted 以快速显示首屏
     setMounted(true);
     
     const checkMobile = () => {
@@ -41,25 +37,39 @@ function HomeClient() {
     checkMobile();
     window.addEventListener('resize', checkMobile);
     
-    // 首屏渲染完成后，延迟加载 Galaxy 和非首屏内容
-    // 使用 requestAnimationFrame 确保首屏已绘制
-    requestAnimationFrame(() => {
-      // 非首屏内容在下一帧加载
+    // 延迟加载 Galaxy 背景
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(() => {
+        setShowGalaxy(true);
+      }, { timeout: 2000 });
+    } else {
+      setTimeout(() => {
+        setShowGalaxy(true);
+      }, 500);
+    }
+
+    // 延迟加载首屏以下内容（用户滚动或 1 秒后自动加载）
+    const loadBelowFold = () => {
       setShowBelowFold(true);
-      
-      // Galaxy 在空闲时加载
-      if ('requestIdleCallback' in window) {
-        (window as any).requestIdleCallback(() => {
-          setShowGalaxy(true);
-        }, { timeout: 1500 });
-      } else {
-        setTimeout(() => {
-          setShowGalaxy(true);
-        }, 300);
+      window.removeEventListener('scroll', handleScroll);
+    };
+
+    const handleScroll = () => {
+      if (window.scrollY > 100) {
+        loadBelowFold();
       }
-    });
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
     
-    return () => window.removeEventListener('resize', checkMobile);
+    // 1秒后自动加载，确保用户不滚动也能看到内容
+    const timer = setTimeout(loadBelowFold, 1000);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('scroll', handleScroll);
+      clearTimeout(timer);
+    };
   }, []);
 
   return (
@@ -86,7 +96,6 @@ function HomeClient() {
       {/* Scrollable Content */}
       <div className="relative z-10">
         <Hero />
-        {/* 非首屏内容延迟加载 */}
         {showBelowFold && (
           <>
             <FeatureCreation />
@@ -98,6 +107,3 @@ function HomeClient() {
     </div>
   );
 }
-
-// 使用 memo 避免不必要的重渲染
-export default memo(HomeClient);

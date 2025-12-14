@@ -57,6 +57,10 @@ export default function RootLayout({
         <link rel="preconnect" href="https://waesizzoqodntrlvrwhw.supabase.co" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://cdn.bootcdn.net" />
         <link rel="preconnect" href="https://cdn.bootcdn.net" crossOrigin="anonymous" />
+        
+        {/* 预加载关键资源 */}
+        <link rel="preload" href="/logo.png" as="image" />
+        
         {/* 使用 BootCDN 加载 Font Awesome（国内访问稳定） */}
         <link 
           rel="stylesheet" 

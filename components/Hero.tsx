@@ -2,14 +2,18 @@
 
 import { useEffect, useState, memo } from 'react';
 import Link from 'next/link';
+import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
 
-function Hero() {
+interface HeroProps {
+  // No props needed
+}
+
+function Hero({}: HeroProps) {
   const { t, language } = useLanguage();
   const [typingText, setTypingText] = useState('');
   const [mounted, setMounted] = useState(false);
 
-  // 立即显示首屏，打字效果延迟启动
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -128,6 +132,4 @@ function Hero() {
     </div>
   );
 }
-
-// 使用 memo 优化，避免父组件更新导致重渲染
 export default memo(Hero);
