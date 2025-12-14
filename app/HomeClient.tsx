@@ -13,6 +13,12 @@ const Galaxy = dynamic(() => import('@/components/Galaxy'), {
   loading: () => null // 不显示加载占位符，让背景直接显示黑色
 });
 
+// 预加载创作页面的关键模块
+const preloadCreatePageModules = () => {
+  // 预加载 CreateClient 和其关键依赖
+  import('@/app/create/CreateClient');
+};
+
 interface HomeClientProps {
   // No props needed anymore
 }
@@ -33,6 +39,14 @@ export default function HomeClient() {
     requestAnimationFrame(() => {
       setShowGalaxy(true);
     });
+    
+    // 在空闲时预加载创作页面模块
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(preloadCreatePageModules, { timeout: 3000 });
+    } else {
+      // 移动端兼容：2秒后预加载
+      setTimeout(preloadCreatePageModules, 2000);
+    }
     
     return () => window.removeEventListener('resize', checkMobile);
   }, []);

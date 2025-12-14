@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -10,8 +11,16 @@ interface HeroProps {
 }
 
 export default function Hero({}: HeroProps) {
+  const router = useRouter();
   const { t, language } = useLanguage();
   const [typingText, setTypingText] = useState('');
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  
+  // 预加载创作页面
+  useEffect(() => {
+    router.prefetch('/create');
+  }, [router]);
 
   useEffect(() => {
     const texts = t.home.typing_texts;
@@ -80,14 +89,28 @@ export default function Hero({}: HeroProps) {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-          <Link 
-            href="/create"
-            prefetch={true}
-            className="px-8 py-4 rounded-full bg-white text-black font-bold text-lg hover:bg-slate-200 transition-all hover:scale-105 shadow-[0_0_20px_rgba(255,255,255,0.3)] flex items-center gap-2"
+          <button
+            onClick={() => {
+              setIsNavigating(true);
+              startTransition(() => {
+                router.push('/create');
+              });
+            }}
+            disabled={isNavigating || isPending}
+            className="px-8 py-4 rounded-full bg-white text-black font-bold text-lg hover:bg-slate-200 transition-all hover:scale-105 shadow-[0_0_20px_rgba(255,255,255,0.3)] flex items-center gap-2 disabled:opacity-80"
           >
-            <i className="fa-solid fa-wand-magic-sparkles"></i>
-            {t.home.hero_create_cta || t.nav.create}
-          </Link>
+            {(isNavigating || isPending) ? (
+              <>
+                <i className="fa-solid fa-circle-notch fa-spin"></i>
+                {language === 'zh' ? '进入中...' : 'Loading...'}
+              </>
+            ) : (
+              <>
+                <i className="fa-solid fa-wand-magic-sparkles"></i>
+                {t.home.hero_create_cta || t.nav.create}
+              </>
+            )}
+          </button>
         </div>
 
         {/* Use Cases Tags */}
