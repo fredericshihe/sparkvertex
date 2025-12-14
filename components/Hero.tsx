@@ -11,15 +11,14 @@ interface HeroProps {
 
 export default function Hero({}: HeroProps) {
   const { t, language } = useLanguage();
-  // 立即显示第一段文字，不需要等待
-  const [typingText, setTypingText] = useState(() => t.home.typing_texts?.[0] || '');
+  const [typingText, setTypingText] = useState('');
 
   useEffect(() => {
     const texts = t.home.typing_texts;
     if (!texts || texts.length === 0) return;
     
     let count = 0;
-    let index = texts[0].length; // 从第一段文字的末尾开始
+    let index = 0;
     let timeoutId: NodeJS.Timeout;
 
     const type = () => {
@@ -27,8 +26,9 @@ export default function Hero({}: HeroProps) {
       
       if (index < currentText.length) {
         // 正在打字
-        setTypingText(currentText.slice(0, ++index));
-        timeoutId = setTimeout(type, 100);
+        index++;
+        setTypingText(currentText.slice(0, index));
+        timeoutId = setTimeout(type, 80); // 加快打字速度
       } else {
         // 当前文字打完，等待后切换下一段
         count = (count + 1) % texts.length;
@@ -37,8 +37,8 @@ export default function Hero({}: HeroProps) {
       }
     };
 
-    // 等待 2 秒后开始切换到下一段
-    timeoutId = setTimeout(type, 2000);
+    // 立即开始打字，无延迟
+    type();
     
     return () => {
       clearTimeout(timeoutId);

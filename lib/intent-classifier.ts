@@ -637,7 +637,7 @@ export async function classifyIntentWithDeepSeek(
           source: 'deepseek', // 标记为 deepseek 因为结果来自之前的 DeepSeek 调用
           targets: cachedResult.targetFiles,
           referenceTargets: cachedResult.referenceFiles,
-          reasoning: '(cached result)'
+          reasoning: cachedResult.reasoning || '智能匹配历史分析结果'
       };
   }
 
