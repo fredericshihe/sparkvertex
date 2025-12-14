@@ -482,6 +482,13 @@ function CreateContent() {
       const container = previewContainerRef.current;
       const { width: containerW, height: containerH } = container.getBoundingClientRect();
       
+      // 🔧 Safety check: Skip calculation if container dimensions are invalid
+      // This can happen during layout transitions or when container is not yet rendered
+      if (containerW < 100 || containerH < 100) {
+        console.log('[PreviewScale] Container too small, skipping:', { containerW, containerH });
+        return; // Keep previous scale value
+      }
+      
       // Target dimensions based on mode
       const targetW = previewMode === 'mobile' ? 375 : 768;
       const targetH = previewMode === 'mobile' ? 812 : 1024;
@@ -493,13 +500,21 @@ function CreateContent() {
       const scaleW = availableW / targetW;
       const scaleH = availableH / targetH;
       
-      const newScale = Math.min(scaleW, scaleH, 1);
-      setPreviewScale(newScale);
+      // 🔧 Ensure scale is positive and within reasonable bounds (0.3 to 1)
+      const rawScale = Math.min(scaleW, scaleH, 1);
+      const newScale = Math.max(0.3, Math.min(rawScale, 1));
+      
+      // 🔧 Only update if the new scale is valid
+      if (isFinite(newScale) && newScale > 0) {
+        setPreviewScale(newScale);
+      }
     };
 
     window.addEventListener('resize', updateScale);
     updateScale();
     setTimeout(updateScale, 100);
+    // 🔧 Add additional delayed update to handle slow layout transitions
+    setTimeout(updateScale, 300);
 
     return () => window.removeEventListener('resize', updateScale);
   }, [step, previewMode, isFullscreen]);

@@ -391,7 +391,8 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                 : ''}
             `}
             style={{
-              transform: (previewMode !== 'desktop') ? `scale(${previewScale})` : 'none'
+              // 🔧 Ensure scale is always valid (between 0.3 and 1) to prevent visual glitches
+              transform: (previewMode !== 'desktop') ? `scale(${Math.max(0.3, Math.min(previewScale || 1, 1))})` : 'none'
             }}
           >
              {(previewMode === 'mobile' && !isFullscreen) && (
