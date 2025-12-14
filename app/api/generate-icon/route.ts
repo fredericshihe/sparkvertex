@@ -373,6 +373,13 @@ Output ONLY the generated prompt string. Do not include any other text.`
         }
 
         const data = await response.json();
+        
+        // Check if API returned an error even with 200 status
+        if (data.code && data.code !== 0) {
+          debugInfo.trace.push(`SiliconFlow (Edge): API Error (code: ${data.code}, message: ${data.message})`);
+          throw new Error(`SiliconFlow API Error: ${data.message || 'Unknown error'} (code: ${data.code})`);
+        }
+        
         const imageUrl = data.images?.[0]?.url;
 
         if (imageUrl) {
@@ -390,7 +397,8 @@ Output ONLY the generated prompt string. Do not include any other text.`
             debug: debugInfo
           });
         } else {
-            debugInfo.trace.push('SiliconFlow (Edge): No Image URL');
+            debugInfo.trace.push('SiliconFlow (Edge): No Image URL in response');
+            throw new Error('No image URL returned from SiliconFlow');
         }
       } catch (err: any) {
         console.error('SiliconFlow (Edge) failed, falling back...', err);
