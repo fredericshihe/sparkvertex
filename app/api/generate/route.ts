@@ -6,6 +6,7 @@ import { getRAGContext } from '@/lib/rag';
 import { findRelevantCodeChunks, compressCode, chunkCode, generateArchitectureSummary } from '@/lib/code-rag';
 import { logRAGRequest, detectQueryLanguage, type RAGLogEntry } from '@/lib/rag-logger';
 import { classifyUserIntent, UserIntent, generateFileSummary } from '@/lib/intent-classifier';
+import { getCacheStats, logCacheStats } from '@/lib/prompt-cache';
 
 // 使用 Node.js Runtime 以支持更长的超时设置
 export const runtime = 'nodejs';
@@ -672,6 +673,9 @@ async function handleJSONRequest(request: Request) {
         
         ragSummary = `识别意图：${intentCn}\n分析结果：已定位 ${chunksSelected} 个核心模块，上下文优化 ${compressionRate}%`;
     }
+
+    // 🚀 输出缓存统计信息
+    logCacheStats();
 
     return NextResponse.json({ 
         taskId: task.id, 

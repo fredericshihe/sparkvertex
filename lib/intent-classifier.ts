@@ -3,6 +3,8 @@
  * 在执行繁重的向量搜索之前，先快速判断用户想干什么
  */
 
+import { getSystemPromptCache, logCacheStats } from './prompt-cache';
+
 export enum UserIntent {
   UI_MODIFICATION = 'UI_MODIFICATION',    // 改颜色、布局、样式
   LOGIC_FIX = 'LOGIC_FIX',                // 改 Bug、业务逻辑
@@ -690,6 +692,16 @@ Analyze the user's request and the file tree to determine:
 - **CONFIG_HELP**: Environment, build, deployment issues
 - **PERFORMANCE**: Speed, caching, optimization
 - **REFACTOR**: Code cleanup, restructuring`;
+
+  // 🚀 L1 缓存：系统提示词缓存
+  // 只缓存静态部分，contextSection 是动态的
+  const staticSystemPromptPart = systemPrompt.split(contextSection)[0] || systemPrompt;
+  const l1Cache = getSystemPromptCache('intent_classifier', staticSystemPromptPart);
+  const cacheHit = l1Cache.hitCount > 1;
+  
+  if (cacheHit) {
+    console.log(`[IntentClassifier] 🚀 L1 Cache hit! Saved ~${l1Cache.tokenCount} tokens`);
+  }
 
   const userPrompt = `User Request: "${processedQuery}"
 

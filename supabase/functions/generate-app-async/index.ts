@@ -369,13 +369,20 @@ serve(async (req) => {
                                       const usage = data.usage_metadata;
                                       const cachedTokens = usage.cached_content_token_count || 0;
                                       const totalPromptTokens = usage.prompt_token_count || 0;
+                                      const completionTokens = usage.candidates_token_count || 0;
                                       const cacheHitRate = totalPromptTokens > 0 ? (cachedTokens / totalPromptTokens * 100).toFixed(1) : '0';
                                       
                                       console.log(`🚀 Implicit Cache Stats: ${cachedTokens}/${totalPromptTokens} tokens cached (${cacheHitRate}% hit rate)`);
+                                      console.log(`📊 Token Usage: Input=${totalPromptTokens}, Output=${completionTokens}, Cached=${cachedTokens}`);
                                       
                                       // 如果缓存命中率>80%，说明隐式缓存工作良好
                                       if (cachedTokens > 0) {
-                                          console.log(`✅ Cache hit! Saved ${cachedTokens} tokens (~${(cachedTokens * 0.0001).toFixed(2)} credits)`);
+                                          // 计算节省的费用（Gemini 缓存 token 价格为正常价格的 25%）
+                                          const savedCost = (cachedTokens * 0.75 * 0.0001).toFixed(4);
+                                          console.log(`✅ Cache hit! Saved ${cachedTokens} tokens (~$${savedCost})`);
+                                      } else if (totalPromptTokens > 2000) {
+                                          // 大于 2000 tokens 但没有缓存命中，提示可能的优化机会
+                                          console.log(`⚠️ No cache hit with ${totalPromptTokens} input tokens. Consider optimizing prompt structure.`);
                                       }
                                   }
                               } catch (e) {
