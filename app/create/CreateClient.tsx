@@ -1684,6 +1684,14 @@ ${description}
       const handleTaskUpdate = async (newTask: any) => {
         if (isFinished) return;
         
+        // 🔧 FIX: Set isFinished immediately for 'completed' status to prevent race conditions
+        // This prevents duplicate processing when both broadcast and postgres_changes fire
+        if (newTask.status === 'completed' || newTask.status === 'failed') {
+            if (isFinished) return; // Double check after potential async gap
+            isFinished = true;
+            console.log('[handleTaskUpdate] 🎯 Task status:', newTask.status, '- marked as finished');
+        }
+        
         // Clear slow connection timer if we get any update
         clearTimeout(slowConnectionTimer);
 
@@ -1779,8 +1787,7 @@ ${description}
         }
         
         if (newTask.status === 'completed') {
-            console.log('[handleTaskUpdate] 🎯 Task status is completed, processing...');
-            isFinished = true;
+            // isFinished already set at the beginning of handleTaskUpdate for race condition prevention
             
             // Capture cost from DB update if available (in case broadcast was missed)
             if (newTask.cost !== undefined && newTask.cost !== null) {
@@ -2446,7 +2453,7 @@ ${description}
             setWorkflowStage('completed'); // 🆕 完成工作流
             setCurrentTaskId(null); // Clear task ID
         } else if (newTask.status === 'failed') {
-            isFinished = true;
+            // isFinished already set at the beginning of handleTaskUpdate for race condition prevention
             if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
             if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
             if (timeoutTimerRef.current) clearTimeout(timeoutTimerRef.current);
