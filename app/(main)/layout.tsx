@@ -53,8 +53,6 @@ export default function MainLayout({
       <head>
         {/* PWA 标准 meta 标签 */}
         <meta name="mobile-web-app-capable" content="yes" />
-        {/* 显式暴露 manifest，确保浏览器能发现图标 */}
-        <link rel="manifest" href="/manifest.json" />
         {/* Preload critical font to avoid "preloaded but not used" warning and improve loading speed */}
         <link rel="preload" href="/fontawesome/webfonts/fa-solid-900.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         {/* Font Awesome 本地自托管 - 避免 CDN 依赖，确保国内秒加载 */}
