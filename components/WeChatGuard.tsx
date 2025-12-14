@@ -1,39 +1,52 @@
 'use client';
 
-import { useEffect, useState, Suspense, useRef } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useLanguage } from '@/context/LanguageContext';
 
+// 全局变量保持微信检测状态，避免组件重新挂载时丢失
+let globalWeChatDetected: boolean | null = null;
+let globalIsIOS = false;
+
 function WeChatGuardContent() {
-  const [isWeChat, setIsWeChat] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const hasChecked = useRef(false);
+  // 初始化时使用全局状态
+  const [isWeChat, setIsWeChat] = useState(() => globalWeChatDetected === true);
+  const [isIOS, setIsIOS] = useState(() => globalIsIOS);
   const { t } = useLanguage();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    // 只检测一次，避免状态重置
-    if (hasChecked.current) return;
+    // 如果已经检测过，直接使用缓存的结果
+    if (globalWeChatDetected !== null) {
+      setIsWeChat(globalWeChatDetected);
+      setIsIOS(globalIsIOS);
+      if (globalWeChatDetected) {
+        document.body.style.overflow = 'hidden';
+      }
+      return;
+    }
     
     // 只在独立作品详情页 /p/[id] 且带有 mode=app 参数时显示微信引导
-    // 这确保只有扫码进入的链接会触发，弹窗不会触发
     const isProductPage = pathname?.startsWith('/p/');
     const isAppMode = searchParams?.get('mode') === 'app';
     
     if (!isProductPage || !isAppMode) {
+      globalWeChatDetected = false;
       return;
     }
-
-    hasChecked.current = true;
     
     const ua = navigator.userAgent.toLowerCase();
     // 检测微信内置浏览器 (MicroMessenger) 和企业微信 (wxwork)
     const isWeChatBrowser = ua.includes('micromessenger') || ua.includes('wxwork');
     
+    // 缓存检测结果到全局变量
+    globalWeChatDetected = isWeChatBrowser;
+    globalIsIOS = /iphone|ipad|ipod/i.test(ua);
+    
     if (isWeChatBrowser) {
       setIsWeChat(true);
-      setIsIOS(/iphone|ipad|ipod/i.test(ua));
+      setIsIOS(globalIsIOS);
       // Prevent scrolling when overlay is active
       document.body.style.overflow = 'hidden';
     }
