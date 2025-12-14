@@ -24,7 +24,7 @@ const CodeWaterfall = dynamic(() => import('@/components/CodeWaterfall').then(mo
 const CreationChat = dynamic(() => import('@/components/CreationChat').then(mod => mod.CreationChat), {
   loading: () => <div className="h-full w-full animate-pulse bg-slate-900/50" />
 });
-const CreationPreview = dynamic(() => import('../../components/CreationPreview').then(mod => mod.CreationPreview), {
+const CreationPreview = dynamic(() => import('@/components/CreationPreview').then(mod => mod.CreationPreview), {
   loading: () => <div className="h-full w-full animate-pulse bg-slate-900/50 flex items-center justify-center"><i className="fa-solid fa-circle-notch fa-spin text-2xl text-slate-600"></i></div>
 });
 

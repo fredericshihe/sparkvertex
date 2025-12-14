@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import '../../globals.css';
+import '../globals.css';
 
 // 使用系统字体替代 Google Fonts，避免国内访问问题
 const systemFontClass = 'font-sans';
