@@ -1,13 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useLanguage } from '@/context/LanguageContext';
 
 export default function WeChatGuard() {
   const [isWeChat, setIsWeChat] = useState(false);
   const { t } = useLanguage();
+  const pathname = usePathname();
 
   useEffect(() => {
+    // 只在作品详情页 /p/[id] 显示微信引导
+    if (!pathname?.startsWith('/p/')) {
+      return;
+    }
+
     const ua = navigator.userAgent.toLowerCase();
     // 检测微信内置浏览器 (MicroMessenger) 和企业微信 (wxwork)
     const isWeChatBrowser = ua.includes('micromessenger') || ua.includes('wxwork');
@@ -20,7 +27,7 @@ export default function WeChatGuard() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, []);
+  }, [pathname]);
 
   if (!isWeChat) return null;
 
