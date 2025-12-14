@@ -4753,8 +4753,8 @@ Please fix the code to make the app display properly.`;
   };
 
   const renderWizard = () => (
-    <div className="max-w-4xl mx-auto pt-14 md:pt-12 pb-6 md:pb-12 px-3 md:px-4 h-[100dvh] md:min-h-screen md:h-auto flex flex-col items-center justify-center overflow-hidden">
-      <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl md:rounded-3xl p-3 md:p-8 shadow-2xl animate-fade-in relative overflow-hidden w-full max-h-[calc(100dvh-80px)] md:max-h-none flex flex-col">
+    <div className="max-w-4xl mx-auto pt-14 md:pt-12 pb-6 md:pb-12 px-4 md:px-4 h-[100dvh] md:min-h-screen md:h-auto flex flex-col items-center justify-center overflow-hidden">
+      <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl md:rounded-3xl p-5 md:p-8 shadow-2xl animate-fade-in relative overflow-hidden w-full max-h-[calc(100dvh-80px)] md:max-h-none flex flex-col">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -4770,10 +4770,10 @@ Please fix the code to make the app display properly.`;
             
             return (
               <div key={s} className="relative">
-                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-bold transition-all duration-300 border-2 md:border-4 ${isActive ? 'bg-white text-black border-black/50 shadow-[0_0_15px_rgba(255,255,255,0.3)] scale-110' : 'bg-black border-white/10 text-slate-500'}`}>
+                <div className={`w-10 h-10 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm md:text-sm font-bold transition-all duration-300 border-2 md:border-4 ${isActive ? 'bg-white text-black border-black/50 shadow-[0_0_15px_rgba(255,255,255,0.3)] scale-110' : 'bg-black border-white/10 text-slate-500'}`}>
                   {i + 1}
                 </div>
-                <div className={`absolute -bottom-4 md:-bottom-6 left-1/2 -translate-x-1/2 text-[8px] md:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-colors ${isActive ? 'text-white' : 'text-slate-600'}`}>
+                <div className={`absolute -bottom-5 md:-bottom-6 left-1/2 -translate-x-1/2 text-[10px] md:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-colors ${isActive ? 'text-white' : 'text-slate-600'}`}>
                   {stepNames[s as keyof typeof stepNames]}
                 </div>
               </div>
@@ -4783,115 +4783,115 @@ Please fix the code to make the app display properly.`;
 
         <div className="relative z-10 flex-1 flex flex-col justify-center overflow-y-auto min-h-0">
           {step === 'category' && (
-            <div className="space-y-3 md:space-y-6 animate-fade-in">
-              <div className="text-center space-y-0.5 md:space-y-1">
-                <h2 className="text-lg md:text-3xl font-bold text-white">{t.create.category_title}</h2>
-                <p className="text-slate-400 text-xs md:text-base">{t.create.category_subtitle}</p>
+            <div className="space-y-4 md:space-y-6 animate-fade-in">
+              <div className="text-center space-y-1 md:space-y-1">
+                <h2 className="text-xl md:text-3xl font-bold text-white">{t.create.category_title}</h2>
+                <p className="text-slate-400 text-sm md:text-base">{t.create.category_subtitle}</p>
               </div>
-              <div className="grid grid-cols-3 md:grid-cols-3 gap-1.5 md:gap-4 px-0.5 md:px-1">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 px-1 md:px-1">
                 {CATEGORIES.map(cat => (
                   <button
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat.id)}
-                    className="relative p-1.5 md:p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-lg md:rounded-xl transition-all group text-center md:text-left hover:shadow-lg hover:-translate-y-0.5 hover:z-10"
+                    className="relative p-3 md:p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl md:rounded-xl transition-all group text-left hover:shadow-lg hover:-translate-y-0.5 hover:z-10"
                   >
-                    <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-black/40 flex items-center justify-center mb-1 md:mb-3 group-hover:scale-105 transition shadow-inner border border-white/5 mx-auto md:mx-0">
-                      <i className={`fa-solid ${cat.icon} text-sm md:text-xl text-white`}></i>
+                    <div className="w-12 h-12 md:w-12 md:h-12 rounded-xl md:rounded-xl bg-black/40 flex items-center justify-center mb-3 md:mb-3 group-hover:scale-105 transition shadow-inner border border-white/5">
+                      <i className={`fa-solid ${cat.icon} text-xl md:text-xl text-white`}></i>
                     </div>
-                    <h3 className="text-[10px] md:text-lg font-bold text-white mb-0 md:mb-1.5 truncate leading-tight">{t.categories[cat.id as keyof typeof t.categories]}</h3>
+                    <h3 className="text-sm md:text-lg font-bold text-white mb-1 md:mb-1.5 truncate leading-tight">{t.categories[cat.id as keyof typeof t.categories]}</h3>
                     <p className="hidden md:block text-xs text-slate-400 leading-snug">{t.categories[`${cat.id}_desc` as keyof typeof t.categories]}</p>
                   </button>
                 ))}
               </div>
               {/* Skip Button */}
-              <div className="flex justify-center pt-1 md:pt-2 flex-shrink-0">
+              <div className="flex justify-center pt-2 md:pt-2 flex-shrink-0">
                 <button 
                   onClick={() => {
                     setWizardData(prev => ({ ...prev, category: 'tool' }));
                     setStep('device');
                   }}
-                  className="text-slate-400 hover:text-white text-[10px] md:text-sm flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1 md:py-1.5 rounded-lg hover:bg-white/5 transition"
+                  className="text-slate-400 hover:text-white text-xs md:text-sm flex items-center gap-1.5 md:gap-1.5 px-3 md:px-3 py-1.5 md:py-1.5 rounded-lg hover:bg-white/5 transition"
                 >
-                  {language === 'zh' ? '跳过' : 'Skip'} <i className="fa-solid fa-arrow-right text-[8px] md:text-[10px]"></i>
+                  {language === 'zh' ? '跳过' : 'Skip'} <i className="fa-solid fa-arrow-right text-[10px] md:text-[10px]"></i>
                 </button>
               </div>
             </div>
           )}
 
           {step === 'device' && (
-            <div className="space-y-3 md:space-y-6 animate-fade-in">
-              <div className="text-center space-y-0.5 md:space-y-1">
-                <h2 className="text-lg md:text-3xl font-bold text-white">{t.create.device_title}</h2>
-                <p className="text-slate-400 text-xs md:text-base">{t.create.device_subtitle}</p>
+            <div className="space-y-4 md:space-y-6 animate-fade-in">
+              <div className="text-center space-y-1 md:space-y-1">
+                <h2 className="text-xl md:text-3xl font-bold text-white">{t.create.device_title}</h2>
+                <p className="text-slate-400 text-sm md:text-base">{t.create.device_subtitle}</p>
               </div>
-              <div className="grid grid-cols-3 gap-1.5 md:gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                 {DEVICES.map(dev => (
                   <button
                     key={dev.id}
                     onClick={() => handleDeviceSelect(dev.id)}
-                    className="p-2 md:p-6 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-lg md:rounded-2xl transition-all group text-center hover:shadow-lg hover:-translate-y-0.5"
+                    className="p-4 md:p-6 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl md:rounded-2xl transition-all group text-center hover:shadow-lg hover:-translate-y-0.5"
                   >
-                    <div className="w-8 h-8 md:w-14 md:h-14 rounded-lg md:rounded-2xl bg-black/40 flex items-center justify-center mb-1.5 md:mb-4 group-hover:scale-105 transition shadow-inner border border-white/5 mx-auto">
-                      <i className={`fa-solid ${dev.icon} text-base md:text-2xl text-white`}></i>
+                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-black/40 flex items-center justify-center mb-3 md:mb-4 group-hover:scale-105 transition shadow-inner border border-white/5 mx-auto">
+                      <i className={`fa-solid ${dev.icon} text-xl md:text-2xl text-white`}></i>
                     </div>
-                    <h3 className="text-xs md:text-xl font-bold text-white mb-0 md:mb-2">{t.devices[dev.id as keyof typeof t.devices]}</h3>
+                    <h3 className="text-sm md:text-xl font-bold text-white mb-1 md:mb-2">{t.devices[dev.id as keyof typeof t.devices]}</h3>
                     <p className="hidden md:block text-sm text-slate-400 leading-relaxed">{t.devices[`${dev.id}_desc` as keyof typeof t.devices]}</p>
                   </button>
                 ))}
               </div>
-              <div className="flex justify-center pt-1 md:pt-2 flex-shrink-0">
-                <button onClick={() => setStep('category')} className="text-slate-400 hover:text-white text-[10px] md:text-sm flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1 md:py-1.5 rounded-lg hover:bg-white/5 transition">
-                  <i className="fa-solid fa-arrow-left text-[8px] md:text-[10px]"></i> {t.create.btn_back}
+              <div className="flex justify-center pt-2 md:pt-2 flex-shrink-0">
+                <button onClick={() => setStep('category')} className="text-slate-400 hover:text-white text-xs md:text-sm flex items-center gap-1.5 md:gap-1.5 px-3 md:px-3 py-1.5 md:py-1.5 rounded-lg hover:bg-white/5 transition">
+                  <i className="fa-solid fa-arrow-left text-[10px] md:text-[10px]"></i> {t.create.btn_back}
                 </button>
               </div>
             </div>
           )}
 
           {step === 'style' && (
-            <div className="space-y-3 md:space-y-6 animate-fade-in">
-              <div className="text-center space-y-0.5 md:space-y-1">
-                <h2 className="text-lg md:text-3xl font-bold text-white">{t.create.style_title}</h2>
-                <p className="text-slate-400 text-xs md:text-base">{t.create.style_subtitle}</p>
+            <div className="space-y-4 md:space-y-6 animate-fade-in">
+              <div className="text-center space-y-1 md:space-y-1">
+                <h2 className="text-xl md:text-3xl font-bold text-white">{t.create.style_title}</h2>
+                <p className="text-slate-400 text-sm md:text-base">{t.create.style_subtitle}</p>
               </div>
-              <div className="grid grid-cols-4 md:grid-cols-4 gap-1.5 md:gap-3 max-h-[35vh] md:max-h-[50vh] overflow-y-auto px-0.5 md:px-1">
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-3 md:gap-3 max-h-[45vh] md:max-h-[50vh] overflow-y-auto px-1 md:px-1">
                 {STYLES.map(style => (
                   <button
                     key={style.id}
                     onClick={() => handleStyleSelect(style.id)}
-                    className="p-1.5 md:p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-lg md:rounded-xl transition-all group relative overflow-hidden hover:shadow-lg hover:-translate-y-0.5"
+                    className="p-3 md:p-3 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 rounded-xl md:rounded-xl transition-all group relative overflow-hidden hover:shadow-lg hover:-translate-y-0.5"
                   >
                     <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 bg-gradient-to-br ${style.color} transition duration-500`}></div>
                     <div className="relative z-10 flex flex-col items-center text-center">
-                      <div className={`w-6 h-6 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-gradient-to-br ${style.color} shadow-lg mb-1 md:mb-2 group-hover:scale-110 transition flex items-center justify-center`}>
-                        <i className={`fa-solid ${style.icon} text-white/90 text-[10px] md:text-base drop-shadow-md`}></i>
+                      <div className={`w-10 h-10 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-gradient-to-br ${style.color} shadow-lg mb-2 md:mb-2 group-hover:scale-110 transition flex items-center justify-center`}>
+                        <i className={`fa-solid ${style.icon} text-white/90 text-base md:text-base drop-shadow-md`}></i>
                       </div>
-                      <h3 className="text-[8px] md:text-sm font-bold text-white leading-tight">{t.styles[style.id as keyof typeof t.styles]}</h3>
+                      <h3 className="text-xs md:text-sm font-bold text-white leading-tight">{t.styles[style.id as keyof typeof t.styles]}</h3>
                     </div>
                   </button>
                 ))}
               </div>
-              <div className="flex items-center justify-center gap-3 md:gap-4 pt-1 md:pt-2 flex-shrink-0">
-                <button onClick={() => setStep('device')} className="text-slate-400 hover:text-white text-[10px] md:text-sm flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1 md:py-1.5 rounded-lg hover:bg-white/5 transition">
-                  <i className="fa-solid fa-arrow-left text-[8px] md:text-[10px]"></i> {t.create.btn_back}
+              <div className="flex items-center justify-center gap-4 md:gap-4 pt-2 md:pt-2 flex-shrink-0">
+                <button onClick={() => setStep('device')} className="text-slate-400 hover:text-white text-xs md:text-sm flex items-center gap-1.5 md:gap-1.5 px-3 md:px-3 py-1.5 md:py-1.5 rounded-lg hover:bg-white/5 transition">
+                  <i className="fa-solid fa-arrow-left text-[10px] md:text-[10px]"></i> {t.create.btn_back}
                 </button>
                 <button 
                   onClick={() => {
                     setWizardData(prev => ({ ...prev, style: 'minimalist' }));
                     setStep('concept');
                   }}
-                  className="text-slate-400 hover:text-white text-[10px] md:text-sm flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1 md:py-1.5 rounded-lg hover:bg-white/5 transition"
+                  className="text-slate-400 hover:text-white text-xs md:text-sm flex items-center gap-1.5 md:gap-1.5 px-3 md:px-3 py-1.5 md:py-1.5 rounded-lg hover:bg-white/5 transition"
                 >
-                  {language === 'zh' ? '跳过' : 'Skip'} <i className="fa-solid fa-arrow-right text-[8px] md:text-[10px]"></i>
+                  {language === 'zh' ? '跳过' : 'Skip'} <i className="fa-solid fa-arrow-right text-[10px] md:text-[10px]"></i>
                 </button>
               </div>
             </div>
           )}
 
           {step === 'concept' && (
-            <div className="space-y-2 md:space-y-6 animate-fade-in">
-              <div className="text-center space-y-0.5 md:space-y-1">
-                <h2 className="text-lg md:text-3xl font-bold text-white">{language === 'zh' ? '描述您的应用构思' : 'Describe your App Concept'}</h2>
-                <p className="text-slate-400 text-[10px] md:text-base leading-tight">{language === 'zh' ? '越详细的描述，生成的应用越精准' : 'The more detailed, the better'}</p>
+            <div className="space-y-4 md:space-y-6 animate-fade-in">
+              <div className="text-center space-y-1 md:space-y-1">
+                <h2 className="text-xl md:text-3xl font-bold text-white">{language === 'zh' ? '描述您的应用构思' : 'Describe your App Concept'}</h2>
+                <p className="text-slate-400 text-xs md:text-base leading-tight">{language === 'zh' ? '越详细的描述，生成的应用越精准' : 'The more detailed, the better'}</p>
               </div>
               
               {/* Main Input */}
@@ -4902,46 +4902,46 @@ Please fix the code to make the app display properly.`;
                   maxLength={5000}
                   // @ts-ignore
                   placeholder={t.placeholders?.[currentCategory] || (language === 'zh' ? '例如：我想做一个待办事项应用，风格要极简，支持暗黑模式...' : 'E.g. I want to build a Todo app, minimalist style, dark mode support...')}
-                  className="w-full h-28 md:h-48 bg-transparent border-none outline-none appearance-none p-2.5 md:p-4 pb-6 text-white placeholder-slate-500 focus:ring-0 resize-none text-sm md:text-base leading-relaxed"
+                  className="w-full h-40 md:h-48 bg-transparent border-none outline-none appearance-none p-4 md:p-4 pb-8 text-white placeholder-slate-500 focus:ring-0 resize-none text-base md:text-base leading-relaxed"
                 ></textarea>
                 
-                <div className="absolute bottom-2 md:bottom-4 right-2.5 md:right-4 text-[10px] md:text-xs text-slate-500">
+                <div className="absolute bottom-3 md:bottom-4 right-3 md:right-4 text-xs md:text-xs text-slate-500">
                   {wizardData.description.length}/5000
                 </div>
               </div>
               
               {/* Action Buttons - Moved outside textarea */}
-              <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 md:gap-2 flex-shrink-0">
                  <button 
                    onClick={useMadLibsTemplate}
-                   className="text-[10px] md:text-xs bg-white/5 hover:bg-white/10 text-white px-2 md:px-3 py-1 md:py-1.5 rounded-lg transition flex items-center gap-1 md:gap-1.5 border border-white/10"
+                   className="text-xs md:text-xs bg-white/5 hover:bg-white/10 text-white px-3 md:px-3 py-2 md:py-1.5 rounded-lg transition flex items-center gap-1.5 md:gap-1.5 border border-white/10"
                  >
-                   <Edit3 size={10} className="md:w-3 md:h-3" />
+                   <Edit3 size={12} className="md:w-3 md:h-3" />
                    {language === 'zh' ? '模板' : 'Template'}
                  </button>
                  <button 
                    onClick={optimizePrompt}
                    disabled={isOptimizingPrompt || !wizardData.description.trim()}
-                   className="text-[10px] md:text-xs bg-purple-600 hover:bg-purple-500 text-white px-2 md:px-3 py-1 md:py-1.5 rounded-lg transition flex items-center gap-1 md:gap-1.5 border border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                   className="text-xs md:text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 md:px-3 py-2 md:py-1.5 rounded-lg transition flex items-center gap-1.5 md:gap-1.5 border border-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                  >
                    {isOptimizingPrompt ? (
                      <>
-                       <i className="fa-solid fa-spinner fa-spin text-[10px]"></i>
+                       <i className="fa-solid fa-spinner fa-spin text-xs"></i>
                        {language === 'zh' ? '优化中' : 'Opt...'}
                      </>
                    ) : (
                      <>
-                       <Wand2 size={10} className="md:w-3 md:h-3" />
+                       <Wand2 size={12} className="md:w-3 md:h-3" />
                        {language === 'zh' ? 'AI优化' : 'AI Opt'}
                      </>
                    )}
                  </button>
               </div>
 
-              <div className="flex gap-2 md:gap-4 pt-1 md:pt-4 flex-shrink-0">
+              <div className="flex gap-3 md:gap-4 pt-2 md:pt-4 flex-shrink-0">
                 <button
                   onClick={() => setStep('style')}
-                  className="flex-1 py-2 md:py-3 rounded-lg md:rounded-xl font-bold text-xs md:text-base text-slate-400 hover:text-white hover:bg-white/5 transition"
+                  className="flex-1 py-3 md:py-3 rounded-xl md:rounded-xl font-bold text-sm md:text-base text-slate-400 hover:text-white hover:bg-white/5 transition"
                 >
                   {t.create.btn_back}
                 </button>
@@ -4950,10 +4950,10 @@ Please fix the code to make the app display properly.`;
                     startGeneration(false, '', '', false, 'init');
                   }}
                   disabled={!wizardData.description}
-                  className="flex-1 bg-white text-black hover:bg-slate-200 py-2 md:py-4 rounded-lg md:rounded-xl font-bold text-xs md:text-base shadow-lg shadow-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5 md:gap-2"
+                  className="flex-1 bg-white text-black hover:bg-slate-200 py-3 md:py-4 rounded-xl md:rounded-xl font-bold text-sm md:text-base shadow-lg shadow-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 md:gap-2"
                 >
                   <span>{t.create.btn_generate}</span>
-                  <Wand2 size={14} className="md:w-[18px] md:h-[18px]" />
+                  <Wand2 size={16} className="md:w-[18px] md:h-[18px]" />
                 </button>
               </div>
             </div>
@@ -5025,7 +5025,7 @@ Please fix the code to make the app display properly.`;
             <div className={`relative z-10 w-full max-w-4xl px-6 transition-all duration-500 ${isCompleting ? 'scale-110 opacity-0' : 'scale-100 opacity-100'}`}>
                 
                 {/* Central Status Display */}
-                <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-3xl p-8 shadow-2xl relative group">
+                <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl relative group">
                     {/* Glowing Border Effect */}
                     <div className="absolute -inset-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-1000 animate-gradient-x rounded-3xl"></div>
                     
@@ -5195,14 +5195,14 @@ Please fix the code to make the app display properly.`;
           className={`flex-1 py-3 flex flex-col items-center gap-1 ${activeMobileTab === 'preview' ? 'text-brand-400' : 'text-slate-500'}`}
         >
           <Eye size={20} />
-          <span className="text-[10px] font-bold">{t.create.preview_mode}</span>
+          <span className="text-xs font-bold">{t.create.preview_mode}</span>
         </button>
         <button 
           onClick={() => setActiveMobileTab('chat')}
           className={`flex-1 py-3 flex flex-col items-center gap-1 ${activeMobileTab === 'chat' ? 'text-brand-400' : 'text-slate-500'}`}
         >
           <MessageSquare size={20} />
-          <span className="text-[10px] font-bold">{t.create.chat_mode}</span>
+          <span className="text-xs font-bold">{t.create.chat_mode}</span>
         </button>
       </div>
     </div>

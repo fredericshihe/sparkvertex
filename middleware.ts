@@ -81,7 +81,21 @@ export async function middleware(request: NextRequest) {
     .getAll()
     .some(({ name }) => name.startsWith('sb-') || name.startsWith('supabase'))
 
-  if (hasSupabaseCookie) {
+  // 定义需要服务端验证的受保护路径
+  // 首页 (/) 和探索页 (/explore) 等公开页面不需要服务端阻塞验证，从而极大降低 TTFB
+  const protectedPaths = [
+    '/admin',
+    '/create',
+    '/profile',
+    '/run',
+    '/upload',
+    '/update-password'
+  ]
+
+  const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path))
+
+  // 仅在受保护路径执行服务端 Auth 检查
+  if (hasSupabaseCookie && isProtectedPath) {
     await supabase.auth.getUser()
   }
 

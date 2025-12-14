@@ -210,7 +210,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
 
         <div className="h-12 bg-black border-b border-white/10 flex items-center justify-between px-4 shrink-0">
           <div className="flex items-center gap-3">
-            <button onClick={handleExit} className="lg:hidden flex w-6 h-6 items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition" title={t.common.back}>
+            <button onClick={handleExit} className="lg:hidden flex w-10 h-10 items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition" title={t.common.back}>
               <i className="fa-solid fa-chevron-left"></i>
             </button>
             <span className="text-sm font-bold text-slate-400">{t.create.preview_mode}</span>
@@ -218,7 +218,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             {/* Full Screen Button */}
             <button 
               onClick={toggleFullScreen}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition"
+              className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition"
               title={language === 'zh' ? (isFullscreen ? '退出全屏' : '全屏预览') : (isFullscreen ? 'Exit Full Screen' : 'Full Screen')}
             >
               <i className={`fa-solid ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i>
@@ -312,7 +312,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                       return (
                         <div 
                           key={idx}
-                          className={`text-[10px] px-2.5 py-2 rounded-lg flex items-center gap-2.5 cursor-pointer transition-all group ${
+                          className={`text-xs px-3 py-2.5 rounded-lg flex items-center gap-2.5 cursor-pointer transition-all group ${
                             isCurrent 
                               ? 'bg-brand-500/10 text-brand-300 border border-brand-500/30 shadow-sm' 
                               : isPast 

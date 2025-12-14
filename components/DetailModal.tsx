@@ -27,6 +27,7 @@ export default function DetailModal() {
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
   const [showCopiedTip, setShowCopiedTip] = useState(false);
+  const [iframeLoading, setIframeLoading] = useState(true);
   
   // View Mode: 'detail' (default) or 'app' (immersive)
   const [viewMode, setViewMode] = useState<'detail' | 'app'>('detail');
@@ -109,6 +110,7 @@ export default function DetailModal() {
 
   useEffect(() => {
     if (isDetailModalOpen && detailItemId) {
+      setIframeLoading(true);
       const cachedItem = itemDetailsCache.get(detailItemId);
       const initialItem = detailItemData || cachedItem;
 
@@ -411,9 +413,19 @@ export default function DetailModal() {
                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-slate-800 rounded-b-2xl z-20 pointer-events-none"></div>
                     )}
 
+                    {iframeLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-slate-900 z-10">
+                        <div className="flex flex-col items-center gap-3">
+                          <i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500"></i>
+                          <span className="text-slate-400 text-sm animate-pulse">{t.common?.loading || 'Loading...'}</span>
+                        </div>
+                      </div>
+                    )}
+
                     <iframe 
                       srcDoc={getPreviewContent(item?.content || '', { raw: true, appId: item?.id ? String(item.id) : undefined })} 
-                      className="w-full h-full border-0" 
+                      className={`w-full h-full border-0 bg-white transition-opacity duration-500 ${iframeLoading ? 'opacity-0' : 'opacity-100'}`}
+                      onLoad={() => setIframeLoading(false)}
                       sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
                       allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay"
                     />

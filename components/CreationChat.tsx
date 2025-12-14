@@ -203,10 +203,10 @@ export const CreationChat: React.FC<CreationChatProps> = ({
            {handleDownload && (
              <button 
                 onClick={handleDownload}
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition border bg-white/5 hover:bg-white/10 text-slate-300 border-white/10 hover:text-white"
+                className="w-10 h-10 rounded-lg flex items-center justify-center transition border bg-white/5 hover:bg-white/10 text-slate-300 border-white/10 hover:text-white"
                 title={language === 'zh' ? '下载源码' : 'Download Code'}
              >
-                <i className="fa-solid fa-download text-xs"></i>
+                <i className="fa-solid fa-download text-sm"></i>
              </button>
            )}
 
@@ -222,13 +222,13 @@ export const CreationChat: React.FC<CreationChatProps> = ({
                   });
                 }}
                 disabled={isFromUpload || isGenerating}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition border ${
+                className={`w-10 h-10 rounded-lg flex items-center justify-center transition border ${
                   isFromUpload 
                     ? 'bg-white/5 text-slate-500 border-white/5 cursor-not-allowed' 
                     : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10 hover:text-white'
                 }`}
              >
-                <RefreshCw size={14} className={isGenerating ? 'animate-spin' : ''} />
+                <RefreshCw size={16} className={isGenerating ? 'animate-spin' : ''} />
              </button>
            </div>
            
@@ -358,7 +358,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
                   key={key}
                   onClick={() => setSelectedModel(key)}
                   disabled={isGenerating}
-                  className={`text-[10px] px-2.5 py-1.5 rounded-md transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  className={`text-xs px-3 py-2 rounded-md transition-all flex items-center gap-1.5 whitespace-nowrap ${
                     selectedModel === key
                       ? config.isFree 
                         ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30 font-medium'
@@ -377,10 +377,10 @@ export const CreationChat: React.FC<CreationChatProps> = ({
             {/* Model Info Button */}
             <button
               onClick={() => setShowModelInfo(true)}
-              className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-colors border border-white/10"
+              className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-colors border border-white/10"
               title={language === 'zh' ? '模型说明' : 'Model Info'}
             >
-              <Info size={14} />
+              <Info size={16} />
             </button>
           </div>
           
@@ -404,7 +404,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
                 }
               }}
               disabled={isGenerating}
-              className={`text-[10px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all border whitespace-nowrap group ${
+              className={`text-xs flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all border whitespace-nowrap group ${
                 fullCodeMode 
                   ? 'bg-amber-500/20 text-amber-400 border-amber-500/30 shadow-lg shadow-amber-500/10' 
                   : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-300 border-white/10 hover:border-white/20'
@@ -443,13 +443,13 @@ export const CreationChat: React.FC<CreationChatProps> = ({
               startGeneration(true, '', '', false, 'chat');
             }}
             disabled={isGenerating || !chatInput.trim()}
-            className={`absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300 ${
+            className={`absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300 ${
                 !chatInput.trim() || isGenerating 
                   ? 'bg-white/5 text-slate-600 cursor-not-allowed' 
                   : 'bg-white text-black shadow-lg shadow-white/20 hover:shadow-white/40 hover:scale-105'
             }`}
           >
-            {isGenerating ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-paper-plane text-xs"></i>}
+            {isGenerating ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-paper-plane text-sm"></i>}
           </button>
         </div>
       </div>

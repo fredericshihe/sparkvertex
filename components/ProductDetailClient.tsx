@@ -33,6 +33,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(initialItem.likes || 0);
   const [showCopiedTip, setShowCopiedTip] = useState(false);
+  const [iframeLoading, setIframeLoading] = useState(true);
   const { openLoginModal, openPaymentModal, openRewardModal } = useModal();
   const { success } = useToast();
   const { language } = useLanguage();
@@ -360,6 +361,12 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   };
 
   const enterAppMode = () => {
+    // On mobile, use the lightweight runner for better performance
+    if (window.innerWidth < 768) {
+       router.push(`/run/${id}`);
+       return;
+    }
+
     // Force hard navigation to ensure browser picks up the correct manifest for PWA installation
     window.location.href = `/p/${id}?mode=app`;
   };
@@ -412,9 +419,19 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                   previewMode === 'mobile' && viewMode !== 'app' ? 'w-24 h-6 rounded-b-xl opacity-100' : 'w-0 h-0 opacity-0'
               }`}></div>
 
+              {iframeLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-900 z-10">
+                  <div className="flex flex-col items-center gap-3">
+                    <i className="fa-solid fa-circle-notch fa-spin text-3xl text-brand-500"></i>
+                    <span className="text-slate-400 text-sm animate-pulse">{t.common?.loading || 'Loading...'}</span>
+                  </div>
+                </div>
+              )}
+
               <iframe 
                 srcDoc={getPreviewContent(item.content || '', { raw: true, appId: String(item.id), apiBaseUrl })}
-                className="w-full h-full border-0 bg-white" 
+                className={`w-full h-full border-0 bg-white transition-opacity duration-500 ${iframeLoading ? 'opacity-0' : 'opacity-100'}`}
+                onLoad={() => setIframeLoading(false)}
                 sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
                 allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; fullscreen; picture-in-picture; display-capture; screen-wake-lock"
                 style={{ touchAction: 'manipulation' }}
