@@ -40,14 +40,6 @@ export const getLightPreviewContent = (content: string | null): string => {
 export const getPreviewContent = (content: string | null, options?: { raw?: boolean; appId?: string; userId?: string; apiBaseUrl?: string }): string => {
   if (!content) return '';
 
-  // Debug: Log received options
-  console.log('[preview.ts] getPreviewContent called with options:', JSON.stringify({
-    appId: options?.appId,
-    userId: options?.userId,
-    apiBaseUrl: options?.apiBaseUrl?.substring(0, 30),
-    hasContent: !!content
-  }));
-
   // Generate SPARK_APP_ID for backend integration
   // In preview mode: draft_{user_id}, after publish: use the actual app ID (numeric)
   const userId = options?.userId || '';
@@ -62,9 +54,6 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
       appId = 'draft_demo_' + Math.random().toString(36).substring(7);
     }
   }
-  
-  // Debug log (will appear in server console during SSR)
-  console.log('[preview.ts] Final appId:', appId);
   
   const providedApiBase = options?.apiBaseUrl || '';
   
@@ -97,7 +86,6 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
                   window.SparkCMS._cache[item.slug] = item.content;
                 });
                 this._initialized = true;
-                console.log('[SparkCMS] Loaded', data.length, 'content items');
               }
             }
           } catch (e) {
@@ -190,7 +178,6 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
               el.href = href;
             }
           });
-          console.log('[SparkCMS] Refreshed all dynamic content');
         },
         
         // 更新单个内容（从外部调用，如父窗口 postMessage）
@@ -271,14 +258,10 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
       }
       
       window.SPARK_API_BASE = apiBaseUrl;
-      console.log('[Spark] Initial SPARK_API_BASE:', window.SPARK_API_BASE);
       
       // Set initial values if provided
       window.SPARK_APP_ID = "${appId}" || null;
       window.SPARK_USER_ID = "${userId}" || null;
-      
-      // Log initial values for debugging
-      console.log('[Spark] Initial SPARK_APP_ID:', window.SPARK_APP_ID);
       
       // Always request the latest appId from parent to handle userId changes
       // This ensures we get the correct appId even if userId wasn't available initially
@@ -292,7 +275,6 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
         
         if (typeof url === 'string' && url.startsWith('/api/')) {
           newUrl = window.SPARK_API_BASE + url;
-          console.log('[Spark] Rewriting API URL:', url, '->', newUrl);
           isApi = true;
         } else if (typeof url === 'object' && url && url.url) {
            // Handle Request object
@@ -302,7 +284,7 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
               try {
                  var apiPath = urlStr.substring(urlStr.indexOf('/api/'));
                  var newUrlStr = window.SPARK_API_BASE + apiPath;
-                 console.log('[Spark] Rewriting API Request URL:', urlStr, '->', newUrlStr);
+
                  // Create new request with updated URL but keep other properties
                  newUrl = new Request(newUrlStr, url);
                  isApi = true;
@@ -337,7 +319,6 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
                      var bodyContent = JSON.parse(options.body);
                      // Only wrap if it doesn't look like it's already wrapped
                      if (!bodyContent.app_id && !bodyContent.payload) {
-                         console.log('[Spark] Auto-wrapping body for Mailbox API');
                          var wrapped = {
                              app_id: window.SPARK_APP_ID,
                              payload: bodyContent,
@@ -367,7 +348,6 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
         
         if (typeof url === 'string' && url.startsWith('/api/')) {
           newUrl = window.SPARK_API_BASE + url;
-          console.log('[Spark] Rewriting XHR URL:', url, '->', newUrl);
           args[1] = newUrl;
           isApi = true;
         }
@@ -386,8 +366,6 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
 
       // Helper for handling form submissions
       async function handleSparkFormSubmit(form, fullUrl) {
-          console.log('[Spark] Processing form submission to:', fullUrl);
-          
           var formData = new FormData(form);
           
           // Convert FormData to plain object
@@ -468,7 +446,6 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
            // Check if action is explicitly external (http/https) or empty/local
            if (!action || action.startsWith('/') || action.startsWith('#')) {
                e.preventDefault();
-               console.log('[Spark] Auto-intercepting native form submission');
                // Use the universal mailbox endpoint
                await handleSparkFormSubmit(form, window.SPARK_API_BASE + '/api/mailbox/submit');
            }
@@ -490,10 +467,9 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
           if (newAppId) {
             // Check if current appId is a published numeric ID - don't overwrite those
             if (originalAppId && /^\\d+$/.test(originalAppId)) {
-              console.log('[Spark] Keeping published appId:', originalAppId);
+              // Keep published appId
             } else {
               window.SPARK_APP_ID = newAppId;
-              console.log('[Spark] Updated SPARK_APP_ID from parent:', newAppId);
             }
           }
           // Also update API base if provided
@@ -557,7 +533,6 @@ export const getPreviewContent = (content: string | null, options?: { raw?: bool
         }
       }, false);
       
-      console.log('[Spark] Initialized with APP_ID:', window.SPARK_APP_ID, 'USER_ID:', window.SPARK_USER_ID);
     })();
   </script>`;
 
