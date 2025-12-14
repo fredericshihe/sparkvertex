@@ -8,6 +8,10 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   const id = params.id;
+  
+  // Get referer to determine if it's from /run or /p page
+  const referer = request.headers.get('referer') || '';
+  const isRunPage = referer.includes('/run/');
 
   // Fetch item details
   const { data: item } = await supabase
@@ -50,7 +54,7 @@ export async function GET(
     name: item.title,
     short_name: item.title.length > 12 ? item.title.substring(0, 12) + '...' : item.title,
     description: item.description,
-    start_url: `/p/${id}?mode=app`,
+    start_url: isRunPage ? `/run/${id}` : `/p/${id}?mode=app`,
     scope: "/",
     display: "standalone",
     orientation: "portrait",
