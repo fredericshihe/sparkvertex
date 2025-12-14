@@ -107,8 +107,11 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
           </div>
 
           <div className="h-40 md:h-44 relative bg-slate-900 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
-            {/* 默认背景 - 渐变占位，与 iframe 内容无缝过渡 */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${item.color || 'from-slate-800 to-slate-900'} z-5 transition-opacity duration-700 ease-out ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`} />
+            {/* 默认背景 - 深色占位，加载时无明显颜色 */}
+            <div className={`absolute inset-0 bg-slate-900 z-5 transition-opacity duration-700 ease-out ${iframeLoaded ? 'opacity-0' : 'opacity-100'}`}>
+              {/* 微妙的加载动画效果 */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-800/50 to-transparent animate-pulse" />
+            </div>
 
             {/* 动态 Iframe 预览 - 无感加载 */}
             {showPreview && item.content && (
