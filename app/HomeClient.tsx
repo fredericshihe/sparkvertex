@@ -1,31 +1,21 @@
 'use client';
 
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Hero from '@/components/Hero';
-
-// 延迟加载非首屏组件
-const FeatureCreation = dynamic(() => import('@/components/landing/FeatureCreation'), {
-  ssr: false,
-  loading: () => <div className="h-[600px] bg-transparent" />
-});
-
-const FeatureBackend = dynamic(() => import('@/components/landing/FeatureBackend'), {
-  ssr: false,
-  loading: () => <div className="h-[500px] bg-transparent" />
-});
-
-const CTASection = dynamic(() => import('@/components/landing/CTASection'), {
-  ssr: false,
-  loading: () => <div className="h-[300px] bg-transparent" />
-});
+import FeatureCreation from '@/components/landing/FeatureCreation';
+import FeatureBackend from '@/components/landing/FeatureBackend';
+import CTASection from '@/components/landing/CTASection';
 
 const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
+
+interface HomeClientProps {
+  // No props needed anymore
+}
 
 export default function HomeClient() {
   const [mounted, setMounted] = useState(false);
   const [showGalaxy, setShowGalaxy] = useState(false);
-  const [showBelowFold, setShowBelowFold] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -37,39 +27,20 @@ export default function HomeClient() {
     checkMobile();
     window.addEventListener('resize', checkMobile);
     
-    // 延迟加载 Galaxy 背景
+    // Delay Galaxy loading using requestIdleCallback for better performance
+    // This allows the main content to render first before initializing WebGL
     if ('requestIdleCallback' in window) {
       (window as any).requestIdleCallback(() => {
         setShowGalaxy(true);
       }, { timeout: 2000 });
     } else {
+      // Fallback for browsers that don't support requestIdleCallback
       setTimeout(() => {
         setShowGalaxy(true);
       }, 500);
     }
-
-    // 延迟加载首屏以下内容（用户滚动或 1 秒后自动加载）
-    const loadBelowFold = () => {
-      setShowBelowFold(true);
-      window.removeEventListener('scroll', handleScroll);
-    };
-
-    const handleScroll = () => {
-      if (window.scrollY > 100) {
-        loadBelowFold();
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
     
-    // 1秒后自动加载，确保用户不滚动也能看到内容
-    const timer = setTimeout(loadBelowFold, 1000);
-    
-    return () => {
-      window.removeEventListener('resize', checkMobile);
-      window.removeEventListener('scroll', handleScroll);
-      clearTimeout(timer);
-    };
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   return (
@@ -96,13 +67,9 @@ export default function HomeClient() {
       {/* Scrollable Content */}
       <div className="relative z-10">
         <Hero />
-        {showBelowFold && (
-          <>
-            <FeatureCreation />
-            <FeatureBackend />
-            <CTASection />
-          </>
-        )}
+        <FeatureCreation />
+        <FeatureBackend />
+        <CTASection />
       </div>
     </div>
   );

@@ -29,7 +29,6 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   const router = useRouter();
   const [item, setItem] = useState<Item>(initialItem);
   const [loading, setLoading] = useState(false);
-  const [iframeLoaded, setIframeLoaded] = useState(false); // iframe 加载状态
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(initialItem.likes || 0);
@@ -410,30 +409,12 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                   previewMode === 'mobile' && viewMode !== 'app' ? 'w-24 h-6 rounded-b-xl opacity-100' : 'w-0 h-0 opacity-0'
               }`}></div>
 
-              {/* 封面占位图 - iframe 加载完成前显示 */}
-              {!iframeLoaded && (item.cover_url || item.icon_url) && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900">
-                  <img 
-                    src={item.cover_url || item.icon_url} 
-                    alt={item.name || 'Preview'} 
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <div className="flex flex-col items-center gap-3">
-                      <i className="fa-solid fa-circle-notch fa-spin text-white text-2xl"></i>
-                      <span className="text-white/80 text-sm">加载预览中...</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               <iframe 
                 srcDoc={getPreviewContent(item.content || '', { raw: true, appId: String(item.id), apiBaseUrl })}
-                className={`w-full h-full border-0 bg-white transition-opacity duration-300 ${iframeLoaded ? 'opacity-100' : 'opacity-0'}`}
+                className="w-full h-full border-0 bg-white" 
                 sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
                 allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; fullscreen; picture-in-picture; display-capture; screen-wake-lock"
                 style={{ touchAction: 'manipulation' }}
-                onLoad={() => setIframeLoaded(true)}
               />
 
               {/* Mobile Overlay to prevent about:srcdoc in preview mode */}

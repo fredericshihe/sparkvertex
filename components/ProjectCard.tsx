@@ -5,9 +5,6 @@ import { Item } from '@/types/supabase';
 import dynamic from 'next/dynamic';
 import { useLanguage } from '@/context/LanguageContext';
 import { KNOWN_CATEGORIES } from '@/lib/categories';
-import { getLightPreviewContent } from '@/lib/preview';
-
-import { supabase } from '@/lib/supabase';
 
 const QRCodeSVG = dynamic(() => import('qrcode.react').then(mod => mod.QRCodeSVG), { ssr: false });
 
@@ -29,12 +26,7 @@ function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onUpdate
   const [imageLoaded, setImageLoaded] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const [isHovered, setIsHovered] = useState(false); // 桌面端悬停状态
-  const [iframeLoaded, setIframeLoaded] = useState(false); // iframe 加载状态
-  const [itemContent, setItemContent] = useState<string | null>(item.content || null); // 按需加载的 content
-  const [contentLoading, setContentLoading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { t } = useLanguage();
 
   // 使用 cover_url 静态图片，如果没有则使用占位符
@@ -71,48 +63,10 @@ function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onUpdate
 
   const handleMouseEnter = useCallback(() => {
     if (onHover) onHover(item);
-    // 延迟 300ms 后显示 iframe，避免快速划过时触发
-    hoverTimeoutRef.current = setTimeout(async () => {
-      setIsHovered(true);
-      // 如果没有 content，按需加载
-      if (!itemContent && !contentLoading) {
-        setContentLoading(true);
-        try {
-          const { data } = await supabase
-            .from('items')
-            .select('content')
-            .eq('id', item.id)
-            .single();
-          if (data?.content) {
-            setItemContent(data.content);
-          }
-        } catch (e) {
-          console.warn('Failed to load content for preview:', e);
-        } finally {
-          setContentLoading(false);
-        }
-      }
-    }, 300);
-  }, [onHover, item, itemContent, contentLoading]);
+  }, [onHover, item]);
 
   const handleMouseLeave = useCallback(() => {
     setIsFlipped(false);
-    // 清除延迟定时器
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-    setIsHovered(false);
-    setIframeLoaded(false);
-  }, []);
-
-  // 清理定时器
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-    };
   }, []);
 
   const handleImageLoad = useCallback(() => {
@@ -165,7 +119,7 @@ function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onUpdate
           <div className="h-40 md:h-44 relative bg-slate-900 overflow-hidden flex-shrink-0" style={{ transform: 'translateZ(0)' }}>
             {/* 渐变背景占位符 - 秒开体验 */}
             <div 
-              className={`absolute inset-0 transition-opacity duration-300 ${imageLoaded || iframeLoaded ? 'opacity-0' : 'opacity-100'}`}
+              className={`absolute inset-0 transition-opacity duration-300 ${imageLoaded ? 'opacity-0' : 'opacity-100'}`}
               style={{
                 background: coverUrl 
                   ? 'linear-gradient(135deg, rgb(30, 41, 59), rgb(15, 23, 42))'
@@ -179,7 +133,7 @@ function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onUpdate
             </div>
 
             {/* 静态封面图片 - 极速加载 */}
-            {isVisible && coverUrl && !isHovered && (
+            {isVisible && coverUrl && (
               <img
                 src={coverUrl}
                 alt={item.title}
@@ -191,39 +145,9 @@ function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onUpdate
                 decoding="async"
               />
             )}
-
-            {/* 桌面端悬停时显示动态 iframe 预览 */}
-            {isVisible && isHovered && itemContent && (
-              <>
-                {/* 封面图作为 iframe 加载时的占位 */}
-                {!iframeLoaded && coverUrl && (
-                  <img
-                    src={coverUrl}
-                    alt={item.title}
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                )}
-                <iframe
-                  srcDoc={getLightPreviewContent(itemContent)}
-                  className={`absolute inset-0 w-full h-full border-0 pointer-events-none transition-opacity duration-300 ${
-                    iframeLoaded ? 'opacity-100' : 'opacity-0'
-                  }`}
-                  sandbox="allow-same-origin"
-                  loading="lazy"
-                  onLoad={() => setIframeLoaded(true)}
-                />
-              </>
-            )}
-
-            {/* 悬停时正在加载 content */}
-            {isVisible && isHovered && !itemContent && contentLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
-                <i className="fa-solid fa-circle-notch fa-spin text-white/60 text-xl"></i>
-              </div>
-            )}
             
             {/* 无封面时显示渐变 + 图标 */}
-            {isVisible && !coverUrl && !isHovered && (
+            {isVisible && !coverUrl && (
               <div 
                 className="absolute inset-0 flex items-center justify-center"
                 style={{

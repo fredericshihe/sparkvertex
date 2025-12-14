@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, memo } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
@@ -9,18 +9,11 @@ interface HeroProps {
   // No props needed
 }
 
-function Hero({}: HeroProps) {
+export default function Hero({}: HeroProps) {
   const { t, language } = useLanguage();
   const [typingText, setTypingText] = useState('');
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    
     const texts = t.home.typing_texts;
     let count = 0;
     let index = 0;
@@ -55,7 +48,7 @@ function Hero({}: HeroProps) {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [t.home.typing_texts, language, mounted]);
+  }, [t.home.typing_texts, language]);
 
   return (
     <div className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden bg-transparent py-20 pb-32 md:pb-20">
@@ -132,4 +125,3 @@ function Hero({}: HeroProps) {
     </div>
   );
 }
-export default memo(Hero);
