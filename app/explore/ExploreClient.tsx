@@ -124,26 +124,11 @@ export default function ExploreClient({ initialItems, initialCategories, initial
     const rangeStart = pageIndex === 0 ? 0 : (pageIndex * ITEMS_PER_PAGE) + 1;
     const rangeEnd = rangeStart + fetchLimit - 1;
 
-    // 只查询必要字段，不传输 content 以大幅提升加载速度
+    // 查询作品列表
     let query = supabase
       .from('items')
       .select(`
-        id,
-        title,
-        description,
-        author_id,
-        category,
-        tags,
-        views,
-        page_views,
-        likes,
-        total_score,
-        daily_rank,
-        is_public,
-        is_draft,
-        icon_url,
-        cover_url,
-        created_at,
+        *,
         profiles:author_id (
           username,
           avatar_url
