@@ -80,6 +80,11 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 允许局域网设备访问开发服务器
+  allowedDevOrigins: [
+    'http://192.168.3.151:3000',
+    'http://192.168.*.*:3000',
+  ],
   eslint: {
     ignoreDuringBuilds: true,
   },

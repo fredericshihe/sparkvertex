@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
 import './globals.css';
 import { Suspense } from 'react';
+import Script from 'next/script';
 
-const inter = Inter({ subsets: ['latin'] });
+// 使用系统字体替代 Google Fonts，避免国内访问问题
+const systemFontClass = 'font-sans';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -57,14 +58,22 @@ export default function RootLayout({
         <link rel="preconnect" href="https://waesizzoqodntrlvrwhw.supabase.co" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://cdn.bootcdn.net" />
         <link rel="preconnect" href="https://cdn.bootcdn.net" crossOrigin="anonymous" />
-        {/* 使用 BootCDN 加载 Font Awesome（国内访问稳定） */}
-        <link 
-          rel="stylesheet" 
-          href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css" 
-        />
         <link rel="icon" href="/logo.png" />
       </head>
-      <body className={inter.className}>
+      <body className={systemFontClass}>
+        {/* Font Awesome 延迟加载 - 不阻塞首屏渲染 */}
+        <Script
+          id="font-awesome-loader"
+          strategy="lazyOnload"
+          dangerouslySetInnerHTML={{
+            __html: `
+              var link = document.createElement('link');
+              link.rel = 'stylesheet';
+              link.href = 'https://cdn.bootcdn.net/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+              document.head.appendChild(link);
+            `
+          }}
+        />
         <StorageManager />
         <ServiceWorkerRegister />
         <LanguageProvider>
