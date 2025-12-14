@@ -1,17 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useLanguage } from '@/context/LanguageContext';
 
 export default function WeChatGuard() {
   const [isWeChat, setIsWeChat] = useState(false);
   const { t } = useLanguage();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    // 只在作品详情页 /p/[id] 显示微信引导
-    if (!pathname?.startsWith('/p/')) {
+    // 只在独立作品详情页 /p/[id] 且带有 mode=app 参数时显示微信引导
+    // 这确保只有扫码进入的链接会触发，弹窗不会触发
+    const isProductPage = pathname?.startsWith('/p/');
+    const isAppMode = searchParams?.get('mode') === 'app';
+    
+    if (!isProductPage || !isAppMode) {
+      setIsWeChat(false);
       return;
     }
 
@@ -27,7 +33,7 @@ export default function WeChatGuard() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [pathname]);
+  }, [pathname, searchParams]);
 
   if (!isWeChat) return null;
 
