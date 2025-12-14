@@ -14,6 +14,60 @@ import { copyToClipboard, detectSparkBackendCode, removeSparkBackendCode } from 
 import { sha256 } from '@/lib/sha256';
 import BackendDataPanel from '@/components/BackendDataPanel';
 
+// --- 封面截图生成函数 ---
+async function generateCoverScreenshot(itemId: string | number, htmlContent: string): Promise<void> {
+  try {
+    // 创建隐藏的 iframe 用于渲染
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;height:600px;border:none;background:#fff;';
+    document.body.appendChild(iframe);
+    
+    // 写入内容
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!iframeDoc) {
+      document.body.removeChild(iframe);
+      return;
+    }
+    
+    iframeDoc.open();
+    iframeDoc.write(htmlContent);
+    iframeDoc.close();
+    
+    // 等待内容加载
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // 使用 html2canvas 截图
+    const html2canvas = (await import('html2canvas')).default;
+    const canvas = await html2canvas(iframeDoc.body, {
+      width: 800,
+      height: 600,
+      scale: 1,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#0f172a',
+      logging: false,
+    });
+    
+    // 转换为 data URL
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    
+    // 清理 iframe
+    document.body.removeChild(iframe);
+    
+    // 上传到服务器
+    await fetch('/api/generate-cover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId, coverDataUrl: dataUrl })
+    });
+    
+    console.log('[Cover] 封面截图生成成功:', itemId);
+  } catch (err) {
+    console.warn('[Cover] 封面截图生成失败:', err);
+    // 失败不影响发布流程
+  }
+}
+
 // --- Helper Functions (Ported from SparkWorkbench.html) ---
 
 async function calculateContentHash(content: string) {
@@ -1780,6 +1834,11 @@ function UploadContent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ itemId })
         }).catch(err => console.warn('评分触发失败:', err));
+        
+        // 自动生成封面截图（后台异步，不阻塞用户）
+        generateCoverScreenshot(itemId, watermarkedContent).catch(err => 
+          console.warn('封面截图生成失败:', err)
+        );
       }
 
       // Clear creation session cache on successful publish
