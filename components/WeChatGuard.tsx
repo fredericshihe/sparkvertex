@@ -1,147 +1,142 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { useLanguage } from '@/context/LanguageContext';
+import { useEffect } from 'react';
 
-// 全局变量保持微信检测状态，避免组件重新挂载时丢失
-let globalWeChatDetected: boolean | null = null;
-let globalIsIOS = false;
-
-function WeChatGuardContent() {
-  // 初始化时使用全局状态
-  const [isWeChat, setIsWeChat] = useState(() => globalWeChatDetected === true);
-  const [isIOS, setIsIOS] = useState(() => globalIsIOS);
-  const { t } = useLanguage();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
+// 完全使用原生 DOM 操作，绕过 React hydration 问题
+export default function WeChatGuard() {
   useEffect(() => {
-    // 如果已经检测过，直接使用缓存的结果
-    if (globalWeChatDetected !== null) {
-      setIsWeChat(globalWeChatDetected);
-      setIsIOS(globalIsIOS);
-      if (globalWeChatDetected) {
-        document.body.style.overflow = 'hidden';
-      }
-      return;
-    }
-    
-    // 只在独立作品详情页 /p/[id] 且带有 mode=app 参数时显示微信引导
-    const isProductPage = pathname?.startsWith('/p/');
-    const isAppMode = searchParams?.get('mode') === 'app';
+    // 检查是否应该显示微信引导
+    const pathname = window.location.pathname;
+    const searchParams = new URLSearchParams(window.location.search);
+    const isProductPage = pathname.startsWith('/p/');
+    const isAppMode = searchParams.get('mode') === 'app';
     
     if (!isProductPage || !isAppMode) {
-      globalWeChatDetected = false;
       return;
     }
     
     const ua = navigator.userAgent.toLowerCase();
-    // 检测微信内置浏览器 (MicroMessenger) 和企业微信 (wxwork)
     const isWeChatBrowser = ua.includes('micromessenger') || ua.includes('wxwork');
     
-    // 缓存检测结果到全局变量
-    globalWeChatDetected = isWeChatBrowser;
-    globalIsIOS = /iphone|ipad|ipod/i.test(ua);
-    
-    if (isWeChatBrowser) {
-      setIsWeChat(true);
-      setIsIOS(globalIsIOS);
-      // Prevent scrolling when overlay is active
-      document.body.style.overflow = 'hidden';
+    if (!isWeChatBrowser) {
+      return;
     }
     
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [pathname, searchParams]);
-
-  if (!isWeChat) return null;
-
-  return (
-    <div 
-      className="fixed inset-0 z-[9999] flex flex-col items-center justify-start p-6 text-center overflow-auto"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.98)' }}
-    >
-      {/* 顶部右上角箭头指示 */}
-      <div className="fixed top-4 right-4 animate-bounce flex flex-col items-center gap-1">
-        <i className="fa-solid fa-arrow-up text-white text-3xl"></i>
-        <span className="text-xs text-white bg-gray-800 px-2 py-1 rounded-full">{t.wechat_guard.step1}</span>
+    const isIOS = /iphone|ipad|ipod/i.test(ua);
+    
+    // 检查是否已经存在遮罩
+    if (document.getElementById('wechat-guard-overlay')) {
+      return;
+    }
+    
+    // 直接创建 DOM 元素
+    const overlay = document.createElement('div');
+    overlay.id = 'wechat-guard-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 99999;
+      background-color: rgba(0, 0, 0, 0.98);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px;
+      text-align: center;
+      overflow: auto;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+    
+    overlay.innerHTML = `
+      <div style="position: fixed; top: 16px; right: 16px; display: flex; flex-direction: column; align-items: center; gap: 4px; animation: bounce 1s infinite;">
+        <i class="fa-solid fa-arrow-up" style="color: white; font-size: 30px;"></i>
+        <span style="font-size: 12px; color: white; background: #374151; padding: 4px 8px; border-radius: 9999px;">点击右上角</span>
       </div>
-
-      <div className="mt-24 flex flex-col items-center">
-        {/* 微信图标 */}
-        <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-6" style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}>
-          <i className="fa-brands fa-weixin text-4xl text-white"></i>
+      
+      <div style="margin-top: 96px; display: flex; flex-direction: column; align-items: center;">
+        <div style="width: 80px; height: 80px; border-radius: 24px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);">
+          <i class="fa-brands fa-weixin" style="font-size: 40px; color: white;"></i>
         </div>
         
-        <h2 className="text-2xl font-bold text-white mb-3">{t.wechat_guard.title}</h2>
-        <p className="text-gray-400 mb-8 max-w-xs mx-auto text-sm leading-relaxed">
-          {t.wechat_guard.description}
+        <h2 style="font-size: 24px; font-weight: bold; color: white; margin-bottom: 12px;">请在浏览器中打开</h2>
+        <p style="color: #9ca3af; margin-bottom: 32px; max-width: 280px; font-size: 14px; line-height: 1.6;">
+          微信内置浏览器不支持部分功能，请跳转至系统浏览器继续访问
         </p>
         
-        {/* 步骤指引 */}
-        <div className="rounded-3xl p-6 border border-gray-700 max-w-sm w-full" style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}>
-          <div className="space-y-4">
-            {/* 步骤 1 */}
-            <div className="flex items-center gap-4 text-left">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold shrink-0" style={{ backgroundColor: 'rgba(14, 165, 233, 0.2)', color: '#0ea5e9' }}>1</div>
+        <div style="border-radius: 24px; padding: 24px; border: 1px solid #374151; max-width: 320px; width: 100%; background: rgba(255, 255, 255, 0.05);">
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 16px; text-align: left;">
+              <div style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; background: rgba(14, 165, 233, 0.2); color: #0ea5e9;">1</div>
               <div>
-                <p className="text-white text-sm font-medium">{t.wechat_guard.step1} <i className="fa-solid fa-ellipsis ml-1 text-gray-400"></i></p>
-                <p className="text-xs text-gray-500">{isIOS ? '右上角 ···' : '右上角 ⋮'}</p>
+                <p style="color: white; font-size: 14px; font-weight: 500; margin: 0;">点击右上角 <i class="fa-solid fa-ellipsis" style="color: #9ca3af; margin-left: 4px;"></i></p>
+                <p style="font-size: 12px; color: #6b7280; margin: 4px 0 0 0;">${isIOS ? '右上角 ···' : '右上角 ⋮'}</p>
               </div>
             </div>
             
-            {/* 步骤 2 */}
-            <div className="flex items-center gap-4 text-left">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold shrink-0" style={{ backgroundColor: 'rgba(14, 165, 233, 0.2)', color: '#0ea5e9' }}>2</div>
+            <div style="display: flex; align-items: center; gap: 16px; text-align: left;">
+              <div style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; background: rgba(14, 165, 233, 0.2); color: #0ea5e9;">2</div>
               <div>
-                <p className="text-white text-sm font-medium">{t.wechat_guard.step2}</p>
-                <p className="text-xs text-gray-500">{isIOS ? '在 Safari 中打开' : '在浏览器中打开'}</p>
+                <p style="color: white; font-size: 14px; font-weight: 500; margin: 0;">在浏览器中打开</p>
+                <p style="font-size: 12px; color: #6b7280; margin: 4px 0 0 0;">${isIOS ? '在 Safari 中打开' : '在浏览器中打开'}</p>
               </div>
             </div>
           </div>
           
-          {/* 图示 */}
-          <div className="mt-6 pt-4 border-t border-gray-700">
-            <div className="flex justify-center items-center gap-6">
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)' }}>
-                  <i className={`fa-brands ${isIOS ? 'fa-safari' : 'fa-chrome'} text-2xl text-gray-400`}></i>
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #374151;">
+            <div style="display: flex; justify-content: center; align-items: center; gap: 24px;">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <div style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.1);">
+                  <i class="fa-brands ${isIOS ? 'fa-safari' : 'fa-chrome'}" style="font-size: 24px; color: #9ca3af;"></i>
                 </div>
-                <span className="text-xs text-gray-500">{isIOS ? 'Safari' : 'Chrome'}</span>
+                <span style="font-size: 12px; color: #6b7280;">${isIOS ? 'Safari' : 'Chrome'}</span>
               </div>
-              <i className="fa-solid fa-arrow-right text-gray-600"></i>
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center border" style={{ background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%)', borderColor: 'rgba(14, 165, 233, 0.3)' }}>
-                  <i className="fa-solid fa-check text-xl" style={{ color: '#0ea5e9' }}></i>
+              <i class="fa-solid fa-arrow-right" style="color: #4b5563;"></i>
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <div style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(14, 165, 233, 0.3); background: linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%);">
+                  <i class="fa-solid fa-check" style="font-size: 20px; color: #0ea5e9;"></i>
                 </div>
-                <span className="text-xs text-gray-500">完美体验</span>
+                <span style="font-size: 12px; color: #6b7280;">完美体验</span>
               </div>
             </div>
           </div>
         </div>
-
-        {/* 底部刷新按钮 */}
-        <div className="mt-10">
+        
+        <div style="margin-top: 40px;">
           <button 
-            onClick={() => window.location.reload()}
-            className="text-gray-400 text-sm transition flex items-center gap-2 px-4 py-2 rounded-full border border-gray-700"
-            style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
+            onclick="document.getElementById('wechat-guard-overlay').remove(); document.body.style.overflow = '';"
+            style="color: #9ca3af; font-size: 14px; display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 9999px; border: 1px solid #374151; background: rgba(255, 255, 255, 0.05); cursor: pointer;"
           >
-            <i className="fa-solid fa-rotate-right"></i> {t.wechat_guard.already_in_browser}
+            <i class="fa-solid fa-rotate-right"></i> 已在浏览器中？刷新页面
           </button>
         </div>
       </div>
-    </div>
-  );
-}
+      
+      <style>
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+      </style>
+    `;
+    
+    // 阻止滚动
+    document.body.style.overflow = 'hidden';
+    
+    // 添加到 body
+    document.body.appendChild(overlay);
+    
+    return () => {
+      const existingOverlay = document.getElementById('wechat-guard-overlay');
+      if (existingOverlay) {
+        existingOverlay.remove();
+      }
+      document.body.style.overflow = '';
+    };
+  }, []);
 
-// 导出包装后的组件，使用 Suspense 避免静态生成错误
-export default function WeChatGuard() {
-  return (
-    <Suspense fallback={null}>
-      <WeChatGuardContent />
-    </Suspense>
-  );
+  // 不渲染任何 React 内容，完全由原生 DOM 处理
+  return null;
 }
