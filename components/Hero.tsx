@@ -1,19 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import Link from 'next/link';
-import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
 
-interface HeroProps {
-  // No props needed
-}
-
-export default function Hero({}: HeroProps) {
+function Hero() {
   const { t, language } = useLanguage();
   const [typingText, setTypingText] = useState('');
+  const [mounted, setMounted] = useState(false);
+
+  // 立即显示首屏，打字效果延迟启动
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
+    if (!mounted) return;
+    
     const texts = t.home.typing_texts;
     let count = 0;
     let index = 0;
@@ -48,7 +51,7 @@ export default function Hero({}: HeroProps) {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [t.home.typing_texts, language]);
+  }, [t.home.typing_texts, language, mounted]);
 
   return (
     <div className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden bg-transparent py-20 pb-32 md:pb-20">
@@ -125,3 +128,6 @@ export default function Hero({}: HeroProps) {
     </div>
   );
 }
+
+// 使用 memo 优化，避免父组件更新导致重渲染
+export default memo(Hero);
