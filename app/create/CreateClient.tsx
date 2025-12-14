@@ -1779,6 +1779,7 @@ ${description}
         }
         
         if (newTask.status === 'completed') {
+            console.log('[handleTaskUpdate] 🎯 Task status is completed, processing...');
             isFinished = true;
             
             // Capture cost from DB update if available (in case broadcast was missed)
@@ -2183,9 +2184,12 @@ ${description}
                     currentTaskReasoningRef.current = null;
                     
                     // 🆕 FIX: 确保在 Diff Mode 成功后重置状态
+                    console.log('[DiffMode] ✅ Patch successful, resetting states...');
                     setIsGenerating(false);
                     setWorkflowStage('completed');
                     setCurrentTaskId(null);
+                    console.log('[DiffMode] ✅ States reset complete');
+                    return; // 🔧 Critical: Exit early to prevent duplicate state updates
                 } catch (e: any) {
                     console.error('Patch failed:', e);
                     
