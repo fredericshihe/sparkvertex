@@ -55,7 +55,7 @@ export async function GET(
     short_name: item.title.length > 12 ? item.title.substring(0, 12) + '...' : item.title,
     description: item.description,
     start_url: isRunPage ? `/run/${id}` : `/p/${id}?mode=app`,
-    scope: "/",
+    scope: isRunPage ? `/run/${id}` : `/p/${id}`,
     display: "standalone",
     orientation: "portrait",
     background_color: "#0f172a",
