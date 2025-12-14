@@ -53,6 +53,8 @@ export default function RootLayout({
       <head>
         {/* PWA 标准 meta 标签 */}
         <meta name="mobile-web-app-capable" content="yes" />
+        {/* 显式暴露 manifest，确保浏览器能发现图标 */}
+        <link rel="manifest" href="/manifest.json" />
         {/* Font Awesome 本地自托管 - 避免 CDN 依赖，确保国内秒加载 */}
         <link rel="stylesheet" href="/fontawesome/css/all.min.css" />
         {/* DNS Prefetch & Preconnect for critical domains */}
