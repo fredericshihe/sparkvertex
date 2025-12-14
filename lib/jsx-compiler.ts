@@ -61,6 +61,46 @@ function compileJSXBlock(jsxCode: string): { code: string; error?: string } {
 }
 
 /**
+ * 去重 CDN 资源引用
+ * 避免同一个 CDN 脚本或样式被加载多次
+ */
+function deduplicateCDNResources(html: string): string {
+  const seenScripts = new Set<string>();
+  const seenStyles = new Set<string>();
+  
+  // 去重 <script src="..."> 标签
+  html = html.replace(/<script([^>]*src\s*=\s*["']([^"']+)["'][^>]*)>\s*<\/script>/gi, 
+    (match, attrs, src) => {
+      // 标准化 URL（移除协议差异）
+      const normalizedSrc = src.replace(/^https?:/, '');
+      if (seenScripts.has(normalizedSrc)) {
+        return `<!-- Duplicate removed: ${src} -->`;
+      }
+      seenScripts.add(normalizedSrc);
+      return match;
+    }
+  );
+  
+  // 去重 <link rel="stylesheet" href="..."> 标签
+  html = html.replace(/<link([^>]*href\s*=\s*["']([^"']+)["'][^>]*)>/gi,
+    (match, attrs, href) => {
+      // 只处理 stylesheet
+      if (!/rel\s*=\s*["']stylesheet["']/i.test(attrs)) {
+        return match;
+      }
+      const normalizedHref = href.replace(/^https?:/, '');
+      if (seenStyles.has(normalizedHref)) {
+        return `<!-- Duplicate removed: ${href} -->`;
+      }
+      seenStyles.add(normalizedHref);
+      return match;
+    }
+  );
+  
+  return html;
+}
+
+/**
  * 预编译 HTML 内容中的所有 JSX 脚本
  * 
  * 将 <script type="text/babel">...</script> 
@@ -112,6 +152,9 @@ export function compileHTMLContent(htmlContent: string): CompileResult {
       '<!-- Babel removed: JSX pre-compiled -->'
     );
   }
+  
+  // 🚀 去重 CDN 资源（避免重复加载 Tailwind、React 等）
+  compiledContent = deduplicateCDNResources(compiledContent);
 
   const compiledSize = compiledContent.length;
 
