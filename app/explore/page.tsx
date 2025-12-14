@@ -9,7 +9,7 @@ import { Suspense } from 'react';
 const Galaxy = dynamic(() => import('@/components/Galaxy'), { ssr: false });
 
 // export const runtime = 'edge'; // 使用边缘运行时，降低延迟
-export const revalidate = 60;  // ISR: 缓存 60 秒
+export const revalidate = 300;  // ISR: 缓存 5 分钟，减少重复查询
 
 export default async function ExplorePage() {
   // const cookieStore = cookies(); // Removed to enable static optimization
@@ -25,53 +25,40 @@ export default async function ExplorePage() {
     }
   );
 
+  // 并行执行所有数据库查询，大幅提升加载速度
+  const [tagCountsResult, totalCountResult, itemsResult] = await Promise.all([
+    // 1. 获取分类统计
+    supabase.rpc('get_tag_counts').catch(() => ({ data: null, error: true })),
+    // 2. 获取总数
+    supabase.from('items').select('*', { count: 'exact', head: true }).eq('is_public', true),
+    // 3. 获取作品列表
+    supabase
+      .from('items')
+      .select(`
+        *,
+        profiles:author_id (
+          username,
+          avatar_url
+        )
+      `)
+      .eq('is_public', true)
+      .order('daily_rank', { ascending: true, nullsFirst: false })
+      .range(0, 24)
+  ]);
+
   const categoryCounts: Record<string, number> = {};
   CORE_CATEGORY_KEYS.forEach(k => categoryCounts[k] = 0);
-  let totalCount = 0;
+  let totalCount = totalCountResult.count || 0;
 
-  // 1. Fetch Categories (Optimized with RPC)
-  try {
-    const { data: tagCounts, error } = await supabase.rpc('get_tag_counts');
-    
-    if (error) throw error;
-
-    if (tagCounts) {
-      tagCounts.forEach((item: { tag: string, count: number }) => {
-        const normalizedTag = item.tag.trim();
-        const mapping = KNOWN_CATEGORIES[normalizedTag] || KNOWN_CATEGORIES[normalizedTag.toLowerCase()];
-        if (mapping) {
-           categoryCounts[mapping.key] = (categoryCounts[mapping.key] || 0) + Number(item.count);
-        }
-      });
-      
-      // Get total count efficiently
-      const { count } = await supabase.from('items').select('*', { count: 'exact', head: true }).eq('is_public', true);
-      totalCount = count || 0;
-    }
-  } catch (error) {
-    console.warn('RPC get_tag_counts failed, falling back to legacy method:', error);
-    
-    // Fallback: Fetch all tags (Slow but works without migration)
-    const { data: tagsData } = await supabase
-      .from('items')
-      .select('tags')
-      .eq('is_public', true);
-
-    if (tagsData) {
-      totalCount = tagsData.length;
-      tagsData.forEach((item: { tags: string[] | null }) => {
-        if (Array.isArray(item.tags)) {
-          const firstChineseTag = item.tags.find((tag: string) => tag && /[\u4e00-\u9fa5]/.test(tag));
-          if (firstChineseTag) {
-            const normalizedTag = firstChineseTag.trim();
-            const mapping = KNOWN_CATEGORIES[normalizedTag] || KNOWN_CATEGORIES[normalizedTag.toLowerCase()];
-            if (mapping) {
-               categoryCounts[mapping.key] = (categoryCounts[mapping.key] || 0) + 1;
-            }
-          }
-        }
-      });
-    }
+  // 处理分类统计结果
+  if (tagCountsResult.data && !tagCountsResult.error) {
+    tagCountsResult.data.forEach((item: { tag: string, count: number }) => {
+      const normalizedTag = item.tag.trim();
+      const mapping = KNOWN_CATEGORIES[normalizedTag] || KNOWN_CATEGORIES[normalizedTag.toLowerCase()];
+      if (mapping) {
+        categoryCounts[mapping.key] = (categoryCounts[mapping.key] || 0) + Number(item.count);
+      }
+    });
   }
 
   const dynamicCategories = CORE_CATEGORY_KEYS.map(key => {
@@ -90,25 +77,11 @@ export default async function ExplorePage() {
       ...dynamicCategories
   ];
 
-  // 2. Fetch Items (Page 0, Category 'all') - 预加载更多项目实现无感体验
-  const { data: itemsData } = await supabase
-      .from('items')
-      .select(`
-        *,
-        profiles:author_id (
-          username,
-          avatar_url
-        )
-      `)
-      .eq('is_public', true)
-      .order('daily_rank', { ascending: true, nullsFirst: false })
-      .range(0, 24); // 25 items - 增加预加载数量
-
   let initialItems: Item[] = [];
   let initialTopItem: Item | undefined = undefined;
 
-  if (itemsData) {
-      const formattedItems = itemsData.map((item) => ({
+  if (itemsResult.data) {
+      const formattedItems = itemsResult.data.map((item) => ({
         ...item,
         author: (item.profiles as { username?: string } | null)?.username || 'Unknown',
         authorAvatar: (item.profiles as { avatar_url?: string } | null)?.avatar_url
