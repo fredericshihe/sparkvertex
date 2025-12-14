@@ -7,7 +7,7 @@ import { Item } from '@/types/supabase';
 import ProjectCard from '@/components/ProjectCard';
 import { useModal } from '@/context/ModalContext';
 import { exploreCache, itemDetailsCache } from '@/lib/cache';
-import { getPreviewContent } from '@/lib/preview';
+import { getLightPreviewContent } from '@/lib/preview';
 import { useLanguage } from '@/context/LanguageContext';
 import { translations } from '@/lib/i18n/translations';
 import { KNOWN_CATEGORIES } from '@/lib/categories';
@@ -44,7 +44,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
   const { openLoginModal, openDetailModal } = useModal();
   const { language } = useLanguage();
   const t = translations[language] as typeof translations['zh'];
-  const ITEMS_PER_PAGE = 24; // 增加每页数量实现无感加载
+  const ITEMS_PER_PAGE = 12; // 减少每页数量以提升移动端性能
   const mainRef = useRef<HTMLDivElement>(null);
   
   // Use useLayoutEffect to prevent visual scroll jump
@@ -505,11 +505,11 @@ export default function ExploreClient({ initialItems, initialCategories, initial
                        <div className="absolute inset-0 flex items-center justify-center bg-transparent">
                           {topItems[0]?.content ? (
                             <iframe 
-                                srcDoc={getPreviewContent(topItems[0]?.content, { raw: true, appId: topItems[0]?.id ? String(topItems[0].id) : undefined })} 
+                                srcDoc={getLightPreviewContent(topItems[0]?.content)} 
                                 className="w-[200%] h-[200%] border-0 transform scale-50 origin-center pointer-events-none opacity-90 group-hover:opacity-100 transition-opacity bg-slate-900" 
                                 tabIndex={-1}
                                 scrolling="no"
-                                sandbox="allow-scripts allow-same-origin"
+                                sandbox="allow-same-origin"
                                 allow="autoplay 'none'; camera 'none'; microphone 'none'"
                                 title="Featured App Preview"
                             />

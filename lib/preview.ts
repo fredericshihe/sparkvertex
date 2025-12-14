@@ -1,4 +1,36 @@
 /**
+ * 轻量级卡片预览 - 仅用于 ProjectCard 的缩略图展示
+ * 不注入任何 JavaScript，只保留基本样式
+ * @param content - HTML 内容
+ */
+export const getLightPreviewContent = (content: string | null): string => {
+  if (!content) return '';
+  
+  // 移除所有 script 标签以提高安全性和性能
+  let result = content.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  
+  // 注入最小化样式以禁用动画和交互
+  const minimalStyle = `<style id="spark-preview-style">
+    * { 
+      animation: none !important; 
+      transition: none !important;
+      pointer-events: none !important;
+    }
+    body { overflow: hidden !important; }
+  </style>`;
+  
+  if (result.includes('</head>')) {
+    result = result.replace('</head>', `${minimalStyle}</head>`);
+  } else if (result.includes('<body>')) {
+    result = result.replace('<body>', `${minimalStyle}<body>`);
+  } else {
+    result = minimalStyle + result;
+  }
+  
+  return result;
+};
+
+/**
  * Centralized logic for injecting iframe safety scripts and point-and-click edit support.
  * Minimal modifications for maximum fidelity to double-click open behavior.
  * 

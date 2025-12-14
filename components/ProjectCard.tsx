@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Item } from '@/types/supabase';
-import { getPreviewContent } from '@/lib/preview';
+import { getLightPreviewContent } from '@/lib/preview';
 import dynamic from 'next/dynamic';
 import { useLanguage } from '@/context/LanguageContext';
 import { KNOWN_CATEGORIES } from '@/lib/categories';
@@ -33,8 +33,11 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
   useEffect(() => {
     setIsClient(true);
     
-    // 使用大范围预加载实现无感加载体验
-    // 视口外 800px 就开始加载，用户滚动时看不到任何加载效果
+    // 移动端使用更小的预加载距离以节省资源
+    // 桌面端保持较大距离实现无感体验
+    const isMobile = window.innerWidth < 768;
+    const rootMarginValue = isMobile ? '200px' : '600px';
+    
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -43,8 +46,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
         }
       },
       { 
-        // 大预加载距离，确保用户滚动前内容已加载
-        rootMargin: '800px', 
+        rootMargin: rootMarginValue, 
         threshold: 0 
       }
     );
@@ -66,8 +68,8 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
     setIsFlipped(false);
   };
 
-  // Memoize preview content
-  const previewContent = showPreview && item.content ? getPreviewContent(item.content, { raw: true, appId: item.id ? String(item.id) : undefined }) : '';
+  // 使用轻量级预览 - 不注入 JavaScript，大幅提升移动端性能
+  const previewContent = showPreview && item.content ? getLightPreviewContent(item.content) : '';
 
   // Get category icon
   const categoryKey = item.category ? (KNOWN_CATEGORIES[item.category]?.key || 'tool') : 'tool';
@@ -113,7 +115,7 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-800/50 to-transparent animate-pulse" />
             </div>
 
-            {/* 动态 Iframe 预览 - 无感加载 */}
+            {/* 轻量级 Iframe 预览 - 无 JavaScript，极速加载 */}
             {showPreview && item.content && (
                <iframe
                  srcDoc={previewContent}
@@ -121,11 +123,10 @@ export default function ProjectCard({ item, isLiked, onLike, onClick, isOwner, o
                    iframeLoaded ? 'opacity-100' : 'opacity-0'
                  }`}
                  onLoad={() => setIframeLoaded(true)}
-                 sandbox="allow-scripts allow-same-origin"
-                 allow="autoplay 'none'; camera 'none'; microphone 'none'"
+                 sandbox="allow-same-origin"
                  scrolling="no"
                  title={`Preview of ${item.title}`}
-                 loading="eager"
+                 loading="lazy"
                />
             )}
 

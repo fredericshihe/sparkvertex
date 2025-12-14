@@ -31,7 +31,7 @@ export default async function ExplorePage() {
     Promise.resolve(supabase.rpc('get_tag_counts')).catch(() => ({ data: null, error: { message: 'RPC failed' } })),
     // 2. 获取总数
     supabase.from('items').select('*', { count: 'exact', head: true }).eq('is_public', true),
-    // 3. 获取作品列表
+    // 3. 获取作品列表 - 减少初始加载数量以提升移动端性能
     supabase
       .from('items')
       .select(`
@@ -43,7 +43,7 @@ export default async function ExplorePage() {
       `)
       .eq('is_public', true)
       .order('daily_rank', { ascending: true, nullsFirst: false })
-      .range(0, 24)
+      .range(0, 12)
   ]);
 
   const categoryCounts: Record<string, number> = {};
