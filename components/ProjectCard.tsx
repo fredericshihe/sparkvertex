@@ -78,7 +78,8 @@ function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onUpdate
   const categoryIcon = KNOWN_CATEGORIES[item.category]?.icon || 'fa-code';
   
   // 生成基于内容的渐变背景色（用于没有封面的情况）
-  const gradientSeed = item.id?.slice(-6) || '000000';
+  const idString = String(item.id || '000000');
+  const gradientSeed = idString.slice(-6).padStart(6, '0');
   const hue1 = parseInt(gradientSeed.slice(0, 2), 16) % 360;
   const hue2 = (hue1 + 40) % 360;
 

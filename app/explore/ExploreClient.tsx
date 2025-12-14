@@ -124,34 +124,11 @@ export default function ExploreClient({ initialItems, initialCategories, initial
     const rangeStart = pageIndex === 0 ? 0 : (pageIndex * ITEMS_PER_PAGE) + 1;
     const rangeEnd = rangeStart + fetchLimit - 1;
 
-    // 查询作品列表 - 排除 content 和 embedding 大字段以提升性能
+    // 查询作品列表
     let query = supabase
       .from('items')
       .select(`
-        id,
-        created_at,
-        title,
-        description,
-        price,
-        author_id,
-        tags,
-        likes,
-        color,
-        page_views,
-        file_url,
-        downloads,
-        icon_url,
-        is_public,
-        quality_score,
-        richness_score,
-        utility_score,
-        total_score,
-        daily_rank,
-        analysis_reason,
-        analysis_reason_en,
-        is_draft,
-        category,
-        cover_url,
+        *,
         profiles:author_id (
           username,
           avatar_url
@@ -540,7 +517,7 @@ export default function ExploreClient({ initialItems, initialCategories, initial
                             <div 
                               className="absolute inset-0 flex items-center justify-center"
                               style={{
-                                background: `linear-gradient(135deg, hsl(${(topItems[0]?.id?.charCodeAt(0) || 0) % 360}, 40%, 25%), hsl(${((topItems[0]?.id?.charCodeAt(0) || 0) + 40) % 360}, 50%, 15%))`
+                                background: `linear-gradient(135deg, hsl(${(Number(topItems[0]?.id) || 0) % 360}, 40%, 25%), hsl(${((Number(topItems[0]?.id) || 0) + 40) % 360}, 50%, 15%))`
                               }}
                             >
                               <i className={`fa-solid ${KNOWN_CATEGORIES[topItems[0]?.category || '']?.icon || 'fa-code'} text-6xl text-white/20`}></i>
