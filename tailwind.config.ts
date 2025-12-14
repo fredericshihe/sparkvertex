@@ -5,6 +5,24 @@ const config: Config = {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./lib/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  safelist: [
+    // Credit purchase package gradients
+    'from-slate-400', 'to-slate-600',
+    'from-blue-400', 'to-blue-600',
+    'from-purple-400', 'to-purple-600',
+    'from-amber-400', 'to-amber-600',
+    // Package footer backgrounds
+    'bg-slate-900/60',
+    'bg-blue-950/30',
+    'bg-purple-950/30',
+    'bg-amber-950/30',
+    // Package shadows
+    'shadow-slate-500/20',
+    'shadow-blue-500/20',
+    'shadow-purple-500/20',
+    'shadow-amber-500/20',
   ],
   theme: {
     extend: {
