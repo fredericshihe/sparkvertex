@@ -71,7 +71,6 @@ export default function RootLayout({
           <WeChatGuard />
           <ToastProvider>
             <ModalProvider>
-              <canvas id="fluid-canvas" className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 opacity-20"></canvas>
               {/* <CityBackground /> */}
               <Navbar />
               <main className="min-h-screen pb-0">

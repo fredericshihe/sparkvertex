@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -11,16 +10,8 @@ interface HeroProps {
 }
 
 export default function Hero({}: HeroProps) {
-  const router = useRouter();
   const { t, language } = useLanguage();
   const [typingText, setTypingText] = useState('');
-  const [isNavigating, setIsNavigating] = useState(false);
-  const [isPending, startTransition] = useTransition();
-  
-  // 预加载创作页面
-  useEffect(() => {
-    router.prefetch('/create');
-  }, [router]);
 
   useEffect(() => {
     const texts = t.home.typing_texts;
@@ -63,8 +54,8 @@ export default function Hero({}: HeroProps) {
         {/* Smart Developer Badge */}
         <div className="inline-flex relative group cursor-default mb-8 select-none">
             {/* Hazy Illuminated Contour */}
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full opacity-0 group-hover:opacity-100 blur transition duration-500 group-hover:duration-200 transform-gpu"></div>
-            <div className="absolute -inset-2 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full opacity-0 group-hover:opacity-30 blur-xl transition duration-500 group-hover:duration-200 transform-gpu"></div>
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full opacity-0 group-hover:opacity-100 blur transition duration-500 group-hover:duration-200 transform-gpu will-change-[opacity]"></div>
+            <div className="absolute -inset-2 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 rounded-full opacity-0 group-hover:opacity-30 blur-xl transition duration-500 group-hover:duration-200 transform-gpu will-change-[opacity]"></div>
 
             <div className="relative px-6 py-2.5 bg-zinc-900/90 ring-1 ring-white/10 rounded-full leading-none flex items-center gap-3 backdrop-blur-sm shadow-2xl">
             <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-brand-400 to-purple-600 text-white shadow-lg shadow-brand-500/20">
@@ -89,28 +80,14 @@ export default function Hero({}: HeroProps) {
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-          <button
-            onClick={() => {
-              setIsNavigating(true);
-              startTransition(() => {
-                router.push('/create');
-              });
-            }}
-            disabled={isNavigating || isPending}
-            className="px-8 py-4 rounded-full bg-white text-black font-bold text-lg hover:bg-slate-200 transition-all hover:scale-105 shadow-[0_0_20px_rgba(255,255,255,0.3)] flex items-center gap-2 disabled:opacity-80"
+          <Link 
+            href="/create"
+            prefetch={true}
+            className="px-8 py-4 rounded-full bg-white text-black font-bold text-lg hover:bg-slate-200 transition-all hover:scale-105 shadow-[0_0_20px_rgba(255,255,255,0.3)] flex items-center gap-2"
           >
-            {(isNavigating || isPending) ? (
-              <>
-                <i className="fa-solid fa-circle-notch fa-spin"></i>
-                {language === 'zh' ? '进入中...' : 'Loading...'}
-              </>
-            ) : (
-              <>
-                <i className="fa-solid fa-wand-magic-sparkles"></i>
-                {t.home.hero_create_cta || t.nav.create}
-              </>
-            )}
-          </button>
+            <i className="fa-solid fa-wand-magic-sparkles"></i>
+            {t.home.hero_create_cta || t.nav.create}
+          </Link>
         </div>
 
         {/* Use Cases Tags */}

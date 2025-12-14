@@ -362,3 +362,17 @@ input, textarea, [contenteditable] {
 .animate-blink {
   animation: blink 1s step-end infinite;
 }
+
+/* Performance Optimizations */
+.content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 1000px;
+}
+
+.will-change-transform {
+  will-change: transform;
+}
+
+.will-change-opacity {
+  will-change: opacity;
+}

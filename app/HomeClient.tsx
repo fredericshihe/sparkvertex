@@ -3,21 +3,23 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Hero from '@/components/Hero';
-import FeatureCreation from '@/components/landing/FeatureCreation';
-import FeatureBackend from '@/components/landing/FeatureBackend';
-import CTASection from '@/components/landing/CTASection';
+
+// 动态导入非首屏组件，减少初始包体积
+const FeatureCreation = dynamic(() => import('@/components/landing/FeatureCreation'), { 
+  ssr: true 
+});
+const FeatureBackend = dynamic(() => import('@/components/landing/FeatureBackend'), { 
+  ssr: true 
+});
+const CTASection = dynamic(() => import('@/components/landing/CTASection'), { 
+  ssr: true 
+});
 
 // Galaxy 使用低优先级加载，不阻塞主内容
 const Galaxy = dynamic(() => import('@/components/Galaxy'), { 
   ssr: false,
   loading: () => null // 不显示加载占位符，让背景直接显示黑色
 });
-
-// 预加载创作页面的关键模块
-const preloadCreatePageModules = () => {
-  // 预加载 CreateClient 和其关键依赖
-  import('@/app/create/CreateClient');
-};
 
 interface HomeClientProps {
   // No props needed anymore
@@ -39,14 +41,6 @@ export default function HomeClient() {
     requestAnimationFrame(() => {
       setShowGalaxy(true);
     });
-    
-    // 在空闲时预加载创作页面模块
-    if ('requestIdleCallback' in window) {
-      (window as any).requestIdleCallback(preloadCreatePageModules, { timeout: 3000 });
-    } else {
-      // 移动端兼容：2秒后预加载
-      setTimeout(preloadCreatePageModules, 2000);
-    }
     
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
@@ -74,9 +68,12 @@ export default function HomeClient() {
       {/* Scrollable Content - 立即渲染，无需等待 */}
       <div className="relative z-10">
         <Hero />
-        <FeatureCreation />
-        <FeatureBackend />
-        <CTASection />
+        {/* 使用 content-visibility 优化视口外渲染性能 */}
+        <div className="content-visibility-auto contain-intrinsic-size-[1000px]">
+          <FeatureCreation />
+          <FeatureBackend />
+          <CTASection />
+        </div>
       </div>
     </div>
   );
