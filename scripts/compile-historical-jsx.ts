@@ -12,6 +12,11 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { compileForPublish, hasJSX } from '../lib/jsx-compiler';
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// 加载 .env.local
+config({ path: resolve(process.cwd(), '.env.local') });
 
 // 从环境变量获取 Supabase 配置
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -19,6 +24,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 if (!supabaseUrl || !supabaseServiceKey) {
   console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  console.error('Please ensure .env.local contains these variables');
   process.exit(1);
 }
 
