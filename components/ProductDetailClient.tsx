@@ -431,8 +431,8 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
               <iframe 
                 srcDoc={getPreviewContent(
                   // 🚀 优先使用预编译内容（无需浏览器端 Babel）
-                  item.compiled_content || item.content || '', 
-                  { raw: true, appId: String(item.id), apiBaseUrl, isPrecompiled: !!item.compiled_content }
+                  item.content || '', 
+                  { raw: true, appId: String(item.id), apiBaseUrl, isPrecompiled: false }
                 )}
                 className={`w-full h-full border-0 bg-white transition-opacity duration-500 ${iframeLoading ? 'opacity-0' : 'opacity-100'}`}
                 onLoad={() => setIframeLoading(false)}

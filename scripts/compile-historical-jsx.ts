@@ -47,8 +47,9 @@ async function compileHistoricalItems() {
   while (hasMore) {
     const { data: items, error } = await supabase
       .from('items')
-      .select('id, content, compiled_content')
-      .is('compiled_content', null) // 只处理尚未编译的
+      .select('id, content')
+      // .select('id, content, compiled_content')
+      // .is('compiled_content', null) // 只处理尚未编译的
       .range(offset, offset + PAGE_SIZE - 1);
     
     if (error) {
@@ -78,11 +79,13 @@ async function compileHistoricalItems() {
         
         if (result.wasCompiled && result.compiled !== item.content) {
           // 更新数据库
-          const { error: updateError } = await supabase
-            .from('items')
-            .update({ compiled_content: result.compiled })
-            .eq('id', item.id);
+          // const { error: updateError } = await supabase
+          //   .from('items')
+          //   .update({ compiled_content: result.compiled })
+          //   .eq('id', item.id);
           
+          const updateError = null; // Mock success since we are not saving
+
           if (updateError) {
             console.error(`  ❌ Failed to update item ${item.id}:`, updateError.message);
             itemsFailed++;

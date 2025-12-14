@@ -1783,9 +1783,9 @@ function UploadContent() {
         if (finalEmbedding) updateData.embedding = finalEmbedding;
         
         // 🚀 添加预编译内容（如果编译成功）
-        if (compiledContent) {
-          updateData.compiled_content = compiledContent;
-        }
+        // if (compiledContent) {
+        //   updateData.compiled_content = compiledContent;
+        // }
         
         // Update hash as well
         updateData.content_hash = finalContentHash;
@@ -1830,9 +1830,9 @@ function UploadContent() {
         };
         
         // 🚀 添加预编译内容（如果编译成功）
-        if (compiledContent) {
-          insertPayload.compiled_content = compiledContent;
-        }
+        // if (compiledContent) {
+        //   insertPayload.compiled_content = compiledContent;
+        // }
 
         let result = await supabase.from('items').insert(insertPayload).select().single();
 

@@ -32,7 +32,8 @@ export interface Item {
   is_draft?: boolean;
   draft_data?: any;
   public_key?: string; // E2EE 公钥 (JWK JSON 字符串)
-  compiled_content?: string; // 🚀 预编译的 JSX 内容（无需浏览器端 Babel）
+  // compiled_content?: string; // 🚀 预编译的 JSX 内容（无需浏览器端 Babel） - Removed
+
 }
 
 export interface Order {
