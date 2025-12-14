@@ -1,15 +1,14 @@
--- 添加 compiled_content 字段用于存储预编译的 JSX
--- 这样可以避免浏览器端加载 1.4MB 的 Babel standalone
+-- Migration: 20251215_add_compiled_content.sql
+-- Purpose: 恢复从 `items` 表中被删除的 `compiled_content` 列（用于存储已编译的 HTML/iframe 内容）
+-- Run with: psql -h <host> -U <user> -d <db> -f 20251215_add_compiled_content.sql
 
--- 为 items 表添加 compiled_content 字段
-ALTER TABLE items 
-ADD COLUMN IF NOT EXISTS compiled_content TEXT;
+BEGIN;
 
--- 添加注释说明
-COMMENT ON COLUMN items.compiled_content IS 'Pre-compiled content with JSX transformed to regular JavaScript. Used to eliminate the need for Babel standalone in browser.';
+-- 1) 在 items 表中添加 compiled_content 列（可为空，类型为 text）
+ALTER TABLE public.items
+  ADD COLUMN IF NOT EXISTS compiled_content text;
 
--- 为 public_content 表也添加（CMS 发布用）
-ALTER TABLE public_content 
-ADD COLUMN IF NOT EXISTS compiled_content TEXT;
+-- 2) 如果需要，可以在此处添加对该列的注释或默认值
+COMMENT ON COLUMN public.items.compiled_content IS '预渲染/已编译的 HTML 内容；为空表示使用原始 content 字段';
 
-COMMENT ON COLUMN public_content.compiled_content IS 'Pre-compiled content with JSX transformed to regular JavaScript.';
+COMMIT;
