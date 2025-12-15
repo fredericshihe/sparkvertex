@@ -977,6 +977,29 @@ System Prompt (lib/prompts.ts):
 │   ├── 每个 Patch 块要包含足够的上下文
 │   └── 不要添加不存在的注释
 
+**🧱 国内网络可达性（系统级 Prompt 约束）**
+
+为避免“国内打不开/加载慢”的问题，系统 Prompt 必须遵循：
+
+- **默认不依赖第三方图片/字体/图标库**：优先使用 CSS 渐变、内联 SVG、系统字体栈；不要在生成代码中引入外部字体服务或随机图片服务。
+- **如必须使用脚本 CDN（仅限少数情况）**：优先选择国内普遍可用的公共 CDN；避免依赖海外/Cloudflare 体系的 CDN。
+
+**推荐的国内公共 CDN（常见前端库）**
+
+- Staticfile（七牛/国内常用镜像）：`https://cdn.staticfile.org/`
+- BootCDN（国内常用镜像）：`https://cdn.bootcdn.net/ajax/libs/`
+
+**推荐的国内“自建/对象存储 + CDN”方案（图片/文件/字体等静态资源）**
+
+- 阿里云 OSS + CDN
+- 腾讯云 COS + CDN
+- 七牛云 Kodo + CDN
+- 又拍云（UPYUN）
+- 华为云 OBS + CDN
+- 百度智能云 BOS + CDN
+
+> 实践建议：对生产站点，优先“自托管（同域）/对象存储 + CDN”，不要在运行时从不确定的第三方服务拉取图片、字体或图标。
+
 User Prompt:
 ├── compressedCode (压缩后的完整代码)
 ├── ragContext (RAG 选中的代码片段)

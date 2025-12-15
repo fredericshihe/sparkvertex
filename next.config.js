@@ -78,13 +78,40 @@ const withPWA = require("@ducanh2912/next-pwa").default({
   },
 });
 
+const os = require('os');
+
+function getLanIPv4s() {
+  try {
+    const interfaces = os.networkInterfaces();
+    const results = new Set();
+    for (const name of Object.keys(interfaces)) {
+      for (const item of interfaces[name] || []) {
+        if (!item || item.family !== 'IPv4' || item.internal) continue;
+        const addr = item.address;
+        if (!addr) continue;
+        // Private ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+        const isPrivate10 = addr.startsWith('10.');
+        const isPrivate192 = addr.startsWith('192.168.');
+        const isPrivate172 = addr.startsWith('172.') && (() => {
+          const parts = addr.split('.');
+          const second = Number(parts[1]);
+          return Number.isFinite(second) && second >= 16 && second <= 31;
+        })();
+        if (isPrivate10 || isPrivate192 || isPrivate172) results.add(addr);
+      }
+    }
+    return Array.from(results);
+  } catch {
+    return [];
+  }
+}
+
+function uniq(arr) {
+  return Array.from(new Set(arr.filter(Boolean)));
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 允许局域网设备访问开发服务器
-  allowedDevOrigins: [
-    'http://192.168.3.151:3000',
-    'http://192.168.*.*:3000',
-  ],
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -93,9 +120,8 @@ const nextConfig = {
   },
   // 压缩优化
   compress: true,
-  // 实验性优化
+  // 实验性优化 (merged)
   experimental: {
-    // 优化打包体积
     optimizePackageImports: ['lucide-react', 'framer-motion'],
   },
   images: {
@@ -204,21 +230,26 @@ const nextConfig = {
       }
     ];
   },
-  // 允许局域网设备访问开发服务器
-  // 注意：如果端口不是3000，需要在这里添加对应的端口
-  // Next.js 14+ specific config for dev server
-  allowedDevOrigins: [
-    'http://192.168.124.3:3000', 'http://192.168.124.3:3001', 'http://192.168.124.3:3002', 'http://192.168.124.3:3003', 'http://192.168.124.3:3004', 'http://192.168.124.3:3005',
-    'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:3005',
-    'http://0.0.0.0:3000', 'http://0.0.0.0:3001', 'http://0.0.0.0:3002', 'http://0.0.0.0:3003', 'http://0.0.0.0:3004', 'http://0.0.0.0:3005'
-  ],
+  // 允许局域网设备访问开发服务器 (dev only)
+  allowedDevOrigins: (() => {
+    const ports = [3000, 3001, 3002, 3003, 3004, 3005];
+    const base = ports.flatMap((p) => [`http://localhost:${p}`, `http://0.0.0.0:${p}`]);
+    if (process.env.NODE_ENV !== 'development') return uniq(base);
+    const lanIps = getLanIPv4s();
+    const lan = lanIps.flatMap((ip) => ports.map((p) => `http://${ip}:${p}`));
+    return uniq([...base, ...lan]);
+  })(),
   experimental: {
+    optimizePackageImports: ['lucide-react', 'framer-motion'],
     serverActions: {
-      allowedOrigins: [
-        '192.168.124.3:3000', '192.168.124.3:3001', '192.168.124.3:3002', '192.168.124.3:3003', '192.168.124.3:3004', '192.168.124.3:3005',
-        'localhost:3000', 'localhost:3001', 'localhost:3002', 'localhost:3003', 'localhost:3004', 'localhost:3005',
-        '0.0.0.0:3000', '0.0.0.0:3001', '0.0.0.0:3002', '0.0.0.0:3003', '0.0.0.0:3004', '0.0.0.0:3005'
-      ],
+      allowedOrigins: (() => {
+        const ports = [3000, 3001, 3002, 3003, 3004, 3005];
+        const base = ports.flatMap((p) => [`localhost:${p}`, `0.0.0.0:${p}`]);
+        if (process.env.NODE_ENV !== 'development') return uniq(base);
+        const lanIps = getLanIPv4s();
+        const lan = lanIps.flatMap((ip) => ports.map((p) => `${ip}:${p}`));
+        return uniq([...base, ...lan]);
+      })(),
     },
   },
 };

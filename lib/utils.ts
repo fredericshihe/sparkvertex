@@ -120,151 +120,152 @@ export function detectSparkBackendCode(htmlContent: string): boolean {
 }
 
 // Remove Spark backend code from HTML content for public sharing
+// 🔧 v2.0 - 完全重写，采用"禁用"策略而非"删除"策略，避免破坏代码结构
 export function removeSparkBackendCode(htmlContent: string): string {
   if (!htmlContent) return htmlContent;
   
   let result = htmlContent;
   
-  // ========== 1. SPARK 平台后端代码移除 ==========
+  // ========== 策略说明 ==========
+  // 旧版本尝试用正则删除整个函数/类，这会导致嵌套大括号匹配错误，破坏代码结构
+  // 新版本采用"禁用"策略：
+  // 1. 将 API URL 替换为 mock URL，让 fetch 调用仍然语法正确但返回空数据
+  // 2. 将敏感变量值替换为占位符，保持声明语法完整
+  // 3. 注入一个全局拦截器来 mock 所有后端请求
   
-  // Remove SPARK_APP_ID declaration and related code
-  result = result.replace(/window\.SPARK_APP_ID\s*=\s*['"][^'"]*['"];?\s*/g, '');
-  result = result.replace(/const\s+SPARK_APP_ID\s*=\s*['"][^'"]*['"];?\s*/g, '');
-  result = result.replace(/let\s+SPARK_APP_ID\s*=\s*['"][^'"]*['"];?\s*/g, '');
+  // ========== 1. 注入全局后端 Mock 拦截器 ==========
+  // 这是最安全的方法：不修改原始代码结构，只是拦截运行时的网络请求
+  const mockInterceptorScript = `<script>
+(function() {
+  // 🔒 Public Version: Backend requests are mocked for security
+  var originalFetch = window.fetch;
+  window.fetch = function(url, options) {
+    var urlStr = typeof url === 'string' ? url : (url && url.url) || '';
+    // Mock all API/backend requests
+    if (urlStr.includes('/api/') || 
+        urlStr.includes('supabase') || 
+        urlStr.includes('firebase') ||
+        (options && options.method && options.method !== 'GET')) {
+      console.log('[Public Version] Backend request mocked:', urlStr);
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: function() { return Promise.resolve({ success: true, data: [], message: 'Public version - backend disabled' }); },
+        text: function() { return Promise.resolve(''); },
+        blob: function() { return Promise.resolve(new Blob()); }
+      });
+    }
+    return originalFetch.apply(this, arguments);
+  };
   
-  // Remove fetch calls to /api/mailbox endpoints
+  // Mock XMLHttpRequest for legacy code
+  var originalXHROpen = XMLHttpRequest.prototype.open;
+  var originalXHRSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function(method, url) {
+    this._sparkUrl = url;
+    this._sparkMethod = method;
+    return originalXHROpen.apply(this, arguments);
+  };
+  XMLHttpRequest.prototype.send = function() {
+    var urlStr = this._sparkUrl || '';
+    if (urlStr.includes('/api/') || this._sparkMethod !== 'GET') {
+      console.log('[Public Version] XHR request mocked:', urlStr);
+      var self = this;
+      setTimeout(function() {
+        Object.defineProperty(self, 'readyState', { value: 4, writable: false });
+        Object.defineProperty(self, 'status', { value: 200, writable: false });
+        Object.defineProperty(self, 'responseText', { value: '{"success":true,"data":[]}', writable: false });
+        Object.defineProperty(self, 'response', { value: '{"success":true,"data":[]}', writable: false });
+        if (self.onreadystatechange) self.onreadystatechange();
+        if (self.onload) self.onload();
+      }, 10);
+      return;
+    }
+    return originalXHRSend.apply(this, arguments);
+  };
+  
+  // Set SPARK variables to safe mock values (preserves code that references them)
+  window.SPARK_APP_ID = 'public_demo';
+  window.SPARK_USER_ID = 'public_user';
+  window.SPARK_API_BASE = '';
+  
+  // Mock SparkCMS if it exists
+  window.SparkCMS = {
+    _cache: {},
+    init: function() { return Promise.resolve(); },
+    getContent: function(slug, defaultValue) { return defaultValue || ''; },
+    fetchContent: function(slug, defaultValue) { return Promise.resolve(defaultValue || ''); },
+    getHtml: function(slug, defaultValue) { return Promise.resolve(defaultValue || ''); },
+    refreshAll: function() {},
+    updateContent: function() {}
+  };
+})();
+</script>`;
+
+  // 在 <head> 标签后或 <body> 标签前注入拦截器（确保在其他脚本之前运行）
+  if (result.includes('<head>')) {
+    result = result.replace('<head>', '<head>\n' + mockInterceptorScript);
+  } else if (result.includes('<body>')) {
+    result = result.replace('<body>', mockInterceptorScript + '\n<body>');
+  } else if (result.includes('<html>') || result.includes('<html ')) {
+    // 如果没有 head 或 body，在 html 标签后注入
+    result = result.replace(/<html(\s[^>]*)?>/, '<html$1>\n' + mockInterceptorScript);
+  } else {
+    // 最后的 fallback：在文件开头注入
+    result = mockInterceptorScript + '\n' + result;
+  }
+  
+  // ========== 2. 安全的字符串替换（只替换简单模式，不破坏代码结构） ==========
+  
+  // 替换 API endpoint URLs 为空字符串（保持 fetch 调用语法正确）
+  // 注意：这些替换不会破坏代码结构，因为只是替换字符串值
+  result = result.replace(/(['"`])\/api\/mailbox\/submit\1/g, '$1$1'); // '' 空字符串
+  result = result.replace(/(['"`])\/api\/mailbox\/upload\1/g, '$1$1');
+  result = result.replace(/(['"`])\/api\/cms\/[^'"`]*\1/g, '$1$1');
+  
+  // 替换敏感的 SPARK 变量声明值（保持声明语法完整）
+  // 不删除整行，只替换值
   result = result.replace(
-    /fetch\s*\(\s*['"`][^'"`]*\/api\/mailbox\/[^'"`]*['"`][^)]*\)[^;]*\.then[^;]*\.catch[^;]*;?/g,
-    '/* Backend removed for public sharing */ Promise.resolve({ success: true })'
+    /(window\.SPARK_APP_ID\s*=\s*)(['"`])[^'"`]*\2/g, 
+    '$1$2public_demo$2'
   );
   result = result.replace(
-    /await\s+fetch\s*\(\s*['"`][^'"`]*\/api\/mailbox\/[^'"`]*['"`][^)]*\)/g,
-    '/* Backend removed */ { ok: true, json: () => Promise.resolve({ success: true }) }'
+    /(window\.SPARK_USER_ID\s*=\s*)(['"`])[^'"`]*\2/g, 
+    '$1$2public_user$2'
+  );
+  result = result.replace(
+    /(window\.SPARK_API_BASE\s*=\s*)(['"`])[^'"`]*\2/g, 
+    '$1$2$2'
   );
   
-  // Remove SparkCrypto related code
-  result = result.replace(/class\s+SparkCrypto\s*\{[\s\S]*?\n\s*\}/g, '/* SparkCrypto removed for public sharing */');
-  result = result.replace(/const\s+SparkCrypto\s*=[\s\S]*?;/g, '');
-  result = result.replace(/new\s+SparkCrypto\s*\([^)]*\)/g, 'null');
-  
-  // Remove SparkBackend related code
-  result = result.replace(/class\s+SparkBackend\s*\{[\s\S]*?\n\s*\}/g, '/* SparkBackend removed for public sharing */');
-  result = result.replace(/const\s+SparkBackend\s*=[\s\S]*?;/g, '');
-  
-  // Remove CMS data attributes but keep the element
+  // ========== 3. 移除 CMS data 属性（安全操作，不影响代码逻辑） ==========
   result = result.replace(/\s+data-cms=['"][^'"]*['"]/g, '');
   result = result.replace(/\s+data-cms-src=['"][^'"]*['"]/g, '');
+  result = result.replace(/\s+data-cms-href=['"][^'"]*['"]/g, '');
   
-  // ========== 2. 通用 API 请求移除 ==========
-  
-  // Remove fetch calls to external APIs (non-CDN, non-asset URLs)
-  // Keep: CDN resources, images, fonts, stylesheets, scripts from known safe domains
-  const safeDomainsPattern = /(cdn\.|unpkg\.com|cdnjs\.cloudflare\.com|jsdelivr\.net|fonts\.googleapis\.com|fonts\.gstatic\.com|\.css|\.js|\.png|\.jpg|\.jpeg|\.gif|\.svg|\.woff|\.woff2|\.ttf|\.ico)/i;
-  
-  // Remove POST/PUT/DELETE fetch requests (data submission)
+  // ========== 4. 替换敏感密钥值（只替换值，不删除声明） ==========
   result = result.replace(
-    /fetch\s*\([^)]+\s*,\s*\{[^}]*method\s*:\s*['"`](POST|PUT|DELETE|PATCH)['"`][^}]*\}[^)]*\)/gi,
-    '/* API call removed for public sharing */ Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) })'
+    /((?:const|let|var)\s+(?:API_KEY|API_SECRET|SECRET_KEY|AUTH_TOKEN|ACCESS_TOKEN|PRIVATE_KEY)\s*=\s*)(['"`])[^'"`]+\2/gi,
+    '$1$2REMOVED_FOR_PUBLIC$2'
   );
   
-  // Remove axios POST/PUT/DELETE calls
+  // 替换 Authorization header 的值
   result = result.replace(
-    /axios\s*\.\s*(post|put|delete|patch)\s*\([^)]+\)/gi,
-    '/* API call removed */ Promise.resolve({ data: { success: true } })'
+    /(['"`]Authorization['"`]\s*:\s*)(['"`])Bearer\s+[^'"`]+\2/gi,
+    '$1$2Bearer REMOVED$2'
   );
   
-  // ========== 3. WebSocket 和实时连接移除 ==========
-  
-  // Remove WebSocket connections
+  // 替换 x-api-key header 的值
   result = result.replace(
-    /new\s+WebSocket\s*\(\s*['"`][^'"`]+['"`]\s*\)/g,
-    '/* WebSocket removed */ { send: () => {}, close: () => {}, onmessage: null, onopen: null, onclose: null, onerror: null }'
+    /(['"`]x-api-key['"`]\s*:\s*)(['"`])[^'"`]+\2/gi,
+    '$1$2REMOVED$2'
   );
   
-  // Remove Socket.io connections
-  result = result.replace(
-    /io\s*\(\s*['"`][^'"`]*['"`][^)]*\)/g,
-    '/* Socket.io removed */ { on: () => {}, emit: () => {}, connect: () => {}, disconnect: () => {} }'
-  );
-  
-  // ========== 4. 数据库连接移除 ==========
-  
-  // Remove Firebase initialization
-  result = result.replace(
-    /firebase\.initializeApp\s*\([^)]*\)/g,
-    '/* Firebase removed for public sharing */'
-  );
-  result = result.replace(
-    /initializeApp\s*\(\s*\{[^}]*apiKey[^}]*\}\s*\)/g,
-    '/* Firebase removed */'
-  );
-  
-  // Remove Supabase client creation (external, not our platform)
-  result = result.replace(
-    /createClient\s*\(\s*['"`][^'"`]+['"`]\s*,\s*['"`][^'"`]+['"`]\s*\)/g,
-    '/* Supabase client removed */ { from: () => ({ select: () => Promise.resolve({ data: [] }) }) }'
-  );
-  
-  // Remove MongoDB connections
-  result = result.replace(
-    /MongoClient\s*\.\s*connect\s*\([^)]+\)/g,
-    '/* MongoDB removed */ Promise.resolve({ db: () => ({ collection: () => ({ find: () => ({ toArray: () => Promise.resolve([]) }) }) }) })'
-  );
-  
-  // ========== 5. 认证和密钥移除 ==========
-  
-  // Remove API keys and secrets (common patterns)
-  result = result.replace(
-    /(const|let|var)\s+(API_KEY|API_SECRET|SECRET_KEY|AUTH_TOKEN|ACCESS_TOKEN|PRIVATE_KEY)\s*=\s*['"`][^'"`]+['"`]/gi,
-    '$1 $2 = "REMOVED_FOR_PUBLIC"'
-  );
-  
-  // Remove Bearer token headers
-  result = result.replace(
-    /['"`]Authorization['"`]\s*:\s*['"`]Bearer\s+[^'"`]+['"`]/gi,
-    '"Authorization": "Bearer REMOVED"'
-  );
-  
-  // Remove x-api-key headers
-  result = result.replace(
-    /['"`]x-api-key['"`]\s*:\s*['"`][^'"`]+['"`]/gi,
-    '"x-api-key": "REMOVED"'
-  );
-  
-  // ========== 6. 服务端代码模式移除 ==========
-  
-  // Remove server-side indicators
-  result = result.replace(
-    /process\.env\.\w+/g,
-    '"REMOVED"'
-  );
-  
-  // Remove Node.js require for backend modules
-  result = result.replace(
-    /require\s*\(\s*['"`](express|koa|fastify|hapi|http|https|net|fs|path|crypto|child_process)['"`]\s*\)/g,
-    '/* Server module removed */ {}'
-  );
-  
-  // ========== 7. 表单提交函数替换 ==========
-  
-  // Replace backend submit functions with local-only version
-  result = result.replace(
-    /const\s+submitToBackend\s*=\s*async[^}]*\}\s*;/g,
-    'const submitToBackend = async () => { console.log("Public version - data saved locally only"); return { success: true }; };'
-  );
-  
-  // Replace generic submit/save to API functions
-  result = result.replace(
-    /(const|let|var)\s+(submitToAPI|saveToServer|sendToBackend|postData|uploadData)\s*=\s*async\s*\([^)]*\)\s*=>\s*\{[^}]*fetch[^}]*\}/gi,
-    '$1 $2 = async (data) => { console.log("Public version - backend disabled", data); return { success: true }; }'
-  );
-  
-  // ========== 8. 添加公开版本标记 ==========
-  
+  // ========== 5. 添加公开版本标记 ==========
   if (!result.includes('<!-- PUBLIC VERSION -->')) {
     result = result.replace(
       /<html/i,
-      '<!-- PUBLIC VERSION: Backend integration removed for public sharing -->\n<html'
+      '<!-- PUBLIC VERSION: Backend requests are mocked for public sharing -->\n<html'
     );
   }
   

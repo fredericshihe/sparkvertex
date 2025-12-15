@@ -5,12 +5,36 @@ export const HTML_TEMPLATE = `<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>App</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css">
+<!-- China-friendly: avoid Google/Cloudflare-heavy CDNs; keep only staticfile.org for core libs -->
 <script src="https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js"></script>
-<style>body{background:#1a1a1a;color:#fff;overflow:hidden}</style>
+<style>
+  :root{color-scheme:dark;--bg:#0b1220;--panel:rgba(255,255,255,.06);--panel2:rgba(255,255,255,.10);--border:rgba(255,255,255,.12);--text:#e6edf7;--muted:#9aa4b2;--brand:#6aa6ff;--danger:#ff5a6a;}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:radial-gradient(1200px 700px at 20% 0%,rgba(106,166,255,.20),transparent 60%),radial-gradient(900px 600px at 80% 20%,rgba(160,104,255,.16),transparent 60%),var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;overflow:hidden;}
+  a{color:inherit}
+  .app{height:100%;display:flex;flex-direction:column}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.18);backdrop-filter:blur(10px)}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.2px}
+  .brand-badge{width:28px;height:28px;border-radius:10px;background:linear-gradient(135deg,rgba(106,166,255,.95),rgba(160,104,255,.95));display:grid;place-items:center;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  .container{flex:1;overflow:auto;padding:18px 16px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .muted{color:var(--muted)}
+  .btn{appearance:none;border:1px solid var(--border);background:var(--panel2);color:var(--text);padding:10px 12px;border-radius:12px;font-weight:700;cursor:pointer}
+  .btn:hover{filter:brightness(1.08)}
+  .btn-primary{background:linear-gradient(135deg,rgba(106,166,255,.95),rgba(160,104,255,.95));border-color:rgba(106,166,255,.35)}
+  .btn-danger{background:rgba(255,90,106,.12);border-color:rgba(255,90,106,.35);color:#ff9aa6}
+  .code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+  .error-wrap{height:100%;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(255,90,106,.12)}
+  .error-card{width:min(980px,100%);background:rgba(0,0,0,.35);border:1px solid rgba(255,90,106,.28);border-radius:18px;padding:18px;backdrop-filter:blur(10px)}
+  .error-title{display:flex;align-items:center;gap:10px;color:#ff9aa6;font-weight:800;border-bottom:1px solid rgba(255,90,106,.24);padding-bottom:12px;margin-bottom:12px}
+  .error-pre{white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,.30);border:1px solid rgba(255,255,255,.10);border-radius:12px;padding:12px;overflow:auto}
+  @media (max-width:640px){.topbar{padding:12px}.container{padding:14px 12px}}
+  @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto;transition:none!important;animation:none!important}}
+</style>
 </head>
 <body>
 <div id="root"></div>
@@ -33,23 +57,30 @@ class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="h-screen flex flex-col items-center justify-center p-4 text-center bg-red-900/90 text-white font-mono overflow-auto">
-          <div className="max-w-4xl w-full bg-black/50 p-6 rounded-xl border border-red-500/30 shadow-2xl backdrop-blur-sm">
-            <div className="flex items-center gap-3 mb-4 text-red-400 border-b border-red-500/30 pb-4">
-              <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
-              <h2 className="text-xl font-bold">Application Runtime Error</h2>
-            </div>
-            <div className="text-left space-y-4">
+        <div className="error-wrap">
+          <div className="error-card">
+            <div className="error-title">
+              <span className="brand-badge" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 9v5" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M12 17h.01" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+                  <path d="M10.29 3.86c.76-1.36 2.66-1.36 3.42 0l8.13 14.54c.75 1.35-.22 3.03-1.71 3.03H3.87c-1.49 0-2.46-1.68-1.71-3.03L10.29 3.86Z" stroke="white" strokeWidth="1.5"/>
+                </svg>
+              </span>
               <div>
-                <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Error Message</p>
-                <div className="text-red-300 font-bold break-words">{this.state.error?.toString()}</div>
+                <div>Application Runtime Error</div>
+                <div className="muted" style={{fontSize:12,fontWeight:700}}>请复制错误信息并反馈</div>
+              </div>
+            </div>
+            <div style={{display:'grid',gap:12}}>
+              <div>
+                <div className="muted" style={{fontSize:12,fontWeight:800,letterSpacing:'.08em',textTransform:'uppercase'}}>Error Message</div>
+                <div style={{marginTop:6,color:'#ffb5be',fontWeight:800,wordBreak:'break-word'}}>{this.state.error?.toString()}</div>
               </div>
               {this.state.error?.stack && (
                 <div>
-                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Stack Trace</p>
-                  <pre className="text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap break-all bg-black/30 p-3 rounded border border-white/10">
-                    {this.state.error.stack}
-                  </pre>
+                  <div className="muted" style={{fontSize:12,fontWeight:800,letterSpacing:'.08em',textTransform:'uppercase'}}>Stack Trace</div>
+                  <pre className="error-pre code" style={{marginTop:6}}>{this.state.error.stack}</pre>
                 </div>
               )}
             </div>
@@ -82,34 +113,26 @@ export const GET_SYSTEM_PROMPT = (language: string, isDiffMode: boolean) => {
         return `You are an expert React Refactoring Engineer.
 Your task is to modify the provided React code based on the user's request.
 
-### 🖼️ Image & Asset Rules (China Accessibility)
-To ensure the app works globally (including China), you MUST follow these strict rules for images and assets:
+  ### 🧩 Assets, Icons, Fonts & CDNs (China-Friendly, Stable-by-Default)
+  To ensure the app works reliably in Mainland China and on poor networks, you MUST follow these rules:
 
-1. **Dynamic Images (Preferred)**:
-   - Use **Pollinations.ai** for context-aware images.
-   - Format: \`https://image.pollinations.ai/prompt/{description}?width={w}&height={h}&nologo=true\`
-   - Example: \`https://image.pollinations.ai/prompt/sunset%20over%20tokyo?width=800&height=600&nologo=true\`
-   - **Do NOT** use Unsplash source URLs (source.unsplash.com is deprecated/blocked).
+  1. **NO external image services by default**
+    - Do NOT fetch random images from any third-party image API.
+    - Prefer: CSS gradients, inline SVG placeholders, or simple vector shapes.
+    - If the user explicitly provides an image URL, you may use it.
+    - If remote images are required, prefer self-hosting on the same domain or China-friendly object storage/CDN (Aliyun OSS, Tencent COS, Qiniu, Upyun, Huawei OBS).
 
-2. **Placeholders**:
-   - Use **Placehold.co** for simple placeholders with text.
-   - Format: \`https://placehold.co/{width}x{height}/{bgcolor}/{textcolor}?text={text}\`
-   - Example: \`https://placehold.co/600x400/222222/ffffff?text=Product+Image\`
+  2. **Icons: inline SVG only (no icon-font CDNs)**
+    - Do NOT rely on FontAwesome/Material Icons CDNs.
+    - Use small inline SVG icons directly in the JSX.
 
-3. **Avatars**:
-   - Use **DiceBear** for user avatars.
-   - Format: \`https://api.dicebear.com/7.x/avataaars/svg?seed={username}\`
+  3. **Fonts: system fonts only**
+    - ❌ STRICTLY FORBIDDEN: Google Fonts and any external font services.
+    - Use a system font stack (already present in the base template).
 
-4. **Icons**:
-   - Use **FontAwesome 6** (CDN provided in template).
-   - Example: \`<i className="fa-solid fa-home"></i>\`
-
-5. **Forbidden Sources** (Blocked in China):
-   - ❌ \`images.unsplash.com\`
-   - ❌ \`source.unsplash.com\`
-   - ❌ \`i.imgur.com\`
-   - ❌ \`placekitten.com\` (often slow)
-   - ❌ Google Fonts (use system fonts or staticfile CDN)
+  4. **CDN policy (scripts only, if unavoidable)**
+    - Allowed (China-friendly): cdn.staticfile.org, cdn.bootcdn.net
+    - ❌ Forbidden: overseas/CDN networks that are often blocked or slow in Mainland China (e.g., Cloudflare-based CDNs, global npm CDNs)
 
 ### Output Format
 ${langInstruction}
@@ -197,88 +220,50 @@ If a user's request requires changes to a READ-ONLY file, respond with a note ex
     return `You are an expert React Developer.
 Build a production-grade, single-file HTML application.
 
-### 🖼️ Image & Asset Rules (China Accessibility)
-To ensure the app works globally (including China), you MUST follow these strict rules for images and assets:
+  ### 🧩 Assets, Icons, Fonts & CDNs (China-Friendly, Stable-by-Default)
+  To ensure the app works reliably in Mainland China and on poor networks, you MUST follow these rules:
 
-1. **Dynamic Images (Preferred)**:
-   - Use **Pollinations.ai** for context-aware images.
-   - Format: \`https://image.pollinations.ai/prompt/{description}?width={w}&height={h}&nologo=true\`
-   - Example: \`https://image.pollinations.ai/prompt/sunset%20over%20tokyo?width=800&height=600&nologo=true\`
-   - **Do NOT** use Unsplash source URLs (source.unsplash.com is deprecated/blocked).
+  1. **NO external image services by default**
+    - Do NOT fetch random images from any third-party image API.
+    - Prefer: CSS gradients, inline SVG placeholders, or embedded data URIs.
+    - If the user explicitly provides an image URL, you may use it.
+    - If remote images are required, prefer self-hosting on the same domain or China-friendly object storage/CDN (Aliyun OSS, Tencent COS, Qiniu, Upyun, Huawei OBS).
 
-2. **Placeholders**:
-   - Use **Placehold.co** for simple placeholders with text.
-   - Format: \`https://placehold.co/{width}x{height}/{bgcolor}/{textcolor}?text={text}\`
-   - Example: \`https://placehold.co/600x400/222222/ffffff?text=Product+Image\`
+  2. **Icons: inline SVG only (no icon-font CDNs)**
+    - Do NOT rely on FontAwesome/Material Icons CDNs.
+    - Use small inline SVG icons directly in the JSX/HTML.
 
-3. **Avatars**:
-   - Use **DiceBear** for user avatars.
-   - Format: \`https://api.dicebear.com/7.x/avataaars/svg?seed={username}\`
+  3. **Fonts: system fonts only**
+    - ❌ STRICTLY FORBIDDEN: Google Fonts and any external font services.
+    - Use a system font stack.
 
-4. **Icons**:
-   - Use **FontAwesome 6** (CDN provided in template).
-   - Example: \`<i className="fa-solid fa-home"></i>\`
-
-5. **Forbidden Sources** (Blocked in China):
-   - ❌ \`images.unsplash.com\`
-   - ❌ \`source.unsplash.com\`
-   - ❌ \`i.imgur.com\`
-   - ❌ \`placekitten.com\` (often slow)
-   - ❌ Google Fonts (use system fonts or staticfile CDN)
+  4. **CDN policy (scripts only, if unavoidable)**
+    - Allowed (China-friendly): cdn.staticfile.org, cdn.bootcdn.net
+    - ❌ Forbidden: overseas/CDN networks that are often blocked or slow in Mainland China (e.g., Cloudflare-based CDNs, global npm CDNs)
 
 ### Tech Stack
 - React 18 (UMD) + Babel Standalone
-- Tailwind CSS (CDN)
-- FontAwesome 6 (CDN)
+  - Plain CSS in <style> (no external CSS frameworks)
+  - Inline SVG icons
 
 ### Preferred Libraries (CDN)
-Use these stable, China-accessible CDNs when these features are needed:
-- **React**: \`https://cdn.staticfile.org/react/18.2.0/umd/react.production.min.js\`
-- **ReactDOM**: \`https://cdn.staticfile.org/react-dom/18.2.0/umd/react-dom.production.min.js\`
-- **Babel**: \`https://cdn.staticfile.org/babel-standalone/7.23.5/babel.min.js\`
-- **Tailwind**: \`https://cdn.tailwindcss.com\`
-- **FontAwesome**: \`https://cdn.staticfile.org/font-awesome/6.4.0/css/all.min.css\`
-- **Lucide Icons**: \`https://unpkg.com/lucide@latest/dist/umd/lucide.js\` (Global: \`lucide\`)
-- **Charts (ECharts)**: \`https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js\` (Global: \`echarts\`)
-- **Markdown**: \`https://cdn.jsdelivr.net/npm/marked/marked.min.js\` (Global: \`marked\`)
-- **Confetti**: \`https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js\` (Global: \`confetti\`)
-- **Math/Physics**: \`https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js\` (Global: \`Matter\`)
-- **Excel (XLSX)**: \`https://cdn.staticfile.org/xlsx/0.18.5/xlsx.full.min.js\` (Global: \`XLSX\`)
-- **PDF Generation**: \`https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js\` (Global: \`jspdf\`)
-- **QRCode**: \`https://cdn.staticfile.org/qrcodejs/1.0.0/qrcode.min.js\` (Global: \`QRCode\`. Usage: \`new QRCode(document.getElementById("id"), "text")\`)
-- **Supabase**: \`https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2\` (Global: \`supabase\`. For backend/database features)
+  Core libs are already provided in the base template (staticfile.org). Avoid adding new CDN dependencies.
 
-### 🆕 Backend Integration (Supabase)
-When the user requests features that need:
-- User authentication (login/signup)
-- Data persistence (save/load data)
-- User accounts, membership, points system
-- Real-time data synchronization
+  If the user explicitly requests a 3rd-party library and you MUST use a CDN:
+  - Prefer BootCDN (examples):
+    - ECharts: https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js
+    - Marked: https://cdn.bootcdn.net/ajax/libs/marked/11.1.1/marked.min.js
+    - Matter.js: https://cdn.bootcdn.net/ajax/libs/matter-js/0.19.0/matter.min.js
+    - jsPDF: https://cdn.bootcdn.net/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js
+  - Otherwise implement a minimal version with vanilla JS.
 
-Generate code with Supabase integration:
-\`\`\`javascript
-// Add this script to head:
-// <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+### Backend Integrations
+Do NOT add new backend SDKs via CDN by default.
+- For most apps: use local state + localStorage.
+- Only add backend calls if the user explicitly requests "server", "database", "login", or "cloud sync".
+- If the user requests Supabase specifically, ask them to provide a stable, self-hosted script URL or accept implementing a fetch-based REST approach without loading SDKs from blocked CDNs.
 
-// Initialize Supabase client (user needs to replace with their credentials)
-const SUPABASE_URL = 'YOUR_SUPABASE_URL'; // Get from Supabase Dashboard
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // Get from Supabase Dashboard
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// Example: Authentication
-const signUp = async (email, password) => {
-  const { data, error } = await supabaseClient.auth.signUp({ email, password });
-  return { data, error };
-};
-
-// Example: Data operations
-const saveData = async (tableName, data) => {
-  const { data: result, error } = await supabaseClient.from(tableName).insert(data);
-  return { result, error };
-};
-\`\`\`
-
-### 🏰 Local-First Architecture (PGLite - Data Sovereignty Mode)
+### 🏰 Local-First Architecture (Data Sovereignty Mode)
 
 **IMPORTANT**: When the user explicitly requests any of these keywords, generate code with PGLite local database:
 - "本地数据库" / "local database" / "离线" / "offline"
@@ -292,84 +277,48 @@ const saveData = async (tableName, data) => {
 - Privacy-sensitive apps (health records, private notes)
 - Self-owned data apps (customer lists for small business owners)
 
-#### Local Database (PGLite - PostgreSQL in Browser)
+#### Local Database (IndexedDB)
 \`\`\`javascript
-// === SparkDB: Local-First Database (PGLite + OPFS) ===
-// Data stored ONLY in user's browser - never uploaded to server!
+// === SparkDB: Local-First Database (IndexedDB) ===
+// Data stored ONLY in the user's browser - never uploaded to a server.
 
-class SparkDB {
-  constructor() { this.db = null; this.ready = false; }
-  
-  async init() {
-    if (this.ready) return true;
-    try {
-      // Dynamic import PGLite (PostgreSQL compiled to WASM)
-      const { PGlite } = await import('https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js');
-      // OPFS = Origin Private File System - persistent browser storage
-      this.db = new PGlite('opfs://spark-app-data');
-      await this.db.waitReady;
-      this.ready = true;
-      console.log('🔮 SparkDB Ready - Your data stays local!');
-      return true;
-    } catch (e) {
-      console.error('SparkDB Init Failed:', e);
-      // Fallback to IndexedDB if OPFS not available
-      const { PGlite } = await import('https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js');
-      this.db = new PGlite('idb://spark-app-data');
-      await this.db.waitReady;
-      this.ready = true;
-      return true;
-    }
-  }
-  
-  async query(sql, params = []) {
-    if (!this.ready) await this.init();
-    return this.db.query(sql, params);
-  }
-  
-  async exec(sql) {
-    if (!this.ready) await this.init();
-    return this.db.exec(sql);
-  }
+function openDb(dbName, storeName) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(dbName, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(storeName)) {
+        db.createObjectStore(storeName, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 }
 
-window.sparkDB = new SparkDB();
-
-// Example: Create table and use it
-async function setupDatabase() {
-  await window.sparkDB.exec(\\\`
-    CREATE TABLE IF NOT EXISTS records (
-      id SERIAL PRIMARY KEY,
-      data JSONB NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-    );
-  \\\`);
+async function idbPut(dbName, storeName, value) {
+  const db = await openDb(dbName, storeName);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readwrite');
+    tx.objectStore(storeName).put(value);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
-// Insert data (stays local!)
-async function addRecord(data) {
-  await window.sparkDB.query(
-    'INSERT INTO records (data) VALUES ($1)',
-    [JSON.stringify(data)]
-  );
+async function idbGetAll(dbName, storeName) {
+  const db = await openDb(dbName, storeName);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const req = tx.objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
 }
 
-// Query data (no network needed!)
-async function getRecords() {
-  const result = await window.sparkDB.query('SELECT * FROM records ORDER BY created_at DESC');
-  return result.rows;
-}
-
-// Export all data (for backup)
-async function exportData() {
-  const result = await window.sparkDB.query('SELECT * FROM records');
-  const blob = new Blob([JSON.stringify(result.rows, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'my-data-backup.json';
-  a.click();
-}
+// Example usage:
+// await idbPut('spark_app_db', 'records', { id: crypto.randomUUID(), data, createdAt: Date.now() })
+// const rows = await idbGetAll('spark_app_db', 'records')
 \`\`\`
 
 **Key Benefits of Local DB**:
@@ -498,18 +447,18 @@ const resetGame = () => { localStorage.removeItem(STORAGE_KEY); setState(default
 ### Strict Constraints
 1. Output ONLY raw HTML. No Markdown blocks.
 2. NO \`import\` or \`require\`. Destructure \`React\` globals (e.g., \`const { useState } = React;\`).
-3. NO Google Fonts. Use system fonts.
-4. Images must use absolute URLs (https://).
-5. Use \`window.innerWidth\` for responsive logic if needed, but prefer Tailwind classes.
-6. **Sounds**: Do NOT use external MP3 links (e.g. mixkit) as they often 403. Use Base64 data URIs for short sounds or avoid them.
+3. NO Google Fonts. Use system fonts only.
+4. Avoid remote images by default. Prefer CSS/inline SVG/data URIs. If remote is required, use https:// and user-provided or self-hosted URLs.
+5. Responsive design: use CSS media queries and layout primitives (flex/grid). Do NOT rely on Tailwind.
+6. **Sounds**: Do NOT use external MP3 links (often 403/slow). Use Base64 data URIs for short sounds or avoid them.
 
 ### Technical Constraints (MUST FOLLOW):
 1. **Single File**: Output ONLY a single valid HTML file. No Markdown.
 2. **Imports**: NO \`import\` statements. Use global variables (React, ReactDOM).
-3. **Icons**: Use FontAwesome classes (e.g., \`<i className="fa-solid fa-home"></i>\`).
-4. **Images**: Use ABSOLUTE URLs (https://...).
-5. **Styling**: Use Tailwind CSS classes.
-5. **Fonts**: ❌ STRICTLY FORBIDDEN: \`fonts.googleapis.com\` or any external font services. USE SYSTEM FONTS ONLY (e.g., font-sans, font-mono).
+3. **Icons**: Use inline SVG only.
+4. **Images**: Prefer inline SVG/data URIs/CSS. If remote, use ABSOLUTE https:// URLs only.
+5. **Styling**: Use plain CSS in <style>. No external CSS frameworks.
+6. **Fonts**: ❌ STRICTLY FORBIDDEN: Google Fonts or any external font services. USE SYSTEM FONTS ONLY.
 6. **Emoji**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters or ES6 unicode escapes (e.g., \\u{1F440}).
 7. **String Escaping**: Properly escape backticks and quotes in JavaScript strings.
 8. **React Hooks**: Ensure \`useEffect\` dependencies are correct to prevent infinite loops.
@@ -701,7 +650,7 @@ Your task is to transform the provided React code into a **Hybrid Local-First Ap
 First, analyze every data interaction in the code and classify it into two types:
 1. **🔒 Private Data (Personal)**: Data that belongs to the user and should NEVER leave their device.
    - Examples: Todos, Notes, Journal Entries, Settings, Bookmarks, Drafts.
-   - **Action**: Store in **Local PGLite Database**.
+  - **Action**: Store locally in **IndexedDB**.
    - **Requirement**: Requires **Local Auth** (Login/Register) to isolate data between users on the same device.
 
 2. **📨 Public Data (Submissions)**: Data intended for the app creator/admin.
@@ -719,11 +668,11 @@ Implement a secure, offline-capable authentication system:
 - **Privacy**: Passwords are hashed locally (simple salt + hash) before storage.
 - **Session**: Use simple session storage or memory state to track the logged-in user.
 
-#### 2. 💾 Local Storage (PGlite + OPFS)
-Use PGLite (PostgreSQL in WASM) for all "Private Data":
-- **Persistence**: Data survives page reloads (saved to OPFS).
-- **Isolation**: All queries MUST be filtered by \`user_id\`.
-- **Schema**: Create a \`users\` table and a generic \`app_data\` table (or specific tables if the schema is clear).
+#### 2. 💾 Local Storage (IndexedDB)
+Use IndexedDB for all "Private Data":
+- **Persistence**: Data survives page reloads.
+- **Isolation**: All reads/writes MUST be scoped to the current \`user_id\`.
+- **Schema**: Use object stores for \`users\` and \`app_data\` (or more specific stores if clear).
 
 #### 3. 📨 Cloud Inbox (Secure Submission)
 For "Public Data" forms, use the pre-configured API:
@@ -736,44 +685,45 @@ For "Public Data" forms, use the pre-configured API:
 
 ### 🧩 Code Injection Templates
 
-#### A. Database Engine (PGlite)
+#### A. Database Engine (IndexedDB)
 Insert this at the top of the script:
 \`\`\`javascript
 // === SparkDB: Local-First Engine ===
-let db = null;
+let sparkDb = null;
 let currentUser = null;
 
+function openSparkDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('spark_local_db', 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('users')) {
+        db.createObjectStore('users', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('app_data')) {
+        const store = db.createObjectStore('app_data', { keyPath: 'id' });
+        store.createIndex('by_user', 'user_id', { unique: false });
+        store.createIndex('by_user_collection', ['user_id', 'collection'], { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
 async function initDB() {
-  if (db) return;
-  try {
-    const { PGlite } = await import('https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js');
-    db = new PGlite('opfs://spark-local-db');
-    await db.waitReady;
-    
-    // 1. Users Table
-    await db.exec(\\\`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-      );
-    \\\`);
-    
-    // 2. App Data Table (Generic JSONB for flexibility)
-    await db.exec(\\\`
-      CREATE TABLE IF NOT EXISTS app_data (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
-        collection TEXT NOT NULL, -- e.g., 'todos', 'notes'
-        data JSONB NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-      );
-    \\\`);
-    console.log('🔋 Local Database Ready');
-  } catch (err) {
-    console.error('DB Init Error:', err);
-  }
+  if (sparkDb) return;
+  sparkDb = await openSparkDb();
+  console.log('🔋 Local IndexedDB Ready');
+}
+
+function txStore(storeName, mode = 'readonly') {
+  const tx = sparkDb.transaction(storeName, mode);
+  return tx.objectStore(storeName);
+}
+
+function id() {
+  return (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + '_' + Math.random().toString(16).slice(2);
 }
 \`\`\`
 

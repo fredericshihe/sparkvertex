@@ -42,3 +42,4 @@ dist-electron/
 
 # electron
 electron/
+vertexedit-core/node_modules/
