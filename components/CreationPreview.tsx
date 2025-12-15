@@ -57,6 +57,12 @@ interface CreationPreviewProps {
   applyQuickColorEdit: (color: string) => void;
   quickEditText: string;
   applyQuickTextEdit: (text: string) => void;
+  // 🆕 Image editing props
+  quickEditImageUrl: string;
+  setQuickEditImageUrl: (url: string) => void;
+  applyQuickImageEdit: (url: string) => void;
+  handleImageUpload: (file: File) => void;
+  isUploadingImage: boolean;
   editIntent: string;
   setEditIntent: (intent: any) => void;
   editRequest: string;
@@ -124,6 +130,11 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
   applyQuickColorEdit,
   quickEditText,
   applyQuickTextEdit,
+  quickEditImageUrl,
+  setQuickEditImageUrl,
+  applyQuickImageEdit,
+  handleImageUpload,
+  isUploadingImage,
   editIntent,
   setEditIntent,
   editRequest,
@@ -655,6 +666,113 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                           {language === 'zh' ? '改颜色' : 'Color'}
                         </button>
                       )}
+                      {/* 🆕 Image Edit Button */}
+                      {detectQuickEditType(selectedElement) === 'image' && (
+                        <button
+                          onClick={() => {
+                            setQuickEditMode('image');
+                            setQuickEditImageUrl(selectedElement.imageSrc || selectedElement.backgroundImage || '');
+                          }}
+                          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition shadow-lg shadow-purple-900/20 group border border-purple-500/50"
+                        >
+                          <i className="fa-solid fa-image text-[10px] group-hover:scale-110 transition-transform"></i>
+                          {language === 'zh' ? '换图片' : 'Image'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 🆕 Quick Edit: Image Upload/URL */}
+                {quickEditMode === 'image' && (
+                  <div className="space-y-3 animate-fade-in">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <i className="fa-solid fa-image text-purple-500"></i>
+                        {language === 'zh' ? '更换图片' : 'Replace Image'}
+                      </label>
+                      <button 
+                        onClick={() => setQuickEditMode('none')}
+                        className="text-[10px] text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition"
+                      >
+                        <i className="fa-solid fa-arrow-left"></i>
+                        {language === 'zh' ? '返回' : 'Back'}
+                      </button>
+                    </div>
+                    
+                    {/* Current Image Preview */}
+                    {(selectedElement.imageSrc || selectedElement.backgroundImage) && (
+                      <div className="bg-black/40 rounded-lg p-2 border border-white/5">
+                        <div className="text-[10px] text-zinc-500 mb-1.5">{language === 'zh' ? '当前图片：' : 'Current:'}</div>
+                        <div className="relative aspect-video rounded overflow-hidden bg-zinc-900">
+                          <img 
+                            src={selectedElement.imageSrc || selectedElement.backgroundImage} 
+                            alt="Current" 
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                        <div className="text-[9px] text-zinc-600 mt-1 truncate font-mono">
+                          {(selectedElement.imageSrc || selectedElement.backgroundImage || '').slice(0, 50)}...
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Upload Option */}
+                    <label className={`block p-4 border-2 border-dashed rounded-xl cursor-pointer transition text-center ${
+                      isUploadingImage 
+                        ? 'border-purple-500/50 bg-purple-500/10' 
+                        : 'border-white/10 hover:border-purple-500/50 hover:bg-purple-500/5'
+                    }`}>
+                      {isUploadingImage ? (
+                        <>
+                          <i className="fa-solid fa-circle-notch fa-spin text-2xl text-purple-400 mb-2"></i>
+                          <p className="text-xs text-purple-400">{language === 'zh' ? '上传中...' : 'Uploading...'}</p>
+                        </>
+                      ) : (
+                        <>
+                          <i className="fa-solid fa-cloud-arrow-up text-2xl text-purple-400 mb-2"></i>
+                          <p className="text-xs text-zinc-400">{language === 'zh' ? '点击上传新图片' : 'Click to upload'}</p>
+                          <p className="text-[10px] text-zinc-600 mt-1">JPG, PNG, WebP (max 5MB)</p>
+                        </>
+                      )}
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden"
+                        disabled={isUploadingImage}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(file);
+                        }}
+                      />
+                    </label>
+                    
+                    {/* Or use URL */}
+                    <div className="relative">
+                      <div className="text-[10px] text-zinc-500 mb-1.5">{language === 'zh' ? '或输入图片URL：' : 'Or enter URL:'}</div>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                          className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:border-purple-500 focus:ring-1 focus:ring-purple-500/50 outline-none"
+                          value={quickEditImageUrl}
+                          onChange={(e) => setQuickEditImageUrl(e.target.value)}
+                        />
+                        <button
+                          onClick={() => {
+                            if (quickEditImageUrl.trim()) {
+                              applyQuickImageEdit(quickEditImageUrl.trim());
+                            }
+                          }}
+                          disabled={!quickEditImageUrl.trim() || isUploadingImage}
+                          className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-zinc-700 disabled:cursor-not-allowed rounded-lg text-xs text-white font-bold transition"
+                        >
+                          {language === 'zh' ? '应用' : 'Apply'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

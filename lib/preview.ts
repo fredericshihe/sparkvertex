@@ -851,13 +851,29 @@ export const getPreviewContent = (content: string | null, options?: {
           
           var el = e.target;
           var parent = el.parentElement;
+          
+          // 获取图片相关信息
+          var imageSrc = null;
+          var backgroundImage = null;
+          if (el.tagName.toLowerCase() === 'img') {
+            imageSrc = el.src || el.getAttribute('src');
+          }
+          // 检测背景图片（inline style 或 computed style）
+          var computedStyle = window.getComputedStyle(el);
+          var bgImage = el.style.backgroundImage || computedStyle.backgroundImage;
+          if (bgImage && bgImage !== 'none') {
+            backgroundImage = bgImage.replace(/url\(['"]?([^'"]+)['"]?\)/i, '$1');
+          }
+          
           var info = {
             tagName: el.tagName.toLowerCase(),
             className: el.className.replace ? el.className.replace('__spark_highlight__', '').trim() : '',
             innerText: el.innerText ? el.innerText.substring(0, 50) : '',
             path: getElementPath(el),
             parentTagName: parent ? parent.tagName.toLowerCase() : null,
-            parentClassName: parent && parent.className && parent.className.replace ? parent.className.replace('__spark_highlight__', '').trim() : null
+            parentClassName: parent && parent.className && parent.className.replace ? parent.className.replace('__spark_highlight__', '').trim() : null,
+            imageSrc: imageSrc,
+            backgroundImage: backgroundImage
           };
           
           window.parent.postMessage({ type: 'spark-element-selected', payload: info }, '*');

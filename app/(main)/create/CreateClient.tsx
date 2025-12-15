@@ -230,18 +230,20 @@ function CreateContent() {
 
   // State: Point-and-Click Edit
   const [isEditMode, setIsEditMode] = useState(false);
-  const [selectedElement, setSelectedElement] = useState<{tagName: string, className: string, innerText: string, path: string, parentTagName?: string, parentClassName?: string} | null>(null);
+  const [selectedElement, setSelectedElement] = useState<{tagName: string, className: string, innerText: string, path: string, parentTagName?: string, parentClassName?: string, imageSrc?: string, backgroundImage?: string} | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editRequest, setEditRequest] = useState('');
   const [editIntent, setEditIntent] = useState<'auto' | 'style' | 'content' | 'logic'>('auto');
   const [hasSeenEditGuide, setHasSeenEditGuide] = useState(false);
   
-  // State: Quick Edit (direct color/text modification without AI)
-  const [quickEditMode, setQuickEditMode] = useState<'none' | 'color' | 'text'>('none');
+  // State: Quick Edit (direct color/text/image modification without AI)
+  const [quickEditMode, setQuickEditMode] = useState<'none' | 'color' | 'text' | 'image'>('none');
   const [quickEditColor, setQuickEditColor] = useState('#3b82f6');
   const [quickEditText, setQuickEditText] = useState('');
   const [quickEditColorType, setQuickEditColorType] = useState<'bg' | 'text' | 'border' | 'all'>('all');
   const [availableColorTypes, setAvailableColorTypes] = useState<('bg' | 'text' | 'border')[]>([]);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [quickEditImageUrl, setQuickEditImageUrl] = useState('');
   
   // State: Quick Edit History (for undo/redo within quick edit session)
   const [quickEditHistory, setQuickEditHistory] = useState<{ code: string; description: string }[]>([]);
@@ -3889,10 +3891,20 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
     }
   };
 
-  // Quick Edit: Detect if element can be quickly edited (color/text)
+  // Quick Edit: Detect if element can be quickly edited (color/text/image)
   // Now always allows color editing for any element
-  const detectQuickEditType = (element: typeof selectedElement): 'color' | 'text' | 'both' | 'none' => {
+  const detectQuickEditType = (element: typeof selectedElement): 'color' | 'text' | 'both' | 'image' | 'none' => {
     if (!element) return 'none';
+    
+    // 🆕 Check if it's an image element
+    if (element.tagName.toUpperCase() === 'IMG' && element.imageSrc) {
+      return 'image';
+    }
+    
+    // 🆕 Check if element has background image
+    if (element.backgroundImage) {
+      return 'image';
+    }
     
     // Check if it's a simple text element (button, span, p, h1-h6, a, label)
     const textTags = ['BUTTON', 'SPAN', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'A', 'LABEL', 'LI', 'TD', 'TH', 'DIV'];
@@ -4541,6 +4553,199 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
     }
     
     toastSuccess(language === 'zh' ? '文本已更新' : 'Text updated');
+  };
+
+  // 🆕 Quick Edit: Apply image change directly to code
+  const applyQuickImageEdit = async (newImageUrl: string) => {
+    if (!selectedElement || !generatedCode || !newImageUrl.trim()) return;
+    
+    const oldImageUrl = selectedElement.imageSrc || selectedElement.backgroundImage;
+    if (!oldImageUrl) {
+      toastError(language === 'zh' ? '未找到原图片URL' : 'Original image URL not found');
+      return;
+    }
+    
+    let updatedCode = generatedCode;
+    let replaced = false;
+    
+    // Escape special regex characters in URL
+    const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedOldUrl = escapeRegex(oldImageUrl);
+    
+    // Pattern 1: <img src="...">
+    if (selectedElement.tagName.toLowerCase() === 'img') {
+      const imgSrcPattern = new RegExp(`(src\\s*=\\s*["'])${escapedOldUrl}(["'])`, 'g');
+      if (imgSrcPattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(imgSrcPattern, `$1${newImageUrl}$2`);
+        replaced = true;
+      }
+      
+      // Pattern 1b: src={...} JSX format
+      if (!replaced) {
+        const jsxSrcPattern = new RegExp(`(src\\s*=\\s*\\{\\s*["'\`])${escapedOldUrl}(["'\`]\\s*\\})`, 'g');
+        if (jsxSrcPattern.test(generatedCode)) {
+          updatedCode = generatedCode.replace(jsxSrcPattern, `$1${newImageUrl}$2`);
+          replaced = true;
+        }
+      }
+    }
+    
+    // Pattern 2: background-image: url(...)
+    if (!replaced && selectedElement.backgroundImage) {
+      const bgUrlPattern = new RegExp(`(background(?:-image)?\\s*:\\s*url\\s*\\(\\s*["']?)${escapedOldUrl}(["']?\\s*\\))`, 'gi');
+      if (bgUrlPattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(bgUrlPattern, `$1${newImageUrl}$2`);
+        replaced = true;
+      }
+      
+      // Pattern 2b: Tailwind bg-[url(...)]
+      if (!replaced) {
+        const tailwindBgPattern = new RegExp(`(bg-\\[url\\(["']?)${escapedOldUrl}(["']?\\)\\])`, 'g');
+        if (tailwindBgPattern.test(generatedCode)) {
+          updatedCode = generatedCode.replace(tailwindBgPattern, `$1${newImageUrl}$2`);
+          replaced = true;
+        }
+      }
+      
+      // Pattern 2c: backgroundImage in style object: backgroundImage: "url(...)" or `url(...)`
+      if (!replaced) {
+        const styleObjPattern = new RegExp(`(backgroundImage\\s*:\\s*["'\`]url\\(["']?)${escapedOldUrl}(["']?\\)["'\`])`, 'g');
+        if (styleObjPattern.test(generatedCode)) {
+          updatedCode = generatedCode.replace(styleObjPattern, `$1${newImageUrl}$2`);
+          replaced = true;
+        }
+      }
+    }
+    
+    if (!replaced) {
+      toastError(
+        language === 'zh' 
+          ? `⚠️ 无法替换图片\n\n可能的原因：\n• 图片URL格式不支持\n• 代码结构复杂\n\n建议使用 AI 修改功能`
+          : `⚠️ Could not replace image\n\nPossible reasons:\n• Image URL format not supported\n• Complex code structure\n\nTry using AI edit instead`
+      );
+      return;
+    }
+    
+    // Validate result
+    if (!updatedCode || updatedCode.length < 100) {
+      console.error('Quick Image Edit resulted in empty or invalid code');
+      return;
+    }
+    
+    // Save to code history for global rollback
+    setCodeHistory(prev => [...prev, {
+      code: generatedCode,
+      prompt: language === 'zh' ? '更换图片前' : 'Before image change',
+      timestamp: Date.now(),
+      type: 'click'
+    }]);
+    
+    // Save to quick edit history
+    setRuntimeError(null);
+    const shortUrl = newImageUrl.length > 30 ? '...' + newImageUrl.slice(-30) : newImageUrl;
+    const description = language === 'zh' ? `图片: ${shortUrl}` : `Image: ${shortUrl}`;
+    const isFirstEdit = quickEditHistory.length === 0;
+    const currentLength = quickEditHistory.length;
+    const effectiveIndex = quickEditHistoryIndex;
+    
+    if (isFirstEdit) {
+      setQuickEditHistory([
+        { code: generatedCode, description: language === 'zh' ? '初始状态' : 'Initial state' },
+        { code: updatedCode, description }
+      ]);
+      setQuickEditHistoryIndex(1);
+    } else {
+      setQuickEditHistory(prev => {
+        const newHistory = effectiveIndex >= 0 && effectiveIndex < prev.length - 1
+          ? prev.slice(0, effectiveIndex + 1) 
+          : prev;
+        return [...newHistory, { code: updatedCode, description }];
+      });
+      const willTruncate = effectiveIndex >= 0 && effectiveIndex < currentLength - 1;
+      const newLength = willTruncate ? effectiveIndex + 2 : currentLength + 1;
+      setQuickEditHistoryIndex(newLength - 1);
+    }
+    
+    setGeneratedCode(updatedCode);
+    setStreamingCode(updatedCode);
+    setShowEditModal(false);
+    setQuickEditMode('none');
+    setSelectedElement(null);
+    setQuickEditImageUrl('');
+    
+    // Update iframe
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ 
+        type: 'spark-update-content', 
+        html: updatedCode,
+        shouldRestoreEditMode: false
+      }, '*');
+      
+      setIsEditMode(false);
+      iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: false }, '*');
+    }
+    
+    toastSuccess(language === 'zh' ? '图片已更换' : 'Image replaced');
+  };
+
+  // 🆕 Quick Edit: Upload image to Supabase and apply
+  const handleImageUpload = async (file: File) => {
+    if (!file) return;
+    
+    setIsUploadingImage(true);
+    
+    try {
+      // 1. Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toastError(language === 'zh' ? '图片不能超过 5MB' : 'Image must be under 5MB');
+        return;
+      }
+      
+      // 2. Compress image
+      const { smartCompressImage } = await import('@/lib/image-compress');
+      const compressedFile = await smartCompressImage(file, {
+        maxWidth: 1920,
+        maxHeight: 1080,
+        quality: 0.85,
+        format: 'webp',
+        maxSizeKB: 500
+      });
+      
+      // 3. Check auth
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toastError(language === 'zh' ? '请先登录后上传图片' : 'Please login to upload images');
+        return;
+      }
+      
+      // 4. Upload to Supabase Storage
+      const fileName = `${session.user.id}/app-images/${Date.now()}.webp`;
+      const { error: uploadError } = await supabase.storage
+        .from('icons')  // 复用现有的 icons bucket
+        .upload(fileName, compressedFile, { 
+          upsert: true,
+          contentType: 'image/webp'
+        });
+      
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error(uploadError.message);
+      }
+      
+      // 5. Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('icons')
+        .getPublicUrl(fileName);
+      
+      // 6. Apply to code
+      await applyQuickImageEdit(publicUrl);
+      
+    } catch (error: any) {
+      console.error('Image upload failed:', error);
+      toastError(language === 'zh' ? `图片上传失败: ${error.message}` : `Upload failed: ${error.message}`);
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   // Quick Edit: Undo last change
@@ -5296,6 +5501,11 @@ Please fix the code to make the app display properly.`;
           applyQuickColorEdit={applyQuickColorEdit}
           quickEditText={quickEditText}
           applyQuickTextEdit={applyQuickTextEdit}
+          quickEditImageUrl={quickEditImageUrl}
+          setQuickEditImageUrl={setQuickEditImageUrl}
+          applyQuickImageEdit={applyQuickImageEdit}
+          handleImageUpload={handleImageUpload}
+          isUploadingImage={isUploadingImage}
           editIntent={editIntent}
           setEditIntent={setEditIntent}
           editRequest={editRequest}
