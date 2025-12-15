@@ -211,7 +211,7 @@ function CreateContent() {
   };
 
   // State: Generation
-  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-2.5-flash');
+  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-3-pro-preview');
   const [generatedCode, setGeneratedCode] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [modificationCount, setModificationCount] = useState(0);
@@ -280,6 +280,10 @@ function CreateContent() {
   const [timeoutCost, setTimeoutCost] = useState(0);
   const [aiPlan, setAiPlan] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
+  
+  // State: Prototype Image (两阶段生成)
+  const [isGeneratingPrototype, setIsGeneratingPrototype] = useState(false);
+  const [prototypeImageUrl, setPrototypeImageUrl] = useState<string | null>(null);
   
   // State: Draft
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -3274,7 +3278,6 @@ Remember: You're building for production. Code must be clean, performant, and er
       const dbPrompt = isModification ? prompt : finalUserPrompt;
 
       console.log('Calling /api/generate with prompt length:', dbPrompt.length);
-      console.log('Selected model:', selectedModel);
 
       let response: Response;
       
@@ -3285,6 +3288,73 @@ Remember: You're building for production. Code must be clean, performant, and er
           console.log('[Create] First edit on uploaded code - will skip compression and use relaxed matching');
       }
       
+      // 🆕 两阶段生成：已禁用原型图生成，直接使用代码生成
+      // 原型图生成条件：1. 非修改模式 2. 非重新生成 3. 有描述文本
+      let prototypeImage: string | null = null;
+      const shouldGeneratePrototype = false && !isModification && 
+                                       nextOperationType === 'init' && 
+                                       wizardData.description && 
+                                       wizardData.description.length > 10;
+      
+      console.log('[Prototype] Check conditions:', {
+          isModification,
+          nextOperationType,
+          descriptionLength: wizardData.description?.length || 0,
+          shouldGeneratePrototype
+      });
+      
+      if (shouldGeneratePrototype) {
+          try {
+              setIsGeneratingPrototype(true);
+              setLoadingText(language === 'zh' ? '正在生成原型设计图...' : 'Generating prototype design...');
+              setWorkflowStage('analyzing');
+              setWorkflowDetails({ reasoning: language === 'zh' ? '根据您的描述生成 UI 原型设计图...' : 'Generating UI prototype from your description...' });
+              
+              console.log('[Prototype] Generating prototype image via Edge Function...');
+              
+              // 获取用户 session 用于调用 Edge Function
+              const { data: { session: protoSession } } = await supabase.auth.getSession();
+              if (!protoSession) {
+                  console.warn('[Prototype] No session, skipping prototype generation');
+              } else {
+                  // 通过 Edge Function 调用 Google API（Edge Function 有 GOOGLE_API_KEY）
+                  const prototypeResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-prototype`, {
+                      method: 'POST',
+                      headers: { 
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${protoSession.access_token}`
+                      },
+                      body: JSON.stringify({
+                          description: wizardData.description,
+                          category: wizardData.category || 'tool',
+                          device: wizardData.device || 'mobile',
+                          style: wizardData.style,
+                          language
+                      }),
+                      signal: abortControllerRef.current?.signal
+                  });
+                  
+                  if (prototypeResponse.ok) {
+                      const prototypeData = await prototypeResponse.json();
+                      if (prototypeData.success && prototypeData.imageBase64) {
+                          prototypeImage = prototypeData.imageBase64;
+                          setPrototypeImageUrl(prototypeImage);
+                          console.log('[Prototype] Successfully generated prototype image');
+                      }
+                  } else {
+                      const errorText = await prototypeResponse.text();
+                      console.warn('[Prototype] Failed to generate prototype:', errorText);
+                  }
+              }
+          } catch (protoErr: any) {
+              // 原型图生成失败不应阻断主流程
+              console.warn('[Prototype] Error generating prototype:', protoErr.message);
+          } finally {
+              setIsGeneratingPrototype(false);
+              setLoadingText(language === 'zh' ? '正在生成应用代码...' : 'Generating application code...');
+          }
+      }
+      
       // 🆕 SSE 流式接收结果和思考过程
       let taskId = '';
       let ragContext = '';
@@ -3292,6 +3362,16 @@ Remember: You're building for production. Code must be clean, performant, and er
       let compressedCode = '';
       let ragSummary = '';
       let targets: string[] = [];
+      
+      // 🆕 两阶段生成：有原型图时使用 Gemini 3 Pro 进行代码生成
+      const effectiveModel = prototypeImage ? 'gemini-3-pro-preview' : selectedModel;
+      const effectiveTokensPerCredit = MODEL_CONFIG[effectiveModel as ModelType]?.tokensPerCredit || MODEL_CONFIG[selectedModel].tokensPerCredit;
+      
+      console.log('Selected model:', selectedModel, prototypeImage ? `→ upgraded to ${effectiveModel}` : '');
+      
+      if (prototypeImage && effectiveModel !== selectedModel) {
+          console.log(`[Prototype] Upgrading model from ${selectedModel} to ${effectiveModel} for image-guided generation`);
+      }
       
       try {
         abortControllerRef.current = new AbortController();
@@ -3307,8 +3387,8 @@ Remember: You're building for production. Code must be clean, performant, and er
                 user_prompt: dbPrompt,
                 current_code: isModification ? generatedCode : undefined,
                 is_first_edit: isFirstEditOnUpload,
-                model: selectedModel,
-                tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit,
+                model: effectiveModel,
+                tokens_per_credit: effectiveTokensPerCredit,
                 skip_compression: fullCodeMode || forceFull || isBackendConfig, // 🆕 backend_config 也跳过压缩，确保 AI 看到完整表单代码
                 operation_type: nextOperationType // 🆕 传递操作类型，用于后端特殊处理
             }),
@@ -3453,6 +3533,46 @@ Remember: You're building for production. Code must be clean, performant, and er
       // Inject RAG Context if available
       let finalSystemPrompt = SYSTEM_PROMPT;
       
+      // 🆕 两阶段生成：如果有原型图，添加视觉参考指令
+      if (prototypeImage && !isModification) {
+          console.log('[Prototype] Adding visual reference instructions to System Prompt');
+          const prototypeInstructions = language === 'zh' ? `
+
+### 🎨 原型设计参考 (CRITICAL)
+我已经提供了一张 UI 原型设计图。你必须:
+1. **严格遵循**原型图中的布局结构、间距和组件排列
+2. **匹配颜色**：使用图中相同或相近的颜色方案
+3. **复制元素**：图中显示的所有 UI 元素（按钮、卡片、导航等）都必须在代码中实现
+4. **保持比例**：组件大小和间距应该与原型图保持一致
+5. **文字内容**：使用图中显示的文字，如果看不清可以用相似的占位符
+
+⚠️ **关键约束 - 单文件架构**：
+- **所有组件必须在同一个文件中定义**，不能引用外部组件
+- 如果你需要 HeroSection、CardSection 等，必须在 App 组件上方直接定义它们
+- 不允许使用 import 语句引入自定义组件
+- 正确示例：const HeroSection = () => <div>...</div>; 然后在 App 中使用 <HeroSection />
+
+图片是你的视觉蓝图，代码应该尽可能精确地还原它。` : `
+
+### 🎨 Prototype Design Reference (CRITICAL)
+I have provided a UI prototype design image. You MUST:
+1. **Strictly follow** the layout structure, spacing, and component arrangement in the prototype
+2. **Match colors**: Use the same or similar color scheme shown in the image
+3. **Replicate elements**: All UI elements (buttons, cards, navigation, etc.) shown in the image must be implemented
+4. **Maintain proportions**: Component sizes and spacing should match the prototype
+5. **Text content**: Use the text shown in the image, or similar placeholders if unclear
+
+⚠️ **CRITICAL CONSTRAINT - Single File Architecture**:
+- **ALL components must be defined in the same file** - no external component references
+- If you need HeroSection, CardSection, etc., define them directly above the App component
+- Do NOT use import statements for custom components
+- Correct: const HeroSection = () => <div>...</div>; then use <HeroSection /> in App
+
+The image is your visual blueprint - the code should replicate it as precisely as possible.`;
+          
+          finalSystemPrompt += prototypeInstructions;
+      }
+      
       // 🆕 P0 Fix: 后端配置模式使用专用 System Prompt
       if (nextOperationType === 'backend_config') {
           console.log('[BackendConfig] Using dedicated backend configuration prompt');
@@ -3522,12 +3642,8 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
           console.log(`[CacheOptimization] Context prefix added (${contextPrefix.length} chars)`);
       }
       
-      // 确保 System Prompt 保持不变（除了后端配置模式）
-      console.log(`[CacheOptimization] System Prompt length: ${finalSystemPrompt.length} chars (should be stable across requests)`);
-      console.log(`[CacheOptimization] System Prompt hash: ${hashString(finalSystemPrompt).slice(0, 8)}`);
-      
       // 简单的字符串哈希函数，用于检测 System Prompt 变化
-      function hashString(str: string): string {
+      const hashString = (str: string): string => {
           let hash = 0;
           for (let i = 0; i < str.length; i++) {
               const char = str.charCodeAt(i);
@@ -3535,7 +3651,11 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
               hash = hash & hash;
           }
           return Math.abs(hash).toString(16);
-      }
+      };
+      
+      // 确保 System Prompt 保持不变（除了后端配置模式）
+      console.log(`[CacheOptimization] System Prompt length: ${finalSystemPrompt.length} chars (should be stable across requests)`);
+      console.log(`[CacheOptimization] System Prompt hash: ${hashString(finalSystemPrompt).slice(0, 8)}`);
 
       // 注意：积分扣除在后端Edge Function中进行，避免双重扣费
       // 前端不再进行乐观更新，等待后端扣费后通过checkAuth刷新积分余额
@@ -3575,7 +3695,9 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
                         user_prompt: finalUserPrompt, 
                         type: isModification ? 'modification' : 'generation',
                         model: selectedModel,
-                        tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit
+                        tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit,
+                        // 🆕 传递原型图给 AI 作为视觉参考
+                        image_url: prototypeImage || undefined
                     }),
                     signal: abortControllerRef.current?.signal
                 });

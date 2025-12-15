@@ -24,7 +24,7 @@ const CodeWaterfall = dynamic(() => import('@/components/CodeWaterfall').then(mo
 const CreationChat = dynamic(() => import('@/components/CreationChat').then(mod => mod.CreationChat), {
   loading: () => <div className="h-full w-full animate-pulse bg-slate-900/50" />
 });
-const CreationPreview = dynamic(() => import('../../components/CreationPreview').then(mod => mod.CreationPreview), {
+const CreationPreview = dynamic(() => import('@/components/CreationPreview').then(mod => mod.CreationPreview), {
   loading: () => <div className="h-full w-full animate-pulse bg-slate-900/50 flex items-center justify-center"><i className="fa-solid fa-circle-notch fa-spin text-2xl text-slate-600"></i></div>
 });
 
@@ -144,20 +144,17 @@ function CreateContent() {
     category: language === 'zh' ? '分类' : 'Category',
     device: language === 'zh' ? '设备' : 'Device',
     style: language === 'zh' ? '风格' : 'Style',
-    concept: language === 'zh' ? '构思' : 'Concept',
-    prototype: language === 'zh' ? '原型图' : 'Prototype'
+    concept: language === 'zh' ? '构思' : 'Concept'
   };
   
   // State: Wizard
   // Merged 'features' and 'desc' into 'concept'
-  // Added 'prototype' step for AI-generated UI mockup before code generation
-  const [step, setStep] = useState<'category' | 'device' | 'style' | 'concept' | 'prototype' | 'generating' | 'preview'>('category');
+  const [step, setStep] = useState<'category' | 'device' | 'style' | 'concept' | 'generating' | 'preview'>('category');
   const [wizardData, setWizardData] = useState({
     category: '',
     device: 'mobile',
     style: '',
-    description: '',
-    prototypeImage: '' // AI生成的原型图 base64/data URL
+    description: ''
   });
 
   // Generate a unique session ID for this creation session
@@ -214,7 +211,7 @@ function CreateContent() {
   };
 
   // State: Generation
-  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-2.5-flash');
+  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-3-pro-preview');
   const [generatedCode, setGeneratedCode] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [modificationCount, setModificationCount] = useState(0);
@@ -284,10 +281,9 @@ function CreateContent() {
   const [aiPlan, setAiPlan] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
   
-  // State: Prototype Generation (新增：原型图生成)
+  // State: Prototype Image (两阶段生成)
   const [isGeneratingPrototype, setIsGeneratingPrototype] = useState(false);
-  const [prototypeError, setPrototypeError] = useState<string | null>(null);
-  const [skipPrototype, setSkipPrototype] = useState(false); // 用户选择跳过原型图生成
+  const [prototypeImageUrl, setPrototypeImageUrl] = useState<string | null>(null);
   
   // State: Draft
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -1382,80 +1378,6 @@ function CreateContent() {
     setStep('concept');
   };
 
-  // 🆕 原型图生成函数
-  const generatePrototype = async () => {
-    if (!wizardData.description.trim()) {
-      toastError(language === 'zh' ? '请先输入描述' : 'Please enter a description first');
-      return;
-    }
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        openLoginModal();
-        return;
-      }
-
-      setIsGeneratingPrototype(true);
-      setPrototypeError(null);
-      setStep('prototype');
-
-      console.log('[Prototype] Starting generation...');
-      const response = await fetch('/api/generate-prototype', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: wizardData.description,
-          category: wizardData.category,
-          device: wizardData.device,
-          style: wizardData.style,
-          language
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: response.statusText }));
-        throw new Error(errorData.error || 'Failed to generate prototype');
-      }
-
-      const data = await response.json();
-      console.log('[Prototype] Generated successfully');
-
-      // 保存原型图到 wizardData
-      setWizardData(prev => ({ ...prev, prototypeImage: data.imageUrl }));
-      
-      // 更新积分
-      if (data.cost) {
-        setCredits(prev => Math.max(0, prev - data.cost));
-      }
-
-      setIsGeneratingPrototype(false);
-    } catch (error: any) {
-      console.error('[Prototype] Error:', error);
-      setPrototypeError(error.message || 'Failed to generate prototype');
-      setIsGeneratingPrototype(false);
-      toastError(error.message || (language === 'zh' ? '原型图生成失败' : 'Failed to generate prototype'));
-    }
-  };
-
-  // 🆕 跳过原型图，直接生成代码
-  const skipPrototypeAndGenerate = () => {
-    setSkipPrototype(true);
-    setWizardData(prev => ({ ...prev, prototypeImage: '' }));
-    startGeneration(false, '', '', false, 'init');
-  };
-
-  // 🆕 重新生成原型图
-  const regeneratePrototype = async () => {
-    setWizardData(prev => ({ ...prev, prototypeImage: '' }));
-    await generatePrototype();
-  };
-
-  // 🆕 确认原型图，开始生成代码
-  const confirmPrototypeAndGenerate = () => {
-    startGeneration(false, '', '', false, 'init');
-  };
-
   const appendToDescription = (text: string) => {
     setWizardData(prev => {
       const newDesc = prev.description ? `${prev.description}\n${text}` : text;
@@ -1690,24 +1612,10 @@ ${modificationRequest}`;
 
     const targetLang = language === 'zh' ? 'Chinese' : 'English';
 
-    // 🆕 如果有原型图，添加引用说明
-    const prototypeReference = wizardData.prototypeImage 
-      ? `\n\n# PROTOTYPE REFERENCE
-You have been provided with a UI prototype mockup image. Use it as a visual reference for:
-- Layout structure and component arrangement
-- Color scheme and visual style
-- Typography hierarchy
-- UI component design (buttons, cards, inputs, etc.)
-- Overall aesthetic and feel
-
-Match the prototype as closely as possible while ensuring the code is fully functional.`
-      : '';
-
     return `
 # Task
 Create a single-file React 18 app (HTML).
 ${description}
-${prototypeReference}
 
 # Specs
 - Lang: ${targetLang}
@@ -3370,7 +3278,6 @@ Remember: You're building for production. Code must be clean, performant, and er
       const dbPrompt = isModification ? prompt : finalUserPrompt;
 
       console.log('Calling /api/generate with prompt length:', dbPrompt.length);
-      console.log('Selected model:', selectedModel);
 
       let response: Response;
       
@@ -3381,6 +3288,73 @@ Remember: You're building for production. Code must be clean, performant, and er
           console.log('[Create] First edit on uploaded code - will skip compression and use relaxed matching');
       }
       
+      // 🆕 两阶段生成：已禁用原型图生成，直接使用代码生成
+      // 原型图生成条件：1. 非修改模式 2. 非重新生成 3. 有描述文本
+      let prototypeImage: string | null = null;
+      const shouldGeneratePrototype = false && !isModification && 
+                                       nextOperationType === 'init' && 
+                                       wizardData.description && 
+                                       wizardData.description.length > 10;
+      
+      console.log('[Prototype] Check conditions:', {
+          isModification,
+          nextOperationType,
+          descriptionLength: wizardData.description?.length || 0,
+          shouldGeneratePrototype
+      });
+      
+      if (shouldGeneratePrototype) {
+          try {
+              setIsGeneratingPrototype(true);
+              setLoadingText(language === 'zh' ? '正在生成原型设计图...' : 'Generating prototype design...');
+              setWorkflowStage('analyzing');
+              setWorkflowDetails({ reasoning: language === 'zh' ? '根据您的描述生成 UI 原型设计图...' : 'Generating UI prototype from your description...' });
+              
+              console.log('[Prototype] Generating prototype image via Edge Function...');
+              
+              // 获取用户 session 用于调用 Edge Function
+              const { data: { session: protoSession } } = await supabase.auth.getSession();
+              if (!protoSession) {
+                  console.warn('[Prototype] No session, skipping prototype generation');
+              } else {
+                  // 通过 Edge Function 调用 Google API（Edge Function 有 GOOGLE_API_KEY）
+                  const prototypeResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-prototype`, {
+                      method: 'POST',
+                      headers: { 
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${protoSession.access_token}`
+                      },
+                      body: JSON.stringify({
+                          description: wizardData.description,
+                          category: wizardData.category || 'tool',
+                          device: wizardData.device || 'mobile',
+                          style: wizardData.style,
+                          language
+                      }),
+                      signal: abortControllerRef.current?.signal
+                  });
+                  
+                  if (prototypeResponse.ok) {
+                      const prototypeData = await prototypeResponse.json();
+                      if (prototypeData.success && prototypeData.imageBase64) {
+                          prototypeImage = prototypeData.imageBase64;
+                          setPrototypeImageUrl(prototypeImage);
+                          console.log('[Prototype] Successfully generated prototype image');
+                      }
+                  } else {
+                      const errorText = await prototypeResponse.text();
+                      console.warn('[Prototype] Failed to generate prototype:', errorText);
+                  }
+              }
+          } catch (protoErr: any) {
+              // 原型图生成失败不应阻断主流程
+              console.warn('[Prototype] Error generating prototype:', protoErr.message);
+          } finally {
+              setIsGeneratingPrototype(false);
+              setLoadingText(language === 'zh' ? '正在生成应用代码...' : 'Generating application code...');
+          }
+      }
+      
       // 🆕 SSE 流式接收结果和思考过程
       let taskId = '';
       let ragContext = '';
@@ -3388,6 +3362,16 @@ Remember: You're building for production. Code must be clean, performant, and er
       let compressedCode = '';
       let ragSummary = '';
       let targets: string[] = [];
+      
+      // 🆕 两阶段生成：有原型图时使用 Gemini 3 Pro 进行代码生成
+      const effectiveModel = prototypeImage ? 'gemini-3-pro-preview' : selectedModel;
+      const effectiveTokensPerCredit = MODEL_CONFIG[effectiveModel as ModelType]?.tokensPerCredit || MODEL_CONFIG[selectedModel].tokensPerCredit;
+      
+      console.log('Selected model:', selectedModel, prototypeImage ? `→ upgraded to ${effectiveModel}` : '');
+      
+      if (prototypeImage && effectiveModel !== selectedModel) {
+          console.log(`[Prototype] Upgrading model from ${selectedModel} to ${effectiveModel} for image-guided generation`);
+      }
       
       try {
         abortControllerRef.current = new AbortController();
@@ -3403,11 +3387,10 @@ Remember: You're building for production. Code must be clean, performant, and er
                 user_prompt: dbPrompt,
                 current_code: isModification ? generatedCode : undefined,
                 is_first_edit: isFirstEditOnUpload,
-                model: selectedModel,
-                tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit,
+                model: effectiveModel,
+                tokens_per_credit: effectiveTokensPerCredit,
                 skip_compression: fullCodeMode || forceFull || isBackendConfig, // 🆕 backend_config 也跳过压缩，确保 AI 看到完整表单代码
-                operation_type: nextOperationType, // 🆕 传递操作类型，用于后端特殊处理
-                prototype_image: !isModification && wizardData.prototypeImage ? wizardData.prototypeImage : undefined // 🆕 传递原型图
+                operation_type: nextOperationType // 🆕 传递操作类型，用于后端特殊处理
             }),
             signal: abortControllerRef.current.signal
         });
@@ -3550,6 +3533,46 @@ Remember: You're building for production. Code must be clean, performant, and er
       // Inject RAG Context if available
       let finalSystemPrompt = SYSTEM_PROMPT;
       
+      // 🆕 两阶段生成：如果有原型图，添加视觉参考指令
+      if (prototypeImage && !isModification) {
+          console.log('[Prototype] Adding visual reference instructions to System Prompt');
+          const prototypeInstructions = language === 'zh' ? `
+
+### 🎨 原型设计参考 (CRITICAL)
+我已经提供了一张 UI 原型设计图。你必须:
+1. **严格遵循**原型图中的布局结构、间距和组件排列
+2. **匹配颜色**：使用图中相同或相近的颜色方案
+3. **复制元素**：图中显示的所有 UI 元素（按钮、卡片、导航等）都必须在代码中实现
+4. **保持比例**：组件大小和间距应该与原型图保持一致
+5. **文字内容**：使用图中显示的文字，如果看不清可以用相似的占位符
+
+⚠️ **关键约束 - 单文件架构**：
+- **所有组件必须在同一个文件中定义**，不能引用外部组件
+- 如果你需要 HeroSection、CardSection 等，必须在 App 组件上方直接定义它们
+- 不允许使用 import 语句引入自定义组件
+- 正确示例：const HeroSection = () => <div>...</div>; 然后在 App 中使用 <HeroSection />
+
+图片是你的视觉蓝图，代码应该尽可能精确地还原它。` : `
+
+### 🎨 Prototype Design Reference (CRITICAL)
+I have provided a UI prototype design image. You MUST:
+1. **Strictly follow** the layout structure, spacing, and component arrangement in the prototype
+2. **Match colors**: Use the same or similar color scheme shown in the image
+3. **Replicate elements**: All UI elements (buttons, cards, navigation, etc.) shown in the image must be implemented
+4. **Maintain proportions**: Component sizes and spacing should match the prototype
+5. **Text content**: Use the text shown in the image, or similar placeholders if unclear
+
+⚠️ **CRITICAL CONSTRAINT - Single File Architecture**:
+- **ALL components must be defined in the same file** - no external component references
+- If you need HeroSection, CardSection, etc., define them directly above the App component
+- Do NOT use import statements for custom components
+- Correct: const HeroSection = () => <div>...</div>; then use <HeroSection /> in App
+
+The image is your visual blueprint - the code should replicate it as precisely as possible.`;
+          
+          finalSystemPrompt += prototypeInstructions;
+      }
+      
       // 🆕 P0 Fix: 后端配置模式使用专用 System Prompt
       if (nextOperationType === 'backend_config') {
           console.log('[BackendConfig] Using dedicated backend configuration prompt');
@@ -3673,7 +3696,8 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
                         type: isModification ? 'modification' : 'generation',
                         model: selectedModel,
                         tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit,
-                        image_url: !isModification && wizardData.prototypeImage ? wizardData.prototypeImage : undefined // 🆕 传递原型图
+                        // 🆕 传递原型图给 AI 作为视觉参考
+                        image_url: prototypeImage || undefined
                     }),
                     signal: abortControllerRef.current?.signal
                 });
@@ -5044,118 +5068,16 @@ Please fix the code to make the app display properly.`;
                   {t.create.btn_back}
                 </button>
                 <button
-                  onClick={() => skipPrototypeAndGenerate()}
+                  onClick={() => {
+                    startGeneration(false, '', '', false, 'init');
+                  }}
                   disabled={!wizardData.description}
-                  className="flex-1 py-3 md:py-3 rounded-xl md:rounded-xl font-bold text-sm md:text-base text-slate-400 hover:text-white hover:bg-white/5 transition disabled:opacity-50"
+                  className="flex-1 bg-white text-black hover:bg-slate-200 py-3 md:py-4 rounded-xl md:rounded-xl font-bold text-sm md:text-base shadow-lg shadow-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 md:gap-2"
                 >
-                  {language === 'zh' ? '跳过原型' : 'Skip Prototype'}
-                </button>
-                <button
-                  onClick={() => generatePrototype()}
-                  disabled={!wizardData.description}
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500 py-3 md:py-4 rounded-xl md:rounded-xl font-bold text-sm md:text-base shadow-lg shadow-purple-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 md:gap-2"
-                >
-                  <i className="fa-solid fa-image"></i>
-                  <span>{language === 'zh' ? '生成原型图' : 'Generate Prototype'}</span>
+                  <span>{t.create.btn_generate}</span>
+                  <Wand2 size={16} className="md:w-[18px] md:h-[18px]" />
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* 🆕 原型图步骤 */}
-          {step === 'prototype' && (
-            <div className="space-y-4 md:space-y-6 animate-fade-in">
-              <div className="text-center space-y-1 md:space-y-1">
-                <h2 className="text-xl md:text-3xl font-bold text-white">
-                  {isGeneratingPrototype 
-                    ? (language === 'zh' ? '正在生成原型图...' : 'Generating Prototype...') 
-                    : (language === 'zh' ? 'AI 生成的原型图' : 'AI Generated Prototype')}
-                </h2>
-                <p className="text-slate-400 text-xs md:text-base leading-tight">
-                  {isGeneratingPrototype
-                    ? (language === 'zh' ? 'AI 正在根据您的描述创建 UI 原型' : 'AI is creating a UI prototype based on your description')
-                    : (language === 'zh' ? '确认后将根据此原型生成代码' : 'Code will be generated based on this prototype')}
-                </p>
-              </div>
-
-              {/* 原型图显示区域 */}
-              <div className="relative bg-white/5 rounded-2xl border border-white/10 overflow-hidden min-h-[300px] md:min-h-[400px] flex items-center justify-center">
-                {isGeneratingPrototype ? (
-                  <div className="flex flex-col items-center gap-4 p-8">
-                    <div className="relative w-20 h-20">
-                      <div className="absolute inset-0 rounded-full border-4 border-purple-500/30 animate-ping"></div>
-                      <div className="absolute inset-0 rounded-full border-4 border-t-purple-500 border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
-                      <div className="absolute inset-4 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 animate-pulse flex items-center justify-center">
-                        <i className="fa-solid fa-image text-white text-xl"></i>
-                      </div>
-                    </div>
-                    <p className="text-white/60 text-sm">{language === 'zh' ? 'Gemini 正在绘制您的应用原型...' : 'Gemini is drawing your app prototype...'}</p>
-                  </div>
-                ) : prototypeError ? (
-                  <div className="flex flex-col items-center gap-4 p-8 text-center">
-                    <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
-                      <i className="fa-solid fa-exclamation-triangle text-red-400 text-2xl"></i>
-                    </div>
-                    <p className="text-red-400 text-sm">{prototypeError}</p>
-                    <button
-                      onClick={() => generatePrototype()}
-                      className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm transition"
-                    >
-                      {language === 'zh' ? '重试' : 'Retry'}
-                    </button>
-                  </div>
-                ) : wizardData.prototypeImage ? (
-                  <img 
-                    src={wizardData.prototypeImage} 
-                    alt="Generated Prototype" 
-                    className="max-w-full max-h-[400px] md:max-h-[500px] object-contain rounded-lg"
-                  />
-                ) : null}
-              </div>
-
-              {/* 操作按钮 */}
-              {!isGeneratingPrototype && wizardData.prototypeImage && (
-                <div className="flex gap-3 md:gap-4 pt-2 md:pt-4 flex-shrink-0">
-                  <button
-                    onClick={() => setStep('concept')}
-                    className="flex-1 py-3 md:py-3 rounded-xl md:rounded-xl font-bold text-sm md:text-base text-slate-400 hover:text-white hover:bg-white/5 transition"
-                  >
-                    {t.create.btn_back}
-                  </button>
-                  <button
-                    onClick={() => regeneratePrototype()}
-                    className="flex-1 py-3 md:py-3 rounded-xl md:rounded-xl font-bold text-sm md:text-base text-slate-400 hover:text-white hover:bg-white/5 transition flex items-center justify-center gap-2"
-                  >
-                    <RefreshCw size={14} />
-                    {language === 'zh' ? '重新生成' : 'Regenerate'}
-                  </button>
-                  <button
-                    onClick={() => confirmPrototypeAndGenerate()}
-                    className="flex-1 bg-white text-black hover:bg-slate-200 py-3 md:py-4 rounded-xl md:rounded-xl font-bold text-sm md:text-base shadow-lg shadow-white/10 transition flex items-center justify-center gap-2 md:gap-2"
-                  >
-                    <span>{language === 'zh' ? '确认并生成代码' : 'Confirm & Generate'}</span>
-                    <Wand2 size={16} className="md:w-[18px] md:h-[18px]" />
-                  </button>
-                </div>
-              )}
-
-              {/* 跳过按钮（生成失败时显示） */}
-              {!isGeneratingPrototype && !wizardData.prototypeImage && (
-                <div className="flex gap-3 md:gap-4 pt-2 md:pt-4 flex-shrink-0">
-                  <button
-                    onClick={() => setStep('concept')}
-                    className="flex-1 py-3 md:py-3 rounded-xl md:rounded-xl font-bold text-sm md:text-base text-slate-400 hover:text-white hover:bg-white/5 transition"
-                  >
-                    {t.create.btn_back}
-                  </button>
-                  <button
-                    onClick={() => skipPrototypeAndGenerate()}
-                    className="flex-1 bg-white text-black hover:bg-slate-200 py-3 md:py-4 rounded-xl md:rounded-xl font-bold text-sm md:text-base shadow-lg shadow-white/10 transition flex items-center justify-center gap-2"
-                  >
-                    {language === 'zh' ? '跳过原型，直接生成代码' : 'Skip & Generate Code'}
-                  </button>
-                </div>
-              )}
             </div>
           )}
         </div>

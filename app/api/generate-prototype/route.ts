@@ -1,259 +1,201 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { checkRateLimit } from '@/lib/rate-limit';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
+// 使用 Node.js Runtime 以确保环境变量正确加载
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 
-// Gemini 3 Pro Image Preview - 原型图生成
-const GEMINI_IMAGE_GENERATION_API = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent';
+/**
+ * 原型图生成 API
+ * 
+ * 使用 Gemini 3 Pro Image Preview 的图像生成能力，根据用户描述生成 UI 原型图。
+ * 这个原型图将作为后续代码生成的视觉参考。
+ */
 
-// 生成原型图的 System Prompt
-const getPrototypeSystemPrompt = (language: string) => `You are a senior UI/UX designer specializing in creating app prototype mockups.
+interface PrototypeRequest {
+  description: string;
+  category: string;
+  device: 'mobile' | 'tablet' | 'desktop';
+  style?: string;
+  language?: 'zh' | 'en';
+}
 
-Your task is to generate a **single, clean, professional UI prototype image** based on the user's description.
+interface PrototypeResponse {
+  success: boolean;
+  imageBase64?: string;
+  error?: string;
+}
 
-## Design Principles
-1. **Mobile-First**: Design for mobile screens (portrait orientation, ~375x812 aspect ratio)
-2. **Clean & Modern**: Use flat design, generous whitespace, consistent spacing
-3. **Realistic**: Include realistic UI elements (buttons, inputs, navigation bars, cards)
-4. **Professional Color Palette**: Use harmonious colors matching the specified style
-5. **Typography Hierarchy**: Clear distinction between headings, body, and labels
-6. **Touch-Friendly**: Visible touch targets (buttons, interactive elements)
-
-## Output Requirements
-- Generate a **single complete screen** showing the main interface
-- Include realistic placeholder content (text, icons, images)
-- Show interactive states (buttons should look clickable)
-- Use the appropriate platform conventions (iOS/Android/Web)
-- **NO** wireframe sketches - generate a polished, high-fidelity mockup
-
-## Style Guidelines
-Based on the style choice, apply the following aesthetics:
-- **Cyberpunk**: Neon colors, dark background, glowing effects, futuristic fonts
-- **Minimalist**: Black/white/gray, lots of whitespace, thin lines, subtle shadows
-- **Cute**: Pastel colors, rounded corners, playful icons, soft shadows
-- **Business**: Navy/slate/white, professional layout, clean grid, subtle accents
-- **Retro**: Pixel art style, limited color palette, nostalgic elements
-- **Glassmorphism**: Frosted glass effects, gradient backgrounds, transparency
-- **Neobrutalism**: Bold colors, thick black borders, hard shadows
-- **Dark Mode**: Dark surfaces, high contrast text, subtle highlights
-
-${language === 'zh' ? '请生成中文界面，包含中文文字标签。' : 'Generate English interface with English labels.'}`;
-
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   try {
-    // 1. 验证用户会话
-    const cookieStore = cookies();
+    // 1. 验证用户身份
+    const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           get(name: string) {
-            return cookieStore.get(name)?.value
+            return cookieStore.get(name)?.value;
           },
-          set(name: string, value: string, options: CookieOptions) {
-            cookieStore.set({ name, value, ...options })
-          },
-          remove(name: string, options: CookieOptions) {
-            cookieStore.set({ name, value: '', ...options })
-          },
+          set() {},
+          remove() {},
         },
       }
     );
-    const { data: { session } } = await supabase.auth.getSession();
 
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized: Please login first' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // 2. 解析请求
-    const { 
-      description, 
-      category, 
-      device, 
-      style, 
-      language = 'zh' 
-    } = await request.json();
+    const body: PrototypeRequest = await request.json();
+    const { description, category, device, style, language = 'zh' } = body;
 
     if (!description) {
       return NextResponse.json({ error: 'Description is required' }, { status: 400 });
     }
 
-    // 3. 速率限制检查
-    const { allowed, error: rateLimitError } = await checkRateLimit(
-      supabase, 
-      session.user.id, 
-      'generate-prototype', 
-      10,  // 每分钟 10 次
-      30   // 每天 30 次
-    );
-
-    if (!allowed) {
-      return NextResponse.json({ error: rateLimitError }, { status: 429 });
-    }
-
-    // 4. 积分检查 (原型图生成消耗 2 积分)
-    const COST = 2;
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('credits')
-      .eq('id', session.user.id)
-      .single();
-
-    if (profileError || !profile) {
-      return NextResponse.json({ error: 'Failed to fetch user profile' }, { status: 500 });
-    }
-
-    const currentCredits = Number(profile.credits || 0);
-    if (currentCredits < COST) {
-      return NextResponse.json({ error: `Insufficient credits (Required: ${COST})` }, { status: 403 });
-    }
-
-    // 5. 构建原型图生成 Prompt
-    const categoryLabels: Record<string, { zh: string, en: string }> = {
-      game: { zh: '休闲游戏', en: 'Casual Game' },
-      portfolio: { zh: '个人作品集', en: 'Portfolio' },
-      appointment: { zh: '预约服务', en: 'Appointment Service' },
-      productivity: { zh: '效率工具', en: 'Productivity Tool' },
-      tool: { zh: '实用工具', en: 'Utility Tool' },
-      devtool: { zh: '开发者工具', en: 'Developer Tool' },
-      education: { zh: '教育应用', en: 'Educational App' },
-      visualization: { zh: '数据可视化', en: 'Data Visualization' },
-      lifestyle: { zh: '生活方式', en: 'Lifestyle App' }
-    };
-
-    const deviceLabels: Record<string, { zh: string, en: string }> = {
-      mobile: { zh: '手机', en: 'Mobile Phone' },
-      tablet: { zh: '平板', en: 'Tablet' },
-      desktop: { zh: '桌面', en: 'Desktop' }
-    };
-
-    const styleLabels: Record<string, { zh: string, en: string }> = {
-      cyberpunk: { zh: '赛博朋克', en: 'Cyberpunk' },
-      minimalist: { zh: '极简主义', en: 'Minimalist' },
-      cute: { zh: '可爱风', en: 'Cute' },
-      business: { zh: '商务风', en: 'Business' },
-      retro: { zh: '复古像素', en: 'Retro Pixel' },
-      native: { zh: '原生风格', en: 'Native' },
-      glassmorphism: { zh: '玻璃拟态', en: 'Glassmorphism' },
-      neobrutalism: { zh: '新野兽派', en: 'Neobrutalism' },
-      dark_mode: { zh: '暗黑模式', en: 'Dark Mode' }
-    };
-
-    const categoryLabel = categoryLabels[category as keyof typeof categoryLabels]?.[language as 'zh' | 'en'] || category;
-    const deviceLabel = deviceLabels[device as keyof typeof deviceLabels]?.[language as 'zh' | 'en'] || device;
-    const styleLabel = styleLabels[style as keyof typeof styleLabels]?.[language as 'zh' | 'en'] || style;
-
-    const userPrompt = `Create a high-fidelity UI prototype mockup for the following app:
-
-**App Type**: ${categoryLabel}
-**Target Device**: ${deviceLabel}
-**Design Style**: ${styleLabel}
-
-**Description**:
-${description}
-
-Generate a polished, realistic UI mockup image that shows:
-1. The main screen/interface of this app
-2. Realistic UI components (navigation, buttons, cards, inputs)
-3. Placeholder content that makes sense for this app
-4. The specified visual style applied throughout
-
-The image should look like a screenshot from a real, finished app.`;
-
-    // 6. 调用 Gemini 2.0 Flash Preview Image Generation
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
-      return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 });
-    }
-
-    console.log('[PrototypeGen] Calling Gemini 2.0 Flash Preview Image Generation...');
-    console.log('[PrototypeGen] Category:', category, 'Device:', device, 'Style:', style);
-
-    const geminiResponse = await fetch(`${GEMINI_IMAGE_GENERATION_API}?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: getPrototypeSystemPrompt(language) + '\n\n' + userPrompt }
-            ]
-          }
-        ],
-        generationConfig: {
-          responseModalities: ['image', 'text'],
-          responseMimeType: 'image/png'
-        }
-      })
+    // 3. 构建原型图生成 Prompt
+    const prototypePrompt = buildPrototypePrompt({
+      description,
+      category,
+      device,
+      style,
+      language
     });
 
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error('[PrototypeGen] Gemini API Error:', errorText);
-      return NextResponse.json({ 
-        error: 'Failed to generate prototype image',
-        details: errorText 
-      }, { status: geminiResponse.status });
+    console.log('[Prototype] Generating with prompt:', prototypePrompt.substring(0, 200) + '...');
+
+    // 4. 调用 Gemini 2.0 Flash 图像生成 API
+    const googleApiKey = process.env.GOOGLE_API_KEY;
+    if (!googleApiKey) {
+      throw new Error('Missing Google API Key');
     }
 
-    const geminiData = await geminiResponse.json();
-    
-    // 7. 提取生成的图片
-    let imageBase64 = '';
-    let imageUrl = '';
-    
-    if (geminiData.candidates?.[0]?.content?.parts) {
-      for (const part of geminiData.candidates[0].content.parts) {
-        if (part.inlineData?.data) {
-          imageBase64 = part.inlineData.data;
-          // 转换为 data URL
-          const mimeType = part.inlineData.mimeType || 'image/png';
-          imageUrl = `data:${mimeType};base64,${imageBase64}`;
-          break;
-        }
+    // 使用 Gemini 3 Pro Image Preview 的图像生成能力
+    // 模型名称：gemini-3-pro-image-preview (用户指定，不要更改)
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${googleApiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: prototypePrompt
+            }]
+          }],
+          generationConfig: {
+            responseModalities: ['image', 'text'],
+            responseMimeType: 'image/png'
+          }
+        })
       }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Prototype] Gemini API error:', response.status, errorText);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
-    if (!imageUrl) {
-      console.error('[PrototypeGen] No image in response:', JSON.stringify(geminiData).substring(0, 500));
-      return NextResponse.json({ 
-        error: 'Prototype generation did not return an image',
-        debug: geminiData
-      }, { status: 500 });
+    const result = await response.json();
+    
+    // 5. 提取生成的图像
+    const imagePart = result.candidates?.[0]?.content?.parts?.find(
+      (part: any) => part.inlineData?.mimeType?.startsWith('image/')
+    );
+
+    if (!imagePart?.inlineData?.data) {
+      console.error('[Prototype] No image in response:', JSON.stringify(result).substring(0, 500));
+      throw new Error('No image generated');
     }
 
-    // 8. 扣除积分
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ credits: currentCredits - COST })
-      .eq('id', session.user.id);
+    const imageBase64 = imagePart.inlineData.data;
+    const mimeType = imagePart.inlineData.mimeType || 'image/png';
 
-    if (updateError) {
-      console.warn('[PrototypeGen] Failed to deduct credits:', updateError);
-    }
+    console.log('[Prototype] Successfully generated image, size:', imageBase64.length);
 
-    console.log('[PrototypeGen] Successfully generated prototype image');
-
-    // 9. 返回结果
     return NextResponse.json({
       success: true,
-      imageUrl,
-      imageBase64,
-      cost: COST,
-      prompt: userPrompt
+      imageBase64: `data:${mimeType};base64,${imageBase64}`
     });
 
   } catch (error: any) {
-    console.error('[PrototypeGen] Error:', error);
-    return NextResponse.json({ 
-      error: error.message || 'Internal Server Error' 
-    }, { status: 500 });
+    console.error('[Prototype] Error:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Failed to generate prototype' },
+      { status: 500 }
+    );
   }
+}
+
+/**
+ * 构建原型图生成的 Prompt
+ */
+function buildPrototypePrompt(options: {
+  description: string;
+  category: string;
+  device: 'mobile' | 'tablet' | 'desktop';
+  style?: string;
+  language?: 'zh' | 'en';
+}): string {
+  const { description, category, device, style, language } = options;
+
+  // 设备尺寸映射
+  const deviceDimensions = {
+    mobile: { width: 375, height: 812, aspect: '9:19.5' },
+    tablet: { width: 768, height: 1024, aspect: '3:4' },
+    desktop: { width: 1440, height: 900, aspect: '16:10' }
+  };
+
+  const dimensions = deviceDimensions[device] || deviceDimensions.mobile;
+
+  // 类别描述
+  const categoryDescriptions: Record<string, string> = {
+    tool: 'utility/productivity tool',
+    game: 'casual game or interactive entertainment',
+    education: 'educational or learning application',
+    life: 'lifestyle or daily life assistant',
+    creative: 'creative or artistic application',
+    social: 'social or community platform',
+    business: 'business or professional tool',
+    health: 'health or fitness application'
+  };
+
+  const categoryDesc = categoryDescriptions[category] || 'web application';
+
+  // 构建 Prompt
+  const prompt = `Generate a high-fidelity UI prototype mockup image for the following application:
+
+## Application Description
+${description}
+
+## Design Specifications
+- **Type**: ${categoryDesc}
+- **Target Device**: ${device} (${dimensions.width}x${dimensions.height}px, aspect ratio ${dimensions.aspect})
+- **Visual Style**: ${style || 'modern, clean, professional'}
+- **Language**: ${language === 'zh' ? 'Chinese (Simplified)' : 'English'}
+
+## Requirements
+1. Create a realistic UI mockup that looks like a professional app design
+2. Include all main UI elements: navigation, content areas, buttons, icons
+3. Use appropriate colors and typography for the specified style
+4. Show realistic placeholder content that matches the app description
+5. The design should be visually complete and ready for development reference
+6. Include appropriate spacing, shadows, and visual hierarchy
+7. If it's a mobile app, show status bar and navigation elements
+8. Make sure text is readable and icons are recognizable
+
+## Output
+Generate a single, complete UI prototype image in PNG format.
+The image should be a clean mockup without device frames or annotations.
+Focus on the actual UI design that will be implemented.`;
+
+  return prompt;
 }
