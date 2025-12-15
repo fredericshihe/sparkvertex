@@ -42,6 +42,7 @@ import { ToastProvider } from '@/context/ToastContext';
 import { LanguageProvider } from '@/context/LanguageContext';
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import ConsoleSilencer from '@/components/ConsoleSilencer';
+import { PaddleProvider } from '@/components/PaddleProvider';
 
 export default function MainLayout({
   children,
@@ -65,6 +66,7 @@ export default function MainLayout({
       <body className={systemFontClass}>
         <StorageManager />
         <ServiceWorkerRegister />
+        <PaddleProvider>
         <LanguageProvider>
           <WeChatGuard />
           <ToastProvider>
@@ -86,6 +88,7 @@ export default function MainLayout({
             </ModalProvider>
           </ToastProvider>
         </LanguageProvider>
+        </PaddleProvider>
         <ConsoleSilencer />
       </body>
     </html>

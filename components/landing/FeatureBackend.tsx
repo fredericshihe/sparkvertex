@@ -2,8 +2,12 @@
 
 import React from 'react';
 import TiltedCard from '../TiltedCard';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function FeatureBackend() {
+  const { t } = useLanguage();
+  const fb = t.home.feature_backend;
+
   return (
     <section className="py-20 bg-transparent relative overflow-hidden">
       {/* Background Elements */}
@@ -17,15 +21,14 @@ export default function FeatureBackend() {
             {/* Right: Text */}
             <div className="w-full md:w-1/2 space-y-6">
               <div className="inline-block px-3 py-1 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-400 text-sm font-medium mb-2">
-                01 原创网页小游戏
+                {fb.game_badge}
               </div>
               <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">
-                一句话描述规则
-                <span className="block text-pink-500">AI 生成可玩游戏</span>
+                {fb.game_title_1}
+                <span className="block text-pink-500">{fb.game_title_2}</span>
               </h2>
               <p className="text-slate-400 text-lg leading-relaxed">
-                "帮我做一个贪吃蛇，吃到红点变长，撞墙结束。" <br/>
-                只需这样一句描述，AI 就能生成完整的游戏逻辑与界面。支持贪吃蛇、俄罗斯方块、扫雷等经典玩法，甚至是你独创的规则。
+                {fb.game_desc}
               </p>
             </div>
 
@@ -52,7 +55,7 @@ export default function FeatureBackend() {
                             <div className="w-2.5 h-2.5 rounded-full bg-[#27C93F]"></div>
                             <div className="ml-3 text-[10px] text-slate-500 font-medium flex items-center gap-1.5">
                                 <i className="fa-solid fa-gamepad"></i>
-                                贪吃蛇大作战.html
+                                {fb.game_filename}
                             </div>
                         </div>
                         
@@ -62,7 +65,7 @@ export default function FeatureBackend() {
                                     <div className="w-2 h-2 rounded-full bg-red-500"></div>
                                     <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
                                 </div>
-                                <span className="text-sm text-green-400 font-mono font-bold">得分: 120</span>
+                                <span className="text-sm text-green-400 font-mono font-bold">{fb.game_score}: 120</span>
                             </div>
                             <div className="flex-1 relative p-6 flex items-center justify-center">
                                 {/* Snake Grid */}
@@ -101,14 +104,14 @@ export default function FeatureBackend() {
             {/* Right: Text */}
             <div className="w-full md:w-1/2 space-y-6">
               <div className="inline-block px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium mb-2">
-                02 个人作品集网站
+                {fb.portfolio_badge}
               </div>
               <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">
-                展示才华，无需代码
-                <span className="block text-blue-500">打造专业级个人主页</span>
+                {fb.portfolio_title_1}
+                <span className="block text-blue-500">{fb.portfolio_title_2}</span>
               </h2>
               <p className="text-slate-400 text-lg leading-relaxed">
-                设计师、摄影师、开发者必备。上传你的作品图片，AI 自动排版生成精美网站。包含"关于我"、"作品展示"、"联系方式"等完整模块，让你的才华被更多人看到。
+                {fb.portfolio_desc}
               </p>
             </div>
 
@@ -135,7 +138,7 @@ export default function FeatureBackend() {
                             <div className="w-2.5 h-2.5 rounded-full bg-[#27C93F]"></div>
                             <div className="ml-3 text-[10px] text-slate-500 font-medium flex items-center gap-1.5">
                                 <i className="fa-solid fa-globe"></i>
-                                李明的设计主页.com
+                                {fb.portfolio_filename}
                             </div>
                         </div>
                         
@@ -144,9 +147,9 @@ export default function FeatureBackend() {
                             <div className="h-32 bg-slate-100 relative">
                                 <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-cyan-500/20"></div>
                                 <div className="absolute bottom-4 right-4 flex gap-3 text-[10px] font-medium text-slate-600">
-                                    <span className="hover:text-blue-500 cursor-pointer">首页</span>
-                                    <span className="hover:text-blue-500 cursor-pointer">作品</span>
-                                    <span className="hover:text-blue-500 cursor-pointer">关于</span>
+                                    <span className="hover:text-blue-500 cursor-pointer">{fb.portfolio_nav_home}</span>
+                                    <span className="hover:text-blue-500 cursor-pointer">{fb.portfolio_nav_works}</span>
+                                    <span className="hover:text-blue-500 cursor-pointer">{fb.portfolio_nav_about}</span>
                                 </div>
                             </div>
                             
@@ -163,19 +166,19 @@ export default function FeatureBackend() {
                                     <div className="aspect-square bg-slate-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow group relative">
                                         <div className="w-full h-full bg-slate-300"></div>
                                         <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            移动端界面设计
+                                            {fb.portfolio_work_1}
                                         </div>
                                     </div>
                                     <div className="aspect-square bg-slate-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow group relative">
                                         <div className="w-full h-full bg-slate-300"></div>
                                         <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            品牌VI全案
+                                            {fb.portfolio_work_2}
                                         </div>
                                     </div>
                                     <div className="aspect-square bg-slate-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow group relative">
                                         <div className="w-full h-full bg-slate-300"></div>
                                         <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            插画练习
+                                            {fb.portfolio_work_3}
                                         </div>
                                     </div>
                                 </div>
@@ -194,17 +197,17 @@ export default function FeatureBackend() {
           {/* Right: Text */}
           <div className="w-full md:w-1/2 space-y-6">
             <div className="inline-block px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-sm font-medium mb-2">
-              03 超级个体预约门面
+              {fb.appointment_badge}
             </div>
             <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">
-              服务变现，一键搞定
-              <span className="block text-purple-500">自带后台管理系统</span>
+              {fb.appointment_title_1}
+              <span className="block text-purple-500">{fb.appointment_title_2}</span>
             </h2>
             <p className="text-slate-400 text-lg leading-relaxed">
-              特别适合咨询师、教练、创作者。无需开发，一键生成包含"服务展示"、"在线预约"、"表单收集"的完整站点。
+              {fb.appointment_desc}
               <br/>
               <span className="text-sm text-slate-500 mt-2 block">
-                * 系统自动为您配置数据库和管理后台，随时查看预约订单。
+                {fb.appointment_note}
               </span>
             </p>
           </div>
@@ -234,7 +237,7 @@ export default function FeatureBackend() {
                             <div className="w-2.5 h-2.5 rounded-full bg-[#27C93F]"></div>
                             <div className="ml-3 text-[10px] text-slate-500 font-medium flex items-center gap-1.5">
                                 <i className="fa-solid fa-server"></i>
-                                预约管理后台
+                                {fb.appointment_backend}
                             </div>
                         </div>
                         
@@ -242,7 +245,7 @@ export default function FeatureBackend() {
                             {/* User Side */}
                             <div className="space-y-2">
                                 <div className="flex items-center gap-1.5 text-[10px] text-purple-400 font-bold uppercase tracking-wider">
-                                    <i className="fa-solid fa-mobile-screen"></i> 客户看到的 (小程序/网页)
+                                    <i className="fa-solid fa-mobile-screen"></i> {fb.appointment_user_view}
                                 </div>
                                 <div className="bg-white rounded-lg p-3 shadow-lg border border-slate-200 h-full relative overflow-hidden group">
                                     <div className="absolute top-0 left-0 w-full h-1 bg-purple-500"></div>
@@ -251,8 +254,8 @@ export default function FeatureBackend() {
                                             <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" className="w-full h-full rounded-full" />
                                         </div>
                                         <div>
-                                            <div className="text-[10px] font-bold text-slate-800 leading-tight">1对1 职业咨询</div>
-                                            <div className="text-[8px] text-slate-500">¥500 / 60分钟</div>
+                                            <div className="text-[10px] font-bold text-slate-800 leading-tight">{fb.appointment_service}</div>
+                                            <div className="text-[8px] text-slate-500">{fb.appointment_price}</div>
                                         </div>
                                     </div>
                                     <div className="space-y-1.5 mb-3">
@@ -263,7 +266,7 @@ export default function FeatureBackend() {
                                         <div className="h-1.5 bg-slate-100 rounded w-full"></div>
                                     </div>
                                     <div className="w-full py-1.5 bg-purple-600 text-white text-[10px] font-bold rounded text-center shadow-md shadow-purple-500/20 group-hover:scale-105 transition-transform cursor-pointer">
-                                        立即预约
+                                        {fb.appointment_book_now}
                                     </div>
                                 </div>
                             </div>
@@ -271,25 +274,25 @@ export default function FeatureBackend() {
                             {/* Admin Side */}
                             <div className="space-y-2">
                                 <div className="flex items-center gap-1.5 text-[10px] text-green-400 font-bold uppercase tracking-wider">
-                                    <i className="fa-solid fa-database"></i> 你看到的 (数据后台)
+                                    <i className="fa-solid fa-database"></i> {fb.appointment_admin_view}
                                 </div>
                                 <div className="bg-slate-800 rounded-lg border border-slate-700 h-full overflow-hidden flex flex-col shadow-inner">
                                     <div className="bg-slate-700/50 px-2 py-1.5 border-b border-slate-700 flex justify-between items-center">
-                                        <span className="text-[8px] text-slate-400">最新订单</span>
+                                        <span className="text-[8px] text-slate-400">{fb.appointment_latest_orders}</span>
                                         <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
                                     </div>
                                     <div className="p-2 space-y-2">
                                         <div className="bg-slate-700/30 rounded p-1.5 border border-slate-700/50 animate-pulse">
                                             <div className="flex justify-between mb-1">
-                                                <div className="text-[8px] text-white">王先生 - 职业咨询</div>
-                                                <div className="text-[8px] text-green-400">新预约</div>
+                                                <div className="text-[8px] text-white">{fb.appointment_customer_1}</div>
+                                                <div className="text-[8px] text-green-400">{fb.appointment_new_booking}</div>
                                             </div>
                                             <div className="text-[7px] text-slate-500">2024-05-20 14:00</div>
                                         </div>
                                         <div className="bg-slate-700/30 rounded p-1.5 border border-slate-700/50 opacity-50">
                                             <div className="flex justify-between mb-1">
-                                                <div className="text-[8px] text-white">李女士 - 简历优化</div>
-                                                <div className="text-[8px] text-slate-400">待确认</div>
+                                                <div className="text-[8px] text-white">{fb.appointment_customer_2}</div>
+                                                <div className="text-[8px] text-slate-400">{fb.appointment_pending}</div>
                                             </div>
                                             <div className="text-[7px] text-slate-500">2024-05-21 10:00</div>
                                         </div>
@@ -310,14 +313,14 @@ export default function FeatureBackend() {
             {/* Right: Text */}
             <div className="w-full md:w-1/2 space-y-6">
               <div className="inline-block px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-medium mb-2">
-                04 互动教学课件
+                {fb.courseware_badge}
               </div>
               <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight">
-                知识点可视化
-                <span className="block text-green-500">让教学更生动有趣</span>
+                {fb.courseware_title_1}
+                <span className="block text-green-500">{fb.courseware_title_2}</span>
               </h2>
               <p className="text-slate-400 text-lg leading-relaxed">
-                老师和培训师的得力助手。输入知识点，AI 自动生成包含"互动演示"、"在线测验"、"进度追踪"的 H5 课件。支持物理公式、数学图表、化学分子式等复杂内容。
+                {fb.courseware_desc}
               </p>
             </div>
 
@@ -344,17 +347,17 @@ export default function FeatureBackend() {
                             <div className="w-2.5 h-2.5 rounded-full bg-[#27C93F]"></div>
                             <div className="ml-3 text-[10px] text-slate-500 font-medium flex items-center gap-1.5">
                                 <i className="fa-solid fa-graduation-cap"></i>
-                                高中物理-力学.html
+                                {fb.courseware_filename}
                             </div>
                         </div>
                         
                         <div className="flex-1 relative bg-[#1e293b] flex flex-col p-4">
                             <div className="flex justify-between items-center mb-3">
-                                <div className="text-xs text-emerald-400 font-bold uppercase tracking-wider">高中物理必修一</div>
-                                <div className="text-[10px] text-slate-400 bg-slate-800 px-2 py-1 rounded-full">第 3 题 / 共 10 题</div>
+                                <div className="text-xs text-emerald-400 font-bold uppercase tracking-wider">{fb.courseware_subject}</div>
+                                <div className="text-[10px] text-slate-400 bg-slate-800 px-2 py-1 rounded-full">{fb.courseware_progress}</div>
                             </div>
                             <div className="bg-slate-700/50 rounded-xl p-4 mb-2 border border-slate-600 shadow-lg">
-                                <div className="text-sm text-white font-medium mb-3">牛顿第二定律的公式是？</div>
+                                <div className="text-sm text-white font-medium mb-3">{fb.courseware_question}</div>
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-3 p-2 rounded-lg bg-emerald-500/20 border border-emerald-500/50 cursor-pointer transition-colors hover:bg-emerald-500/30">
                                         <div className="w-4 h-4 rounded-full border border-emerald-400 flex items-center justify-center">
@@ -374,7 +377,7 @@ export default function FeatureBackend() {
                             </div>
                             <div className="mt-auto flex justify-end pb-1">
                                 <div className="px-4 py-1.5 bg-emerald-500 text-white text-[10px] font-bold rounded-full shadow-lg shadow-emerald-500/20 flex items-center gap-1 cursor-pointer hover:bg-emerald-600 transition-colors">
-                                    下一题 <i className="fa-solid fa-arrow-right"></i>
+                                    {fb.courseware_next} <i className="fa-solid fa-arrow-right"></i>
                                 </div>
                             </div>
                         </div>

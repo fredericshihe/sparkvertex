@@ -4,12 +4,15 @@ import React from 'react';
 import Link from 'next/link';
 import ProjectCard from '@/components/ProjectCard';
 import { useEffect, useState } from 'react';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface ShowcaseProps {
   items: any[];
 }
 
 export default function Showcase({ items }: ShowcaseProps) {
+  const { t } = useLanguage();
+  const fb = t.home.feature_backend;
   const [displayCount, setDisplayCount] = useState(6);
 
   useEffect(() => {
@@ -31,14 +34,14 @@ export default function Showcase({ items }: ShowcaseProps) {
           <div className="flex justify-between items-end mb-12">
           <div>
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-2">
-              发现无限可能
+              {fb.showcase_title}
             </h2>
             <p className="text-slate-400">
-              看看社区里的创作者们都构建了什么
+              {fb.showcase_desc}
             </p>
           </div>
           <Link href="/explore" className="hidden md:flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors">
-            <span>查看更多</span>
+            <span>{fb.showcase_more}</span>
             <i className="fa-solid fa-arrow-right"></i>
           </Link>
         </div>
@@ -57,7 +60,7 @@ export default function Showcase({ items }: ShowcaseProps) {
 
         <div className="mt-12 text-center md:hidden">
           <Link href="/explore" className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors">
-            <span>查看更多</span>
+            <span>{fb.showcase_more}</span>
             <i className="fa-solid fa-arrow-right"></i>
           </Link>
         </div>

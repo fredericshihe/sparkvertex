@@ -1,13 +1,14 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useModal } from '@/context/ModalContext';
 import { usePathname } from 'next/navigation';
 import { useLanguage } from '@/context/LanguageContext';
 
 export default function Footer() {
   const { openFeedbackModal } = useModal();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const pathname = usePathname();
 
   // Hide Footer on standalone product pages, Homepage (Hero handles it), and Create page (App-like UI)
@@ -16,9 +17,6 @@ export default function Footer() {
   return (
     <footer className="w-full py-6 pb-24 md:pb-6 mt-0 text-center relative z-10 bg-transparent">
       <div className="max-w-7xl mx-auto px-4 flex flex-col items-center">
-        
-
-
         <div className="flex justify-center items-center mb-4 opacity-50 hover:opacity-100 transition duration-300">
           <Image 
             src="/logo.png" 
@@ -29,6 +27,26 @@ export default function Footer() {
           />
           <span className="font-bold text-sm text-slate-500 hover:text-slate-300 transition">SparkVertex</span>
         </div>
+        
+        {/* Legal Links - Required for Paddle compliance */}
+        <div className="flex flex-wrap justify-center gap-4 mb-4 text-xs text-slate-500">
+          <Link href="/legal/privacy" className="hover:text-brand-400 transition">
+            {language === 'zh' ? '隐私政策' : 'Privacy Policy'}
+          </Link>
+          <span className="text-slate-700">|</span>
+          <Link href="/legal/terms" className="hover:text-brand-400 transition">
+            {language === 'zh' ? '服务条款' : 'Terms of Service'}
+          </Link>
+          <span className="text-slate-700">|</span>
+          <Link href="/legal/refund" className="hover:text-brand-400 transition">
+            {language === 'zh' ? '退款政策' : 'Refund Policy'}
+          </Link>
+          <span className="text-slate-700">|</span>
+          <Link href="/legal/contact" className="hover:text-brand-400 transition">
+            {language === 'zh' ? '联系我们' : 'Contact Us'}
+          </Link>
+        </div>
+        
         <div className="text-slate-700 text-[10px]">
           &copy; 2025 SparkVertex. <button onClick={openFeedbackModal} className="hover:text-brand-400 transition ml-2">{t.nav.feedback}</button>
         </div>

@@ -118,6 +118,25 @@ export default function Hero({}: HeroProps) {
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce text-white/50 pointer-events-none">
         <i className="fa-solid fa-chevron-down text-2xl"></i>
       </div>
+
+      {/* Legal Footer - Required for Paddle compliance */}
+      <div className="absolute bottom-2 left-0 right-0 flex flex-wrap justify-center gap-3 md:gap-6 text-[10px] md:text-xs text-slate-600 px-4">
+        <Link href="/legal/privacy" className="hover:text-slate-400 transition">
+          {language === 'zh' ? '隐私政策' : 'Privacy Policy'}
+        </Link>
+        <span className="text-slate-700">|</span>
+        <Link href="/legal/terms" className="hover:text-slate-400 transition">
+          {language === 'zh' ? '服务条款' : 'Terms of Service'}
+        </Link>
+        <span className="text-slate-700">|</span>
+        <Link href="/legal/refund" className="hover:text-slate-400 transition">
+          {language === 'zh' ? '退款政策' : 'Refund Policy'}
+        </Link>
+        <span className="text-slate-700">|</span>
+        <Link href="/legal/contact" className="hover:text-slate-400 transition">
+          {language === 'zh' ? '联系我们' : 'Contact'}
+        </Link>
+      </div>
     </div>
   );
 }

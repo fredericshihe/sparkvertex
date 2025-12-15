@@ -5,8 +5,15 @@ import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 import { X, Check, Sparkles } from 'lucide-react';
-import { CREDIT_PACKAGES } from '@/lib/lemon-squeezy';
+import { CREDIT_PACKAGES } from '@/lib/paddle';
 import { supabase } from '@/lib/supabase';
+
+// Paddle global type
+declare global {
+  interface Window {
+    Paddle: any;
+  }
+}
 
 // Define packages outside component to avoid recreation
 const PACKAGES = CREDIT_PACKAGES;
@@ -47,20 +54,30 @@ export default function CreditPurchaseModal() {
         return;
       }
 
-      // 2. 构建 Lemon Squeezy 支付链接
-      // checkout[custom][user_id] 是官方约定的透传字段
-      // checkout[email] 预填邮箱，提升体验
-      const checkoutUrl = `${selectedPackage.buyUrl}?checkout[custom][user_id]=${user.id}&checkout[email]=${user.email}`;
-      
-      // 3. 跳转支付
-      if (isMobile) {
-        window.location.href = checkoutUrl;
-      } else {
-        window.open(checkoutUrl, '_blank');
-        // 支付后关闭弹窗，或者显示一个"支付完成"的提示
-        if (success) success('支付页面已打开，请在新窗口完成支付');
-        closeCreditPurchaseModal();
+      // 2. 检查 Paddle.js 是否已加载
+      if (typeof window === 'undefined' || !window.Paddle) {
+        if (warning) warning('支付系统加载中，请稍后重试');
+        setIsProcessing(false);
+        return;
       }
+
+      // 3. 打开 Paddle Checkout
+      console.log('[Paddle] Opening checkout with priceId:', selectedPackage.priceId);
+      
+      window.Paddle.Checkout.open({
+        items: [{ priceId: selectedPackage.priceId, quantity: 1 }],
+        customData: {
+          user_id: user.id,
+        },
+        settings: {
+          displayMode: 'overlay',
+          theme: 'dark',
+          locale: 'zh-Hans',
+        },
+      });
+
+      // 关闭弹窗，Paddle overlay 会接管
+      closeCreditPurchaseModal();
       
     } catch (error) {
       console.error('[Payment] Error:', error);
@@ -69,7 +86,7 @@ export default function CreditPurchaseModal() {
       setIsProcessing(false);
       setStep('select');
     }
-  }, [selectedPackage, warning, isProcessing, isMobile, success, closeCreditPurchaseModal]);
+  }, [selectedPackage, warning, isProcessing, success, closeCreditPurchaseModal]);
 
   // 移除轮询逻辑，因为 Lemon Squeezy 使用 Webhook
   
@@ -319,15 +336,11 @@ export default function CreditPurchaseModal() {
                   {/* Buy Button */}
                   {!isDisabled && (
                   <div className="absolute bottom-0 left-0 w-full p-4 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 pointer-events-none group-hover:pointer-events-auto bg-black/80 backdrop-blur-md">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSelect(pkg);
-                      }}
-                      className={`w-full py-3 rounded-xl font-bold text-center transition-all duration-300 bg-gradient-to-r ${pkg.color} text-white shadow-lg hover:shadow-xl hover:scale-105`}
+                    <div
+                      className={`w-full py-3 rounded-xl font-bold text-center transition-all duration-300 bg-gradient-to-r ${pkg.color} text-white shadow-lg hover:shadow-xl hover:scale-105 cursor-pointer`}
                     >
                       {t.detail.buy}
-                    </button>
+                    </div>
                   </div>
                   )}
                 </button>
