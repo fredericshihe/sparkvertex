@@ -6,8 +6,8 @@ import { checkRateLimit } from '@/lib/rate-limit';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-// Gemini 2.0 Flash Preview Image Generation - 原型图生成
-const GEMINI_IMAGE_GENERATION_API = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent';
+// Gemini 2.0 Flash Exp Image Generation - 原型图生成
+const GEMINI_IMAGE_GENERATION_API = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent';
 
 // 生成原型图的 System Prompt
 const getPrototypeSystemPrompt = (language: string) => `You are a senior UI/UX designer specializing in creating app prototype mockups.
