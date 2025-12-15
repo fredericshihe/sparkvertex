@@ -92,6 +92,28 @@ async function calculateContentHash(content: string) {
   // Remove charset meta tag (injectWatermark enforces UTF-8, causing mismatch with original)
   stripped = stripped.replace(/<meta[^>]*charset=[^>]*>/gi, '');
   
+  // ========== 配置表单注入内容剥离 ==========
+  // Remove the entire backend config script injected by preview.ts (contains SparkCMS, fetch interceptor, etc.)
+  // This script block starts with CMS 内容管理工具 and contains SPARK_APP_ID, SPARK_API_BASE, etc.
+  stripped = stripped.replace(/<script>\s*\(function\(\)\s*\{[\s\S]*?window\.SparkCMS\s*=[\s\S]*?\}\)\(\);\s*<\/script>/gi, '');
+  
+  // Remove SPARK_APP_ID and related variable declarations
+  stripped = stripped.replace(/window\.SPARK_APP_ID\s*=\s*['"][^'"]*['"];?\s*/g, '');
+  stripped = stripped.replace(/window\.SPARK_USER_ID\s*=\s*['"][^'"]*['"];?\s*/g, '');
+  stripped = stripped.replace(/window\.SPARK_API_BASE\s*=\s*['"][^'"]*['"];?\s*/g, '');
+  
+  // Remove fetch/XHR interceptor script blocks (used for backend API routing)
+  // These are injected by preview.ts for iframe communication
+  stripped = stripped.replace(/<script>\s*\(function\(\)\s*\{[\s\S]*?originalFetch\s*=\s*window\.fetch[\s\S]*?\}\)\(\);\s*<\/script>/gi, '');
+  
+  // Remove SparkCMS related scripts
+  stripped = stripped.replace(/<script>\s*\(function\(\)\s*\{[\s\S]*?SparkCMS[\s\S]*?\}\)\(\);\s*<\/script>/gi, '');
+  
+  // Remove any script containing SPARK_ variable declarations or fetch interceptors
+  // This catches variations in the injected script format
+  stripped = stripped.replace(/<script>[\s\S]*?SPARK_APP_ID[\s\S]*?<\/script>/gi, '');
+  stripped = stripped.replace(/<script>[\s\S]*?SPARK_API_BASE[\s\S]*?<\/script>/gi, '');
+  
   // Normalize: remove all whitespace, newlines, and convert to lowercase
   const normalized = stripped.replace(/\s+/g, '').toLowerCase();
   return await sha256(normalized);
