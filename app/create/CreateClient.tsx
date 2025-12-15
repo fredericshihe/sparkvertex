@@ -144,17 +144,20 @@ function CreateContent() {
     category: language === 'zh' ? '分类' : 'Category',
     device: language === 'zh' ? '设备' : 'Device',
     style: language === 'zh' ? '风格' : 'Style',
-    concept: language === 'zh' ? '构思' : 'Concept'
+    concept: language === 'zh' ? '构思' : 'Concept',
+    prototype: language === 'zh' ? '原型图' : 'Prototype'
   };
   
   // State: Wizard
   // Merged 'features' and 'desc' into 'concept'
-  const [step, setStep] = useState<'category' | 'device' | 'style' | 'concept' | 'generating' | 'preview'>('category');
+  // Added 'prototype' step for AI-generated UI mockup before code generation
+  const [step, setStep] = useState<'category' | 'device' | 'style' | 'concept' | 'prototype' | 'generating' | 'preview'>('category');
   const [wizardData, setWizardData] = useState({
     category: '',
     device: 'mobile',
     style: '',
-    description: ''
+    description: '',
+    prototypeImage: '' // AI生成的原型图 base64/data URL
   });
 
   // Generate a unique session ID for this creation session
@@ -280,6 +283,11 @@ function CreateContent() {
   const [timeoutCost, setTimeoutCost] = useState(0);
   const [aiPlan, setAiPlan] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<string | null>(null);
+  
+  // State: Prototype Generation (新增：原型图生成)
+  const [isGeneratingPrototype, setIsGeneratingPrototype] = useState(false);
+  const [prototypeError, setPrototypeError] = useState<string | null>(null);
+  const [skipPrototype, setSkipPrototype] = useState(false); // 用户选择跳过原型图生成
   
   // State: Draft
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -1374,6 +1382,80 @@ function CreateContent() {
     setStep('concept');
   };
 
+  // 🆕 原型图生成函数
+  const generatePrototype = async () => {
+    if (!wizardData.description.trim()) {
+      toastError(language === 'zh' ? '请先输入描述' : 'Please enter a description first');
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        openLoginModal();
+        return;
+      }
+
+      setIsGeneratingPrototype(true);
+      setPrototypeError(null);
+      setStep('prototype');
+
+      console.log('[Prototype] Starting generation...');
+      const response = await fetch('/api/generate-prototype', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: wizardData.description,
+          category: wizardData.category,
+          device: wizardData.device,
+          style: wizardData.style,
+          language
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        throw new Error(errorData.error || 'Failed to generate prototype');
+      }
+
+      const data = await response.json();
+      console.log('[Prototype] Generated successfully');
+
+      // 保存原型图到 wizardData
+      setWizardData(prev => ({ ...prev, prototypeImage: data.imageUrl }));
+      
+      // 更新积分
+      if (data.cost) {
+        setCredits(prev => Math.max(0, prev - data.cost));
+      }
+
+      setIsGeneratingPrototype(false);
+    } catch (error: any) {
+      console.error('[Prototype] Error:', error);
+      setPrototypeError(error.message || 'Failed to generate prototype');
+      setIsGeneratingPrototype(false);
+      toastError(error.message || (language === 'zh' ? '原型图生成失败' : 'Failed to generate prototype'));
+    }
+  };
+
+  // 🆕 跳过原型图，直接生成代码
+  const skipPrototypeAndGenerate = () => {
+    setSkipPrototype(true);
+    setWizardData(prev => ({ ...prev, prototypeImage: '' }));
+    startGeneration(false, '', '', false, 'init');
+  };
+
+  // 🆕 重新生成原型图
+  const regeneratePrototype = async () => {
+    setWizardData(prev => ({ ...prev, prototypeImage: '' }));
+    await generatePrototype();
+  };
+
+  // 🆕 确认原型图，开始生成代码
+  const confirmPrototypeAndGenerate = () => {
+    startGeneration(false, '', '', false, 'init');
+  };
+
   const appendToDescription = (text: string) => {
     setWizardData(prev => {
       const newDesc = prev.description ? `${prev.description}\n${text}` : text;
@@ -1608,10 +1690,24 @@ ${modificationRequest}`;
 
     const targetLang = language === 'zh' ? 'Chinese' : 'English';
 
+    // 🆕 如果有原型图，添加引用说明
+    const prototypeReference = wizardData.prototypeImage 
+      ? `\n\n# PROTOTYPE REFERENCE
+You have been provided with a UI prototype mockup image. Use it as a visual reference for:
+- Layout structure and component arrangement
+- Color scheme and visual style
+- Typography hierarchy
+- UI component design (buttons, cards, inputs, etc.)
+- Overall aesthetic and feel
+
+Match the prototype as closely as possible while ensuring the code is fully functional.`
+      : '';
+
     return `
 # Task
 Create a single-file React 18 app (HTML).
 ${description}
+${prototypeReference}
 
 # Specs
 - Lang: ${targetLang}
@@ -3310,7 +3406,8 @@ Remember: You're building for production. Code must be clean, performant, and er
                 model: selectedModel,
                 tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit,
                 skip_compression: fullCodeMode || forceFull || isBackendConfig, // 🆕 backend_config 也跳过压缩，确保 AI 看到完整表单代码
-                operation_type: nextOperationType // 🆕 传递操作类型，用于后端特殊处理
+                operation_type: nextOperationType, // 🆕 传递操作类型，用于后端特殊处理
+                prototype_image: !isModification && wizardData.prototypeImage ? wizardData.prototypeImage : undefined // 🆕 传递原型图
             }),
             signal: abortControllerRef.current.signal
         });
@@ -3522,12 +3619,8 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
           console.log(`[CacheOptimization] Context prefix added (${contextPrefix.length} chars)`);
       }
       
-      // 确保 System Prompt 保持不变（除了后端配置模式）
-      console.log(`[CacheOptimization] System Prompt length: ${finalSystemPrompt.length} chars (should be stable across requests)`);
-      console.log(`[CacheOptimization] System Prompt hash: ${hashString(finalSystemPrompt).slice(0, 8)}`);
-      
       // 简单的字符串哈希函数，用于检测 System Prompt 变化
-      function hashString(str: string): string {
+      const hashString = (str: string): string => {
           let hash = 0;
           for (let i = 0; i < str.length; i++) {
               const char = str.charCodeAt(i);
@@ -3535,7 +3628,11 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
               hash = hash & hash;
           }
           return Math.abs(hash).toString(16);
-      }
+      };
+      
+      // 确保 System Prompt 保持不变（除了后端配置模式）
+      console.log(`[CacheOptimization] System Prompt length: ${finalSystemPrompt.length} chars (should be stable across requests)`);
+      console.log(`[CacheOptimization] System Prompt hash: ${hashString(finalSystemPrompt).slice(0, 8)}`);
 
       // 注意：积分扣除在后端Edge Function中进行，避免双重扣费
       // 前端不再进行乐观更新，等待后端扣费后通过checkAuth刷新积分余额
@@ -3575,7 +3672,8 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
                         user_prompt: finalUserPrompt, 
                         type: isModification ? 'modification' : 'generation',
                         model: selectedModel,
-                        tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit
+                        tokens_per_credit: MODEL_CONFIG[selectedModel].tokensPerCredit,
+                        image_url: !isModification && wizardData.prototypeImage ? wizardData.prototypeImage : undefined // 🆕 传递原型图
                     }),
                     signal: abortControllerRef.current?.signal
                 });
@@ -4946,16 +5044,118 @@ Please fix the code to make the app display properly.`;
                   {t.create.btn_back}
                 </button>
                 <button
-                  onClick={() => {
-                    startGeneration(false, '', '', false, 'init');
-                  }}
+                  onClick={() => skipPrototypeAndGenerate()}
                   disabled={!wizardData.description}
-                  className="flex-1 bg-white text-black hover:bg-slate-200 py-3 md:py-4 rounded-xl md:rounded-xl font-bold text-sm md:text-base shadow-lg shadow-white/10 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 md:gap-2"
+                  className="flex-1 py-3 md:py-3 rounded-xl md:rounded-xl font-bold text-sm md:text-base text-slate-400 hover:text-white hover:bg-white/5 transition disabled:opacity-50"
                 >
-                  <span>{t.create.btn_generate}</span>
-                  <Wand2 size={16} className="md:w-[18px] md:h-[18px]" />
+                  {language === 'zh' ? '跳过原型' : 'Skip Prototype'}
+                </button>
+                <button
+                  onClick={() => generatePrototype()}
+                  disabled={!wizardData.description}
+                  className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500 py-3 md:py-4 rounded-xl md:rounded-xl font-bold text-sm md:text-base shadow-lg shadow-purple-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 md:gap-2"
+                >
+                  <i className="fa-solid fa-image"></i>
+                  <span>{language === 'zh' ? '生成原型图' : 'Generate Prototype'}</span>
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* 🆕 原型图步骤 */}
+          {step === 'prototype' && (
+            <div className="space-y-4 md:space-y-6 animate-fade-in">
+              <div className="text-center space-y-1 md:space-y-1">
+                <h2 className="text-xl md:text-3xl font-bold text-white">
+                  {isGeneratingPrototype 
+                    ? (language === 'zh' ? '正在生成原型图...' : 'Generating Prototype...') 
+                    : (language === 'zh' ? 'AI 生成的原型图' : 'AI Generated Prototype')}
+                </h2>
+                <p className="text-slate-400 text-xs md:text-base leading-tight">
+                  {isGeneratingPrototype
+                    ? (language === 'zh' ? 'AI 正在根据您的描述创建 UI 原型' : 'AI is creating a UI prototype based on your description')
+                    : (language === 'zh' ? '确认后将根据此原型生成代码' : 'Code will be generated based on this prototype')}
+                </p>
+              </div>
+
+              {/* 原型图显示区域 */}
+              <div className="relative bg-white/5 rounded-2xl border border-white/10 overflow-hidden min-h-[300px] md:min-h-[400px] flex items-center justify-center">
+                {isGeneratingPrototype ? (
+                  <div className="flex flex-col items-center gap-4 p-8">
+                    <div className="relative w-20 h-20">
+                      <div className="absolute inset-0 rounded-full border-4 border-purple-500/30 animate-ping"></div>
+                      <div className="absolute inset-0 rounded-full border-4 border-t-purple-500 border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
+                      <div className="absolute inset-4 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 animate-pulse flex items-center justify-center">
+                        <i className="fa-solid fa-image text-white text-xl"></i>
+                      </div>
+                    </div>
+                    <p className="text-white/60 text-sm">{language === 'zh' ? 'Gemini 正在绘制您的应用原型...' : 'Gemini is drawing your app prototype...'}</p>
+                  </div>
+                ) : prototypeError ? (
+                  <div className="flex flex-col items-center gap-4 p-8 text-center">
+                    <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
+                      <i className="fa-solid fa-exclamation-triangle text-red-400 text-2xl"></i>
+                    </div>
+                    <p className="text-red-400 text-sm">{prototypeError}</p>
+                    <button
+                      onClick={() => generatePrototype()}
+                      className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm transition"
+                    >
+                      {language === 'zh' ? '重试' : 'Retry'}
+                    </button>
+                  </div>
+                ) : wizardData.prototypeImage ? (
+                  <img 
+                    src={wizardData.prototypeImage} 
+                    alt="Generated Prototype" 
+                    className="max-w-full max-h-[400px] md:max-h-[500px] object-contain rounded-lg"
+                  />
+                ) : null}
+              </div>
+
+              {/* 操作按钮 */}
+              {!isGeneratingPrototype && wizardData.prototypeImage && (
+                <div className="flex gap-3 md:gap-4 pt-2 md:pt-4 flex-shrink-0">
+                  <button
+                    onClick={() => setStep('concept')}
+                    className="flex-1 py-3 md:py-3 rounded-xl md:rounded-xl font-bold text-sm md:text-base text-slate-400 hover:text-white hover:bg-white/5 transition"
+                  >
+                    {t.create.btn_back}
+                  </button>
+                  <button
+                    onClick={() => regeneratePrototype()}
+                    className="flex-1 py-3 md:py-3 rounded-xl md:rounded-xl font-bold text-sm md:text-base text-slate-400 hover:text-white hover:bg-white/5 transition flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw size={14} />
+                    {language === 'zh' ? '重新生成' : 'Regenerate'}
+                  </button>
+                  <button
+                    onClick={() => confirmPrototypeAndGenerate()}
+                    className="flex-1 bg-white text-black hover:bg-slate-200 py-3 md:py-4 rounded-xl md:rounded-xl font-bold text-sm md:text-base shadow-lg shadow-white/10 transition flex items-center justify-center gap-2 md:gap-2"
+                  >
+                    <span>{language === 'zh' ? '确认并生成代码' : 'Confirm & Generate'}</span>
+                    <Wand2 size={16} className="md:w-[18px] md:h-[18px]" />
+                  </button>
+                </div>
+              )}
+
+              {/* 跳过按钮（生成失败时显示） */}
+              {!isGeneratingPrototype && !wizardData.prototypeImage && (
+                <div className="flex gap-3 md:gap-4 pt-2 md:pt-4 flex-shrink-0">
+                  <button
+                    onClick={() => setStep('concept')}
+                    className="flex-1 py-3 md:py-3 rounded-xl md:rounded-xl font-bold text-sm md:text-base text-slate-400 hover:text-white hover:bg-white/5 transition"
+                  >
+                    {t.create.btn_back}
+                  </button>
+                  <button
+                    onClick={() => skipPrototypeAndGenerate()}
+                    className="flex-1 bg-white text-black hover:bg-slate-200 py-3 md:py-4 rounded-xl md:rounded-xl font-bold text-sm md:text-base shadow-lg shadow-white/10 transition flex items-center justify-center gap-2"
+                  >
+                    {language === 'zh' ? '跳过原型，直接生成代码' : 'Skip & Generate Code'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
