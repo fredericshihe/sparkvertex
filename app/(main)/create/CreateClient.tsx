@@ -496,65 +496,23 @@ function CreateContent() {
         return;
       }
 
-      const container = previewContainerRef.current;
-      const { width: containerW, height: containerH } = container.getBoundingClientRect();
-      
-      // 🔧 Safety check: Skip calculation if container dimensions are invalid
-      if (containerW < 100 || containerH < 100) {
-        return; // Keep previous scale value
-      }
-      
-      // Target dimensions based on mode - 移动端默认90%，平板默认70%
-      const targetW = previewMode === 'mobile' ? 375 : 768;
-      const targetH = previewMode === 'mobile' ? 812 : 1024;
+      // 🔧 直接使用默认目标值，不再基于容器尺寸计算
+      // 移动端默认90%，平板默认70%
       const defaultScaleTarget = previewMode === 'mobile' ? 0.9 : 0.7;
       
-      // Available space (subtract padding and toolbar space)
-      const availableW = containerW - 40;
-      const availableH = containerH - 200; // Increased for bottom toolbar 
-
-      const scaleW = availableW / targetW;
-      const scaleH = availableH / targetH;
-      const fitScale = Math.min(scaleW, scaleH);
-      
-      // 🔧 Use default target if space is sufficient, otherwise use fit scale
-      // Round to nearest 0.1 (10%) for cleaner display
-      let newScale: number;
-      if (fitScale >= defaultScaleTarget) {
-        // Space is sufficient, use default target (90% or 70%)
-        newScale = defaultScaleTarget;
-      } else {
-        // Space is limited, round to nearest 10%
-        newScale = Math.max(0.3, Math.round(fitScale * 10) / 10);
-      }
-      
-      // 🔧 Only update if the new scale is valid
-      if (isFinite(newScale) && newScale > 0) {
-        setDefaultPreviewScale(newScale);
-        // Only auto-update if not in manual zoom mode
-        if (!isManualScale) {
-          setPreviewScale(newScale);
-        }
+      // 🔧 Only update if not in manual zoom mode
+      if (!isManualScale) {
+        setDefaultPreviewScale(defaultScaleTarget);
+        setPreviewScale(defaultScaleTarget);
       }
     };
 
-    // 🔧 Use ResizeObserver for immediate response to container size changes
-    let resizeObserver: ResizeObserver | null = null;
-    if (previewContainerRef.current) {
-      resizeObserver = new ResizeObserver(() => {
-        updateScale();
-      });
-      resizeObserver.observe(previewContainerRef.current);
-    }
-
-    window.addEventListener('resize', updateScale);
+    // 🔧 只在模式变化时更新，不需要 ResizeObserver
     updateScale();
 
-    return () => {
-      window.removeEventListener('resize', updateScale);
-      resizeObserver?.disconnect();
-    };
-  }, [step, previewMode, isFullscreen, isManualScale]);
+    // Cleanup
+    return () => {};
+  }, [step, previewMode, isManualScale]);
 
   useEffect(() => {
     if (codeScrollRef.current) {
