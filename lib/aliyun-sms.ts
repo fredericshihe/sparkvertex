@@ -1,11 +1,10 @@
 /**
  * 阿里云短信服务 - 验证码发送与验证
- * 使用号码认证服务的 SendSmsVerifyCode API
+ * 使用阿里云官方 SDK
  */
 
-import crypto from 'crypto';
-
-const ALIYUN_REGION = 'cn-shenzhen'; // 华南1（深圳）
+import Dysmsapi20170525, * as $Dysmsapi20170525 from '@alicloud/dysmsapi20170525';
+import * as $OpenApi from '@alicloud/openapi-client';
 
 interface SendSmsResult {
   success: boolean;
@@ -18,31 +17,38 @@ interface VerifySmsResult {
   message: string;
 }
 
-// 生成阿里云 API 签名
-function generateSignature(params: Record<string, string>, secret: string): string {
-  // 1. 按参数名排序
-  const sortedKeys = Object.keys(params).sort();
-  
-  // 2. 构造待签名字符串
-  const canonicalQueryString = sortedKeys
-    .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
-    .join('&');
-  
-  const stringToSign = `POST&${encodeURIComponent('/')}&${encodeURIComponent(canonicalQueryString)}`;
-  
-  // 3. 计算 HMAC-SHA1 签名
-  const hmac = crypto.createHmac('sha1', secret + '&');
-  const signature = hmac.update(stringToSign).digest('base64');
-  
-  return signature;
+// 使用全局变量存储验证码（防止开发环境热重载清除）
+// 生产环境应使用 Redis
+declare global {
+  var __verifyCodeStore: Map<string, { code: string; expireAt: number }> | undefined;
+}
+
+const verifyCodeStore = global.__verifyCodeStore || new Map<string, { code: string; expireAt: number }>();
+if (!global.__verifyCodeStore) {
+  global.__verifyCodeStore = verifyCodeStore;
+}
+
+// 生成 6 位随机验证码
+function generateCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// 创建阿里云短信客户端
+function createClient(): Dysmsapi20170525 {
+  const config = new $OpenApi.Config({
+    accessKeyId: process.env.ALIYUN_ACCESS_KEY_ID,
+    accessKeySecret: process.env.ALIYUN_ACCESS_KEY_SECRET,
+  });
+  config.endpoint = 'dysmsapi.aliyuncs.com';
+  return new Dysmsapi20170525(config);
 }
 
 // 发送验证码短信
 export async function sendVerifyCode(phoneNumber: string): Promise<SendSmsResult> {
   const accessKeyId = process.env.ALIYUN_ACCESS_KEY_ID;
   const accessKeySecret = process.env.ALIYUN_ACCESS_KEY_SECRET;
-  const signName = process.env.ALIYUN_SMS_SIGN_NAME || '速通互联验证码';
-  const templateCode = process.env.ALIYUN_SMS_TEMPLATE_CODE || '100001';
+  const signName = process.env.ALIYUN_SMS_SIGN_NAME || '奇点映射';
+  const templateCode = process.env.ALIYUN_SMS_TEMPLATE_CODE || 'SMS_499295264';
   
   if (!accessKeyId || !accessKeySecret) {
     console.error('[SMS] Missing Aliyun credentials');
@@ -57,84 +63,67 @@ export async function sendVerifyCode(phoneNumber: string): Promise<SendSmsResult
     return { success: false, message: '请输入有效的手机号码' };
   }
   
+  // 生成验证码
+  const code = generateCode();
+  
   try {
-    // 公共请求参数
-    const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
-    const nonce = crypto.randomUUID();
+    const client = createClient();
     
-    const params: Record<string, string> = {
-      // 公共参数
-      AccessKeyId: accessKeyId,
-      Action: 'SendSmsVerifyCode',
-      Format: 'JSON',
-      RegionId: ALIYUN_REGION,
-      SignatureMethod: 'HMAC-SHA1',
-      SignatureNonce: nonce,
-      SignatureVersion: '1.0',
-      Timestamp: timestamp,
-      Version: '2017-05-25',
-      // 业务参数
-      PhoneNumber: normalizedPhone,
-      SignName: signName,
-      TemplateCode: templateCode,
-      // 可选：验证码有效期（分钟）
-      CodeLength: '6',
-      ValidTime: '5',
-    };
-    
-    // 生成签名
-    const signature = generateSignature(params, accessKeySecret);
-    params.Signature = signature;
-    
-    // 发送请求
-    const url = `https://dypnsapi.aliyuncs.com/`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams(params).toString(),
+    const sendSmsRequest = new $Dysmsapi20170525.SendSmsRequest({
+      phoneNumbers: normalizedPhone,
+      signName: signName,
+      templateCode: templateCode,
+      templateParam: JSON.stringify({ code }),
     });
     
-    const data = await response.json();
-    console.log('[SMS] SendSmsVerifyCode response:', JSON.stringify(data));
+    console.log('[SMS] Sending SMS to:', normalizedPhone);
     
-    if (data.Code === 'OK' || data.Code === 'Success') {
+    const response = await client.sendSms(sendSmsRequest);
+    const body = response.body;
+    
+    console.log('[SMS] SendSms response:', JSON.stringify(body));
+    
+    if (body?.code === 'OK') {
+      // 存储验证码（5 分钟有效期）
+      verifyCodeStore.set(normalizedPhone, {
+        code,
+        expireAt: Date.now() + 5 * 60 * 1000,
+      });
+      
+      console.log('[SMS] Code stored for phone:', normalizedPhone, 'code:', code);
+      
       return {
         success: true,
         message: '验证码已发送',
-        requestId: data.RequestId,
+        requestId: body?.requestId,
       };
     } else {
       // 常见错误码处理
+      // 注意：isv.BUSINESS_LIMIT_CONTROL 是阿里云平台限制（同号码每小时5条，每天10条）
       const errorMessages: Record<string, string> = {
-        'isv.BUSINESS_LIMIT_CONTROL': '发送频率过快，请稍后再试',
+        'isv.BUSINESS_LIMIT_CONTROL': '短信发送次数已达上限，请1小时后再试或使用邮箱登录',
         'isv.MOBILE_NUMBER_ILLEGAL': '手机号码格式错误',
         'isv.TEMPLATE_MISSING_PARAMETERS': '短信模板参数缺失',
         'isv.INVALID_PARAMETERS': '参数错误',
         'isv.AMOUNT_NOT_ENOUGH': '短信余额不足',
+        'isv.SMS_SIGNATURE_ILLEGAL': '短信签名不合法',
+        'isv.SMS_TEMPLATE_ILLEGAL': '短信模板不合法',
+        'isv.DAY_LIMIT_CONTROL': '今日短信次数已用完，请明天再试或使用邮箱登录',
       };
       
       return {
         success: false,
-        message: errorMessages[data.Code] || data.Message || '发送失败，请稍后重试',
+        message: errorMessages[body?.code || ''] || body?.message || '发送失败，请稍后重试',
       };
     }
   } catch (error: any) {
     console.error('[SMS] Send error:', error);
-    return { success: false, message: '网络错误，请稍后重试' };
+    return { success: false, message: error.message || '网络错误，请稍后重试' };
   }
 }
 
-// 验证验证码
+// 验证验证码（本地验证）
 export async function verifyCode(phoneNumber: string, code: string): Promise<VerifySmsResult> {
-  const accessKeyId = process.env.ALIYUN_ACCESS_KEY_ID;
-  const accessKeySecret = process.env.ALIYUN_ACCESS_KEY_SECRET;
-  
-  if (!accessKeyId || !accessKeySecret) {
-    return { success: false, message: '短信服务未配置' };
-  }
-  
   // 规范化手机号
   const normalizedPhone = phoneNumber.replace(/^\+86/, '').replace(/\s/g, '');
   
@@ -143,48 +132,26 @@ export async function verifyCode(phoneNumber: string, code: string): Promise<Ver
     return { success: false, message: '验证码格式错误' };
   }
   
-  try {
-    const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
-    const nonce = crypto.randomUUID();
-    
-    const params: Record<string, string> = {
-      AccessKeyId: accessKeyId,
-      Action: 'CheckSmsVerifyCode',
-      Format: 'JSON',
-      RegionId: ALIYUN_REGION,
-      SignatureMethod: 'HMAC-SHA1',
-      SignatureNonce: nonce,
-      SignatureVersion: '1.0',
-      Timestamp: timestamp,
-      Version: '2017-05-25',
-      PhoneNumber: normalizedPhone,
-      VerifyCode: code,
-    };
-    
-    const signature = generateSignature(params, accessKeySecret);
-    params.Signature = signature;
-    
-    const url = `https://dypnsapi.aliyuncs.com/`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams(params).toString(),
-    });
-    
-    const data = await response.json();
-    console.log('[SMS] CheckSmsVerifyCode response:', JSON.stringify(data));
-    
-    if (data.Code === 'OK' && data.VerifyResult === true) {
-      return { success: true, message: '验证成功' };
-    } else if (data.Code === 'OK' && data.VerifyResult === false) {
-      return { success: false, message: '验证码错误或已过期' };
-    } else {
-      return { success: false, message: data.Message || '验证失败' };
-    }
-  } catch (error: any) {
-    console.error('[SMS] Verify error:', error);
-    return { success: false, message: '网络错误，请稍后重试' };
+  // 从存储中获取验证码
+  const stored = verifyCodeStore.get(normalizedPhone);
+  
+  if (!stored) {
+    return { success: false, message: '请先获取验证码' };
   }
+  
+  // 检查是否过期
+  if (Date.now() > stored.expireAt) {
+    verifyCodeStore.delete(normalizedPhone);
+    return { success: false, message: '验证码已过期，请重新获取' };
+  }
+  
+  // 验证验证码
+  if (stored.code !== code) {
+    return { success: false, message: '验证码错误' };
+  }
+  
+  // 验证成功，删除验证码（一次性使用）
+  verifyCodeStore.delete(normalizedPhone);
+  
+  return { success: true, message: '验证成功' };
 }

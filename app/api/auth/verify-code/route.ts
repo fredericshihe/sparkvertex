@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCode } from '@/lib/aliyun-sms';
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 // 使用 Service Role Key 创建管理员客户端（可以创建用户）
 const supabaseAdmin = createClient(
@@ -76,50 +78,81 @@ export async function POST(request: NextRequest) {
       userId = newUser.user.id;
       console.log('[Auth] New user created:', userId);
       
-      // 初始化用户 profile（如果有 profiles 表）
+      // 初始化用户 profile（仅设置手机登录特有的字段）
+      // 积分由数据库触发器 handle_new_user 统一设置
       try {
-        await supabaseAdmin.from('profiles').upsert({
-          id: userId,
+        await supabaseAdmin.from('profiles').update({
           username: `user_${normalizedPhone.slice(-4)}`,
           full_name: `用户${normalizedPhone.slice(-4)}`,
-          credits: 10, // 新用户赠送积分
-          created_at: new Date().toISOString(),
-        });
+        }).eq('id', userId);
       } catch (e) {
-        console.warn('[Auth] Profile creation warning:', e);
+        console.warn('[Auth] Profile update warning:', e);
       }
     }
     
-    // 3. 为用户生成登录链接（Magic Link 方式）
-    // 或者直接生成 Session Token
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: fakeEmail,
-      options: {
-        redirectTo: `${request.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
-      },
+    // 3. 直接为用户设置登录会话
+    // 使用 admin API 生成自定义 token，然后通过 cookie 设置 session
+    const cookieStore = cookies();
+    
+    const supabaseWithCookies = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options: any) {
+            try {
+              cookieStore.set({ name, value, ...options });
+            } catch (e) {
+              // Cookie 可能在响应头发送后无法设置
+            }
+          },
+          remove(name: string, options: any) {
+            try {
+              cookieStore.set({ name, value: '', ...options });
+            } catch (e) {}
+          },
+        },
+      }
+    );
+    
+    // 使用 admin 用邮箱密码登录（我们已经知道密码生成逻辑）
+    // 但更简单的方式是：直接用 signInWithPassword 登录刚创建的用户
+    // 或者使用 admin.createSession
+    
+    // 方案：使用一个固定的临时密码，让用户可以登录
+    const tempPassword = `phone_${normalizedPhone}_${process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(-8)}`;
+    
+    // 更新用户密码为可预测的值
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: tempPassword,
     });
     
-    if (linkError || !linkData) {
-      console.error('[Auth] Generate link error:', linkError);
+    // 使用密码登录
+    const { data: signInData, error: signInError } = await supabaseWithCookies.auth.signInWithPassword({
+      email: fakeEmail,
+      password: tempPassword,
+    });
+    
+    if (signInError || !signInData.session) {
+      console.error('[Auth] Sign in error:', signInError);
       return NextResponse.json(
         { success: false, message: '登录失败，请稍后重试' },
         { status: 500 }
       );
     }
     
-    // 从 Magic Link 中提取 token 参数
-    const linkUrl = new URL(linkData.properties.action_link);
-    const token = linkUrl.searchParams.get('token');
-    const type = linkUrl.searchParams.get('type');
+    console.log('[Auth] User logged in successfully:', userId);
     
     return NextResponse.json({
       success: true,
-      message: '验证成功',
-      // 返回验证 token，前端用它来完成登录
-      authToken: token,
-      authType: type,
-      redirectUrl: `/auth/callback?token=${token}&type=${type}`,
+      message: '登录成功',
+      user: {
+        id: signInData.user.id,
+        phone: normalizedPhone,
+      },
     });
     
   } catch (error: any) {

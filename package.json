@@ -10,6 +10,8 @@
     "deploy": "ssh -t root@8.217.236.183 'cd /www/wwwroot/sparkvertex.cn && git pull && chmod +x scripts/deploy.sh && ./scripts/deploy.sh'"
   },
   "dependencies": {
+    "@alicloud/dysmsapi20170525": "^4.3.1",
+    "@alicloud/openapi-client": "^0.4.15",
     "@babel/generator": "^7.28.5",
     "@babel/parser": "^7.28.5",
     "@babel/traverse": "^7.28.5",

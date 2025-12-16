@@ -115,11 +115,11 @@ export default function LoginModal() {
       
       const data = await res.json();
       
-      if (data.success && data.redirectUrl) {
+      if (data.success) {
         showSuccess(language === 'zh' ? '登录成功' : 'Login successful');
         closeLoginModal();
-        // 重定向到 auth/callback 完成登录
-        router.push(data.redirectUrl);
+        // 刷新页面以更新用户状态
+        window.location.reload();
       } else {
         setMessage(data.message || (language === 'zh' ? '验证失败' : 'Verification failed'));
       }
@@ -295,9 +295,9 @@ export default function LoginModal() {
   return (
     <div className="fixed inset-0 z-[200]">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm touch-none" onClick={closeLoginModal}></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-black/60 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-[0_8px_32px_rgba(0,0,0,0.4)] animate-in zoom-in fade-in duration-300 ring-1 ring-white/5">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-md bg-black/60 backdrop-blur-2xl border border-white/10 rounded-2xl p-5 sm:p-6 shadow-[0_8px_32px_rgba(0,0,0,0.4)] animate-in zoom-in fade-in duration-300 ring-1 ring-white/5 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-white">
             {showEmailSent ? t.auth_modal.register_success : 
              view === 'register' ? t.auth_modal.create_account : 
              view === 'forgot_password' ? t.auth_modal.reset_password : 
@@ -317,55 +317,58 @@ export default function LoginModal() {
             <button onClick={() => { setView('login'); setMessage(''); }} className="w-full text-slate-400 hover:text-white text-sm py-2 transition">{t.auth_modal.back_login}</button>
           </div>
         ) : view === 'phone' ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Phone Input */}
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">
+              <label className="block text-xs font-medium text-slate-400 mb-1 ml-1">
                 {language === 'zh' ? '手机号' : 'Phone Number'}
               </label>
               <div className="flex gap-2">
-                <div className="flex items-center bg-black/20 border border-white/10 rounded-xl px-3 text-slate-400 text-sm">
+                <div className="flex items-center bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-slate-400 text-sm">
                   +86
                 </div>
                 <input 
                   type="tel" 
                   value={phone} 
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                  className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 focus:bg-black/40 outline-none transition-all placeholder-slate-500" 
+                  className="flex-1 bg-black/20 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 focus:bg-black/40 outline-none transition-all placeholder-slate-500" 
                   placeholder={language === 'zh' ? '请输入手机号' : 'Enter phone number'}
                 />
               </div>
             </div>
             
-            {/* Verification Code */}
+            {/* Verification Code - Only show after code sent */}
             {codeSent && (
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">
+                <label className="block text-xs font-medium text-slate-400 mb-1 ml-1">
                   {language === 'zh' ? '验证码' : 'Verification Code'}
                 </label>
                 <div className="flex gap-2">
                   <input 
                     type="text" 
+                    inputMode="numeric"
                     value={verifyCode} 
                     onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-center tracking-[0.5em] text-lg font-mono focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 focus:bg-black/40 outline-none transition-all placeholder-slate-500" 
-                    placeholder="000000"
+                    className="flex-1 min-w-0 bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-white text-base sm:text-lg tracking-[0.3em] sm:tracking-[0.5em] font-mono focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 focus:bg-black/40 outline-none transition-all placeholder-slate-600 caret-brand-400" 
+                    placeholder="······"
                     maxLength={6}
+                    autoFocus
+                    autoComplete="one-time-code"
                   />
                   <button 
                     onClick={handleSendCode}
                     disabled={loading || countdown > 0}
-                    className="px-4 py-3 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 text-white text-sm font-medium rounded-xl transition border border-white/10 disabled:text-slate-500 whitespace-nowrap"
+                    className="shrink-0 px-3 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 text-white text-xs font-medium rounded-lg transition border border-white/10 disabled:text-slate-500 whitespace-nowrap"
                   >
-                    {countdown > 0 ? `${countdown}s` : (language === 'zh' ? '重新发送' : 'Resend')}
+                    {countdown > 0 ? `${countdown}s` : (language === 'zh' ? '重发' : 'Resend')}
                   </button>
                 </div>
               </div>
             )}
             
-            {/* Message */}
+            {/* Message - Compact */}
             {message && (
-              <p className={`text-sm text-center py-2 rounded-lg border ${
+              <p className={`text-xs text-center py-1.5 rounded border ${
                 message.includes('已发送') || message.includes('sent') 
                   ? 'text-green-400 bg-green-500/10 border-green-500/20' 
                   : 'text-red-400 bg-red-500/10 border-red-500/20'
@@ -374,12 +377,12 @@ export default function LoginModal() {
               </p>
             )}
             
-            {/* Action Button */}
+            {/* Action Button - Send Code or Login */}
             {!codeSent ? (
               <button 
                 onClick={handleSendCode}
                 disabled={loading || !phone || phone.length < 11}
-                className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-brand-500/20 disabled:opacity-50"
+                className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-lg transition shadow-lg shadow-brand-500/20 disabled:opacity-50"
               >
                 {loading ? (language === 'zh' ? '发送中...' : 'Sending...') : (language === 'zh' ? '获取验证码' : 'Get Code')}
               </button>
@@ -387,22 +390,20 @@ export default function LoginModal() {
               <button 
                 onClick={handlePhoneLogin}
                 disabled={loading || verifyCode.length < 4}
-                className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-brand-500/20 disabled:opacity-50"
+                className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-lg transition shadow-lg shadow-brand-500/20 disabled:opacity-50"
               >
                 {loading ? (language === 'zh' ? '验证中...' : 'Verifying...') : (language === 'zh' ? '登录 / 注册' : 'Login / Register')}
               </button>
             )}
             
-            {/* Switch to Email */}
-            <div className="text-center pt-4 border-t border-white/5">
-              <button 
-                onClick={() => { setView('login'); setMessage(''); }}
-                className="text-slate-400 hover:text-white text-sm transition flex items-center justify-center gap-2 mx-auto"
-              >
-                <i className="fa-solid fa-envelope text-xs"></i>
-                {language === 'zh' ? '使用邮箱登录' : 'Login with Email'}
-              </button>
-            </div>
+            {/* Switch to Email - Compact */}
+            <button 
+              onClick={() => { setView('login'); setMessage(''); }}
+              className="w-full text-slate-400 hover:text-white text-xs py-2 transition flex items-center justify-center gap-1.5 border-t border-white/5 pt-3"
+            >
+              <i className="fa-solid fa-envelope text-[10px]"></i>
+              {language === 'zh' ? '使用邮箱登录' : 'Login with Email'}
+            </button>
           </div>
         ) : (
           <div className="space-y-4">

@@ -23,13 +23,45 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 2. Determine Execution Mode (Single Item vs Batch Cron)
+    // 2. Determine Execution Mode (Single Item vs Batch Cron vs Reanalyze All)
     let items = [];
     let isSingleItemMode = false;
+    let isReanalyzeAllMode = false;
+    let batchSize = 5; // 默认每批处理 5 个
 
     try {
       const body = await req.json();
-      if (body && body.id) {
+      
+      // 🆕 重新评分所有项目模式
+      if (body && body.reanalyze_all === true) {
+        console.log('🔄 收到重新评分所有项目请求');
+        isReanalyzeAllMode = true;
+        batchSize = body.batch_size || 20; // 批量模式默认 20 个
+        
+        // 先重置所有项目的分析状态
+        const { error: resetError } = await supabase
+          .from('items')
+          .update({ last_analyzed_at: null })
+          .not('id', 'is', null); // 更新所有记录
+        
+        if (resetError) {
+          console.error('重置分析状态失败:', resetError);
+        } else {
+          console.log('✅ 已重置所有项目的分析状态');
+        }
+        
+        // 获取所有项目
+        const { data, error: fetchError, count } = await supabase
+          .from('items')
+          .select('id, content, description, title', { count: 'exact' })
+          .limit(batchSize);
+        
+        if (fetchError) throw fetchError;
+        items = data || [];
+        console.log(`📊 共 ${count} 个项目待分析，本次处理 ${items.length} 个`);
+        
+      } else if (body && body.id) {
+        // 单个项目模式
         console.log(`收到单个项目分析请求: ${body.id}`);
         const { data, error } = await supabase
           .from('items')
@@ -47,15 +79,15 @@ serve(async (req) => {
       // Body parsing failed or empty (expected for Cron calls)
     }
 
-    if (!isSingleItemMode) {
-      // Cron Mode: Fetch 5 unanalyzed items
-      // 优化：每次处理5个项目以遵守执行时间限制
+    if (!isSingleItemMode && !isReanalyzeAllMode) {
+      // Cron Mode: Fetch unanalyzed items
+      // 优化：每次处理项目以遵守执行时间限制
       // 优先处理从未分析过的项目
       const { data, error: fetchError } = await supabase
         .from('items')
         .select('id, content, description, title')
         .is('last_analyzed_at', null)
-        .limit(5);
+        .limit(batchSize);
 
       if (fetchError) throw fetchError;
       items = data || [];
