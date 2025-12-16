@@ -483,7 +483,7 @@ function CreateContent() {
     }
   }, [step, hasSeenEditGuide]);
 
-  // Effect: Calculate Preview Scale
+  // Effect: Calculate Preview Scale - using ResizeObserver for immediate response
   useEffect(() => {
     if (step !== 'preview') return;
 
@@ -497,9 +497,7 @@ function CreateContent() {
       const { width: containerW, height: containerH } = container.getBoundingClientRect();
       
       // 🔧 Safety check: Skip calculation if container dimensions are invalid
-      // This can happen during layout transitions or when container is not yet rendered
       if (containerW < 100 || containerH < 100) {
-        console.log('[PreviewScale] Container too small, skipping:', { containerW, containerH });
         return; // Keep previous scale value
       }
       
@@ -524,15 +522,22 @@ function CreateContent() {
       }
     };
 
+    // 🔧 Use ResizeObserver for immediate response to container size changes
+    let resizeObserver: ResizeObserver | null = null;
+    if (previewContainerRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        updateScale();
+      });
+      resizeObserver.observe(previewContainerRef.current);
+    }
+
     window.addEventListener('resize', updateScale);
     updateScale();
-    // 🔧 Multiple delayed updates to handle layout transitions and slow renders
-    setTimeout(updateScale, 100);
-    setTimeout(updateScale, 300);
-    setTimeout(updateScale, 500);
-    setTimeout(updateScale, 1000); // Extra late update for slow connections/hydration
 
-    return () => window.removeEventListener('resize', updateScale);
+    return () => {
+      window.removeEventListener('resize', updateScale);
+      resizeObserver?.disconnect();
+    };
   }, [step, previewMode, isFullscreen]);
 
   useEffect(() => {
