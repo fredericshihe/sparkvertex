@@ -241,11 +241,10 @@ export function removeSparkBackendCode(htmlContent: string): string {
   
   // ========== 2. 安全的字符串替换（只替换简单模式，不破坏代码结构） ==========
   
-  // 替换 API endpoint URLs 为空字符串（保持 fetch 调用语法正确）
-  // 注意：这些替换不会破坏代码结构，因为只是替换字符串值
-  result = result.replace(/(['"`])\/api\/mailbox\/submit\1/g, '$1$1'); // '' 空字符串
-  result = result.replace(/(['"`])\/api\/mailbox\/upload\1/g, '$1$1');
-  result = result.replace(/(['"`])\/api\/cms\/[^'"`]*\1/g, '$1$1');
+  // ⚠️ 不再替换 API URL 为空字符串！
+  // 原因：Mock 拦截器已经足够安全地阻止请求，如果替换 URL，
+  // 当用户编辑作品时（removeMockCode 会移除拦截器），fetch('') 会导致请求发到当前页面，引发错误。
+  // 保留原始 URL，让 Mock 拦截器来处理，这样编辑时恢复后也能正常工作。
   
   // 替换敏感的 SPARK 变量声明值（保持声明语法完整）
   // 不删除整行，只替换值
