@@ -277,8 +277,8 @@ function CreateContent() {
     : `draft_guest_${sessionId}`;
   
   // State: Preview Scaling
-  const [previewScale, setPreviewScale] = useState(0.65); // 🔧 Default to a reasonable mobile scale
-  const [defaultPreviewScale, setDefaultPreviewScale] = useState(0.65); // 🔧 Store the auto-calculated default
+  const [previewScale, setPreviewScale] = useState(0.9); // 🔧 Default to mobile scale (90%)
+  const [defaultPreviewScale, setDefaultPreviewScale] = useState(0.9); // 🔧 Store the auto-calculated default
   const [isManualScale, setIsManualScale] = useState(false); // 🔧 Flag for manual zoom mode
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
@@ -515,10 +515,18 @@ function CreateContent() {
 
       const scaleW = availableW / targetW;
       const scaleH = availableH / targetH;
+      const fitScale = Math.min(scaleW, scaleH);
       
-      // 🔧 Ensure scale is positive and within reasonable bounds (0.3 to default target)
-      const rawScale = Math.min(scaleW, scaleH, defaultScaleTarget);
-      const newScale = Math.max(0.3, Math.min(rawScale, defaultScaleTarget));
+      // 🔧 Use default target if space is sufficient, otherwise use fit scale
+      // Round to nearest 0.1 (10%) for cleaner display
+      let newScale: number;
+      if (fitScale >= defaultScaleTarget) {
+        // Space is sufficient, use default target (90% or 70%)
+        newScale = defaultScaleTarget;
+      } else {
+        // Space is limited, round to nearest 10%
+        newScale = Math.max(0.3, Math.round(fitScale * 10) / 10);
+      }
       
       // 🔧 Only update if the new scale is valid
       if (isFinite(newScale) && newScale > 0) {
