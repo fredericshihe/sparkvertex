@@ -295,6 +295,7 @@ function CreateContent() {
   const [user, setUser] = useState<any>(null); // Add user state for saving draft
   const [isSaving, setIsSaving] = useState(false);
   const [isConfiguringBackend, setIsConfiguringBackend] = useState(false); // New state for backend config flow
+  const [isPublicWork, setIsPublicWork] = useState(false); // Track if the edited work is public
 
   const handleSaveDraft = async () => {
     console.log('handleSaveDraft called');
@@ -821,13 +822,28 @@ function CreateContent() {
       const fetchPublishedItem = async () => {
         const { data, error } = await supabase
           .from('items')
-          .select('id, title, description, content, prompt')
+          .select('id, title, description, content, prompt, is_public')
           .eq('id', editIdParam)
           .single();
           
         if (data && data.content) {
-          setGeneratedCode(data.content);
-          setStreamingCode(data.content);
+          // Clean up mock code if it exists (restore backend functionality for editing)
+          let cleanContent = data.content;
+          
+          // Remove public demo flag
+          cleanContent = cleanContent.replace(/window\.SPARK_APP_ID\s*=\s*['"]public_demo['"];?/g, '');
+          
+          // Remove mock comments and blocks
+          cleanContent = cleanContent.replace(/<!-- PUBLIC VERSION: Backend requests are mocked -->/g, '');
+          cleanContent = cleanContent.replace(/\[Public Version\] Backend request mocked/g, '');
+          
+          // If there was a specific block for mocking, we might need more complex regex, 
+          // but usually it's just the ID switch or a comment.
+          // If the actual fetch logic was replaced, we rely on the user "reconfiguring" to fix it,
+          // but removing the 'public_demo' ID is crucial to enable the real backend in preview.
+
+          setGeneratedCode(cleanContent);
+          setStreamingCode(cleanContent);
           setStep('preview');
           setWizardData(prev => ({ 
             ...prev, 
@@ -837,9 +853,13 @@ function CreateContent() {
             setCurrentGenerationPrompt(data.prompt);
           }
           
+          if (data.is_public) {
+            setIsPublicWork(true);
+          }
+          
           // 初始化代码历史
           setCodeHistory([{
-            code: data.content,
+            code: cleanContent,
             prompt: data.prompt || '',
             timestamp: Date.now(),
             type: 'upload'
@@ -5548,6 +5568,7 @@ Please fix the code to make the app display properly.`;
           iframeRef={iframeRef}
           isEditMode={isEditMode}
           previewMode={previewMode}
+          isPublicWork={isPublicWork}
           previewScale={previewScale}
           getPreviewContent={getPreviewContent}
           runtimeError={runtimeError}

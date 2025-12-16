@@ -95,6 +95,7 @@ interface CreationPreviewProps {
   historyPanelRef?: React.RefObject<HTMLDivElement>;
   userId?: string | null; // 新增：用户ID，用于后端数据
   appId?: string; // 新增：应用ID（发布后）
+  isPublicWork?: boolean; // 新增：是否为公开作品
   handleConfigureBackend: () => void; // 新增：一键配置后端
 }
 
@@ -184,6 +185,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
   historyPanelRef,
   userId,
   appId,
+  isPublicWork,
   handleConfigureBackend
 }) => {
   const { openConfirmModal } = useModal();
@@ -587,8 +589,8 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                   {!hasBackend && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-yellow-500 rounded-full border-2 border-black"></span>}
               </button>
 
-              {/* Backend Data Button */}
-              {hasBackend && (
+              {/* Backend Data Button - Hidden for public works */}
+              {hasBackend && !isPublicWork && (
                 <button 
                     onClick={() => setShowBackendPanel(true)}
                     className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 

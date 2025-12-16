@@ -200,12 +200,6 @@ export default function BackendDataPanel({
         setHasPermanentStorage(profileData.has_permanent_storage || false);
       }
 
-      // Add a virtual "Test/Draft" app for draft submissions
-      const draftApp: AppItem = {
-        id: `draft_${userId}`,
-        title: language === 'zh' ? '📝 测试/草稿数据' : '📝 Test/Draft Data',
-      };
-
       // Fetch published apps
       const { data, error } = await supabase
         .from('items')
@@ -224,13 +218,12 @@ export default function BackendDataPanel({
         return detectSparkPlatformFeatures(app.content);
       });
 
-      const finalApps = [draftApp, ...backendApps];
-      setApps(finalApps);
+      setApps(backendApps);
       
       // 如果没有选中的应用，默认选第一个 (仅在桌面端自动选择，移动端保持在列表页)
       const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-      if (finalApps.length > 0 && !selectedAppId && !isMobile) {
-        setSelectedAppId(finalApps[0].id);
+      if (backendApps.length > 0 && !selectedAppId && !isMobile) {
+        setSelectedAppId(backendApps[0].id);
       }
 
     } catch (err: any) {

@@ -121,14 +121,6 @@ export default function BackendDashboard() {
   const fetchApps = async (userId: string) => {
     setLoading(true);
     try {
-      // Add a virtual "Test/Draft" app for draft submissions
-      const draftApp: AppItem = {
-        id: `draft_${userId}`,
-        title: language === 'zh' ? '📝 测试/草稿数据' : '📝 Test/Draft Data',
-        description: language === 'zh' ? '预览和测试阶段收集的数据' : 'Data collected during preview and testing',
-        created_at: new Date().toISOString()
-      };
-
       // Fetch published apps
       const { data, error } = await supabase
         .from('items')
@@ -170,10 +162,10 @@ export default function BackendDashboard() {
       // Map to remove code field from state (not needed after filtering)
       const filteredApps = appsWithBackend.map(({ code, ...rest }) => rest);
       
-      setApps([draftApp, ...filteredApps]);
+      setApps(filteredApps);
       
-      // Fetch stats for all apps including draft
-      const allAppIds = [`draft_${userId}`, ...filteredApps.map(app => app.id)];
+      // Fetch stats for all apps
+      const allAppIds = filteredApps.map(app => app.id);
       fetchAllAppStats(allAppIds);
 
     } catch (error) {
