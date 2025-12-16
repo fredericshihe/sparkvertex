@@ -490,15 +490,16 @@ function CreateContent() {
     if (step !== 'preview') return;
 
     const updateScale = () => {
-      if (!previewContainerRef.current || previewMode === 'desktop') {
-        setDefaultPreviewScale(1);
-        if (!isManualScale) setPreviewScale(1);
-        return;
-      }
-
       // 🔧 直接使用默认目标值，不再基于容器尺寸计算
-      // 移动端默认90%，平板默认70%
-      const defaultScaleTarget = previewMode === 'mobile' ? 0.9 : 0.7;
+      // 移动端默认90%，平板默认70%，桌面100%
+      let defaultScaleTarget: number;
+      if (previewMode === 'desktop') {
+        defaultScaleTarget = 1;
+      } else if (previewMode === 'mobile') {
+        defaultScaleTarget = 0.9;
+      } else {
+        defaultScaleTarget = 0.7;
+      }
       
       // 🔧 Only update if not in manual zoom mode
       if (!isManualScale) {
