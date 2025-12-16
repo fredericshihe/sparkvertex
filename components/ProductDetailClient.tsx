@@ -435,14 +435,18 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                   { raw: true, appId: String(item.id), apiBaseUrl, isPrecompiled: false }
                 )}
                 className={`w-full h-full border-0 bg-white transition-opacity duration-500 ${iframeLoading ? 'opacity-0' : 'opacity-100'}`}
-                onLoad={() => setIframeLoading(false)}
+                onLoad={() => {
+                  setIframeLoading(false);
+                }}
                 sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-modals allow-forms allow-popups allow-downloads"
                 allow="accelerometer; camera; encrypted-media; geolocation; gyroscope; microphone; midi; clipboard-read; clipboard-write; autoplay; fullscreen; picture-in-picture; display-capture; screen-wake-lock"
                 style={{ touchAction: 'manipulation' }}
               />
 
-              {/* Mobile Overlay to prevent about:srcdoc in preview mode */}
-              <div className={`absolute inset-0 z-10 w-full h-full bg-transparent md:hidden ${viewMode === 'app' ? 'hidden' : ''}`} />
+              {/* Mobile Overlay to prevent about:srcdoc in preview mode - Only active when NOT in app mode */}
+              {viewMode !== 'app' && (
+                <div className="absolute inset-0 w-full h-full bg-transparent md:hidden pointer-events-none" style={{ zIndex: 5 }} />
+              )}
             </div>
           </div>
           
