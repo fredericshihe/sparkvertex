@@ -309,6 +309,33 @@ export function removeMockCode(htmlContent: string): string {
   // Remove the public version comment
   result = result.replace(/<!-- PUBLIC VERSION: Backend requests are mocked for public sharing -->\n?/g, '');
   
+  // 🔧 Restore cleared API URLs (for works published before the fix)
+  // Old versions replaced '/api/mailbox/submit' with '' which causes 405 errors
+  // We detect patterns like fetch('') or fetch("") with POST method nearby and restore them
+  
+  // Pattern 1: fetch('', { method: 'POST' ... }) -> fetch('/api/mailbox/submit', ...)
+  result = result.replace(
+    /fetch\(\s*(['"`])\1\s*,\s*(\{[^}]*method\s*:\s*['"`]POST['"`])/gi,
+    "fetch('/api/mailbox/submit', $2"
+  );
+  
+  // Pattern 2: Also handle double-quoted empty string
+  result = result.replace(
+    /fetch\(\s*""\s*,/g,
+    "fetch('/api/mailbox/submit',"
+  );
+  result = result.replace(
+    /fetch\(\s*''\s*,/g,
+    "fetch('/api/mailbox/submit',"
+  );
+  
+  // Restore SPARK_APP_ID from public_demo back to draft mode (will be overwritten by preview.ts)
+  // This allows the app to work in edit mode
+  result = result.replace(
+    /window\.SPARK_APP_ID\s*=\s*(['"`])public_demo\1/g,
+    "window.SPARK_APP_ID = 'draft_restored'"
+  );
+  
   return result;
 }
 
