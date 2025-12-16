@@ -326,7 +326,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
         {/* Preview Container */}
         <div 
           ref={previewContainerRef}
-          className="flex-1 relative overflow-hidden flex items-start justify-center bg-[url('/grid.svg')] bg-center pt-4 pb-20 lg:pt-6 lg:pb-0"
+          className="flex-1 relative overflow-hidden flex items-center justify-center bg-[url('/grid.svg')] bg-center pb-28 lg:pb-0"
         >
           {/* Quick Edit History Panel - Right side of preview (persistent, collapsible) */}
           {quickEditHistory.length > 0 && (
@@ -465,8 +465,8 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                 : ''}
             `}
             style={{
-              // 🔧 Ensure scale is always valid (between 0.3 and 1) to prevent visual glitches
-              transform: (previewMode !== 'desktop') ? `scale(${Math.max(0.3, Math.min(previewScale || 1, 1))})` : 'none'
+              // 🔧 Ensure scale is always valid (between 0.2 and 1.5) to prevent visual glitches
+              transform: (previewMode !== 'desktop') ? `scale(${Math.max(0.2, Math.min(previewScale || 1, 1.5))})` : 'none'
             }}
           >
              {(previewMode === 'mobile' && !isFullscreen) && (
@@ -483,10 +483,10 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
              />
           </div>
           
-          {/* Floating Preview Controls */}
-          <div className="absolute bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-10 w-max max-w-full px-4">
+          {/* Floating Preview Controls - Left Side Vertical Layout */}
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 z-10">
             {runtimeError && (
-               <div className="absolute bottom-16 left-1/2 -translate-x-1/2 w-max max-w-[90vw] animate-bounce-in">
+               <div className="absolute left-full ml-4 top-0 w-max max-w-[50vw] animate-bounce-in">
                  <div className="bg-red-500/90 backdrop-blur-md text-white px-4 py-3 rounded-xl shadow-2xl border border-red-400 flex items-center gap-3">
                    <i className="fa-solid fa-triangle-exclamation text-xl animate-pulse"></i>
                    <div className="flex flex-col">
@@ -511,25 +511,26 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                </div>
             )}
 
-            <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-full p-1.5 flex shadow-2xl ring-1 ring-white/5">
-              <button onClick={() => setPreviewMode('desktop')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.desktop}><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
-              <button onClick={() => setPreviewMode('tablet')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.tablet}><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
-              <button onClick={() => setPreviewMode('mobile')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.mobile}><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
+            {/* Device Mode Buttons - Vertical */}
+            <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 flex flex-col shadow-2xl ring-1 ring-white/5">
+              <button onClick={() => setPreviewMode('desktop')} className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.desktop}><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
+              <button onClick={() => setPreviewMode('tablet')} className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.tablet}><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
+              <button onClick={() => setPreviewMode('mobile')} className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.mobile}><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
             </div>
 
             {/* 🆕 Zoom Controls - only show for mobile/tablet modes */}
             {previewMode !== 'desktop' && (
-              <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-full p-1.5 flex items-center shadow-2xl ring-1 ring-white/5">
+              <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 flex flex-col items-center shadow-2xl ring-1 ring-white/5">
                 <button 
-                  onClick={handleZoomOut} 
-                  className="w-8 h-8 lg:w-9 lg:h-9 rounded-full flex items-center justify-center transition text-slate-400 hover:text-white hover:bg-white/10"
-                  title={language === 'zh' ? '缩小' : 'Zoom Out'}
+                  onClick={handleZoomIn} 
+                  className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition text-slate-400 hover:text-white hover:bg-white/10"
+                  title={language === 'zh' ? '放大' : 'Zoom In'}
                 >
-                  <i className="fa-solid fa-minus text-xs"></i>
+                  <i className="fa-solid fa-plus text-xs"></i>
                 </button>
                 <button
                   onClick={handleResetZoom}
-                  className={`px-2 h-8 lg:h-9 rounded-full flex items-center justify-center transition text-xs font-mono ${
+                  className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition text-xs font-mono ${
                     isManualScale 
                       ? 'text-brand-400 hover:text-brand-300 hover:bg-white/10' 
                       : 'text-slate-500'
@@ -539,21 +540,21 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                   {Math.round(previewScale * 100)}%
                 </button>
                 <button 
-                  onClick={handleZoomIn} 
-                  className="w-8 h-8 lg:w-9 lg:h-9 rounded-full flex items-center justify-center transition text-slate-400 hover:text-white hover:bg-white/10"
-                  title={language === 'zh' ? '放大' : 'Zoom In'}
+                  onClick={handleZoomOut} 
+                  className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition text-slate-400 hover:text-white hover:bg-white/10"
+                  title={language === 'zh' ? '缩小' : 'Zoom Out'}
                 >
-                  <i className="fa-solid fa-plus text-xs"></i>
+                  <i className="fa-solid fa-minus text-xs"></i>
                 </button>
               </div>
             )}
 
-            <div className="w-px h-8 bg-white/10 mx-1"></div>
+            <div className="h-px w-8 bg-white/10 my-1"></div>
 
             {/* Reset App Button */}
             <button 
                 onClick={handleResetApp}
-                className="w-11 h-11 rounded-full bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group ring-1 ring-white/5" 
+                className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group ring-1 ring-white/5" 
                 title={language === 'zh' ? '清除缓存并重启' : 'Clear Cache & Restart'}
             >
                 <i className="fa-solid fa-rotate text-sm group-hover:rotate-180 transition duration-500"></i>
@@ -561,7 +562,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
 
             <button 
                 onClick={handleMobilePreview}
-                className="w-11 h-11 rounded-full bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group ring-1 ring-white/5" 
+                className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group ring-1 ring-white/5" 
                 title={t.create.mobile_preview}
             >
                 <i className="fa-solid fa-qrcode text-sm group-hover:scale-110 transition"></i>
@@ -570,7 +571,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             {/* Configure Backend Button */}
             <button 
                 onClick={() => setShowBackendExplanation(true)}
-                className="w-11 h-11 rounded-full bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 
+                className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 
                 title={language === 'zh' ? '一键配置表单' : 'Configure Form Collection'}
             >
                 <i className="fa-solid fa-server text-sm group-hover:scale-110 transition"></i>
@@ -581,7 +582,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             {hasBackend && (
               <button 
                   onClick={() => setShowBackendPanel(true)}
-                  className="w-11 h-11 rounded-full bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 
+                  className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 
                   title={language === 'zh' ? '查看表单数据' : 'View Form Data'}
               >
                   <i className="fa-solid fa-inbox text-sm group-hover:scale-110 transition"></i>
@@ -590,27 +591,28 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
               </button>
             )}
 
+            <div className="h-px w-8 bg-white/10 my-1"></div>
+
+            {/* Edit Mode Button - Vertical Style */}
             <button 
                 onClick={toggleEditMode}
-                className={`h-11 px-5 rounded-full flex items-center gap-2.5 font-bold transition-all shadow-xl border ${
+                className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold transition-all shadow-xl border ${
                     isEditMode 
                     ? 'bg-gradient-to-r from-brand-600 to-purple-600 border-transparent text-white ring-2 ring-brand-500/30 scale-105' 
                     : 'bg-black/90 backdrop-blur-md border-white/10 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 group ring-1 ring-white/5'
                 }`}
+                title={isEditMode ? t.create.finish_edit : t.create.edit_mode}
             >
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isEditMode ? 'bg-white/20' : 'bg-brand-500/20 group-hover:bg-brand-500/30'}`}>
-                    <i className={`fa-solid ${isEditMode ? 'fa-check text-white' : 'fa-arrow-pointer text-brand-400'} ${isEditMode ? '' : 'animate-pulse'}`}></i>
-                </div>
-                <span className="text-sm whitespace-nowrap">{isEditMode ? t.create.finish_edit : t.create.edit_mode}</span>
+                <i className={`fa-solid ${isEditMode ? 'fa-check' : 'fa-arrow-pointer'} text-sm ${isEditMode ? '' : 'animate-pulse'}`}></i>
             </button>
 
             {/* Quick Edit Undo/Redo Buttons - Only show when in edit mode and has history */}
             {isEditMode && quickEditHistory.length > 0 && (
-              <div className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-full px-2 py-1 shadow-xl">
+              <div className="flex flex-col items-center gap-1 bg-slate-900/90 backdrop-blur-md border border-slate-700 rounded-2xl px-1.5 py-2 shadow-xl">
                 <button
                   onClick={quickEditUndo}
                   disabled={!canQuickEditUndo}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition ${
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center transition ${
                     canQuickEditUndo 
                       ? 'text-slate-300 hover:text-white hover:bg-slate-700' 
                       : 'text-slate-600 cursor-not-allowed'
@@ -619,11 +621,11 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                 >
                   <i className="fa-solid fa-rotate-left text-sm"></i>
                 </button>
-                <span className="text-xs text-slate-500 px-1">{quickEditHistoryIndex + 1}/{quickEditHistory.length}</span>
+                <span className="text-xs text-slate-500 py-1">{quickEditHistoryIndex + 1}/{quickEditHistory.length}</span>
                 <button
                   onClick={quickEditRedo}
                   disabled={!canQuickEditRedo}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center transition ${
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center transition ${
                     canQuickEditRedo 
                       ? 'text-slate-300 hover:text-white hover:bg-slate-700' 
                       : 'text-slate-600 cursor-not-allowed'

@@ -277,8 +277,8 @@ function CreateContent() {
     : `draft_guest_${sessionId}`;
   
   // State: Preview Scaling
-  const [previewScale, setPreviewScale] = useState(0.8); // 🔧 Default to a reasonable mobile scale
-  const [defaultPreviewScale, setDefaultPreviewScale] = useState(0.8); // 🔧 Store the auto-calculated default
+  const [previewScale, setPreviewScale] = useState(0.65); // 🔧 Default to a reasonable mobile scale
+  const [defaultPreviewScale, setDefaultPreviewScale] = useState(0.65); // 🔧 Store the auto-calculated default
   const [isManualScale, setIsManualScale] = useState(false); // 🔧 Flag for manual zoom mode
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
@@ -504,9 +504,10 @@ function CreateContent() {
         return; // Keep previous scale value
       }
       
-      // Target dimensions based on mode
+      // Target dimensions based on mode - 移动端默认90%，平板默认70%
       const targetW = previewMode === 'mobile' ? 375 : 768;
       const targetH = previewMode === 'mobile' ? 812 : 1024;
+      const defaultScaleTarget = previewMode === 'mobile' ? 0.9 : 0.7;
       
       // Available space (subtract padding and toolbar space)
       const availableW = containerW - 40;
@@ -515,9 +516,9 @@ function CreateContent() {
       const scaleW = availableW / targetW;
       const scaleH = availableH / targetH;
       
-      // 🔧 Ensure scale is positive and within reasonable bounds (0.3 to 1.5)
-      const rawScale = Math.min(scaleW, scaleH, 1);
-      const newScale = Math.max(0.3, Math.min(rawScale, 1));
+      // 🔧 Ensure scale is positive and within reasonable bounds (0.3 to default target)
+      const rawScale = Math.min(scaleW, scaleH, defaultScaleTarget);
+      const newScale = Math.max(0.3, Math.min(rawScale, defaultScaleTarget));
       
       // 🔧 Only update if the new scale is valid
       if (isFinite(newScale) && newScale > 0) {
@@ -3905,7 +3906,7 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
   // 🆕 Preview Zoom Controls
   const handleZoomIn = () => {
     setIsManualScale(true);
-    setPreviewScale(prev => Math.min(prev + 0.1, 1.0));
+    setPreviewScale(prev => Math.min(prev + 0.1, 1.5));
   };
 
   const handleZoomOut = () => {
