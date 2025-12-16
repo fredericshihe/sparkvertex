@@ -125,7 +125,6 @@ export async function POST(req: NextRequest) {
         .from('profiles')
         .update({ 
           credits: newCredits,
-          updated_at: new Date().toISOString(),
         })
         .eq('id', order.user_id);
 
