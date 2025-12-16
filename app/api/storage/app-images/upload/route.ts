@@ -36,29 +36,34 @@ function extractBytesFromMetadata(metadata: any): number {
 
 async function computeUsedBytes(admin: ReturnType<typeof createAdminSupabase>, userId: string) {
   let usedBytes = 0;
-  let from = 0;
+  let offset = 0;
 
+  // Use Storage API list() to enumerate files in user's app-images folder
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const { data, error } = await (admin as any)
-      .schema('storage')
-      .from('objects')
-      .select('metadata')
-      .eq('bucket_id', BUCKET_ID)
-      .like('name', `${userId}/${USER_PREFIX_DIR}/%`)
-      .range(from, from + PAGE_SIZE - 1);
+    const { data, error } = await admin.storage
+      .from(BUCKET_ID)
+      .list(`${userId}/${USER_PREFIX_DIR}`, {
+        limit: PAGE_SIZE,
+        offset,
+      });
 
-    if (error) throw error;
-
-    const rows = (data || []) as Array<{ metadata: any }>;
-    if (rows.length === 0) break;
-
-    for (const row of rows) {
-      usedBytes += extractBytesFromMetadata(row.metadata);
+    if (error) {
+      console.error('[computeUsedBytes] List error:', error);
+      throw error;
     }
 
-    if (rows.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
+    const files = data || [];
+    if (files.length === 0) break;
+
+    for (const file of files) {
+      // file.metadata contains size info; also check file.metadata?.size
+      const size = file.metadata?.size ?? extractBytesFromMetadata(file.metadata);
+      usedBytes += typeof size === 'number' ? size : 0;
+    }
+
+    if (files.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
   }
 
   return usedBytes;

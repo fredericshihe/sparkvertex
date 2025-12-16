@@ -38,25 +38,30 @@ export async function GET(req: Request) {
 
     const admin = createAdminSupabase();
 
-    const { data, error } = await (admin as any)
-      .schema('storage')
-      .from('objects')
-      .select('name, metadata, created_at')
-      .eq('bucket_id', BUCKET_ID)
-      .like('name', `${session.user.id}/${USER_PREFIX_DIR}/%`)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    // Use Storage API list() instead of querying storage.objects directly
+    const { data, error } = await admin.storage
+      .from(BUCKET_ID)
+      .list(`${session.user.id}/${USER_PREFIX_DIR}`, {
+        limit,
+        offset,
+        sortBy: { column: 'created_at', order: 'desc' },
+      });
 
-    if (error) return ApiErrors.serverError(error.message);
+    if (error) {
+      console.error('[StorageList] List error:', error);
+      return ApiErrors.serverError(error.message);
+    }
 
-    const rows = (data || []) as Array<{ name: string; metadata: any; created_at: string | null }>;
-    const images = rows.map((row) => {
-      const { data: pub } = admin.storage.from(BUCKET_ID).getPublicUrl(row.name);
+    const files = data || [];
+    const images = files.map((file) => {
+      const fullPath = `${session.user.id}/${USER_PREFIX_DIR}/${file.name}`;
+      const { data: pub } = admin.storage.from(BUCKET_ID).getPublicUrl(fullPath);
+      const bytes = file.metadata?.size ?? extractBytesFromMetadata(file.metadata);
       return {
-        path: row.name,
+        path: fullPath,
         publicUrl: pub.publicUrl,
-        bytes: extractBytesFromMetadata(row.metadata),
-        createdAt: row.created_at,
+        bytes: typeof bytes === 'number' ? bytes : 0,
+        createdAt: file.created_at,
       };
     });
 
