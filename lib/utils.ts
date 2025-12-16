@@ -272,3 +272,20 @@ export function removeSparkBackendCode(htmlContent: string): string {
   return result;
 }
 
+// Remove the mock interceptor script and other public artifacts
+// Used when loading a public work for editing (to restore backend functionality)
+export function removeMockCode(htmlContent: string): string {
+  if (!htmlContent) return htmlContent;
+  
+  let result = htmlContent;
+  
+  // Remove the mock interceptor script
+  // Matches the script block injected by removeSparkBackendCode
+  result = result.replace(/<script>\s*\(function\(\)\s*\{\s*\/\/ 🔒 Public Version: Backend requests are mocked for security[\s\S]*?\}\)\(\);\s*<\/script>/g, '');
+  
+  // Remove the public version comment
+  result = result.replace(/<!-- PUBLIC VERSION: Backend requests are mocked for public sharing -->\n?/g, '');
+  
+  return result;
+}
+

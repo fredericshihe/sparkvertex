@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
-import { copyToClipboard } from '@/lib/utils';
+import { copyToClipboard, removeMockCode } from '@/lib/utils';
 import { getPreviewContent } from '@/lib/preview';
 import { X, RefreshCw, MessageSquare, Eye, Wand2, Edit3, Play } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
@@ -849,8 +849,11 @@ function CreateContent() {
           .single();
           
         if (data && data.content) {
-          setGeneratedCode(data.content);
-          setStreamingCode(data.content);
+          // 🧹 Clean up public mock code if present
+          const cleanContent = removeMockCode(data.content);
+
+          setGeneratedCode(cleanContent);
+          setStreamingCode(cleanContent);
           setStep('preview');
           setWizardData(prev => ({ 
             ...prev, 
@@ -880,8 +883,11 @@ function CreateContent() {
         const importedCode = localStorage.getItem('spark_upload_import');
         const isFreshUpload = localStorage.getItem('spark_upload_fresh') === 'true';
         if (importedCode) {
-            setGeneratedCode(importedCode);
-            setStreamingCode(importedCode);
+            // 🧹 Clean up public mock code if present
+            const cleanContent = removeMockCode(importedCode);
+
+            setGeneratedCode(cleanContent);
+            setStreamingCode(cleanContent);
             setStep('preview');
             setWizardData(prev => ({ ...prev, description: 'Imported from Upload' }));
             
