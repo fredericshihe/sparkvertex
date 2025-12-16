@@ -36,6 +36,7 @@ interface CreationPreviewProps {
   handleFixError: (error?: string, details?: any) => void;
   setRuntimeError: (error: string | null) => void;
   setPreviewMode: (mode: 'desktop' | 'tablet' | 'mobile') => void;
+  handlePreviewModeChange: (mode: 'desktop' | 'tablet' | 'mobile') => void; // 🆕 Auto apply default scale
   handleMobilePreview: () => void;
   toggleEditMode: () => void;
   // 🆕 Zoom Controls
@@ -128,6 +129,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
   handleFixError,
   setRuntimeError,
   setPreviewMode,
+  handlePreviewModeChange,
   handleMobilePreview,
   toggleEditMode,
   handleZoomIn,
@@ -513,9 +515,9 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
 
             {/* Device Mode Buttons - Vertical */}
             <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 flex flex-col shadow-2xl ring-1 ring-white/5">
-              <button onClick={() => setPreviewMode('desktop')} className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.desktop}><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
-              <button onClick={() => setPreviewMode('tablet')} className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.tablet}><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
-              <button onClick={() => setPreviewMode('mobile')} className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.mobile}><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
+              <button onClick={() => handlePreviewModeChange('desktop')} className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.desktop}><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
+              <button onClick={() => handlePreviewModeChange('tablet')} className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.tablet}><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
+              <button onClick={() => handlePreviewModeChange('mobile')} className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.mobile}><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
             </div>
 
             {/* 🆕 Zoom Controls - only show for mobile/tablet modes */}

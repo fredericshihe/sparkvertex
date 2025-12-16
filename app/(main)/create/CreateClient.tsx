@@ -3911,6 +3911,23 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
     });
   };
 
+  // 🆕 Handle Preview Mode Change - auto apply default scale for each mode
+  const handlePreviewModeChange = (mode: 'desktop' | 'tablet' | 'mobile') => {
+    setPreviewMode(mode);
+    // Reset to default scale for the selected mode
+    if (mode === 'desktop') {
+      setPreviewScale(1);
+      setDefaultPreviewScale(1);
+    } else if (mode === 'mobile') {
+      setPreviewScale(0.9);
+      setDefaultPreviewScale(0.9);
+    } else if (mode === 'tablet') {
+      setPreviewScale(0.7);
+      setDefaultPreviewScale(0.7);
+    }
+    setIsManualScale(false);
+  };
+
   // 🆕 Preview Zoom Controls
   const handleZoomIn = () => {
     setIsManualScale(true);
@@ -5875,6 +5892,7 @@ Please fix the code to make the app display properly.`;
           handleFixError={handleFixError}
           setRuntimeError={setRuntimeError}
           setPreviewMode={setPreviewMode}
+          handlePreviewModeChange={handlePreviewModeChange}
           handleMobilePreview={handleMobilePreview}
           toggleEditMode={toggleEditMode}
           step={step}
