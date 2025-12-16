@@ -507,7 +507,7 @@ function CreateContent() {
       
       // Available space (subtract padding and toolbar space)
       const availableW = containerW - 40;
-      const availableH = containerH - 180; // Increased for bottom toolbar 
+      const availableH = containerH - 200; // Increased for bottom toolbar 
 
       const scaleW = availableW / targetW;
       const scaleH = availableH / targetH;
