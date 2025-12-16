@@ -127,13 +127,6 @@ Evaluate this single-file web application with the rigor of a top-tier App Store
 - 30-49: Significant bugs, spaghetti code, limited browser support
 - 0-29: Crashes, security issues, fundamentally broken
 
-**Deduction Reference:**
-- No error handling at all: -20
-- Crashes on common actions: -25
-- No mobile responsiveness: -15
-- Memory leaks (setInterval without cleanup): -15
-- Hardcoded dimensions breaking layout: -10
-
 ---
 
 ### 2. RICHNESS (UX/UI & Experience Polish) - Weight: 40%
@@ -171,14 +164,6 @@ Evaluate this single-file web application with the rigor of a top-tier App Store
 - 30-49: Poor UI choices, jarring experience, frustrating to use
 - 0-29: Unusable, broken layout, impossible to navigate
 
-**Deduction Reference:**
-- No hover/active states on clickables: -10
-- Jarring or no page transitions: -10
-- Text unreadable (size/contrast): -15
-- Inconsistent spacing/alignment: -10
-- No loading feedback for async ops: -10
-- Confusing navigation/flow: -15
-
 ---
 
 ### 3. UTILITY (Value, Innovation & Engagement) - Weight: 30%
@@ -200,10 +185,10 @@ Evaluate this single-file web application with the rigor of a top-tier App Store
 | 🎨 Creative | Static demo | Can create & export | Actually usable for projects |
 | 📊 Data | Fake/static data | Configurable demo | Works with real user data |
 
-**Innovation Bonus/Penalty:**
-- Unique mechanic/approach in crowded category: +10
-- Direct clone with no improvements: -10
-- Combines 2+ concepts creatively: +15
+**Innovation Considerations:**
+- Consider bonus for unique mechanics or creative combinations
+- Consider penalty for direct clones with no improvements
+- Weigh innovation against execution quality
 
 **Engagement Signals:**
 - High: Has leaderboard, achievements, shareable results
@@ -218,13 +203,6 @@ Evaluate this single-file web application with the rigor of a top-tier App Store
 - 50-64: Demo quality, "proof of concept", low real-world value
 - 30-49: Barely achieves stated goal, frustrating to actually use
 - 0-29: Doesn't work, false advertising, zero practical value
-
-**Deduction Reference:**
-- Title promises X, but X doesn't work: -25
-- No data persistence for app that needs it: -20
-- Just a static page, no interactivity: -30
-- Common clone with no unique value: -15
-- Incomplete core loop (game) / workflow (tool): -20
 
 ---
 
