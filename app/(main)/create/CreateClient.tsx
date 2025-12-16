@@ -4995,7 +4995,7 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
     }
   };
 
-  // 🆕 AI Image Generation: Generate image from prompt
+  // 🆕 AI Image Generation: Generate image from prompt using Supabase Edge Function
   const handleGenerateAiImage = async () => {
     if (!aiImagePrompt.trim()) {
       toastError(language === 'zh' ? '请输入图片描述' : 'Please enter image description');
@@ -5011,38 +5011,54 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
     setGeneratedAiImage(null);
 
     try {
-      const res = await fetch('/api/generate-image', {
+      // 获取用户 session 用于调用 Edge Function
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toastError(language === 'zh' ? '请先登录' : 'Please login first');
+        return;
+      }
+
+      // 调用 Supabase Edge Function: generate-prototype
+      const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-prototype`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({
-          prompt: aiImagePrompt.trim(),
+          description: aiImagePrompt.trim(),
+          category: 'creative', // 使用创意类型生成图片
+          device: 'mobile', // 默认移动端尺寸
           language
-        }),
-        credentials: 'include'
+        })
       });
 
       const json = await res.json();
       
       if (!res.ok || !json.success) {
-        if (json.code === 'INSUFFICIENT_CREDITS') {
-          toastError(language === 'zh' ? '积分不足，请充值后再试' : 'Insufficient credits, please recharge');
-        } else {
-          throw new Error(json.error || 'Generation failed');
-        }
-        return;
+        throw new Error(json.error || 'Generation failed');
       }
 
       setGeneratedAiImage(json.imageBase64);
       
-      // 更新本地积分状态
-      if (json.remainingCredits !== undefined) {
-        setCredits(json.remainingCredits);
+      // 扣除积分（手动更新本地状态，Edge Function 不处理积分）
+      const newCredits = credits - 10;
+      setCredits(newCredits);
+      
+      // 调用 API 扣除积分
+      try {
+        await supabase
+          .from('profiles')
+          .update({ credits: newCredits })
+          .eq('id', session.user.id);
+      } catch (creditError) {
+        console.warn('[AI Image] Credit deduction failed:', creditError);
       }
 
       toastSuccess(
         language === 'zh' 
-          ? `图片生成成功！已扣除 10 积分，剩余 ${json.remainingCredits ?? credits - 10} 积分` 
-          : `Image generated! Used 10 credits, ${json.remainingCredits ?? credits - 10} remaining`
+          ? `图片生成成功！已扣除 10 积分，剩余 ${newCredits} 积分` 
+          : `Image generated! Used 10 credits, ${newCredits} remaining`
       );
 
     } catch (error: any) {
