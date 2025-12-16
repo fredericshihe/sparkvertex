@@ -3835,7 +3835,8 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
         tags: [wizardData.category, wizardData.style]
       }));
       
-      const editId = searchParams.get('edit');
+      // 获取编辑 ID - 可能是 edit 或 editId 参数
+      const editId = searchParams.get('edit') || searchParams.get('editId');
       if (editId) {
         router.push(`/upload?from=create&edit=${editId}`);
       } else {
