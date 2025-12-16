@@ -124,10 +124,15 @@ Your task is to modify the provided React code based on the user's request.
       - https://placehold.co/600x400 (simple placeholder with size)
       - https://dummyimage.com/600x400/cccccc/666666 (customizable placeholder)
       - https://fakeimg.pl/600x400 (fast fake image service)
-    - ✅ If real images are required, use China-stable image services:
+    - ✅ If real images are required, use China-stable image services (in priority order):
+      **Free/Indie Dev:**
       - Pexels (images.pexels.com) - stable in China, free CC0
-      - Pixabay (pixabay.com) - vectors and illustrations, stable in China
-      - 摄图网/包图网 (国内最优) - Chinese stock photos, best for local content
+      - Pixabay (pixabay.com) - vectors and illustrations, stable in China, free CC0
+      - 爱给网 (aigei.com) - game assets, 2D/3D, sound effects
+      **Cost-Effective (VIP membership):**
+      - 摄图网 (699pic.com) - Chinese stock photos, templates
+      - 包图网 (ibaotu.com) - Chinese stock photos, e-commerce assets
+      **Self-hosted:**
       - Aliyun OSS, Tencent COS, Qiniu - for self-hosted images
     - If the user explicitly provides an image URL, you may use it.
 
@@ -240,10 +245,15 @@ Build a production-grade, single-file HTML application.
       - https://placehold.co/600x400 (simple placeholder with size)
       - https://dummyimage.com/600x400/cccccc/666666 (customizable placeholder)
       - https://fakeimg.pl/600x400 (fast fake image service)
-    - ✅ If real images are required, use China-stable image services:
+    - ✅ If real images are required, use China-stable image services (in priority order):
+      **Free/Indie Dev:**
       - Pexels (images.pexels.com) - stable in China, free CC0
-      - Pixabay (pixabay.com) - vectors and illustrations, stable in China
-      - 摄图网/包图网 (国内最优) - Chinese stock photos, best for local content
+      - Pixabay (pixabay.com) - vectors and illustrations, stable in China, free CC0
+      - 爱给网 (aigei.com) - game assets, 2D/3D, sound effects
+      **Cost-Effective (VIP membership):**
+      - 摄图网 (699pic.com) - Chinese stock photos, templates
+      - 包图网 (ibaotu.com) - Chinese stock photos, e-commerce assets
+      **Self-hosted:**
       - Aliyun OSS, Tencent COS, Qiniu - for self-hosted images
     - If the user explicitly provides an image URL, you may use it.
 
