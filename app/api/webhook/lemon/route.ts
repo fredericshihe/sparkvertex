@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { supabaseAdmin } from '@/lib/supabase-server-safe';
+import { createSafeClient } from '@/lib/supabase-server-safe';
 import { VARIANT_CREDITS_MAP, LEMON_SQUEEZY_CONFIG } from '@/lib/lemon-squeezy';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    const supabaseAdmin = createSafeClient();
+
     const rawBody = await req.text();
     const secret = LEMON_SQUEEZY_CONFIG.WEBHOOK_SECRET;
 

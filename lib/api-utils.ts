@@ -43,6 +43,18 @@ export function createServerSupabase() {
  * 注意：每次调用都创建新实例，避免跨请求状态污染
  */
 export function createAdminSupabase() {
+  const url = process.env['NEXT_PUBLIC_SUPABASE_URL'] || '';
+  const serviceRole = process.env['SUPABASE_SERVICE_ROLE_KEY'] || '';
+
+  // If these are missing, downstream calls will fail with confusing 500s.
+  // Fail fast with a clear message so the UI can surface it.
+  if (!url || url.includes('placeholder.supabase.co')) {
+    throw new Error('Server misconfigured: NEXT_PUBLIC_SUPABASE_URL is not set');
+  }
+  if (!serviceRole || serviceRole === 'placeholder-key') {
+    throw new Error('Server misconfigured: SUPABASE_SERVICE_ROLE_KEY is not set');
+  }
+
   return createSafeClient();
 }
 
