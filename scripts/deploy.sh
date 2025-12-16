@@ -41,7 +41,19 @@ fi
 npm run build
 
 # 4. 重启 PM2
-echo "wm 正在重启 PM2 服务..."
-pm2 restart nextjs
+echo "🔄 正在重启 PM2 服务..."
+
+# 定义进程名
+PM2_NAME="sparkvertex"
+
+# 检查进程是否存在，不存在则创建
+if pm2 describe $PM2_NAME > /dev/null 2>&1; then
+  pm2 restart $PM2_NAME --update-env
+else
+  echo "📌 PM2 进程不存在，正在创建..."
+  pm2 start npm --name $PM2_NAME -- start
+  pm2 save
+fi
 
 echo "✅ 部署成功！网站已更新。"
+echo "📊 查看日志: pm2 logs $PM2_NAME"
