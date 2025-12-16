@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
 import { useModal } from '@/context/ModalContext';
@@ -8,16 +9,23 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 
 export default function LoginModal() {
+  const router = useRouter();
   const { t, language } = useLanguage();
   const { isLoginModalOpen, closeLoginModal } = useModal();
-  const { success: showSuccess } = useToast();
+  const { success: showSuccess, error: showError } = useToast();
   
-  // Views: 'login' (Email), 'register', 'forgot_password'
-  const [view, setView] = useState<'login' | 'register' | 'forgot_password'>('login');
+  // Views: 'login' (Email), 'register', 'forgot_password', 'phone'
+  const [view, setView] = useState<'login' | 'register' | 'forgot_password' | 'phone'>('phone');
   
   // Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  
+  // Phone Auth State
+  const [phone, setPhone] = useState('');
+  const [verifyCode, setVerifyCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   
   // UI State
   const [loading, setLoading] = useState(false);
@@ -26,14 +34,25 @@ export default function LoginModal() {
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
   const [showEmailSent, setShowEmailSent] = useState(false);
   
+  // Countdown timer for resend
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+  
   // Reset state when modal opens
   useEffect(() => {
     if (isLoginModalOpen) {
       setLoginAttempts(0);
       setLockoutUntil(null);
       setMessage('');
-      setView('login');
+      setView('phone'); // Default to phone login
       setShowEmailSent(false);
+      setCodeSent(false);
+      setVerifyCode('');
+      setCountdown(0);
     }
   }, [isLoginModalOpen]);
 
@@ -42,6 +61,74 @@ export default function LoginModal() {
   // --- Validation ---
   const validateEmail = (email: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
   const validatePassword = (password: string) => /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@32941%*#?&]{8,}$/.test(password);
+  const validatePhone = (phone: string) => /^1[3-9]\d{9}$/.test(phone.replace(/\s/g, ''));
+
+  // --- Phone Auth Handlers ---
+  const handleSendCode = async () => {
+    const normalizedPhone = phone.replace(/\s/g, '');
+    if (!validatePhone(normalizedPhone)) {
+      setMessage(language === 'zh' ? '请输入有效的手机号码' : 'Please enter a valid phone number');
+      return;
+    }
+    
+    setLoading(true);
+    setMessage('');
+    
+    try {
+      const res = await fetch('/api/auth/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: normalizedPhone }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        setCodeSent(true);
+        setCountdown(60);
+        setMessage(language === 'zh' ? '验证码已发送' : 'Code sent');
+      } else {
+        setMessage(data.message || (language === 'zh' ? '发送失败' : 'Failed to send'));
+      }
+    } catch (error) {
+      setMessage(language === 'zh' ? '网络错误，请重试' : 'Network error, please retry');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handlePhoneLogin = async () => {
+    if (!verifyCode || verifyCode.length < 4) {
+      setMessage(language === 'zh' ? '请输入验证码' : 'Please enter the code');
+      return;
+    }
+    
+    setLoading(true);
+    setMessage('');
+    
+    try {
+      const res = await fetch('/api/auth/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone.replace(/\s/g, ''), code: verifyCode }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.success && data.redirectUrl) {
+        showSuccess(language === 'zh' ? '登录成功' : 'Login successful');
+        closeLoginModal();
+        // 重定向到 auth/callback 完成登录
+        router.push(data.redirectUrl);
+      } else {
+        setMessage(data.message || (language === 'zh' ? '验证失败' : 'Verification failed'));
+      }
+    } catch (error) {
+      setMessage(language === 'zh' ? '网络错误，请重试' : 'Network error, please retry');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // --- Handlers ---
 
@@ -229,6 +316,94 @@ export default function LoginModal() {
             <button onClick={handleResetPassword} disabled={loading} className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-xl transition disabled:opacity-50 shadow-lg shadow-brand-500/20">{loading ? t.auth_modal.sending : t.auth_modal.send_reset}</button>
             <button onClick={() => { setView('login'); setMessage(''); }} className="w-full text-slate-400 hover:text-white text-sm py-2 transition">{t.auth_modal.back_login}</button>
           </div>
+        ) : view === 'phone' ? (
+          <div className="space-y-4">
+            {/* Phone Input */}
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">
+                {language === 'zh' ? '手机号' : 'Phone Number'}
+              </label>
+              <div className="flex gap-2">
+                <div className="flex items-center bg-black/20 border border-white/10 rounded-xl px-3 text-slate-400 text-sm">
+                  +86
+                </div>
+                <input 
+                  type="tel" 
+                  value={phone} 
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                  className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 focus:bg-black/40 outline-none transition-all placeholder-slate-500" 
+                  placeholder={language === 'zh' ? '请输入手机号' : 'Enter phone number'}
+                />
+              </div>
+            </div>
+            
+            {/* Verification Code */}
+            {codeSent && (
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1 ml-1">
+                  {language === 'zh' ? '验证码' : 'Verification Code'}
+                </label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={verifyCode} 
+                    onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white text-center tracking-[0.5em] text-lg font-mono focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 focus:bg-black/40 outline-none transition-all placeholder-slate-500" 
+                    placeholder="000000"
+                    maxLength={6}
+                  />
+                  <button 
+                    onClick={handleSendCode}
+                    disabled={loading || countdown > 0}
+                    className="px-4 py-3 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 text-white text-sm font-medium rounded-xl transition border border-white/10 disabled:text-slate-500 whitespace-nowrap"
+                  >
+                    {countdown > 0 ? `${countdown}s` : (language === 'zh' ? '重新发送' : 'Resend')}
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Message */}
+            {message && (
+              <p className={`text-sm text-center py-2 rounded-lg border ${
+                message.includes('已发送') || message.includes('sent') 
+                  ? 'text-green-400 bg-green-500/10 border-green-500/20' 
+                  : 'text-red-400 bg-red-500/10 border-red-500/20'
+              }`}>
+                {message}
+              </p>
+            )}
+            
+            {/* Action Button */}
+            {!codeSent ? (
+              <button 
+                onClick={handleSendCode}
+                disabled={loading || !phone || phone.length < 11}
+                className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-brand-500/20 disabled:opacity-50"
+              >
+                {loading ? (language === 'zh' ? '发送中...' : 'Sending...') : (language === 'zh' ? '获取验证码' : 'Get Code')}
+              </button>
+            ) : (
+              <button 
+                onClick={handlePhoneLogin}
+                disabled={loading || verifyCode.length < 4}
+                className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-brand-500/20 disabled:opacity-50"
+              >
+                {loading ? (language === 'zh' ? '验证中...' : 'Verifying...') : (language === 'zh' ? '登录 / 注册' : 'Login / Register')}
+              </button>
+            )}
+            
+            {/* Switch to Email */}
+            <div className="text-center pt-4 border-t border-white/5">
+              <button 
+                onClick={() => { setView('login'); setMessage(''); }}
+                className="text-slate-400 hover:text-white text-sm transition flex items-center justify-center gap-2 mx-auto"
+              >
+                <i className="fa-solid fa-envelope text-xs"></i>
+                {language === 'zh' ? '使用邮箱登录' : 'Login with Email'}
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="space-y-4">
             <>
@@ -247,14 +422,23 @@ export default function LoginModal() {
               <button onClick={() => handleEmailAuth(view === 'register' ? 'register' : 'login')} disabled={loading} className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-brand-500/20 disabled:opacity-50">{loading ? (view === 'register' ? t.auth_modal.registering : t.auth_modal.logging_in) : (view === 'register' ? t.auth_modal.register_btn : t.auth_modal.login_btn)}</button>
             </>
             
-            <div className="text-center mt-6 pt-4 border-t border-white/5">
-              <span className="text-slate-500 text-sm">{view === 'register' ? t.auth_modal.has_account : t.auth_modal.no_account}</span>
+            <div className="text-center mt-4 pt-4 border-t border-white/5 space-y-2">
               <button 
-                onClick={() => { setView(view === 'register' ? 'login' : 'register'); setMessage(''); }}
-                className="text-brand-400 hover:text-brand-300 text-sm font-bold ml-2 transition"
+                onClick={() => { setView('phone'); setMessage(''); }}
+                className="text-slate-400 hover:text-white text-sm transition flex items-center justify-center gap-2 mx-auto"
               >
-                {view === 'register' ? t.auth_modal.go_login : t.auth_modal.go_register}
+                <i className="fa-solid fa-mobile-screen text-xs"></i>
+                {language === 'zh' ? '使用手机号登录' : 'Login with Phone'}
               </button>
+              <div>
+                <span className="text-slate-500 text-sm">{view === 'register' ? t.auth_modal.has_account : t.auth_modal.no_account}</span>
+                <button 
+                  onClick={() => { setView(view === 'register' ? 'login' : 'register'); setMessage(''); }}
+                  className="text-brand-400 hover:text-brand-300 text-sm font-bold ml-2 transition"
+                >
+                  {view === 'register' ? t.auth_modal.go_login : t.auth_modal.go_register}
+                </button>
+              </div>
             </div>
           </div>
         )}
