@@ -123,28 +123,26 @@ Image Requirements:
 
 User description: ${prompt.trim()}`;
 
-    console.log('[GenerateImage] Generating image with Gemini Imagen...');
+    console.log('[GenerateImage] Generating image with Gemini...');
 
-    // 7. 调用 Gemini Imagen 3 API
-    // 使用 imagen-3.0-generate-002 模型 (最新的高质量模型)
+    // 7. 调用 Gemini 3 Pro Image Preview API
+    // 使用与 generate-prototype 相同的模型和端点
     const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${googleApiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${googleApiKey}`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          instances: [
-            { prompt: systemPrompt }
-          ],
-          parameters: {
-            sampleCount: 1,
-            aspectRatio: '1:1',
-            // 限制输出尺寸
-            outputOptions: {
-              mimeType: 'image/png'
-            }
+          contents: [{
+            parts: [{
+              text: systemPrompt
+            }]
+          }],
+          generationConfig: {
+            responseModalities: ['image', 'text'],
+            responseMimeType: 'image/png'
           }
         })
       }
@@ -163,11 +161,16 @@ User description: ${prompt.trim()}`;
 
     const geminiData = await geminiResponse.json();
     
-    // 8. 提取生成的图像
+    // 8. 提取生成的图像 (与 generate-prototype 格式一致)
+    const imagePart = geminiData.candidates?.[0]?.content?.parts?.find(
+      (part: any) => part.inlineData?.mimeType?.startsWith('image/')
+    );
+    
     let imageBase64 = null;
     
-    if (geminiData.predictions && geminiData.predictions[0]?.bytesBase64Encoded) {
-      imageBase64 = `data:image/png;base64,${geminiData.predictions[0].bytesBase64Encoded}`;
+    if (imagePart?.inlineData?.data) {
+      const mimeType = imagePart.inlineData.mimeType || 'image/png';
+      imageBase64 = `data:${mimeType};base64,${imagePart.inlineData.data}`;
     }
 
     if (!imageBase64) {
