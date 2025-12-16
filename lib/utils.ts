@@ -150,12 +150,15 @@ export function removeSparkBackendCode(htmlContent: string): string {
   var originalFetch = window.fetch;
   window.fetch = function(url, options) {
     var urlStr = typeof url === 'string' ? url : (url && url.url) || '';
+    var method = (options && options.method) || (url && url.method) || 'GET';
+    if (typeof method === 'string') method = method.toUpperCase();
+
     // Mock all API/backend requests
     if (urlStr.includes('/api/') || 
         urlStr.includes('supabase') || 
         urlStr.includes('firebase') ||
-        (options && options.method && options.method !== 'GET')) {
-      console.log('[Public Version] Backend request mocked:', urlStr);
+        method !== 'GET') {
+      console.log('[Public Version] Backend request mocked:', urlStr, method);
       
       // 🚀 Notify parent window about the mocked action
       if (window.parent) {
@@ -185,6 +188,12 @@ export function removeSparkBackendCode(htmlContent: string): string {
     var urlStr = this._sparkUrl || '';
     if (urlStr.includes('/api/') || this._sparkMethod !== 'GET') {
       console.log('[Public Version] XHR request mocked:', urlStr);
+      
+      // 🚀 Notify parent window about the mocked action
+      if (window.parent) {
+        window.parent.postMessage({ type: 'SPARK_BACKEND_MOCKED_ACTION' }, '*');
+      }
+
       var self = this;
       setTimeout(function() {
         Object.defineProperty(self, 'readyState', { value: 4, writable: false });
