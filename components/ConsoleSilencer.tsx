@@ -11,6 +11,20 @@ import { useEffect } from 'react';
  */
 export default function ConsoleSilencer() {
   useEffect(() => {
+    // 在开发环境下过滤掉 CDN 相关的警告（这些是预览模式的正常行为）
+    if (process.env.NODE_ENV === 'development') {
+      const originalWarn = console.warn;
+      console.warn = (...args: any[]) => {
+        const message = args[0]?.toString() || '';
+        // 过滤 Babel 和 Tailwind CDN 的警告
+        if (message.includes('in-browser Babel transformer') || 
+            message.includes('cdn.tailwindcss.com should not be used in production')) {
+          return;
+        }
+        originalWarn.apply(console, args);
+      };
+    }
+    
     // Only silence in production
     if (process.env.NODE_ENV === 'production') {
       const noop = () => {};
