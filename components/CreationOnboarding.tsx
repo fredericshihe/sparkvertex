@@ -48,9 +48,17 @@ export const CreationOnboarding: React.FC<CreationOnboardingProps> = ({
       position: 'top'
     },
     {
+      id: 'full-mode-switch',
+      title: '全量修改模式',
+      description: '需要大改动时开启此模式，AI 将获得完整代码上下文，修改更精准。',
+      icon: <span className="text-xl">⚡</span>,
+      target: 'full-mode-switch',
+      position: 'top'
+    },
+    {
       id: 'chat-header-actions',
       title: '辅助工具',
-      description: '查看历史版本、切换 AI 模型，或在需要大改动时开启"全量模式"。',
+      description: '查看历史版本、下载源码，或重置当前生成。',
       icon: <RefreshCw className="w-6 h-6" />,
       target: 'chat-header-actions',
       position: 'bottom'
@@ -84,7 +92,7 @@ export const CreationOnboarding: React.FC<CreationOnboardingProps> = ({
       title: '常用工具',
       description: '重启应用、扫码真机预览、配置后端数据库，都在这里。',
       icon: <RotateCcw className="w-6 h-6" />,
-      target: 'reset-btn', // Point to the first button in the group
+      target: 'tool-group',
       position: 'left'
     },
     {
@@ -93,14 +101,6 @@ export const CreationOnboarding: React.FC<CreationOnboardingProps> = ({
       description: '不想打字？开启此模式，直接点击预览中的元素即可修改颜色、文字或图片。',
       icon: <MousePointer2 className="w-6 h-6" />,
       target: 'edit-mode-btn',
-      position: 'left'
-    },
-    {
-      id: 'undo-redo',
-      title: '时光机',
-      description: '修改不满意随时撤销。右侧面板记录了每一次生成的版本，可一键回退。',
-      icon: <Undo2 className="w-6 h-6" />,
-      target: 'undo-redo-panel',
       position: 'left'
     },
     {
@@ -135,9 +135,17 @@ export const CreationOnboarding: React.FC<CreationOnboardingProps> = ({
       position: 'top'
     },
     {
+      id: 'full-mode-switch',
+      title: 'Full Code Mode',
+      description: 'Enable for major changes. AI gets full context for precise edits.',
+      icon: <span className="text-xl">⚡</span>,
+      target: 'full-mode-switch',
+      position: 'top'
+    },
+    {
       id: 'chat-header-actions',
       title: 'Helper Tools',
-      description: 'Access history, switch AI models, or enable "Full Mode" for major rewrites.',
+      description: 'Access history, download code, or reset generation.',
       icon: <RefreshCw className="w-6 h-6" />,
       target: 'chat-header-actions',
       position: 'bottom'
@@ -171,7 +179,7 @@ export const CreationOnboarding: React.FC<CreationOnboardingProps> = ({
       title: 'Utility Belt',
       description: 'Restart app, scan QR for mobile preview, or configure backend database.',
       icon: <RotateCcw className="w-6 h-6" />,
-      target: 'reset-btn',
+      target: 'tool-group',
       position: 'left'
     },
     {
@@ -180,14 +188,6 @@ export const CreationOnboarding: React.FC<CreationOnboardingProps> = ({
       description: 'Don\'t want to type? Enable this to click any element and change color, text, or image.',
       icon: <MousePointer2 className="w-6 h-6" />,
       target: 'edit-mode-btn',
-      position: 'left'
-    },
-    {
-      id: 'undo-redo',
-      title: 'Time Machine',
-      description: 'Undo anytime. The panel on the right saves every version for instant rollback.',
-      icon: <Undo2 className="w-6 h-6" />,
-      target: 'undo-redo-panel',
       position: 'left'
     },
     {
@@ -256,11 +256,20 @@ export const CreationOnboarding: React.FC<CreationOnboardingProps> = ({
             };
             break;
           case 'bottom':
-            style = {
-              top: rect.bottom + gap,
-              left: rect.left + rect.width / 2,
-              transform: 'translate(-50%, 0)'
-            };
+            // Check if element is too far right (like header actions)
+            if (rect.left > window.innerWidth * 0.7) {
+               style = {
+                top: rect.bottom + gap,
+                right: window.innerWidth - rect.right, // Align with right edge
+                transform: 'translate(0, 0)'
+              };
+            } else {
+              style = {
+                top: rect.bottom + gap,
+                left: rect.left + rect.width / 2,
+                transform: 'translate(-50%, 0)'
+              };
+            }
             break;
         }
         setPopoverStyle(style);

@@ -425,6 +425,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
               title={language === 'zh' 
                 ? (fullCodeMode ? '点击关闭全量修改模式' : '开启后AI获得完整代码，修改更精准但消耗更多积分') 
                 : (fullCodeMode ? 'Click to disable Full Code mode' : 'Enable for complete code context, uses more credits')}
+              data-tour="full-mode-switch"
           >
               {/* 开关图标 */}
               <div className={`w-6 h-3.5 rounded-full relative transition-colors ${fullCodeMode ? 'bg-amber-500' : 'bg-slate-600'}`}>

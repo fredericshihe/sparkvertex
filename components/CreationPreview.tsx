@@ -555,49 +555,52 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
 
             <div className="h-px w-8 bg-white/10 my-1"></div>
 
-            {/* Reset App Button */}
-            <button 
-                onClick={handleResetApp}
-                className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group ring-1 ring-white/5" 
-                title={language === 'zh' ? '清除缓存并重启' : 'Clear Cache & Restart'}
-                data-tour="reset-btn"
-            >
-                <i className="fa-solid fa-rotate text-sm group-hover:rotate-180 transition duration-500"></i>
-            </button>
-
-            <button 
-                onClick={handleMobilePreview}
-                className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group ring-1 ring-white/5" 
-                title={t.create.mobile_preview}
-                data-tour="mobile-preview-btn"
-            >
-                <i className="fa-solid fa-qrcode text-sm group-hover:scale-110 transition"></i>
-            </button>
-
-            {/* Configure Backend Button */}
-            <button 
-                onClick={() => setShowBackendExplanation(true)}
-                className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 
-                title={language === 'zh' ? '一键配置表单' : 'Configure Form Collection'}
-                data-tour="backend-btn"
-            >
-                <i className="fa-solid fa-server text-sm group-hover:scale-110 transition"></i>
-                {!hasBackend && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-yellow-500 rounded-full border-2 border-black"></span>}
-            </button>
-
-            {/* Backend Data Button */}
-            {hasBackend && (
+            {/* Tool Group - Wrapped for Onboarding */}
+            <div className="flex flex-col items-center gap-3" data-tour="tool-group">
+              {/* Reset App Button */}
               <button 
-                  onClick={() => setShowBackendPanel(true)}
-                  className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 
-                  title={language === 'zh' ? '查看表单数据' : 'View Form Data'}
-                  data-tour="data-btn"
+                  onClick={handleResetApp}
+                  className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group ring-1 ring-white/5" 
+                  title={language === 'zh' ? '清除缓存并重启' : 'Clear Cache & Restart'}
+                  data-tour="reset-btn"
               >
-                  <i className="fa-solid fa-inbox text-sm group-hover:scale-110 transition"></i>
-                  {/* Pulse indicator */}
-                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-black animate-pulse"></span>
+                  <i className="fa-solid fa-rotate text-sm group-hover:rotate-180 transition duration-500"></i>
               </button>
-            )}
+
+              <button 
+                  onClick={handleMobilePreview}
+                  className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group ring-1 ring-white/5" 
+                  title={t.create.mobile_preview}
+                  data-tour="mobile-preview-btn"
+              >
+                  <i className="fa-solid fa-qrcode text-sm group-hover:scale-110 transition"></i>
+              </button>
+
+              {/* Configure Backend Button */}
+              <button 
+                  onClick={() => setShowBackendExplanation(true)}
+                  className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 
+                  title={language === 'zh' ? '一键配置表单' : 'Configure Form Collection'}
+                  data-tour="backend-btn"
+              >
+                  <i className="fa-solid fa-server text-sm group-hover:scale-110 transition"></i>
+                  {!hasBackend && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-yellow-500 rounded-full border-2 border-black"></span>}
+              </button>
+
+              {/* Backend Data Button */}
+              {hasBackend && (
+                <button 
+                    onClick={() => setShowBackendPanel(true)}
+                    className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 
+                    title={language === 'zh' ? '查看表单数据' : 'View Form Data'}
+                    data-tour="data-btn"
+                >
+                    <i className="fa-solid fa-inbox text-sm group-hover:scale-110 transition"></i>
+                    {/* Pulse indicator */}
+                    <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-black animate-pulse"></span>
+                </button>
+              )}
+            </div>
 
             <div className="h-px w-8 bg-white/10 my-1"></div>
 
