@@ -277,8 +277,8 @@ function CreateContent() {
     : `draft_guest_${sessionId}`;
   
   // State: Preview Scaling
-  const [previewScale, setPreviewScale] = useState(0.65); // 🔧 Default to a reasonable mobile scale
-  const [defaultPreviewScale, setDefaultPreviewScale] = useState(0.65); // 🔧 Store the auto-calculated default
+  const [previewScale, setPreviewScale] = useState(0.8); // 🔧 Default to a reasonable mobile scale
+  const [defaultPreviewScale, setDefaultPreviewScale] = useState(0.8); // 🔧 Store the auto-calculated default
   const [isManualScale, setIsManualScale] = useState(false); // 🔧 Flag for manual zoom mode
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
