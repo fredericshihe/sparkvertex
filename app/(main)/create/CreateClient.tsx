@@ -27,6 +27,9 @@ const CreationChat = dynamic(() => import('@/components/CreationChat').then(mod 
 const CreationPreview = dynamic(() => import('@/components/CreationPreview').then(mod => mod.CreationPreview), {
   loading: () => <div className="h-full w-full animate-pulse bg-slate-900/50 flex items-center justify-center"><i className="fa-solid fa-circle-notch fa-spin text-2xl text-slate-600"></i></div>
 });
+const CreationOnboarding = dynamic(() => import('@/components/CreationOnboarding').then(mod => mod.CreationOnboarding), {
+  ssr: false
+});
 
 // --- Constants ---
 const CATEGORIES = [
@@ -235,6 +238,10 @@ function CreateContent() {
   const [editRequest, setEditRequest] = useState('');
   const [editIntent, setEditIntent] = useState<'auto' | 'style' | 'content' | 'logic'>('auto');
   const [hasSeenEditGuide, setHasSeenEditGuide] = useState(false);
+  
+  // State: Onboarding (操作引导)
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
   
   // State: Quick Edit (direct color/text/image modification without AI)
   const [quickEditMode, setQuickEditMode] = useState<'none' | 'color' | 'text' | 'image'>('none');
@@ -472,13 +479,42 @@ function CreateContent() {
     }
   }, [language]);
 
-  // Edit Guide Effect
+  // Onboarding Effect - 检测是否需要显示操作引导
+  useEffect(() => {
+    if (step === 'preview' && !hasCompletedOnboarding && !isGenerating) {
+      // 检查 localStorage 是否已完成过引导
+      const hasCompleted = localStorage.getItem('spark_creation_onboarding_completed');
+      if (hasCompleted === 'true') {
+        setHasCompletedOnboarding(true);
+      } else {
+        // 首次进入预览模式，延迟显示引导
+        const timer = setTimeout(() => {
+          setShowOnboarding(true);
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [step, hasCompletedOnboarding, isGenerating]);
+
+  // 完成引导的处理函数
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    setHasCompletedOnboarding(true);
+    localStorage.setItem('spark_creation_onboarding_completed', 'true');
+  };
+
+  // 跳过引导的处理函数
+  const handleOnboardingSkip = () => {
+    setShowOnboarding(false);
+    setHasCompletedOnboarding(true);
+    localStorage.setItem('spark_creation_onboarding_completed', 'true');
+  };
+
+  // Edit Guide Effect (保留原有的 pulse 动画逻辑)
   useEffect(() => {
     if (step === 'preview' && !hasSeenEditGuide) {
       // Small delay to let UI settle
       const timer = setTimeout(() => {
-        // We can show a toast or just rely on the pulse animation
-        // toastSuccess(t.create.edit_hint); // Optional: Show toast
         setHasSeenEditGuide(true);
       }, 2000);
       return () => clearTimeout(timer);
@@ -5818,6 +5854,7 @@ Please fix the code to make the app display properly.`;
           setFullCodeMode={setFullCodeMode}
           handleBlankScreenFix={handleBlankScreenFix}
           handleFixError={handleFixError}
+          onShowOnboarding={() => setShowOnboarding(true)}
         />
 
         <CreationPreview
@@ -5909,6 +5946,14 @@ Please fix the code to make the app display properly.`;
         />
       
       {renderHistoryModal()}
+
+      {/* Creation Onboarding - 操作引导 */}
+      <CreationOnboarding
+        language={language}
+        onComplete={handleOnboardingComplete}
+        onSkip={handleOnboardingSkip}
+        isVisible={showOnboarding}
+      />
 
       {/* Mobile Bottom Tab Bar */}
       <div className="lg:hidden fixed bottom-0 left-0 w-full bg-black border-t border-white/10 flex z-50 pb-safe">

@@ -41,6 +41,7 @@ interface CreationChatProps {
   setShowHistoryModal?: (show: boolean) => void;
   handleDownload?: () => void;
   generatedCode?: string;
+  onShowOnboarding?: () => void; // 🆕 显示操作引导
 }
 
 export const CreationChat: React.FC<CreationChatProps> = ({
@@ -71,7 +72,8 @@ export const CreationChat: React.FC<CreationChatProps> = ({
   MODEL_CONFIG,
   setShowHistoryModal,
   handleDownload,
-  generatedCode
+  generatedCode,
+  onShowOnboarding
 }) => {
   const { openConfirmModal } = useModal();
   const [showModelInfo, setShowModelInfo] = useState(false);
@@ -188,6 +190,17 @@ export const CreationChat: React.FC<CreationChatProps> = ({
         
         {/* Credits & Regenerate */}
         <div className="flex items-center gap-2">
+           {/* Help/Onboarding Button */}
+           {onShowOnboarding && (
+             <button 
+                onClick={onShowOnboarding}
+                className="w-8 h-8 rounded-lg flex items-center justify-center transition border bg-white/5 hover:bg-white/10 text-slate-300 border-white/10 hover:text-white"
+                title={language === 'zh' ? '操作指南' : 'Help Guide'}
+             >
+                <i className="fa-solid fa-circle-question text-xs"></i>
+             </button>
+           )}
+
            {/* History Button */}
            {setShowHistoryModal && (
              <button 
