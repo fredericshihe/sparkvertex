@@ -63,6 +63,12 @@ interface CreationPreviewProps {
   applyQuickImageEdit: (url: string) => void;
   handleImageUpload: (file: File) => void;
   isUploadingImage: boolean;
+  // 🆕 Image storage quota & management
+  imageQuota: { quotaBytes: number; usedBytes: number; remainingBytes: number } | null;
+  userUploadedImages: Array<{ path: string; publicUrl: string; bytes: number; createdAt: string | null }> | null;
+  isLoadingUserUploadedImages: boolean;
+  loadUserUploadedImages: () => void;
+  deleteUserUploadedImage: (path: string) => void;
   editIntent: string;
   setEditIntent: (intent: any) => void;
   editRequest: string;
@@ -135,6 +141,11 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
   applyQuickImageEdit,
   handleImageUpload,
   isUploadingImage,
+  imageQuota,
+  userUploadedImages,
+  isLoadingUserUploadedImages,
+  loadUserUploadedImages,
+  deleteUserUploadedImage,
   editIntent,
   setEditIntent,
   editRequest,
@@ -150,6 +161,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
   handleConfigureBackend
 }) => {
   const { openConfirmModal } = useModal();
+  const formatMB = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)}MB`;
   // 后端数据面板状态
   const [showBackendPanel, setShowBackendPanel] = useState(false);
   // 解释弹窗状态
@@ -699,6 +711,26 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                         {language === 'zh' ? '返回' : 'Back'}
                       </button>
                     </div>
+
+                    {/* Storage Quota */}
+                    {imageQuota && (
+                      <div className="bg-black/30 border border-white/5 rounded-lg p-2 flex items-center justify-between">
+                        <div className="text-[10px] text-zinc-500">
+                          {language === 'zh'
+                            ? `存储：已用 ${formatMB(imageQuota.usedBytes)} / ${formatMB(imageQuota.quotaBytes)}，剩余 ${formatMB(imageQuota.remainingBytes)}`
+                            : `Storage: ${formatMB(imageQuota.usedBytes)} / ${formatMB(imageQuota.quotaBytes)} used, ${formatMB(imageQuota.remainingBytes)} left`}
+                        </div>
+                        <button
+                          onClick={loadUserUploadedImages}
+                          disabled={isLoadingUserUploadedImages}
+                          className="px-2 py-1 bg-white/5 hover:bg-white/10 disabled:bg-white/5 disabled:opacity-60 disabled:cursor-not-allowed rounded-md text-[10px] text-zinc-300 transition"
+                        >
+                          {isLoadingUserUploadedImages
+                            ? (language === 'zh' ? '加载中...' : 'Loading...')
+                            : (language === 'zh' ? '管理' : 'Manage')}
+                        </button>
+                      </div>
+                    )}
                     
                     {/* Current Image Preview */}
                     {(selectedElement.imageSrc || selectedElement.backgroundImage) && (
@@ -749,6 +781,62 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                         }}
                       />
                     </label>
+
+                    {/* Uploaded Images List */}
+                    {userUploadedImages && (
+                      <div className="bg-black/30 border border-white/5 rounded-lg p-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-[10px] text-zinc-500">
+                            {language === 'zh'
+                              ? `我上传的图片（${userUploadedImages.length}）`
+                              : `My uploaded images (${userUploadedImages.length})`}
+                          </div>
+                          <button
+                            onClick={loadUserUploadedImages}
+                            disabled={isLoadingUserUploadedImages}
+                            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition"
+                          >
+                            {language === 'zh' ? '刷新' : 'Refresh'}
+                          </button>
+                        </div>
+
+                        {userUploadedImages.length === 0 ? (
+                          <div className="text-[10px] text-zinc-600 py-2 text-center">
+                            {language === 'zh' ? '暂无已上传图片' : 'No uploaded images'}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto">
+                            {userUploadedImages.map((img) => (
+                              <div
+                                key={img.path}
+                                className="relative rounded-lg overflow-hidden border border-white/5 bg-zinc-900 group"
+                              >
+                                <img
+                                  src={`${img.publicUrl}?t=${encodeURIComponent(img.path)}`}
+                                  alt="Uploaded"
+                                  className="w-full h-16 object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                                <button
+                                  onClick={() => deleteUserUploadedImage(img.path)}
+                                  className="absolute top-1 right-1 w-6 h-6 rounded-md bg-black/60 hover:bg-black/80 text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                                  title={language === 'zh' ? '删除' : 'Delete'}
+                                >
+                                  <i className="fa-solid fa-trash"></i>
+                                </button>
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-1">
+                                  <div className="text-[9px] text-zinc-300 truncate font-mono">
+                                    {img.bytes ? formatMB(img.bytes) : ''}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     
                     {/* Or use URL */}
                     <div className="relative">

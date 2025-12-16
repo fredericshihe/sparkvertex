@@ -244,6 +244,9 @@ function CreateContent() {
   const [availableColorTypes, setAvailableColorTypes] = useState<('bg' | 'text' | 'border')[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [quickEditImageUrl, setQuickEditImageUrl] = useState('');
+  const [imageQuota, setImageQuota] = useState<{ quotaBytes: number; usedBytes: number; remainingBytes: number } | null>(null);
+  const [userUploadedImages, setUserUploadedImages] = useState<Array<{ path: string; publicUrl: string; bytes: number; createdAt: string | null }> | null>(null);
+  const [isLoadingUserUploadedImages, setIsLoadingUserUploadedImages] = useState(false);
   
   // State: Quick Edit History (for undo/redo within quick edit session)
   const [quickEditHistory, setQuickEditHistory] = useState<{ code: string; description: string }[]>([]);
@@ -4688,6 +4691,64 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
     toastSuccess(language === 'zh' ? '图片已更换' : 'Image replaced');
   };
 
+  const refreshImageQuota = async () => {
+    try {
+      const res = await fetch('/api/storage/app-images/quota', { method: 'GET' });
+      const json = await res.json();
+      if (!res.ok || !json?.success) return;
+      setImageQuota(json.data || null);
+    } catch {
+      // ignore
+    }
+  };
+
+  const loadUserUploadedImages = async () => {
+    setIsLoadingUserUploadedImages(true);
+    try {
+      const res = await fetch('/api/storage/app-images/list?limit=200&offset=0', { method: 'GET' });
+      const json = await res.json();
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || 'Failed to load images');
+      }
+      setUserUploadedImages(json?.data?.images || []);
+    } catch (error: any) {
+      toastError(language === 'zh' ? `加载图片列表失败: ${error.message}` : `Failed to load images: ${error.message}`);
+    } finally {
+      setIsLoadingUserUploadedImages(false);
+    }
+  };
+
+  const deleteUserUploadedImage = async (path: string) => {
+    try {
+      const res = await fetch('/api/storage/app-images/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || 'Delete failed');
+      }
+
+      const deletedBytes = userUploadedImages?.find((img) => img.path === path)?.bytes || 0;
+      if (imageQuota && deletedBytes > 0) {
+        setImageQuota({
+          ...imageQuota,
+          usedBytes: Math.max(0, imageQuota.usedBytes - deletedBytes),
+          remainingBytes: Math.min(imageQuota.quotaBytes, imageQuota.remainingBytes + deletedBytes),
+        });
+      }
+
+      setUserUploadedImages((prev) => (prev ? prev.filter((img) => img.path !== path) : prev));
+
+      // Refresh in background to ensure accuracy.
+      refreshImageQuota();
+      toastSuccess(language === 'zh' ? '已删除图片' : 'Image deleted');
+    } catch (error: any) {
+      toastError(language === 'zh' ? `删除失败: ${error.message}` : `Delete failed: ${error.message}`);
+    }
+  };
+
   // 🆕 Quick Edit: Upload image to Supabase and apply
   const handleImageUpload = async (file: File) => {
     if (!file) return;
@@ -4711,34 +4772,43 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
         maxSizeKB: 500
       });
       
-      // 3. Check auth
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toastError(language === 'zh' ? '请先登录后上传图片' : 'Please login to upload images');
-        return;
+      // 3. Upload via server API (enforces per-user quota)
+      const formData = new FormData();
+      formData.append('file', compressedFile, compressedFile.name || 'image.webp');
+
+      const res = await fetch('/api/storage/app-images/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || 'Upload failed');
       }
-      
-      // 4. Upload to Supabase Storage
-      const fileName = `${session.user.id}/app-images/${Date.now()}.webp`;
-      const { error: uploadError } = await supabase.storage
-        .from('icons')  // 复用现有的 icons bucket
-        .upload(fileName, compressedFile, { 
-          upsert: true,
-          contentType: 'image/webp'
+
+      const publicUrl = json?.data?.publicUrl;
+      if (typeof publicUrl !== 'string' || !publicUrl) {
+        throw new Error('Missing publicUrl');
+      }
+
+      if (json?.data?.quotaBytes && json?.data?.usedBytes !== undefined && json?.data?.remainingBytes !== undefined) {
+        setImageQuota({
+          quotaBytes: json.data.quotaBytes,
+          usedBytes: json.data.usedBytes,
+          remainingBytes: json.data.remainingBytes,
         });
-      
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw new Error(uploadError.message);
+      } else {
+        await refreshImageQuota();
       }
-      
-      // 5. Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('icons')
-        .getPublicUrl(fileName);
-      
-      // 6. Apply to code
-      await applyQuickImageEdit(publicUrl);
+
+      // Refresh list if already loaded
+      setUserUploadedImages((prev) =>
+        prev
+          ? [{ path: json.data.path, publicUrl, bytes: compressedFile.size, createdAt: null }, ...prev]
+          : prev
+      );
+
+      // 4. Apply to code (add cache-busting)
+      await applyQuickImageEdit(`${publicUrl}?t=${Date.now()}`);
       
     } catch (error: any) {
       console.error('Image upload failed:', error);
@@ -4747,6 +4817,12 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       setIsUploadingImage(false);
     }
   };
+
+  useEffect(() => {
+    if (quickEditMode === 'image') {
+      refreshImageQuota();
+    }
+  }, [quickEditMode]);
 
   // Quick Edit: Undo last change
   const quickEditUndo = () => {
@@ -5506,6 +5582,11 @@ Please fix the code to make the app display properly.`;
           applyQuickImageEdit={applyQuickImageEdit}
           handleImageUpload={handleImageUpload}
           isUploadingImage={isUploadingImage}
+          imageQuota={imageQuota}
+          userUploadedImages={userUploadedImages}
+          isLoadingUserUploadedImages={isLoadingUserUploadedImages}
+          loadUserUploadedImages={loadUserUploadedImages}
+          deleteUserUploadedImage={deleteUserUploadedImage}
           editIntent={editIntent}
           setEditIntent={setEditIntent}
           editRequest={editRequest}
