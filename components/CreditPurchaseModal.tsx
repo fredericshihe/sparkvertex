@@ -37,6 +37,26 @@ export default function CreditPurchaseModal() {
     
     setIsProcessing(true);
 
+    // PC端：先同步打开空白窗口，避免被浏览器拦截
+    let paymentWindow: Window | null = null;
+    if (!isMobile) {
+      paymentWindow = window.open('about:blank', '_blank');
+      if (paymentWindow) {
+        paymentWindow.document.write(`
+          <html>
+            <head><title>正在跳转支付...</title></head>
+            <body style="display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#1a1a2e;color:#fff;font-family:system-ui;">
+              <div style="text-align:center;">
+                <div style="width:40px;height:40px;border:3px solid #3b82f6;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px;"></div>
+                <p>正在跳转到支付宝...</p>
+              </div>
+              <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+            </body>
+          </html>
+        `);
+      }
+    }
+
     try {
       // 1. 获取当前用户信息
       const { data: { user } } = await supabase.auth.getUser();
@@ -44,6 +64,7 @@ export default function CreditPurchaseModal() {
       if (!user) {
         if (warning) warning('请先登录');
         setIsProcessing(false);
+        if (paymentWindow) paymentWindow.close();
         return;
       }
 
@@ -63,6 +84,7 @@ export default function CreditPurchaseModal() {
       if (!data.success || !data.paymentUrl) {
         if (warning) warning(data.error || '创建支付订单失败');
         setIsProcessing(false);
+        if (paymentWindow) paymentWindow.close();
         return;
       }
 
@@ -73,8 +95,13 @@ export default function CreditPurchaseModal() {
         // 移动端：当前页跳转
         window.location.href = data.paymentUrl;
       } else {
-        // PC端：新标签页打开
-        window.open(data.paymentUrl, '_blank');
+        // PC端：更新已打开窗口的URL
+        if (paymentWindow) {
+          paymentWindow.location.href = data.paymentUrl;
+        } else {
+          // 如果窗口被拦截，直接当前页跳转
+          window.location.href = data.paymentUrl;
+        }
         setStep('pay');
         
         // 保存支付时间用于后续查询
@@ -86,6 +113,7 @@ export default function CreditPurchaseModal() {
       console.error('[Payment] Error:', error);
       if (warning) warning('支付请求失败');
       setIsProcessing(false);
+      if (paymentWindow) paymentWindow.close();
     }
   }, [selectedPackage, warning, isProcessing, isMobile]);
 
