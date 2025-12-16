@@ -31,6 +31,30 @@ export const getLightPreviewContent = (content: string | null): string => {
 };
 
 /**
+ * Optimize CDN links for better performance in China
+ */
+const optimizeCdnLinks = (content: string): string => {
+  if (!content) return content;
+  
+  let result = content;
+  
+  // 1. Replace unpkg.com with cdn.jsdelivr.net/npm (better global performance, acceptable in China)
+  // Regex to handle unpkg.com/package -> cdn.jsdelivr.net/npm/package
+  result = result.replace(/https:\/\/unpkg\.com\/([^"'\s]+)/g, 'https://cdn.jsdelivr.net/npm/$1');
+  
+  // 2. Replace cdnjs.cloudflare.com with cdn.staticfile.org (very fast in China)
+  // Mapping: cdnjs.cloudflare.com/ajax/libs/package/version/file -> cdn.staticfile.org/package/version/file
+  result = result.replace(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/([^"'\s]+)/g, 'https://cdn.staticfile.org/$1');
+  
+  // 3. Specific optimizations for common libs
+  
+  // ECharts: cdn.jsdelivr.net -> cdn.staticfile.org (faster)
+  result = result.replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/echarts@([\d\.]+)\/dist\/echarts\.min\.js/g, 'https://cdn.staticfile.org/echarts/$1/echarts.min.js');
+  
+  return result;
+};
+
+/**
  * Centralized logic for injecting iframe safety scripts and point-and-click edit support.
  * Minimal modifications for maximum fidelity to double-click open behavior.
  * 
@@ -50,6 +74,9 @@ export const getPreviewContent = (content: string | null, options?: {
   isPrecompiled?: boolean;  // 🚀 新增: 标记内容已预编译
 }): string => {
   if (!content) return '';
+
+  // Optimize CDN links
+  const optimizedContent = optimizeCdnLinks(content);
 
   // Generate SPARK_APP_ID for backend integration
   // In preview mode: draft_{user_id}, after publish: use the actual app ID (numeric)
@@ -1080,7 +1107,7 @@ export const getPreviewContent = (content: string | null, options?: {
 
   // Inject error handler AND highlight style AND probe script AND SPARK_APP_ID into head
   // This ensures they persist even if body.innerHTML is replaced
-  let result = content;
+  let result = optimizedContent;
   const scriptsToInject = sparkAppIdScript + minimalErrorHandler + highlightStyle + probeScript;
   
   if (result.includes('</head>')) {
