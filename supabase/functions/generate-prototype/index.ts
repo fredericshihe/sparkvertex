@@ -38,7 +38,8 @@ serve(async (req: Request) => {
         }
 
         // 获取请求参数
-        const { description, category, device, style, language } = await req.json();
+        // mode: 'prototype' (默认) = 应用原型图, 'image' = 点选编辑生成图片
+        const { description, category, device, style, language, mode = 'prototype' } = await req.json();
 
         if (!description) {
             return new Response(JSON.stringify({ success: false, error: 'Description is required' }), {
@@ -57,18 +58,55 @@ serve(async (req: Request) => {
             });
         }
 
-        // 构建系统提示词
         const isZh = language === 'zh';
-        const deviceName = device === 'mobile' ? (isZh ? '移动端' : 'mobile') : (isZh ? '桌面端' : 'desktop');
-        const categoryName = getCategoryName(category, isZh);
-        
-        // 根据设备类型设置尺寸规格（限制最大 1024 像素）
-        const sizeSpec = device === 'mobile' 
-            ? (isZh ? '竖屏手机界面 (宽高比 9:16，最大尺寸 576x1024 像素)' : 'vertical phone screen (aspect ratio 9:16, max size 576x1024 pixels)')
-            : (isZh ? '横屏桌面界面 (宽高比 16:9，最大尺寸 1024x576 像素)' : 'horizontal desktop screen (aspect ratio 16:9, max size 1024x576 pixels)');
+        let systemPrompt = '';
+        let userPrompt = '';
 
-        const systemPrompt = isZh
-            ? `你是一个专业的 UI/UX 设计师。请根据用户描述生成一个现代、美观的 ${deviceName} 应用原型图。
+        if (mode === 'image') {
+            // 🆕 点选编辑模式：根据用户提示词生成图片（用于替换元素图片）
+            systemPrompt = isZh
+                ? `你是一个专业的图像生成专家。请根据用户描述生成一张高质量的图片。
+
+⚠️ 尺寸要求（必须严格遵守）：
+- 生成正方形图片，尺寸为 1024x1024 像素
+- 图片的宽度和高度都不得超过 1024 像素
+
+图片要求：
+- 风格现代、美观、高质量
+- 色彩和谐、符合现代设计趋势
+- 适合用作网页或应用界面中的配图
+- 不要包含文字或水印
+- 图片应该清晰、专业`
+                : `You are a professional image generation expert. Generate a high-quality image based on the user's description.
+
+⚠️ SIZE REQUIREMENTS (MUST STRICTLY FOLLOW):
+- Generate a square image, size 1024x1024 pixels
+- Image width and height MUST NOT exceed 1024 pixels
+
+Image Requirements:
+- Modern, visually appealing, high-quality style
+- Harmonious colors following modern design trends
+- Suitable for use as web or app interface graphics
+- Do NOT include text or watermarks
+- Image should be clear and professional`;
+
+            userPrompt = isZh 
+                ? `请生成以下图片：\n\n${description}`
+                : `Generate the following image:\n\n${description}`;
+
+            console.log('[Image] Generating image with Gemini 3 Pro Image...');
+        } else {
+            // 原有的应用原型图模式
+            const deviceName = device === 'mobile' ? (isZh ? '移动端' : 'mobile') : (isZh ? '桌面端' : 'desktop');
+            const categoryName = getCategoryName(category, isZh);
+            
+            // 根据设备类型设置尺寸规格（限制最大 1024 像素）
+            const sizeSpec = device === 'mobile' 
+                ? (isZh ? '竖屏手机界面 (宽高比 9:16，最大尺寸 576x1024 像素)' : 'vertical phone screen (aspect ratio 9:16, max size 576x1024 pixels)')
+                : (isZh ? '横屏桌面界面 (宽高比 16:9，最大尺寸 1024x576 像素)' : 'horizontal desktop screen (aspect ratio 16:9, max size 1024x576 pixels)');
+
+            systemPrompt = isZh
+                ? `你是一个专业的 UI/UX 设计师。请根据用户描述生成一个现代、美观的 ${deviceName} 应用原型图。
 
 ⚠️ 尺寸要求（必须严格遵守）：
 - 生成 ${sizeSpec}
@@ -84,7 +122,7 @@ ${style ? `- 设计风格: ${style}` : ''}
 - 展示主要功能和交互区域
 
 请生成一张高质量的 UI 原型设计图，展示应用的主界面布局和核心功能区域。`
-            : `You are a professional UI/UX designer. Generate a modern, visually appealing ${deviceName} app prototype based on the user's description.
+                : `You are a professional UI/UX designer. Generate a modern, visually appealing ${deviceName} app prototype based on the user's description.
 
 ⚠️ SIZE REQUIREMENTS (MUST STRICTLY FOLLOW):
 - Generate ${sizeSpec}
@@ -101,11 +139,12 @@ ${style ? `- Design style: ${style}` : ''}
 
 Generate a high-quality UI prototype image showing the app's main interface layout and core feature areas.`;
 
-        const userPrompt = isZh 
-            ? `请为以下应用生成原型设计图：\n\n${description}`
-            : `Generate a prototype design for the following app:\n\n${description}`;
+            userPrompt = isZh 
+                ? `请为以下应用生成原型设计图：\n\n${description}`
+                : `Generate a prototype design for the following app:\n\n${description}`;
 
-        console.log('[Prototype] Generating image with Gemini 3 Pro Image...');
+            console.log('[Prototype] Generating image with Gemini 3 Pro Image...');
+        }
 
         // 使用 Gemini 3 Pro Image Preview API
         // 参考: https://ai.google.dev/gemini-api/docs/gemini-3

@@ -5018,7 +5018,7 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
         return;
       }
 
-      // 调用 Supabase Edge Function: generate-prototype
+      // 调用 Supabase Edge Function: generate-prototype (mode: 'image')
       const res = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-prototype`, {
         method: 'POST',
         headers: { 
@@ -5027,8 +5027,7 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
         },
         body: JSON.stringify({
           description: aiImagePrompt.trim(),
-          category: 'creative', // 使用创意类型生成图片
-          device: 'mobile', // 默认移动端尺寸
+          mode: 'image', // 使用图片生成模式（非原型图模式）
           language
         })
       });
