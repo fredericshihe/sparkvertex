@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { X } from 'lucide-react';
 import { useModal } from '@/context/ModalContext';
@@ -162,6 +162,33 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
 }) => {
   const { openConfirmModal } = useModal();
   const formatMB = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+  
+  // 本地 ref 用于点击外部检测（如果外部未传入）
+  const localHistoryPanelRef = useRef<HTMLDivElement>(null);
+  const effectiveHistoryPanelRef = historyPanelRef || localHistoryPanelRef;
+  
+  // 点击外部关闭历史面板
+  useEffect(() => {
+    if (!isHistoryPanelOpen) return;
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      const panel = effectiveHistoryPanelRef.current;
+      if (panel && !panel.contains(event.target as Node)) {
+        setIsHistoryPanelOpen(false);
+      }
+    };
+    
+    // 使用 setTimeout 避免立即触发（点击展开按钮时）
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 100);
+    
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isHistoryPanelOpen, setIsHistoryPanelOpen]);
+  
   // 后端数据面板状态
   const [showBackendPanel, setShowBackendPanel] = useState(false);
   // 解释弹窗状态
@@ -280,7 +307,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
           {/* Quick Edit History Panel - Right side of preview (persistent, collapsible) */}
           {quickEditHistory.length > 0 && (
             <div 
-              ref={historyPanelRef}
+              ref={effectiveHistoryPanelRef}
               className={`absolute right-2 top-2 z-20 transition-all duration-300 ${isHistoryPanelOpen ? 'bottom-20 lg:bottom-2' : ''}`}
             >
               {isHistoryPanelOpen ? (
