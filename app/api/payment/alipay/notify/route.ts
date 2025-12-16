@@ -106,40 +106,38 @@ export async function POST(req: NextRequest) {
         return new NextResponse('fail', { status: 500 });
       }
 
-      // 更新用户积分
-      const { error: creditsError } = await supabaseAdmin
+      // 更新用户积分 - 先获取当前积分再增加
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select('credits')
+        .eq('id', order.user_id)
+        .single();
+      
+      if (profileError) {
+        logger.error('获取用户信息失败:', profileError);
+        return new NextResponse('fail', { status: 500 });
+      }
+
+      const currentCredits = profile?.credits || 0;
+      const newCredits = currentCredits + order.credits;
+
+      const { error: updateCreditsError } = await supabaseAdmin
         .from('profiles')
         .update({ 
-          credits: supabaseAdmin.rpc('increment_credits', { amount: order.credits }),
+          credits: newCredits,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', order.user_id);
 
-      // 或者使用 RPC 增加积分
-      const { error: rpcError } = await supabaseAdmin.rpc('add_credits', {
-        p_user_id: order.user_id,
-        p_credits: order.credits,
-      });
-
-      if (rpcError) {
-        // 如果 RPC 不存在，直接更新
-        const { data: profile } = await supabaseAdmin
-          .from('profiles')
-          .select('credits')
-          .eq('id', order.user_id)
-          .single();
-        
-        if (profile) {
-          await supabaseAdmin
-            .from('profiles')
-            .update({ 
-              credits: (profile.credits || 0) + order.credits,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', order.user_id);
-        }
+      if (updateCreditsError) {
+        logger.error('更新积分失败:', updateCreditsError);
+        return new NextResponse('fail', { status: 500 });
       }
 
       logger.info('充值成功:', {
+        currentCredits,
+        addedCredits: order.credits,
+        newCredits,
         orderId: out_trade_no,
         userId: order.user_id,
         credits: order.credits,

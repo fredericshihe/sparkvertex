@@ -89,7 +89,44 @@ export default function CreditPurchaseModal() {
     }
   }, [selectedPackage, warning, isProcessing, isMobile]);
 
-  // 移除轮询逻辑，因为 Lemon Squeezy 使用 Webhook
+  // 自动轮询检测支付状态
+  useEffect(() => {
+    if (step !== 'pay') return;
+
+    let isActive = true;
+    const paymentTime = localStorage.getItem('pending_payment_time');
+    if (!paymentTime) return;
+
+    const checkPaymentStatus = async () => {
+      try {
+        const res = await fetch(`/api/payment/check-status?timestamp=${paymentTime}&limit=5`);
+        const data = await res.json();
+        
+        if (!isActive) return;
+        
+        if (data.statusCount?.paid > 0) {
+          setStep('success');
+          if (success) success('支付成功！积分已到账');
+          localStorage.removeItem('pending_payment_time');
+          localStorage.removeItem('pending_order_id');
+          setTimeout(() => window.location.reload(), 2000);
+        }
+      } catch (error) {
+        console.error('[Payment] Check status error:', error);
+      }
+    };
+
+    // 首次检查
+    checkPaymentStatus();
+    
+    // 每3秒轮询一次
+    const interval = setInterval(checkPaymentStatus, 3000);
+
+    return () => {
+      isActive = false;
+      clearInterval(interval);
+    };
+  }, [step, success]);
   
   if (!isCreditPurchaseModalOpen) return null;
   
