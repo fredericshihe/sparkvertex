@@ -301,7 +301,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             </button>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-tour="header-actions">
             <button 
               onClick={handleSaveDraft}
               disabled={isSaving}
@@ -329,12 +329,14 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
         <div 
           ref={previewContainerRef}
           className="flex-1 relative overflow-hidden flex items-center justify-center bg-[url('/grid.svg')] bg-center pb-28 lg:pb-0"
+          data-tour="preview-area"
         >
           {/* Quick Edit History Panel - Right side of preview (persistent, collapsible) */}
           {quickEditHistory.length > 0 && (
             <div 
               ref={effectiveHistoryPanelRef}
               className={`absolute right-2 top-2 z-20 transition-all duration-300 ${isHistoryPanelOpen ? 'bottom-20 lg:bottom-2' : ''}`}
+              data-tour="undo-redo-panel"
             >
               {isHistoryPanelOpen ? (
                 <div className="w-48 h-full bg-black/90 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden ring-1 ring-white/5">
@@ -514,7 +516,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
             )}
 
             {/* Device Mode Buttons - Vertical */}
-            <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 flex flex-col shadow-2xl ring-1 ring-white/5">
+            <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 flex flex-col shadow-2xl ring-1 ring-white/5" data-tour="device-switch">
               <button onClick={() => handlePreviewModeChange('desktop')} className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition ${previewMode === 'desktop' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.desktop}><i className="fa-solid fa-desktop text-xs lg:text-sm"></i></button>
               <button onClick={() => handlePreviewModeChange('tablet')} className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.tablet}><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
               <button onClick={() => handlePreviewModeChange('mobile')} className={`w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.mobile}><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
@@ -522,7 +524,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
 
             {/* 🆕 Zoom Controls - only show for mobile/tablet modes */}
             {previewMode !== 'desktop' && (
-              <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 flex flex-col items-center shadow-2xl ring-1 ring-white/5">
+              <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 flex flex-col items-center shadow-2xl ring-1 ring-white/5" data-tour="zoom-controls">
                 <button 
                   onClick={handleZoomIn} 
                   className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center transition text-slate-400 hover:text-white hover:bg-white/10"
@@ -558,6 +560,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                 onClick={handleResetApp}
                 className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group ring-1 ring-white/5" 
                 title={language === 'zh' ? '清除缓存并重启' : 'Clear Cache & Restart'}
+                data-tour="reset-btn"
             >
                 <i className="fa-solid fa-rotate text-sm group-hover:rotate-180 transition duration-500"></i>
             </button>
@@ -566,6 +569,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                 onClick={handleMobilePreview}
                 className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group ring-1 ring-white/5" 
                 title={t.create.mobile_preview}
+                data-tour="mobile-preview-btn"
             >
                 <i className="fa-solid fa-qrcode text-sm group-hover:scale-110 transition"></i>
             </button>
@@ -575,6 +579,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                 onClick={() => setShowBackendExplanation(true)}
                 className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 
                 title={language === 'zh' ? '一键配置表单' : 'Configure Form Collection'}
+                data-tour="backend-btn"
             >
                 <i className="fa-solid fa-server text-sm group-hover:scale-110 transition"></i>
                 {!hasBackend && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-yellow-500 rounded-full border-2 border-black"></span>}
@@ -586,6 +591,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                   onClick={() => setShowBackendPanel(true)}
                   className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 
                   title={language === 'zh' ? '查看表单数据' : 'View Form Data'}
+                  data-tour="data-btn"
               >
                   <i className="fa-solid fa-inbox text-sm group-hover:scale-110 transition"></i>
                   {/* Pulse indicator */}
@@ -604,6 +610,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                     : 'bg-black/90 backdrop-blur-md border-white/10 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 group ring-1 ring-white/5'
                 }`}
                 title={isEditMode ? t.create.finish_edit : t.create.edit_mode}
+                data-tour="edit-mode-btn"
             >
                 <i className={`fa-solid ${isEditMode ? 'fa-check' : 'fa-arrow-pointer'} text-sm ${isEditMode ? '' : 'animate-pulse'}`}></i>
             </button>

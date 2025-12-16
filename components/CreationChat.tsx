@@ -189,15 +189,15 @@ export const CreationChat: React.FC<CreationChatProps> = ({
         </div>
         
         {/* Credits & Regenerate */}
-        <div className="flex items-center gap-2">
-           {/* Help/Onboarding Button */}
+        <div className="flex items-center gap-2" data-tour="chat-header-actions">
+           {/* Help/Onboarding Button - 操作引导 */}
            {onShowOnboarding && (
              <button 
                 onClick={onShowOnboarding}
-                className="w-8 h-8 rounded-lg flex items-center justify-center transition border bg-white/5 hover:bg-white/10 text-slate-300 border-white/10 hover:text-white"
+                className="w-10 h-10 rounded-lg flex items-center justify-center transition border bg-gradient-to-r from-brand-500/10 to-purple-500/10 hover:from-brand-500/20 hover:to-purple-500/20 text-brand-400 border-brand-500/30 hover:text-brand-300 hover:border-brand-500/50 group"
                 title={language === 'zh' ? '操作指南' : 'Help Guide'}
              >
-                <i className="fa-solid fa-circle-question text-xs"></i>
+                <i className="fa-solid fa-circle-question text-sm group-hover:scale-110 transition-transform"></i>
              </button>
            )}
 
@@ -449,6 +449,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
             placeholder={t.create.chat_placeholder}
             disabled={isGenerating}
             className="relative w-full bg-white/5 border border-white/10 rounded-xl pl-4 pr-12 py-3.5 text-sm text-slate-200 focus:border-white/20 focus:bg-white/10 focus:text-white outline-none disabled:opacity-50 transition-all placeholder-slate-500 shadow-inner"
+            data-tour="chat-input"
           />
           <button 
             onClick={() => {
@@ -461,6 +462,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
                   ? 'bg-white/5 text-slate-600 cursor-not-allowed' 
                   : 'bg-white text-black shadow-lg shadow-white/20 hover:shadow-white/40 hover:scale-105'
             }`}
+            data-tour="send-btn"
           >
             {isGenerating ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-paper-plane text-sm"></i>}
           </button>
