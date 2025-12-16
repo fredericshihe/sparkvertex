@@ -277,7 +277,7 @@ function CreateContent() {
     : `draft_guest_${sessionId}`;
   
   // State: Preview Scaling
-  const [previewScale, setPreviewScale] = useState(1);
+  const [previewScale, setPreviewScale] = useState(0.65); // 🔧 Default to a reasonable mobile scale
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
   const [promptLengthForLog, setPromptLengthForLog] = useState(0);
@@ -526,9 +526,11 @@ function CreateContent() {
 
     window.addEventListener('resize', updateScale);
     updateScale();
+    // 🔧 Multiple delayed updates to handle layout transitions and slow renders
     setTimeout(updateScale, 100);
-    // 🔧 Add additional delayed update to handle slow layout transitions
     setTimeout(updateScale, 300);
+    setTimeout(updateScale, 500);
+    setTimeout(updateScale, 1000); // Extra late update for slow connections/hydration
 
     return () => window.removeEventListener('resize', updateScale);
   }, [step, previewMode, isFullscreen]);
