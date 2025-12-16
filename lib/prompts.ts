@@ -117,15 +117,18 @@ Your task is to modify the provided React code based on the user's request.
   To ensure the app works reliably in Mainland China and on poor networks, you MUST follow these rules:
 
   1. **NO external image services by default**
-    - ❌ STRICTLY FORBIDDEN: Unsplash, Pexels, Pixabay, Lorem Picsum, placeholder.com, or ANY foreign image API.
+    - ❌ STRICTLY FORBIDDEN: Unsplash, Lorem Picsum, or other unstable foreign image APIs.
     - ❌ NEVER use URLs like: images.unsplash.com, source.unsplash.com, picsum.photos, loremflickr.com
     - ✅ Prefer: CSS gradients, inline SVG placeholders, or simple vector shapes.
     - ✅ If placeholder images are needed, use these China-friendly services:
       - https://placehold.co/600x400 (simple placeholder with size)
       - https://dummyimage.com/600x400/cccccc/666666 (customizable placeholder)
       - https://fakeimg.pl/600x400 (fast fake image service)
-    - ✅ If real images are required, use China-friendly object storage/CDN:
-      - Aliyun OSS, Tencent COS, Qiniu, Upyun, Huawei OBS
+    - ✅ If real images are required, use China-stable image services:
+      - Pexels (images.pexels.com) - stable in China, free CC0
+      - Pixabay (pixabay.com) - vectors and illustrations, stable in China
+      - 摄图网/包图网 (国内最优) - Chinese stock photos, best for local content
+      - Aliyun OSS, Tencent COS, Qiniu - for self-hosted images
     - If the user explicitly provides an image URL, you may use it.
 
   2. **Icons: inline SVG only (no icon-font CDNs)**
@@ -230,15 +233,18 @@ Build a production-grade, single-file HTML application.
   To ensure the app works reliably in Mainland China and on poor networks, you MUST follow these rules:
 
   1. **NO external image services by default**
-    - ❌ STRICTLY FORBIDDEN: Unsplash, Pexels, Pixabay, Lorem Picsum, placeholder.com, or ANY foreign image API.
+    - ❌ STRICTLY FORBIDDEN: Unsplash, Lorem Picsum, or other unstable foreign image APIs.
     - ❌ NEVER use URLs like: images.unsplash.com, source.unsplash.com, picsum.photos, loremflickr.com
     - ✅ Prefer: CSS gradients, inline SVG placeholders, or embedded data URIs.
     - ✅ If placeholder images are needed, use these China-friendly services:
       - https://placehold.co/600x400 (simple placeholder with size)
       - https://dummyimage.com/600x400/cccccc/666666 (customizable placeholder)
       - https://fakeimg.pl/600x400 (fast fake image service)
-    - ✅ If real images are required, use China-friendly object storage/CDN:
-      - Aliyun OSS, Tencent COS, Qiniu, Upyun, Huawei OBS
+    - ✅ If real images are required, use China-stable image services:
+      - Pexels (images.pexels.com) - stable in China, free CC0
+      - Pixabay (pixabay.com) - vectors and illustrations, stable in China
+      - 摄图网/包图网 (国内最优) - Chinese stock photos, best for local content
+      - Aliyun OSS, Tencent COS, Qiniu - for self-hosted images
     - If the user explicitly provides an image URL, you may use it.
 
   2. **Icons: inline SVG only (no icon-font CDNs)**
@@ -460,7 +466,7 @@ const resetGame = () => { localStorage.removeItem(STORAGE_KEY); setState(default
 1. Output ONLY raw HTML. No Markdown blocks.
 2. NO \`import\` or \`require\`. Destructure \`React\` globals (e.g., \`const { useState } = React;\`).
 3. NO Google Fonts. Use system fonts only.
-4. Avoid remote images by default. Prefer CSS/inline SVG/data URIs. If remote is required, use https:// and user-provided or self-hosted URLs. NEVER use Unsplash, Pexels, Pixabay, picsum.photos, or other foreign image services.
+4. Avoid remote images by default. Prefer CSS/inline SVG/data URIs. If remote is required, use https:// and user-provided URLs. NEVER use Unsplash or picsum.photos. OK to use: Pexels, Pixabay, placehold.co, dummyimage.com.
 5. Responsive design: use CSS media queries and layout primitives (flex/grid). Do NOT rely on Tailwind.
 6. **Sounds**: Do NOT use external MP3 links (often 403/slow). Use Base64 data URIs for short sounds or avoid them.
 
@@ -468,7 +474,7 @@ const resetGame = () => { localStorage.removeItem(STORAGE_KEY); setState(default
 1. **Single File**: Output ONLY a single valid HTML file. No Markdown.
 2. **Imports**: NO \`import\` statements. Use global variables (React, ReactDOM).
 3. **Icons**: Use inline SVG only.
-4. **Images**: Prefer inline SVG/data URIs/CSS. If remote, use ABSOLUTE https:// URLs only. ❌ NEVER use Unsplash, Pexels, Pixabay, picsum.photos, or other foreign image services. ✅ Use placehold.co, dummyimage.com, or fakeimg.pl for placeholders.
+4. **Images**: Prefer inline SVG/data URIs/CSS. If remote, use ABSOLUTE https:// URLs only. ❌ NEVER use Unsplash or picsum.photos. ✅ OK to use: Pexels, Pixabay, placehold.co, dummyimage.com, fakeimg.pl.
 5. **Styling**: Use plain CSS in <style>. No external CSS frameworks.
 6. **Fonts**: ❌ STRICTLY FORBIDDEN: Google Fonts or any external font services. USE SYSTEM FONTS ONLY.
 6. **Emoji**: DO NOT use Python-style unicode escapes (e.g., \\U0001F440). Use direct Emoji characters or ES6 unicode escapes (e.g., \\u{1F440}).
