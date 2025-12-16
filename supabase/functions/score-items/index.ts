@@ -79,17 +79,9 @@ serve(async (req) => {
 
     const results = [];
 
-    // 3. 使用 Gemini 2.0 Flash 分析每个项目
-    // 优化：使用 Gemini 2.0 Flash 以获得高速度和大上下文窗口
-    // 这允许我们分析完整的代码文件而无需截断，确保最高精度
-    for (const item of items) {
-      try {
-        console.log(`正在分析项目 ${item.id}...`);
-        
-        // Gemini 2.0 Flash 无需截断！
-        const fullCode = item.content || ''; 
-        
-        const systemPrompt = `You are an Elite Product Quality Auditor combining expertise in:
+    // 🆕 缓存优化：将 System Prompt 提取到循环外，确保 Gemini 隐式缓存可以复用
+    // System Prompt 约 ~2500 tokens，满足 Gemini Flash 的 1024 tokens 最低缓存要求
+    const SYSTEM_PROMPT = `You are an Elite Product Quality Auditor combining expertise in:
 - Senior Frontend Engineer (15+ years React/Vue/Angular)
 - UX Designer (Apple Human Interface Guidelines certified)
 - Product Manager (shipped 50+ successful apps)
@@ -290,6 +282,16 @@ Return ONLY a valid JSON object:
 - All three scores within 5 points of each other (Unlikely for real apps)
 - Scores clustered at 75 for everything (Use full range)`;
 
+    console.log(`[CacheOptimization] System Prompt length: ${SYSTEM_PROMPT.length} chars (~${Math.round(SYSTEM_PROMPT.length / 4)} tokens)`);
+
+    // 3. 使用 Gemini 2.0 Flash 分析每个项目
+    for (const item of items) {
+      try {
+        console.log(`正在分析项目 ${item.id}...`);
+        
+        // Gemini 2.0 Flash 无需截断！
+        const fullCode = item.content || ''; 
+
         const userPrompt = `## 📱 APPLICATION TO ANALYZE
 
 **Title:** ${item.title || 'Untitled'}
@@ -327,7 +329,7 @@ Be fair, be specific, be comparative.`;
               body: JSON.stringify({
                 model: 'gemini-2.0-flash-exp',
                 messages: [
-                  { role: 'system', content: systemPrompt },
+                  { role: 'system', content: SYSTEM_PROMPT },
                   { role: 'user', content: userPrompt }
                 ],
                 temperature: 0.2,
