@@ -1180,24 +1180,51 @@ function UploadContent() {
       console.log('🔍 [Duplicate Check] Hash Match Found:', existing ? 'YES' : 'NO', existing?.id, '(matches:', existingItems?.length || 0, ', isEditing:', isEditing, 'editId:', editId, 'isUpdating:', isUpdating, 'updateId:', updateId, ')');
 
       if (existing) {
-        // Get the matched item's title
-        const { data: matchedItem } = await supabase
-          .from('items')
-          .select('title')
-          .eq('id', existing.id)
-          .single();
-        
-        console.log('🔍 [Duplicate Check] Hash Match Found - Restricting to Private');
-        setIsCheckingDuplicate(false);
-        
-        return { 
-          passed: true, 
-          isDuplicate: true,
-          duplicateType: 'hash',
-          isSelf: existing.author_id === session.user.id,
-          matchedItemId: existing.id,
-          matchedTitle: matchedItem?.title
-        }; 
+        // 🆕 If editing/updating own work, skip hash duplicate check for own items
+        if ((isEditing && editId) || (isUpdating && updateId)) {
+          if (existing.author_id === session.user.id) {
+            console.log('🔍 [Duplicate Check] Hash matches own work - skipping');
+            // Continue to vector check, don't flag as duplicate
+          } else {
+            // Hash matches someone else's work
+            const { data: matchedItem } = await supabase
+              .from('items')
+              .select('title')
+              .eq('id', existing.id)
+              .single();
+            
+            console.log('🔍 [Duplicate Check] Hash Match Found (other user) - Restricting to Private');
+            setIsCheckingDuplicate(false);
+            
+            return { 
+              passed: true, 
+              isDuplicate: true,
+              duplicateType: 'hash',
+              isSelf: false,
+              matchedItemId: existing.id,
+              matchedTitle: matchedItem?.title
+            };
+          }
+        } else {
+          // Not editing - normal duplicate check
+          const { data: matchedItem } = await supabase
+            .from('items')
+            .select('title')
+            .eq('id', existing.id)
+            .single();
+          
+          console.log('🔍 [Duplicate Check] Hash Match Found - Restricting to Private');
+          setIsCheckingDuplicate(false);
+          
+          return { 
+            passed: true, 
+            isDuplicate: true,
+            duplicateType: 'hash',
+            isSelf: existing.author_id === session.user.id,
+            matchedItemId: existing.id,
+            matchedTitle: matchedItem?.title
+          };
+        }
       }
 
       // 2. Vector Check (Slower, but required early)
@@ -1261,12 +1288,24 @@ function UploadContent() {
               }
 
               const filteredItems = similarItems.filter((item: any) => {
-                // 1. Exclude current item
+                // 1. Exclude current item being edited/updated
                 if ((isEditing && editId) || (isUpdating && updateId)) {
                    if (String(item.id) === String(excludeId)) return false;
                 }
                 // 2. Only include public items
-                return publicCandidatesMap.has(item.id);
+                if (!publicCandidatesMap.has(item.id)) return false;
+                
+                // 3. 🆕 If editing/updating, also exclude OTHER works by the same author
+                // This allows users to freely edit their own works without duplicate detection
+                if ((isEditing && editId) || (isUpdating && updateId)) {
+                   const candidate = publicCandidatesMap.get(item.id);
+                   if (candidate && candidate.author_id === session.user.id) {
+                     console.log('🔍 [Duplicate Check] Skipping own work:', item.id);
+                     return false;
+                   }
+                }
+                
+                return true;
               });
               
               console.log('🔍 [Duplicate Check] Filtered items count:', filteredItems.length, '(original:', similarItems.length, ')');
