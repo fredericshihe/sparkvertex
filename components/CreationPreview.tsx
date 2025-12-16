@@ -38,6 +38,11 @@ interface CreationPreviewProps {
   setPreviewMode: (mode: 'desktop' | 'tablet' | 'mobile') => void;
   handleMobilePreview: () => void;
   toggleEditMode: () => void;
+  // 🆕 Zoom Controls
+  handleZoomIn: () => void;
+  handleZoomOut: () => void;
+  handleResetZoom: () => void;
+  isManualScale: boolean;
   step: string;
   isGenerating: boolean;
   showEditModal: boolean;
@@ -125,6 +130,10 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
   setPreviewMode,
   handleMobilePreview,
   toggleEditMode,
+  handleZoomIn,
+  handleZoomOut,
+  handleResetZoom,
+  isManualScale,
   step,
   isGenerating,
   showEditModal,
@@ -507,6 +516,37 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
               <button onClick={() => setPreviewMode('tablet')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'tablet' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.tablet}><i className="fa-solid fa-tablet-screen-button text-xs lg:text-sm"></i></button>
               <button onClick={() => setPreviewMode('mobile')} className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full flex items-center justify-center transition ${previewMode === 'mobile' ? 'bg-white/20 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/10'}`} title={t.devices.mobile}><i className="fa-solid fa-mobile-screen text-xs lg:text-sm"></i></button>
             </div>
+
+            {/* 🆕 Zoom Controls - only show for mobile/tablet modes */}
+            {previewMode !== 'desktop' && (
+              <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-full p-1.5 flex items-center shadow-2xl ring-1 ring-white/5">
+                <button 
+                  onClick={handleZoomOut} 
+                  className="w-8 h-8 lg:w-9 lg:h-9 rounded-full flex items-center justify-center transition text-slate-400 hover:text-white hover:bg-white/10"
+                  title={language === 'zh' ? '缩小' : 'Zoom Out'}
+                >
+                  <i className="fa-solid fa-minus text-xs"></i>
+                </button>
+                <button
+                  onClick={handleResetZoom}
+                  className={`px-2 h-8 lg:h-9 rounded-full flex items-center justify-center transition text-xs font-mono ${
+                    isManualScale 
+                      ? 'text-brand-400 hover:text-brand-300 hover:bg-white/10' 
+                      : 'text-slate-500'
+                  }`}
+                  title={language === 'zh' ? '恢复默认' : 'Reset Zoom'}
+                >
+                  {Math.round(previewScale * 100)}%
+                </button>
+                <button 
+                  onClick={handleZoomIn} 
+                  className="w-8 h-8 lg:w-9 lg:h-9 rounded-full flex items-center justify-center transition text-slate-400 hover:text-white hover:bg-white/10"
+                  title={language === 'zh' ? '放大' : 'Zoom In'}
+                >
+                  <i className="fa-solid fa-plus text-xs"></i>
+                </button>
+              </div>
+            )}
 
             <div className="w-px h-8 bg-white/10 mx-1"></div>
 

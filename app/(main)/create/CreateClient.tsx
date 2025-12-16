@@ -278,6 +278,8 @@ function CreateContent() {
   
   // State: Preview Scaling
   const [previewScale, setPreviewScale] = useState(0.65); // 🔧 Default to a reasonable mobile scale
+  const [defaultPreviewScale, setDefaultPreviewScale] = useState(0.65); // 🔧 Store the auto-calculated default
+  const [isManualScale, setIsManualScale] = useState(false); // 🔧 Flag for manual zoom mode
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
   const [promptLengthForLog, setPromptLengthForLog] = useState(0);
@@ -489,7 +491,8 @@ function CreateContent() {
 
     const updateScale = () => {
       if (!previewContainerRef.current || previewMode === 'desktop') {
-        setPreviewScale(1);
+        setDefaultPreviewScale(1);
+        if (!isManualScale) setPreviewScale(1);
         return;
       }
 
@@ -512,13 +515,17 @@ function CreateContent() {
       const scaleW = availableW / targetW;
       const scaleH = availableH / targetH;
       
-      // 🔧 Ensure scale is positive and within reasonable bounds (0.3 to 1)
+      // 🔧 Ensure scale is positive and within reasonable bounds (0.3 to 1.5)
       const rawScale = Math.min(scaleW, scaleH, 1);
       const newScale = Math.max(0.3, Math.min(rawScale, 1));
       
       // 🔧 Only update if the new scale is valid
       if (isFinite(newScale) && newScale > 0) {
-        setPreviewScale(newScale);
+        setDefaultPreviewScale(newScale);
+        // Only auto-update if not in manual zoom mode
+        if (!isManualScale) {
+          setPreviewScale(newScale);
+        }
       }
     };
 
@@ -538,7 +545,7 @@ function CreateContent() {
       window.removeEventListener('resize', updateScale);
       resizeObserver?.disconnect();
     };
-  }, [step, previewMode, isFullscreen]);
+  }, [step, previewMode, isFullscreen, isManualScale]);
 
   useEffect(() => {
     if (codeScrollRef.current) {
@@ -3895,6 +3902,22 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
     });
   };
 
+  // 🆕 Preview Zoom Controls
+  const handleZoomIn = () => {
+    setIsManualScale(true);
+    setPreviewScale(prev => Math.min(prev + 0.1, 1.5));
+  };
+
+  const handleZoomOut = () => {
+    setIsManualScale(true);
+    setPreviewScale(prev => Math.max(prev - 0.1, 0.2));
+  };
+
+  const handleResetZoom = () => {
+    setIsManualScale(false);
+    setPreviewScale(defaultPreviewScale);
+  };
+
   const toggleEditMode = () => {
     const newMode = !isEditMode;
     setIsEditMode(newMode);
@@ -5893,6 +5916,10 @@ Please fix the code to make the app display properly.`;
           handleGenerateAiImage={handleGenerateAiImage}
           handleApplyAiImage={handleApplyAiImage}
           credits={credits}
+          handleZoomIn={handleZoomIn}
+          handleZoomOut={handleZoomOut}
+          handleResetZoom={handleResetZoom}
+          isManualScale={isManualScale}
         />
       
       {renderHistoryModal()}
