@@ -778,6 +778,8 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) handleImageUpload(file);
+                          // Allow re-selecting the same file to trigger onChange again.
+                          e.currentTarget.value = '';
                         }}
                       />
                     </label>
