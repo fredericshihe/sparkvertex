@@ -5,15 +5,8 @@ import { useModal } from '@/context/ModalContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/context/ToastContext';
 import { X, Check, Sparkles } from 'lucide-react';
-import { CREDIT_PACKAGES } from '@/lib/paddle';
+import { CREDIT_PACKAGES } from '@/lib/alipay-config';
 import { supabase } from '@/lib/supabase';
-
-// Paddle global type
-declare global {
-  interface Window {
-    Paddle: any;
-  }
-}
 
 // Define packages outside component to avoid recreation
 const PACKAGES = CREDIT_PACKAGES;
@@ -54,39 +47,47 @@ export default function CreditPurchaseModal() {
         return;
       }
 
-      // 2. 检查 Paddle.js 是否已加载
-      if (typeof window === 'undefined' || !window.Paddle) {
-        if (warning) warning('支付系统加载中，请稍后重试');
+      // 2. 调用支付宝支付接口
+      const response = await fetch('/api/payment/alipay/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          packageId: selectedPackage.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success || !data.paymentUrl) {
+        if (warning) warning(data.error || '创建支付订单失败');
         setIsProcessing(false);
         return;
       }
 
-      // 3. 打开 Paddle Checkout
-      console.log('[Paddle] Opening checkout with priceId:', selectedPackage.priceId);
-      
-      window.Paddle.Checkout.open({
-        items: [{ priceId: selectedPackage.priceId, quantity: 1 }],
-        customData: {
-          user_id: user.id,
-        },
-        settings: {
-          displayMode: 'overlay',
-          theme: 'dark',
-          locale: 'zh-Hans',
-        },
-      });
+      console.log('[Alipay] Redirecting to payment:', data.paymentUrl);
 
-      // 关闭弹窗，Paddle overlay 会接管
-      closeCreditPurchaseModal();
+      // 3. 跳转到支付宝支付页面
+      if (isMobile) {
+        // 移动端：当前页跳转
+        window.location.href = data.paymentUrl;
+      } else {
+        // PC端：新标签页打开
+        window.open(data.paymentUrl, '_blank');
+        setStep('pay');
+        
+        // 保存支付时间用于后续查询
+        localStorage.setItem('pending_payment_time', Date.now().toString());
+        localStorage.setItem('pending_order_id', data.orderId);
+      }
       
     } catch (error) {
       console.error('[Payment] Error:', error);
       if (warning) warning('支付请求失败');
-    } finally {
       setIsProcessing(false);
-      setStep('select');
     }
-  }, [selectedPackage, warning, isProcessing, success, closeCreditPurchaseModal]);
+  }, [selectedPackage, warning, isProcessing, isMobile]);
 
   // 移除轮询逻辑，因为 Lemon Squeezy 使用 Webhook
   
