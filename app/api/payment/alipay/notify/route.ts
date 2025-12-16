@@ -20,28 +20,54 @@ const logger = createLogger('AlipayNotify');
  */
 export async function POST(req: NextRequest) {
   try {
-    // 获取所有 POST 参数
-    const formData = await req.formData();
-    const params: Record<string, string> = {};
+    // 获取所有 POST 参数 - 支持 form-urlencoded 和 formData
+    let params: Record<string, string> = {};
     
-    formData.forEach((value, key) => {
-      params[key] = value.toString();
-    });
+    const contentType = req.headers.get('content-type') || '';
+    
+    if (contentType.includes('application/x-www-form-urlencoded')) {
+      // 处理 URL 编码的表单数据
+      const text = await req.text();
+      const searchParams = new URLSearchParams(text);
+      searchParams.forEach((value, key) => {
+        params[key] = value;
+      });
+    } else {
+      // 处理 multipart/form-data
+      const formData = await req.formData();
+      formData.forEach((value, key) => {
+        params[key] = value.toString();
+      });
+    }
 
     logger.info('收到支付宝通知:', {
       out_trade_no: params.out_trade_no,
       trade_status: params.trade_status,
       total_amount: params.total_amount,
+      sign_type: params.sign_type,
+      has_sign: !!params.sign,
     });
 
-    // 1. 验证签名
+    // 1. 验证签名 - 使用 checkNotifySignV2 更可靠
     const alipay = getAlipaySdk();
-    const isValid = alipay.checkNotifySign(params);
-
-    if (!isValid) {
-      logger.error('签名验证失败');
+    
+    // 检查必要的签名参数
+    if (!params.sign) {
+      logger.error('缺少签名参数');
       return new NextResponse('fail', { status: 400 });
     }
+    
+    const isValid = alipay.checkNotifySignV2(params);
+
+    if (!isValid) {
+      logger.error('签名验证失败', {
+        sign_type: params.sign_type,
+        sign_length: params.sign?.length,
+      });
+      return new NextResponse('fail', { status: 400 });
+    }
+    
+    logger.info('签名验证成功');
 
     // 2. 提取关键参数
     const {
