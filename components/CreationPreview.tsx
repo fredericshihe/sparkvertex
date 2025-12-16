@@ -317,7 +317,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
         {/* Preview Container */}
         <div 
           ref={previewContainerRef}
-          className="flex-1 relative overflow-hidden flex items-center justify-center bg-[url('/grid.svg')] bg-center pb-16 lg:pb-0"
+          className="flex-1 relative overflow-hidden flex items-start justify-center bg-[url('/grid.svg')] bg-center pt-4 pb-24 lg:pb-0"
         >
           {/* Quick Edit History Panel - Right side of preview (persistent, collapsible) */}
           {quickEditHistory.length > 0 && (

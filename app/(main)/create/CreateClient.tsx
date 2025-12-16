@@ -505,9 +505,9 @@ function CreateContent() {
       const targetW = previewMode === 'mobile' ? 375 : 768;
       const targetH = previewMode === 'mobile' ? 812 : 1024;
       
-      // Available space (subtract padding)
+      // Available space (subtract padding and toolbar space)
       const availableW = containerW - 40;
-      const availableH = containerH - 120; 
+      const availableH = containerH - 180; // Increased for bottom toolbar 
 
       const scaleW = availableW / targetW;
       const scaleH = availableH / targetH;
