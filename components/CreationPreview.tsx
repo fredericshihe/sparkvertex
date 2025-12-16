@@ -224,6 +224,27 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
   // iframe 刷新 Key
   const [iframeKey, setIframeKey] = useState(0);
 
+  // 监听来自 iframe 的 Mock 拦截消息
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'SPARK_BACKEND_MOCKED_ACTION') {
+        openConfirmModal({
+          title: language === 'zh' ? '后端未配置' : 'Backend Not Configured',
+          message: language === 'zh' 
+            ? '检测到您正在尝试提交数据，但当前应用尚未配置有效的后端连接。是否立即配置？' 
+            : 'You are trying to submit data, but the backend is not configured. Configure now?',
+          confirmText: language === 'zh' ? '立即配置' : 'Configure Now',
+          onConfirm: () => {
+            setShowBackendExplanation(true);
+          }
+        });
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [language]);
+
   // 检测是否已配置后端（使用统一的检测函数，支持多种模式）
   const hasBackend = detectSparkBackendCode(generatedCode);
 

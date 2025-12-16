@@ -81,6 +81,15 @@ export function detectSparkPlatformFeatures(htmlContent: string): boolean {
 export function detectSparkBackendCode(htmlContent: string): boolean {
   if (!htmlContent) return false;
   
+  // 🚫 If the code is explicitly mocked (Public Version), treat it as NO backend
+  // This ensures the "Inbox" button is hidden in CreationPreview
+  if (htmlContent.includes('<!-- PUBLIC VERSION: Backend requests are mocked') || 
+      htmlContent.includes('[Public Version] Backend request mocked') ||
+      htmlContent.includes("window.SPARK_APP_ID = 'public_demo'") ||
+      htmlContent.includes('window.SPARK_APP_ID = "public_demo"')) {
+    return false;
+  }
+
   // Check platform features first
   if (detectSparkPlatformFeatures(htmlContent)) return true;
   
@@ -147,6 +156,12 @@ export function removeSparkBackendCode(htmlContent: string): string {
         urlStr.includes('firebase') ||
         (options && options.method && options.method !== 'GET')) {
       console.log('[Public Version] Backend request mocked:', urlStr);
+      
+      // 🚀 Notify parent window about the mocked action
+      if (window.parent) {
+        window.parent.postMessage({ type: 'SPARK_BACKEND_MOCKED_ACTION' }, '*');
+      }
+
       return Promise.resolve({
         ok: true,
         status: 200,
