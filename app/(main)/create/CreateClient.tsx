@@ -4560,7 +4560,20 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
 
   // 🆕 Quick Edit: Apply image change directly to code
   const applyQuickImageEdit = async (newImageUrl: string) => {
-    if (!selectedElement || !generatedCode || !newImageUrl.trim()) return;
+    console.log('[applyQuickImageEdit] called with:', { 
+      newImageUrl: newImageUrl?.slice(0, 50),
+      hasSelectedElement: !!selectedElement,
+      hasGeneratedCode: !!generatedCode,
+      selectedElementImageSrc: selectedElement?.imageSrc?.slice(0, 50),
+      selectedElementBgImage: selectedElement?.backgroundImage?.slice(0, 50),
+    });
+    
+    if (!selectedElement || !generatedCode || !newImageUrl.trim()) {
+      const reason = !selectedElement ? '未选中元素' : !generatedCode ? '无生成代码' : '无新URL';
+      toastError(language === 'zh' ? `无法应用图片：${reason}` : `Cannot apply image: ${reason}`);
+      console.error('[applyQuickImageEdit] Early return:', { selectedElement, hasCode: !!generatedCode, newImageUrl });
+      return;
+    }
     
     const oldImageUrl = selectedElement.imageSrc || selectedElement.backgroundImage;
     if (!oldImageUrl) {
@@ -4753,6 +4766,21 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
   const handleImageUpload = async (file: File) => {
     if (!file) return;
     
+    // 🔑 Capture current selection before async operations
+    const capturedElement = selectedElement;
+    const capturedCode = generatedCode;
+    
+    console.log('[handleImageUpload] Start, capturedElement:', {
+      hasElement: !!capturedElement,
+      imageSrc: capturedElement?.imageSrc?.slice(0, 50),
+      bgImage: capturedElement?.backgroundImage?.slice(0, 50),
+    });
+    
+    if (!capturedElement || (!capturedElement.imageSrc && !capturedElement.backgroundImage)) {
+      toastError(language === 'zh' ? '请先选择要替换的图片元素' : 'Please select an image element first');
+      return;
+    }
+    
     setIsUploadingImage(true);
     
     try {
@@ -4818,8 +4846,141 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
           : prev
       );
 
-      // 4. Apply to code (add cache-busting)
-      await applyQuickImageEdit(`${publicUrl}?t=${Date.now()}`);
+      // 4. Apply to code using captured element (not current state)
+      const newImageUrl = `${publicUrl}?t=${Date.now()}`;
+      const oldImageUrl = capturedElement.imageSrc || capturedElement.backgroundImage;
+      
+      console.log('[handleImageUpload] Replacing image:', { oldImageUrl: oldImageUrl?.slice(0, 50), newImageUrl: newImageUrl?.slice(0, 50) });
+      
+      if (!oldImageUrl || !capturedCode) {
+        toastError(language === 'zh' ? '无法找到原图片URL' : 'Could not find original image URL');
+        return;
+      }
+      
+      // Escape special regex characters in URL
+      const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedOldUrl = escapeRegex(oldImageUrl);
+      
+      let updatedCode = capturedCode;
+      let replaced = false;
+      
+      // Pattern 1: <img src="...">
+      if (capturedElement.tagName?.toLowerCase() === 'img') {
+        const imgSrcPattern = new RegExp(`(src\\s*=\\s*["'])${escapedOldUrl}(["'])`, 'g');
+        if (imgSrcPattern.test(capturedCode)) {
+          updatedCode = capturedCode.replace(imgSrcPattern, `$1${newImageUrl}$2`);
+          replaced = true;
+        }
+        // Pattern 1b: src={...} JSX format
+        if (!replaced) {
+          const jsxSrcPattern = new RegExp(`(src\\s*=\\s*\\{\\s*["'\`])${escapedOldUrl}(["'\`]\\s*\\})`, 'g');
+          if (jsxSrcPattern.test(capturedCode)) {
+            updatedCode = capturedCode.replace(jsxSrcPattern, `$1${newImageUrl}$2`);
+            replaced = true;
+          }
+        }
+      }
+      
+      // Pattern 2: background-image: url(...)
+      if (!replaced && capturedElement.backgroundImage) {
+        const bgUrlPattern = new RegExp(`(background(?:-image)?\\s*:\\s*url\\s*\\(\\s*["']?)${escapedOldUrl}(["']?\\s*\\))`, 'gi');
+        if (bgUrlPattern.test(capturedCode)) {
+          updatedCode = capturedCode.replace(bgUrlPattern, `$1${newImageUrl}$2`);
+          replaced = true;
+        }
+        // Pattern 2b: Tailwind arbitrary bg class
+        if (!replaced) {
+          const tailwindBgPattern = new RegExp(`(bg-\\[url\\(["']?)${escapedOldUrl}(["']?\\)\\])`, 'g');
+          if (tailwindBgPattern.test(capturedCode)) {
+            updatedCode = capturedCode.replace(tailwindBgPattern, `$1${newImageUrl}$2`);
+            replaced = true;
+          }
+        }
+        // Pattern 2c: backgroundImage in style object
+        if (!replaced) {
+          const styleObjPattern = new RegExp(`(backgroundImage\\s*:\\s*["'\`]url\\(["']?)${escapedOldUrl}(["']?\\)["'\`])`, 'g');
+          if (styleObjPattern.test(capturedCode)) {
+            updatedCode = capturedCode.replace(styleObjPattern, `$1${newImageUrl}$2`);
+            replaced = true;
+          }
+        }
+      }
+      
+      if (!replaced) {
+        // Fallback: try generic string replacement
+        if (capturedCode.includes(oldImageUrl)) {
+          updatedCode = capturedCode.replace(new RegExp(escapedOldUrl, 'g'), newImageUrl);
+          replaced = true;
+          console.log('[handleImageUpload] Used fallback string replacement');
+        }
+      }
+      
+      if (!replaced) {
+        toastError(language === 'zh' ? '⚠️ 无法在代码中找到该图片URL，请尝试使用 AI 修改' : '⚠️ Could not find image URL in code, try AI edit instead');
+        return;
+      }
+      
+      // Validate result
+      if (!updatedCode || updatedCode.length < 100) {
+        console.error('Image replacement resulted in empty or invalid code');
+        return;
+      }
+      
+      // Save to code history
+      setCodeHistory(prev => [...prev, {
+        code: capturedCode,
+        prompt: language === 'zh' ? '更换图片前' : 'Before image change',
+        timestamp: Date.now(),
+        type: 'click'
+      }]);
+      
+      // Save to quick edit history
+      setRuntimeError(null);
+      const shortUrl = newImageUrl.length > 30 ? '...' + newImageUrl.slice(-30) : newImageUrl;
+      const description = language === 'zh' ? `图片: ${shortUrl}` : `Image: ${shortUrl}`;
+      const isFirstEdit = quickEditHistory.length === 0;
+      const currentLength = quickEditHistory.length;
+      const effectiveIndex = quickEditHistoryIndex;
+      
+      if (isFirstEdit) {
+        setQuickEditHistory([
+          { code: capturedCode, description: language === 'zh' ? '初始状态' : 'Initial state' },
+          { code: updatedCode, description }
+        ]);
+        setQuickEditHistoryIndex(1);
+      } else {
+        setQuickEditHistory(prev => {
+          const newHistory = effectiveIndex >= 0 && effectiveIndex < prev.length - 1
+            ? prev.slice(0, effectiveIndex + 1) 
+            : prev;
+          return [...newHistory, { code: updatedCode, description }];
+        });
+        const willTruncate = effectiveIndex >= 0 && effectiveIndex < currentLength - 1;
+        const newLength = willTruncate ? effectiveIndex + 2 : currentLength + 1;
+        setQuickEditHistoryIndex(newLength - 1);
+      }
+      
+      // Apply changes
+      setGeneratedCode(updatedCode);
+      setStreamingCode(updatedCode);
+      setShowEditModal(false);
+      setQuickEditMode('none');
+      setSelectedElement(null);
+      setQuickEditImageUrl('');
+      
+      // Update iframe
+      if (iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage({ 
+          type: 'spark-update-content', 
+          html: updatedCode,
+          shouldRestoreEditMode: false
+        }, '*');
+        
+        setIsEditMode(false);
+        iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: false }, '*');
+      }
+      
+      toastSuccess(language === 'zh' ? '图片已上传并替换成功！' : 'Image uploaded and replaced!');
       
     } catch (error: any) {
       console.error('Image upload failed:', error);
