@@ -62,16 +62,17 @@ serve(async (req: Request) => {
         const deviceName = device === 'mobile' ? (isZh ? '移动端' : 'mobile') : (isZh ? '桌面端' : 'desktop');
         const categoryName = getCategoryName(category, isZh);
         
-        // 根据设备类型设置尺寸规格
+        // 根据设备类型设置尺寸规格（限制最大 1024 像素）
         const sizeSpec = device === 'mobile' 
-            ? (isZh ? '竖屏手机界面 (宽高比 9:16，如 390x844 像素)' : 'vertical phone screen (aspect ratio 9:16, like 390x844 pixels)')
-            : (isZh ? '横屏桌面界面 (宽高比 16:9，如 1920x1080 像素)' : 'horizontal desktop screen (aspect ratio 16:9, like 1920x1080 pixels)');
+            ? (isZh ? '竖屏手机界面 (宽高比 9:16，最大尺寸 576x1024 像素)' : 'vertical phone screen (aspect ratio 9:16, max size 576x1024 pixels)')
+            : (isZh ? '横屏桌面界面 (宽高比 16:9，最大尺寸 1024x576 像素)' : 'horizontal desktop screen (aspect ratio 16:9, max size 1024x576 pixels)');
 
         const systemPrompt = isZh
             ? `你是一个专业的 UI/UX 设计师。请根据用户描述生成一个现代、美观的 ${deviceName} 应用原型图。
 
 ⚠️ 尺寸要求（必须严格遵守）：
 - 生成 ${sizeSpec}
+- 图片的宽度和高度都不得超过 1024 像素
 - ${device === 'mobile' ? '必须是竖向/纵向的手机屏幕比例，不要生成横向图片' : '必须是横向的宽屏桌面比例，不要生成竖向图片'}
 
 设计要求：
@@ -87,6 +88,7 @@ ${style ? `- 设计风格: ${style}` : ''}
 
 ⚠️ SIZE REQUIREMENTS (MUST STRICTLY FOLLOW):
 - Generate ${sizeSpec}
+- Image width and height MUST NOT exceed 1024 pixels
 - ${device === 'mobile' ? 'MUST be a vertical/portrait phone screen ratio, do NOT generate horizontal images' : 'MUST be a horizontal/landscape desktop ratio, do NOT generate vertical images'}
 
 Design Requirements:
