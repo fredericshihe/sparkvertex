@@ -230,15 +230,6 @@ const nextConfig = {
       }
     ];
   },
-  // 允许局域网设备访问开发服务器 (dev only)
-  allowedDevOrigins: (() => {
-    const ports = [3000, 3001, 3002, 3003, 3004, 3005];
-    const base = ports.flatMap((p) => [`http://localhost:${p}`, `http://0.0.0.0:${p}`]);
-    if (process.env.NODE_ENV !== 'development') return uniq(base);
-    const lanIps = getLanIPv4s();
-    const lan = lanIps.flatMap((ip) => ports.map((p) => `http://${ip}:${p}`));
-    return uniq([...base, ...lan]);
-  })(),
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
     serverActions: {
