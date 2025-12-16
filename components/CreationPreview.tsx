@@ -589,8 +589,8 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                   {!hasBackend && <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-yellow-500 rounded-full border-2 border-black"></span>}
               </button>
 
-              {/* Backend Data Button - Hidden for public works */}
-              {hasBackend && !isPublicWork && (
+              {/* Backend Data Button - Always show if backend is enabled, even for public works (for testing) */}
+              {hasBackend && (
                 <button 
                     onClick={() => setShowBackendPanel(true)}
                     className="w-10 h-10 rounded-xl bg-black/90 backdrop-blur-md border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition hover:bg-white/10 shadow-xl group relative ring-1 ring-white/5" 

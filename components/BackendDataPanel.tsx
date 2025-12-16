@@ -168,6 +168,8 @@ export default function BackendDataPanel({
   const [appsLoading, setAppsLoading] = useState(false);
   
   // 计算实际使用的 app_id
+  // 在测试模式下，如果传入了 appId (通常是 sessionDraftId)，优先使用它
+  // 如果没有 appId，回退到 draft_{userId}
   const effectiveAppId = mode === 'production' 
     ? selectedAppId 
     : (appId || (userId ? `draft_${userId}` : null));
@@ -960,6 +962,41 @@ export default function BackendDataPanel({
                     {selectedAppId === app.id && <ChevronRight size={14} className="opacity-50" />}
                   </button>
                 ))
+              )}
+            </div>
+
+            {/* Storage Policy Section */}
+            <div className="p-4 border-t border-zinc-800 bg-zinc-900/30">
+              <div className="flex items-center gap-2 mb-2">
+                <div className={`w-2 h-2 rounded-full ${hasPermanentStorage ? 'bg-emerald-400' : 'bg-amber-400'}`}></div>
+                <span className="text-xs font-bold text-slate-300">
+                  {hasPermanentStorage ? t.permanentStorage : t.storagePolicy}
+                </span>
+              </div>
+              
+              {!hasPermanentStorage ? (
+                <>
+                  <p className="text-[10px] text-slate-500 mb-3 leading-relaxed">
+                    {t.storagePolicyDesc}
+                  </p>
+                  <button
+                    onClick={handleUpgradeStorage}
+                    disabled={upgrading}
+                    className="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-xs font-bold rounded-lg shadow-lg shadow-orange-500/20 transition flex items-center justify-center gap-2"
+                  >
+                    {upgrading ? (
+                      <i className="fa-solid fa-circle-notch fa-spin"></i>
+                    ) : (
+                      <i className="fa-solid fa-crown"></i>
+                    )}
+                    {t.upgradeStorage}
+                  </button>
+                </>
+              ) : (
+                <div className="flex items-center gap-2 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-1.5 rounded-lg border border-emerald-500/20">
+                  <CheckCircle size={12} />
+                  <span>{t.upgradeSuccess}</span>
+                </div>
               )}
             </div>
           </div>
