@@ -3905,7 +3905,7 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
   // 🆕 Preview Zoom Controls
   const handleZoomIn = () => {
     setIsManualScale(true);
-    setPreviewScale(prev => Math.min(prev + 0.1, 1.5));
+    setPreviewScale(prev => Math.min(prev + 0.1, 1.0));
   };
 
   const handleZoomOut = () => {
