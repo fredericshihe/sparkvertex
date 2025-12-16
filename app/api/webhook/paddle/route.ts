@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { createSafeClient } from '@/lib/supabase-server-safe';
+import { supabaseAdmin } from '@/lib/supabase-server-safe';
 import { PRICE_CREDITS_MAP, PADDLE_CONFIG } from '@/lib/paddle';
 
 export const dynamic = 'force-dynamic';
@@ -15,8 +15,6 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: NextRequest) {
   try {
-    const supabaseAdmin = createSafeClient();
-
     // 1. 获取请求体和签名
     const rawBody = await req.text();
     const signature = req.headers.get('paddle-signature');
@@ -45,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     // 4. 处理事件
     if (event.event_type === 'transaction.completed' || event.event_type === 'transaction.paid') {
-      return await handleTransactionCompleted(event, supabaseAdmin);
+      return await handleTransactionCompleted(event);
     }
 
     // 其他事件直接返回成功
@@ -98,7 +96,7 @@ function verifyPaddleSignature(rawBody: string, signature: string, secret: strin
 /**
  * 处理交易完成事件
  */
-async function handleTransactionCompleted(event: any, supabaseAdmin: ReturnType<typeof createSafeClient>): Promise<NextResponse> {
+async function handleTransactionCompleted(event: any): Promise<NextResponse> {
   const data = event.data;
   const transactionId = data.id;
   const customData = data.custom_data || {};

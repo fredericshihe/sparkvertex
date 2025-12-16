@@ -856,9 +856,7 @@ export const getPreviewContent = (content: string | null, options?: {
           var imageSrc = null;
           var backgroundImage = null;
           if (el.tagName.toLowerCase() === 'img') {
-            // Prefer the original attribute value (often matches the source code)
-            // Fallback to resolved absolute URL if attribute is missing.
-            imageSrc = el.getAttribute('src') || el.src;
+            imageSrc = el.src || el.getAttribute('src');
           }
           // 检测背景图片（inline style 或 computed style）
           var computedStyle = window.getComputedStyle(el);

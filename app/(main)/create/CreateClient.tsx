@@ -4570,85 +4570,52 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
     
     let updatedCode = generatedCode;
     let replaced = false;
-
+    
     // Escape special regex characters in URL
     const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-    // The value we read from the DOM can be an absolute URL even if the source code uses a relative URL.
-    // Build a small set of candidate "old" URLs to improve match rate.
-    const buildOldUrlCandidates = (raw: string): string[] => {
-      const candidates: string[] = [raw];
-
-      // Strip query/hash (common when the DOM has cache-busting but the source doesn't, or vice versa)
-      const withoutHash = raw.split('#')[0];
-      const withoutQuery = withoutHash.split('?')[0];
-      if (withoutHash && withoutHash !== raw) candidates.push(withoutHash);
-      if (withoutQuery && withoutQuery !== withoutHash) candidates.push(withoutQuery);
-
-      // If it's a same-origin absolute URL, also try pathname-based variants
-      try {
-        const url = new URL(raw);
-        if (typeof window !== 'undefined' && url.origin === window.location.origin) {
-          candidates.push(url.pathname);
-          candidates.push(url.pathname + url.search);
-          candidates.push(url.pathname + url.search + url.hash);
-        }
-      } catch {
-        // ignore
+    const escapedOldUrl = escapeRegex(oldImageUrl);
+    
+    // Pattern 1: <img src="...">
+    if (selectedElement.tagName.toLowerCase() === 'img') {
+      const imgSrcPattern = new RegExp(`(src\\s*=\\s*["'])${escapedOldUrl}(["'])`, 'g');
+      if (imgSrcPattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(imgSrcPattern, `$1${newImageUrl}$2`);
+        replaced = true;
       }
-
-      // Dedupe + filter empties
-      return Array.from(new Set(candidates.map((c) => c.trim()).filter(Boolean)));
-    };
-
-    const oldUrlCandidates = buildOldUrlCandidates(oldImageUrl);
-    const tagName = selectedElement.tagName.toLowerCase();
-
-    for (const candidateOldUrl of oldUrlCandidates) {
-      if (replaced) break;
-      const escapedOldUrl = escapeRegex(candidateOldUrl);
-
-      // Pattern 1: <img src="...">
-      if (tagName === 'img') {
-        const imgSrcPattern = new RegExp(`(src\\s*=\\s*["'])${escapedOldUrl}(["'])`, 'g');
-        if (imgSrcPattern.test(updatedCode)) {
-          updatedCode = updatedCode.replace(imgSrcPattern, `$1${newImageUrl}$2`);
-          replaced = true;
-          break;
-        }
-
-        // Pattern 1b: src={...} JSX format
+      
+      // Pattern 1b: src={...} JSX format
+      if (!replaced) {
         const jsxSrcPattern = new RegExp(`(src\\s*=\\s*\\{\\s*["'\`])${escapedOldUrl}(["'\`]\\s*\\})`, 'g');
-        if (jsxSrcPattern.test(updatedCode)) {
-          updatedCode = updatedCode.replace(jsxSrcPattern, `$1${newImageUrl}$2`);
+        if (jsxSrcPattern.test(generatedCode)) {
+          updatedCode = generatedCode.replace(jsxSrcPattern, `$1${newImageUrl}$2`);
           replaced = true;
-          break;
         }
       }
-
-      // Pattern 2: background-image: url(...)
-      if (selectedElement.backgroundImage) {
-        const bgUrlPattern = new RegExp(`(background(?:-image)?\\s*:\\s*url\\s*\\(\\s*["']?)${escapedOldUrl}(["']?\\s*\\))`, 'gi');
-        if (bgUrlPattern.test(updatedCode)) {
-          updatedCode = updatedCode.replace(bgUrlPattern, `$1${newImageUrl}$2`);
-          replaced = true;
-          break;
-        }
-
-        // Pattern 2b: Tailwind arbitrary background-image url class
+    }
+    
+    // Pattern 2: background-image: url(...)
+    if (!replaced && selectedElement.backgroundImage) {
+      const bgUrlPattern = new RegExp(`(background(?:-image)?\\s*:\\s*url\\s*\\(\\s*["']?)${escapedOldUrl}(["']?\\s*\\))`, 'gi');
+      if (bgUrlPattern.test(generatedCode)) {
+        updatedCode = generatedCode.replace(bgUrlPattern, `$1${newImageUrl}$2`);
+        replaced = true;
+      }
+      
+      // Pattern 2b: Tailwind arbitrary background-image url class
+      if (!replaced) {
         const tailwindBgPattern = new RegExp(`(bg-\\[url\\(["']?)${escapedOldUrl}(["']?\\)\\])`, 'g');
-        if (tailwindBgPattern.test(updatedCode)) {
-          updatedCode = updatedCode.replace(tailwindBgPattern, `$1${newImageUrl}$2`);
+        if (tailwindBgPattern.test(generatedCode)) {
+          updatedCode = generatedCode.replace(tailwindBgPattern, `$1${newImageUrl}$2`);
           replaced = true;
-          break;
         }
-
-        // Pattern 2c: backgroundImage in style object: backgroundImage: "url(...)" or `url(...)`
+      }
+      
+      // Pattern 2c: backgroundImage in style object: backgroundImage: "url(...)" or `url(...)`
+      if (!replaced) {
         const styleObjPattern = new RegExp(`(backgroundImage\\s*:\\s*["'\`]url\\(["']?)${escapedOldUrl}(["']?\\)["'\`])`, 'g');
-        if (styleObjPattern.test(updatedCode)) {
-          updatedCode = updatedCode.replace(styleObjPattern, `$1${newImageUrl}$2`);
+        if (styleObjPattern.test(generatedCode)) {
+          updatedCode = generatedCode.replace(styleObjPattern, `$1${newImageUrl}$2`);
           replaced = true;
-          break;
         }
       }
     }
@@ -4704,22 +4671,10 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
     
     setGeneratedCode(updatedCode);
     setStreamingCode(updatedCode);
-
-    // Keep the modal open so the user can immediately see the updated image preview.
-    // Also sync the selected element so the "Current" preview reflects the new URL.
-    setQuickEditMode('image');
-    setQuickEditImageUrl(newImageUrl);
-    setSelectedElement((prev) => {
-      if (!prev) return prev;
-      const next = { ...prev };
-      if (prev.tagName?.toLowerCase() === 'img') {
-        next.imageSrc = newImageUrl;
-      }
-      if (prev.backgroundImage) {
-        next.backgroundImage = newImageUrl;
-      }
-      return next;
-    });
+    setShowEditModal(false);
+    setQuickEditMode('none');
+    setSelectedElement(null);
+    setQuickEditImageUrl('');
     
     // Update iframe
     if (iframeRef.current?.contentWindow) {
@@ -4824,10 +4779,21 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       const res = await fetch('/api/storage/app-images/upload', {
         method: 'POST',
         body: formData,
+        credentials: 'include', // ensure cookies are sent
       });
-      const json = await res.json();
+
+      let json: any = null;
+      try {
+        json = await res.json();
+      } catch (parseError) {
+        console.error('[ImageUpload] JSON parse error:', parseError, 'Status:', res.status);
+        throw new Error(`Server returned non-JSON response (status ${res.status})`);
+      }
+
+      console.log('[ImageUpload] Response:', res.status, json);
+
       if (!res.ok || !json?.success) {
-        throw new Error(json?.error || 'Upload failed');
+        throw new Error(json?.error || `Upload failed (status ${res.status})`);
       }
 
       const publicUrl = json?.data?.publicUrl;
