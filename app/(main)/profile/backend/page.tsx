@@ -123,12 +123,15 @@ export default function BackendDashboard() {
     try {
       const { data, error } = await supabase
         .from('items')
-        .select('id, title, description, icon_url, created_at')
+        .select('id, title, description, icon_url, created_at, has_backend')
         .eq('author_id', userId)
         .neq('is_draft', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      
+      // 只显示启用了后端功能的应用
+      const appsWithBackend = (data || []).filter(app => app.has_backend === true);
       
       // Add a virtual "Test/Draft" app for draft submissions
       const draftApp: AppItem = {
@@ -138,10 +141,10 @@ export default function BackendDashboard() {
         created_at: new Date().toISOString()
       };
       
-      setApps([draftApp, ...(data || [])]);
+      setApps([draftApp, ...appsWithBackend]);
       
       // Fetch stats for all apps including draft
-      const allAppIds = [`draft_${userId}`, ...(data || []).map(app => app.id)];
+      const allAppIds = [`draft_${userId}`, ...appsWithBackend.map(app => app.id)];
       fetchAllAppStats(allAppIds);
     } catch (error) {
       console.error('Error fetching apps:', error);
