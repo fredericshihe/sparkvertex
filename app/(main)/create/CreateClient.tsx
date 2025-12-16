@@ -4598,7 +4598,7 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
         replaced = true;
       }
       
-      // Pattern 2b: Tailwind bg-[url(...)]
+      // Pattern 2b: Tailwind arbitrary background-image url class
       if (!replaced) {
         const tailwindBgPattern = new RegExp(`(bg-\\[url\\(["']?)${escapedOldUrl}(["']?\\)\\])`, 'g');
         if (tailwindBgPattern.test(generatedCode)) {
