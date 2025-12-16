@@ -69,6 +69,14 @@ interface CreationPreviewProps {
   isLoadingUserUploadedImages: boolean;
   loadUserUploadedImages: () => void;
   deleteUserUploadedImage: (path: string) => void;
+  // 🆕 AI Image Generation
+  aiImagePrompt: string;
+  setAiImagePrompt: (prompt: string) => void;
+  isGeneratingAiImage: boolean;
+  generatedAiImage: string | null;
+  handleGenerateAiImage: () => void;
+  handleApplyAiImage: () => void;
+  credits: number;
   editIntent: string;
   setEditIntent: (intent: any) => void;
   editRequest: string;
@@ -146,6 +154,13 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
   isLoadingUserUploadedImages,
   loadUserUploadedImages,
   deleteUserUploadedImage,
+  aiImagePrompt,
+  setAiImagePrompt,
+  isGeneratingAiImage,
+  generatedAiImage,
+  handleGenerateAiImage,
+  handleApplyAiImage,
+  credits,
   editIntent,
   setEditIntent,
   editRequest,
@@ -808,6 +823,102 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                         }}
                       />
                     </label>
+
+                    {/* 🆕 AI Image Generation */}
+                    <div className="bg-gradient-to-br from-cyan-500/10 to-purple-500/10 border border-cyan-500/20 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <i className="fa-solid fa-wand-magic-sparkles text-cyan-400"></i>
+                        <span className="text-[11px] font-bold text-cyan-300">
+                          {language === 'zh' ? 'AI 生成图片' : 'AI Generate Image'}
+                        </span>
+                        <span className="text-[9px] text-zinc-500 ml-auto">
+                          {language === 'zh' ? `消耗 10 积分 (剩余 ${credits})` : `Cost 10 credits (${credits} left)`}
+                        </span>
+                      </div>
+                      
+                      <div className="text-[9px] text-zinc-500 mb-2">
+                        {language === 'zh' 
+                          ? '使用 Nano Banana Pro 模型生成，最大 1024×1024 像素' 
+                          : 'Powered by Nano Banana Pro, max 1024×1024 pixels'}
+                      </div>
+                      
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          type="text"
+                          placeholder={language === 'zh' ? '描述你想要的图片...' : 'Describe the image you want...'}
+                          className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/50 outline-none"
+                          value={aiImagePrompt}
+                          onChange={(e) => setAiImagePrompt(e.target.value)}
+                          disabled={isGeneratingAiImage}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey && aiImagePrompt.trim()) {
+                              e.preventDefault();
+                              handleGenerateAiImage();
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={handleGenerateAiImage}
+                          disabled={!aiImagePrompt.trim() || isGeneratingAiImage || credits < 10}
+                          className="px-3 py-2 bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 disabled:from-zinc-700 disabled:to-zinc-700 disabled:cursor-not-allowed rounded-lg text-xs text-white font-bold transition flex items-center gap-1.5"
+                        >
+                          {isGeneratingAiImage ? (
+                            <>
+                              <i className="fa-solid fa-circle-notch fa-spin"></i>
+                              <span>{language === 'zh' ? '生成中' : 'Generating'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <i className="fa-solid fa-sparkles"></i>
+                              <span>{language === 'zh' ? '生成' : 'Generate'}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      
+                      {/* Generated Image Preview */}
+                      {generatedAiImage && (
+                        <div className="mt-3 space-y-2">
+                          <div className="text-[10px] text-zinc-400 mb-1">
+                            {language === 'zh' ? '生成结果：' : 'Generated:'}
+                          </div>
+                          <div className="relative aspect-square max-w-[200px] mx-auto rounded-lg overflow-hidden border border-cyan-500/30 bg-zinc-900">
+                            <img 
+                              src={generatedAiImage} 
+                              alt="AI Generated" 
+                              className="w-full h-full object-contain"
+                            />
+                          </div>
+                          <div className="flex gap-2 justify-center">
+                            <button
+                              onClick={handleGenerateAiImage}
+                              disabled={isGeneratingAiImage || credits < 10}
+                              className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:cursor-not-allowed rounded-lg text-[10px] text-white transition flex items-center gap-1"
+                            >
+                              <i className="fa-solid fa-rotate"></i>
+                              {language === 'zh' ? '重新生成' : 'Regenerate'}
+                            </button>
+                            <button
+                              onClick={handleApplyAiImage}
+                              disabled={isUploadingImage}
+                              className="px-3 py-1.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 disabled:from-zinc-700 disabled:to-zinc-700 disabled:cursor-not-allowed rounded-lg text-[10px] text-white font-bold transition flex items-center gap-1"
+                            >
+                              {isUploadingImage ? (
+                                <>
+                                  <i className="fa-solid fa-circle-notch fa-spin"></i>
+                                  {language === 'zh' ? '应用中' : 'Applying'}
+                                </>
+                              ) : (
+                                <>
+                                  <i className="fa-solid fa-check"></i>
+                                  {language === 'zh' ? '应用替换' : 'Apply'}
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     {/* Uploaded Images List */}
                     {userUploadedImages && (

@@ -248,11 +248,6 @@ function CreateContent() {
   const [userUploadedImages, setUserUploadedImages] = useState<Array<{ path: string; publicUrl: string; bytes: number; createdAt: string | null }> | null>(null);
   const [isLoadingUserUploadedImages, setIsLoadingUserUploadedImages] = useState(false);
   
-  // State: AI Image Generation
-  const [aiImagePrompt, setAiImagePrompt] = useState('');
-  const [isGeneratingAiImage, setIsGeneratingAiImage] = useState(false);
-  const [generatedAiImage, setGeneratedAiImage] = useState<string | null>(null); // base64 data URL
-  
   // State: Quick Edit History (for undo/redo within quick edit session)
   const [quickEditHistory, setQuickEditHistory] = useState<{ code: string; description: string }[]>([]);
   const [quickEditHistoryIndex, setQuickEditHistoryIndex] = useState(-1);
@@ -4565,20 +4560,7 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
 
   // 🆕 Quick Edit: Apply image change directly to code
   const applyQuickImageEdit = async (newImageUrl: string) => {
-    console.log('[applyQuickImageEdit] called with:', { 
-      newImageUrl: newImageUrl?.slice(0, 50),
-      hasSelectedElement: !!selectedElement,
-      hasGeneratedCode: !!generatedCode,
-      selectedElementImageSrc: selectedElement?.imageSrc?.slice(0, 50),
-      selectedElementBgImage: selectedElement?.backgroundImage?.slice(0, 50),
-    });
-    
-    if (!selectedElement || !generatedCode || !newImageUrl.trim()) {
-      const reason = !selectedElement ? '未选中元素' : !generatedCode ? '无生成代码' : '无新URL';
-      toastError(language === 'zh' ? `无法应用图片：${reason}` : `Cannot apply image: ${reason}`);
-      console.error('[applyQuickImageEdit] Early return:', { selectedElement, hasCode: !!generatedCode, newImageUrl });
-      return;
-    }
+    if (!selectedElement || !generatedCode || !newImageUrl.trim()) return;
     
     const oldImageUrl = selectedElement.imageSrc || selectedElement.backgroundImage;
     if (!oldImageUrl) {
@@ -4771,21 +4753,6 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
   const handleImageUpload = async (file: File) => {
     if (!file) return;
     
-    // 🔑 Capture current selection before async operations
-    const capturedElement = selectedElement;
-    const capturedCode = generatedCode;
-    
-    console.log('[handleImageUpload] Start, capturedElement:', {
-      hasElement: !!capturedElement,
-      imageSrc: capturedElement?.imageSrc?.slice(0, 50),
-      bgImage: capturedElement?.backgroundImage?.slice(0, 50),
-    });
-    
-    if (!capturedElement || (!capturedElement.imageSrc && !capturedElement.backgroundImage)) {
-      toastError(language === 'zh' ? '请先选择要替换的图片元素' : 'Please select an image element first');
-      return;
-    }
-    
     setIsUploadingImage(true);
     
     try {
@@ -4812,21 +4779,10 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       const res = await fetch('/api/storage/app-images/upload', {
         method: 'POST',
         body: formData,
-        credentials: 'include', // ensure cookies are sent
       });
-
-      let json: any = null;
-      try {
-        json = await res.json();
-      } catch (parseError) {
-        console.error('[ImageUpload] JSON parse error:', parseError, 'Status:', res.status);
-        throw new Error(`Server returned non-JSON response (status ${res.status})`);
-      }
-
-      console.log('[ImageUpload] Response:', res.status, json);
-
+      const json = await res.json();
       if (!res.ok || !json?.success) {
-        throw new Error(json?.error || `Upload failed (status ${res.status})`);
+        throw new Error(json?.error || 'Upload failed');
       }
 
       const publicUrl = json?.data?.publicUrl;
@@ -4851,236 +4807,14 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
           : prev
       );
 
-      // 4. Apply to code using captured element (not current state)
-      const newImageUrl = `${publicUrl}?t=${Date.now()}`;
-      const oldImageUrl = capturedElement.imageSrc || capturedElement.backgroundImage;
-      
-      console.log('[handleImageUpload] Replacing image:', { oldImageUrl: oldImageUrl?.slice(0, 50), newImageUrl: newImageUrl?.slice(0, 50) });
-      
-      if (!oldImageUrl || !capturedCode) {
-        toastError(language === 'zh' ? '无法找到原图片URL' : 'Could not find original image URL');
-        return;
-      }
-      
-      // Escape special regex characters in URL
-      const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const escapedOldUrl = escapeRegex(oldImageUrl);
-      
-      let updatedCode = capturedCode;
-      let replaced = false;
-      
-      // Pattern 1: <img src="...">
-      if (capturedElement.tagName?.toLowerCase() === 'img') {
-        const imgSrcPattern = new RegExp(`(src\\s*=\\s*["'])${escapedOldUrl}(["'])`, 'g');
-        if (imgSrcPattern.test(capturedCode)) {
-          updatedCode = capturedCode.replace(imgSrcPattern, `$1${newImageUrl}$2`);
-          replaced = true;
-        }
-        // Pattern 1b: src={...} JSX format
-        if (!replaced) {
-          const jsxSrcPattern = new RegExp(`(src\\s*=\\s*\\{\\s*["'\`])${escapedOldUrl}(["'\`]\\s*\\})`, 'g');
-          if (jsxSrcPattern.test(capturedCode)) {
-            updatedCode = capturedCode.replace(jsxSrcPattern, `$1${newImageUrl}$2`);
-            replaced = true;
-          }
-        }
-      }
-      
-      // Pattern 2: background-image: url(...)
-      if (!replaced && capturedElement.backgroundImage) {
-        const bgUrlPattern = new RegExp(`(background(?:-image)?\\s*:\\s*url\\s*\\(\\s*["']?)${escapedOldUrl}(["']?\\s*\\))`, 'gi');
-        if (bgUrlPattern.test(capturedCode)) {
-          updatedCode = capturedCode.replace(bgUrlPattern, `$1${newImageUrl}$2`);
-          replaced = true;
-        }
-        // Pattern 2b: Tailwind arbitrary bg class
-        if (!replaced) {
-          const tailwindBgPattern = new RegExp(`(bg-\\[url\\(["']?)${escapedOldUrl}(["']?\\)\\])`, 'g');
-          if (tailwindBgPattern.test(capturedCode)) {
-            updatedCode = capturedCode.replace(tailwindBgPattern, `$1${newImageUrl}$2`);
-            replaced = true;
-          }
-        }
-        // Pattern 2c: backgroundImage in style object
-        if (!replaced) {
-          const styleObjPattern = new RegExp(`(backgroundImage\\s*:\\s*["'\`]url\\(["']?)${escapedOldUrl}(["']?\\)["'\`])`, 'g');
-          if (styleObjPattern.test(capturedCode)) {
-            updatedCode = capturedCode.replace(styleObjPattern, `$1${newImageUrl}$2`);
-            replaced = true;
-          }
-        }
-      }
-      
-      if (!replaced) {
-        // Fallback: try generic string replacement
-        if (capturedCode.includes(oldImageUrl)) {
-          updatedCode = capturedCode.replace(new RegExp(escapedOldUrl, 'g'), newImageUrl);
-          replaced = true;
-          console.log('[handleImageUpload] Used fallback string replacement');
-        }
-      }
-      
-      if (!replaced) {
-        toastError(language === 'zh' ? '⚠️ 无法在代码中找到该图片URL，请尝试使用 AI 修改' : '⚠️ Could not find image URL in code, try AI edit instead');
-        return;
-      }
-      
-      // Validate result
-      if (!updatedCode || updatedCode.length < 100) {
-        console.error('Image replacement resulted in empty or invalid code');
-        return;
-      }
-      
-      // Save to code history
-      setCodeHistory(prev => [...prev, {
-        code: capturedCode,
-        prompt: language === 'zh' ? '更换图片前' : 'Before image change',
-        timestamp: Date.now(),
-        type: 'click'
-      }]);
-      
-      // Save to quick edit history
-      setRuntimeError(null);
-      const shortUrl = newImageUrl.length > 30 ? '...' + newImageUrl.slice(-30) : newImageUrl;
-      const description = language === 'zh' ? `图片: ${shortUrl}` : `Image: ${shortUrl}`;
-      const isFirstEdit = quickEditHistory.length === 0;
-      const currentLength = quickEditHistory.length;
-      const effectiveIndex = quickEditHistoryIndex;
-      
-      if (isFirstEdit) {
-        setQuickEditHistory([
-          { code: capturedCode, description: language === 'zh' ? '初始状态' : 'Initial state' },
-          { code: updatedCode, description }
-        ]);
-        setQuickEditHistoryIndex(1);
-      } else {
-        setQuickEditHistory(prev => {
-          const newHistory = effectiveIndex >= 0 && effectiveIndex < prev.length - 1
-            ? prev.slice(0, effectiveIndex + 1) 
-            : prev;
-          return [...newHistory, { code: updatedCode, description }];
-        });
-        const willTruncate = effectiveIndex >= 0 && effectiveIndex < currentLength - 1;
-        const newLength = willTruncate ? effectiveIndex + 2 : currentLength + 1;
-        setQuickEditHistoryIndex(newLength - 1);
-      }
-      
-      // Apply changes
-      setGeneratedCode(updatedCode);
-      setStreamingCode(updatedCode);
-      setShowEditModal(false);
-      setQuickEditMode('none');
-      setSelectedElement(null);
-      setQuickEditImageUrl('');
-      
-      // Update iframe
-      if (iframeRef.current?.contentWindow) {
-        iframeRef.current.contentWindow.postMessage({ 
-          type: 'spark-update-content', 
-          html: updatedCode,
-          shouldRestoreEditMode: false
-        }, '*');
-        
-        setIsEditMode(false);
-        iframeRef.current.contentWindow.postMessage({ type: 'toggle-edit-mode', enabled: false }, '*');
-      }
-      
-      toastSuccess(language === 'zh' ? '图片已上传并替换成功！' : 'Image uploaded and replaced!');
+      // 4. Apply to code (add cache-busting)
+      await applyQuickImageEdit(`${publicUrl}?t=${Date.now()}`);
       
     } catch (error: any) {
       console.error('Image upload failed:', error);
       toastError(language === 'zh' ? `图片上传失败: ${error.message}` : `Upload failed: ${error.message}`);
     } finally {
       setIsUploadingImage(false);
-    }
-  };
-
-  // 🆕 AI Image Generation: Generate image from prompt
-  const handleGenerateAiImage = async () => {
-    if (!aiImagePrompt.trim()) {
-      toastError(language === 'zh' ? '请输入图片描述' : 'Please enter image description');
-      return;
-    }
-
-    if (credits < 10) {
-      toastError(language === 'zh' ? '积分不足，需要 10 积分' : 'Insufficient credits, need 10 credits');
-      return;
-    }
-
-    setIsGeneratingAiImage(true);
-    setGeneratedAiImage(null);
-
-    try {
-      const res = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: aiImagePrompt.trim(),
-          language
-        }),
-        credentials: 'include'
-      });
-
-      const json = await res.json();
-      
-      if (!res.ok || !json.success) {
-        if (json.code === 'INSUFFICIENT_CREDITS') {
-          toastError(language === 'zh' ? '积分不足，请充值后再试' : 'Insufficient credits, please recharge');
-        } else {
-          throw new Error(json.error || 'Generation failed');
-        }
-        return;
-      }
-
-      setGeneratedAiImage(json.imageBase64);
-      
-      // 更新本地积分状态
-      if (json.remainingCredits !== undefined) {
-        setCredits(json.remainingCredits);
-      }
-
-      toastSuccess(
-        language === 'zh' 
-          ? `图片生成成功！已扣除 10 积分，剩余 ${json.remainingCredits ?? credits - 10} 积分` 
-          : `Image generated! Used 10 credits, ${json.remainingCredits ?? credits - 10} remaining`
-      );
-
-    } catch (error: any) {
-      console.error('[AI Image] Generation failed:', error);
-      toastError(language === 'zh' ? `生成失败: ${error.message}` : `Generation failed: ${error.message}`);
-    } finally {
-      setIsGeneratingAiImage(false);
-    }
-  };
-
-  // 🆕 AI Image: Apply generated image (upload to storage and replace)
-  const handleApplyAiImage = async () => {
-    if (!generatedAiImage || !selectedElement) {
-      toastError(language === 'zh' ? '请先生成图片' : 'Please generate an image first');
-      return;
-    }
-
-    // Convert base64 to File
-    try {
-      const base64Data = generatedAiImage.split(',')[1];
-      const binaryData = atob(base64Data);
-      const arrayBuffer = new ArrayBuffer(binaryData.length);
-      const uint8Array = new Uint8Array(arrayBuffer);
-      for (let i = 0; i < binaryData.length; i++) {
-        uint8Array[i] = binaryData.charCodeAt(i);
-      }
-      const blob = new Blob([uint8Array], { type: 'image/png' });
-      const file = new File([blob], `ai-generated-${Date.now()}.png`, { type: 'image/png' });
-
-      // Use existing handleImageUpload flow
-      await handleImageUpload(file);
-
-      // Clear AI image state
-      setGeneratedAiImage(null);
-      setAiImagePrompt('');
-    } catch (error: any) {
-      console.error('[AI Image] Apply failed:', error);
-      toastError(language === 'zh' ? '应用图片失败' : 'Failed to apply image');
     }
   };
 
@@ -5863,13 +5597,6 @@ Please fix the code to make the app display properly.`;
           generatedCode={generatedCode}
           mobilePreviewUrl={mobilePreviewUrl}
           handleConfigureBackend={handleConfigureBackend}
-          aiImagePrompt={aiImagePrompt}
-          setAiImagePrompt={setAiImagePrompt}
-          isGeneratingAiImage={isGeneratingAiImage}
-          generatedAiImage={generatedAiImage}
-          handleGenerateAiImage={handleGenerateAiImage}
-          handleApplyAiImage={handleApplyAiImage}
-          credits={credits}
         />
       
       {renderHistoryModal()}
