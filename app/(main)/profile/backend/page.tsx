@@ -117,21 +117,42 @@ export default function BackendDashboard() {
     }
   };
 
-  // Fetch user's apps (including a "Test/Draft" virtual app)
+  // Fetch user's apps that have enabled backend (not mocked/disabled)
   const fetchApps = async (userId: string) => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('items')
-        .select('id, title, description, icon_url, created_at, has_backend')
+        .select('id, title, description, icon_url, created_at, code')
         .eq('author_id', userId)
         .neq('is_draft', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      // 只显示启用了后端功能的应用
-      const appsWithBackend = (data || []).filter(app => app.has_backend === true);
+      // Filter apps that have real backend functionality (not mocked/disabled)
+      const appsWithBackend = (data || []).filter(app => {
+        if (!app.code) return false;
+        
+        // Check if the app has backend features
+        const hasBackendCode = 
+          app.code.includes('SPARK_BACKEND_CONFIG') ||
+          app.code.includes('SPARK_APP_ID') ||
+          app.code.includes('/api/mailbox/') ||
+          app.code.includes('SparkCMS');
+        
+        if (!hasBackendCode) return false;
+        
+        // Check if backend is disabled (mocked for public version)
+        const isBackendDisabled = 
+          app.code.includes('<!-- PUBLIC VERSION: Backend requests are mocked') ||
+          app.code.includes('[Public Version] Backend request mocked') ||
+          (app.code.includes("window.SPARK_APP_ID = 'public_demo'") || 
+           app.code.includes('window.SPARK_APP_ID = "public_demo"'));
+        
+        // Only include if backend is NOT disabled
+        return !isBackendDisabled;
+      });
       
       // Add a virtual "Test/Draft" app for draft submissions
       const draftApp: AppItem = {
@@ -141,10 +162,13 @@ export default function BackendDashboard() {
         created_at: new Date().toISOString()
       };
       
-      setApps([draftApp, ...appsWithBackend]);
+      // Map to remove code field from state (not needed after filtering)
+      const filteredApps = appsWithBackend.map(({ code, ...rest }) => rest);
+      
+      setApps([draftApp, ...filteredApps]);
       
       // Fetch stats for all apps including draft
-      const allAppIds = [`draft_${userId}`, ...appsWithBackend.map(app => app.id)];
+      const allAppIds = [`draft_${userId}`, ...filteredApps.map(app => app.id)];
       fetchAllAppStats(allAppIds);
     } catch (error) {
       console.error('Error fetching apps:', error);

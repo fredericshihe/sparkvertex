@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { X, Search, Download, RefreshCw, Trash2, Eye, ChevronRight, Database, Table as TableIcon, LayoutList, CheckCircle, Circle, BarChart3, Filter } from 'lucide-react';
+import { detectSparkPlatformFeatures } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 import { useModal } from '@/context/ModalContext';
 import { useToast } from '@/context/ToastContext';
@@ -201,20 +202,20 @@ export default function BackendDataPanel({
 
       const { data, error } = await supabase
         .from('items')
-        .select('id, title, icon_url, content, has_backend')
+        .select('id, title, icon_url, content')
         .eq('author_id', userId)
-        .eq('has_backend', true)  // 只查询启用了后端功能的应用
         .order('created_at', { ascending: false });
       
       if (error) throw error;
       
-      // 直接使用查询结果（已经通过 has_backend 过滤）
-      setApps(data || []);
+      // 过滤出包含平台后端代码的应用 (仅显示使用了平台表单/CMS功能的应用)
+      const backendApps = (data || []).filter(app => detectSparkPlatformFeatures(app.content));
+      setApps(backendApps);
       
       // 如果没有选中的应用，默认选第一个 (仅在桌面端自动选择，移动端保持在列表页)
       const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-      if ((data || []).length > 0 && !selectedAppId && !isMobile) {
-        setSelectedAppId(data![0].id);
+      if (backendApps.length > 0 && !selectedAppId && !isMobile) {
+        setSelectedAppId(backendApps[0].id);
       }
     } catch (err: any) {
       console.error('Error fetching apps:', err);
