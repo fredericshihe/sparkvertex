@@ -173,23 +173,23 @@ export const CreationChat: React.FC<CreationChatProps> = ({
       </div>
       
       {/* Header */}
-      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/80 backdrop-blur-md shrink-0 z-20 shadow-sm">
-        <div className="flex items-center gap-3">
+      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/80 backdrop-blur-md shrink-0 z-20 shadow-sm gap-4">
+        <div className="flex items-center gap-3 min-w-0 overflow-hidden">
           <button 
             onClick={handleExit} 
-            className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white transition border border-white/10 group" 
+            className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white transition border border-white/10 group shrink-0 whitespace-nowrap" 
             title={t.common.back}
           >
             <i className="fa-solid fa-chevron-left text-xs group-hover:-translate-x-0.5 transition-transform"></i>
             <span className="text-sm font-medium">{t.common.back || (language === 'zh' ? '返回' : 'Back')}</span>
           </button>
-          <h3 className="font-bold text-white text-sm lg:text-base bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+          <h3 className="font-bold text-white text-sm lg:text-base bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 whitespace-nowrap truncate">
             {t.create.preview_title}
           </h3>
         </div>
         
         {/* Credits & Regenerate */}
-        <div className="flex items-center gap-2" data-tour="chat-header-actions">
+        <div className="flex items-center gap-2 shrink-0" data-tour="chat-header-actions">
            {/* Help/Onboarding Button - 操作引导 */}
            {onShowOnboarding && (
              <button 

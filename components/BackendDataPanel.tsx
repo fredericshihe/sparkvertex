@@ -200,29 +200,45 @@ export default function BackendDataPanel({
         setHasPermanentStorage(profileData.has_permanent_storage || false);
       }
 
+      // Add a virtual "Test/Draft" app for draft submissions
+      const draftApp: AppItem = {
+        id: `draft_${userId}`,
+        title: language === 'zh' ? '📝 测试/草稿数据' : '📝 Test/Draft Data',
+      };
+
+      // Fetch published apps
       const { data, error } = await supabase
         .from('items')
-        .select('id, title, icon_url, content')
+        .select('id, title, icon_url, content, is_public')
         .eq('author_id', userId)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
       
       // 过滤出包含平台后端代码的应用 (仅显示使用了平台表单/CMS功能的应用)
-      const backendApps = (data || []).filter(app => detectSparkPlatformFeatures(app.content));
-      setApps(backendApps);
+      // 且必须是私密应用 (is_public === false)
+      const backendApps = (data || []).filter(app => {
+        // Only show PRIVATE apps
+        if (app.is_public !== false) return false;
+        
+        return detectSparkPlatformFeatures(app.content);
+      });
+
+      const finalApps = [draftApp, ...backendApps];
+      setApps(finalApps);
       
       // 如果没有选中的应用，默认选第一个 (仅在桌面端自动选择，移动端保持在列表页)
       const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-      if (backendApps.length > 0 && !selectedAppId && !isMobile) {
-        setSelectedAppId(backendApps[0].id);
+      if (finalApps.length > 0 && !selectedAppId && !isMobile) {
+        setSelectedAppId(finalApps[0].id);
       }
+
     } catch (err: any) {
       console.error('Error fetching apps:', err);
     } finally {
       setAppsLoading(false);
     }
-  }, [userId, mode, selectedAppId]);
+  }, [userId, mode, selectedAppId, language]);
 
   const handleUpgradeStorage = async () => {
     if (!userId) return;

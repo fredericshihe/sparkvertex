@@ -121,17 +121,30 @@ export default function BackendDashboard() {
   const fetchApps = async (userId: string) => {
     setLoading(true);
     try {
+      // Add a virtual "Test/Draft" app for draft submissions
+      const draftApp: AppItem = {
+        id: `draft_${userId}`,
+        title: language === 'zh' ? '📝 测试/草稿数据' : '📝 Test/Draft Data',
+        description: language === 'zh' ? '预览和测试阶段收集的数据' : 'Data collected during preview and testing',
+        created_at: new Date().toISOString()
+      };
+
+      // Fetch published apps
       const { data, error } = await supabase
         .from('items')
-        .select('id, title, description, icon_url, created_at, code')
+        .select('id, title, description, icon_url, created_at, code, is_public')
         .eq('author_id', userId)
         .neq('is_draft', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      // Filter apps that have real backend functionality (not mocked/disabled)
+      // Filter apps that have real backend functionality AND are private
       const appsWithBackend = (data || []).filter(app => {
+        // Only show PRIVATE apps (is_public === false)
+        // Public apps are hidden from this list as per requirement
+        if (app.is_public !== false) return false;
+
         if (!app.code) return false;
         
         // Check if the app has backend features
@@ -154,14 +167,6 @@ export default function BackendDashboard() {
         return !isBackendDisabled;
       });
       
-      // Add a virtual "Test/Draft" app for draft submissions
-      const draftApp: AppItem = {
-        id: `draft_${userId}`,
-        title: language === 'zh' ? '📝 测试/草稿数据' : '📝 Test/Draft Data',
-        description: language === 'zh' ? '预览和测试阶段收集的数据' : 'Data collected during preview and testing',
-        created_at: new Date().toISOString()
-      };
-      
       // Map to remove code field from state (not needed after filtering)
       const filteredApps = appsWithBackend.map(({ code, ...rest }) => rest);
       
@@ -170,6 +175,7 @@ export default function BackendDashboard() {
       // Fetch stats for all apps including draft
       const allAppIds = [`draft_${userId}`, ...filteredApps.map(app => app.id)];
       fetchAllAppStats(allAppIds);
+
     } catch (error) {
       console.error('Error fetching apps:', error);
     } finally {
