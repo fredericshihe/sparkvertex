@@ -515,14 +515,14 @@ export const CreationChat: React.FC<CreationChatProps> = ({
               <div className="bg-white/5 rounded-lg p-3 border border-white/5">
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-bold text-blue-400 flex items-center gap-2">
-                    <span>⚡</span> {language === 'zh' ? '日常 (Gemini 2.5 Flash)' : 'Daily (Gemini 2.5 Flash)'}
+                    <span>⚡</span> {language === 'zh' ? '极速模式' : 'Speed Mode'}
                   </div>
                   <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded border border-blue-500/30">
-                    {language === 'zh' ? '低消耗' : 'Low Cost'}
+                    {language === 'zh' ? '极低消耗' : 'Very Low Cost'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  {language === 'zh' ? '回复速度极快，消耗低。适合日常的小修小改、文案调整或简单逻辑修复。' : 'Fast and cheap. Best for daily small edits, text changes, or simple logic fixes.'}
+                  {language === 'zh' ? '响应速度最快，积分消耗极低。适合日常的小修小改、文案调整或简单逻辑修复。' : 'Fastest response, very low cost. Best for quick fixes, text edits, and simple logic.'}
                 </p>
               </div>
 
@@ -530,14 +530,14 @@ export const CreationChat: React.FC<CreationChatProps> = ({
               <div className="bg-white/5 rounded-lg p-3 border border-white/5">
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-bold text-purple-400 flex items-center gap-2">
-                    <span>🚀</span> {language === 'zh' ? '复杂 (Gemini 3 Flash Preview)' : 'Complex (Gemini 3 Flash Preview)'}
+                    <span>🚀</span> {language === 'zh' ? '标准模式' : 'Standard Mode'}
                   </div>
                   <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded border border-purple-500/30">
-                    {language === 'zh' ? '中等消耗' : 'Medium Cost'}
+                    {language === 'zh' ? '高性价比' : 'Best Value'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  {language === 'zh' ? '性能均衡，回复速度较慢，适合大多数功能开发、逻辑修改和中等难度的重构。' : 'Balanced performance. Best for most feature development, logic changes, and moderate refactoring.'}
+                  {language === 'zh' ? '新一代高性价比模型，速度快且智能。适合绝大多数功能开发、页面构建和逻辑编写。' : 'New generation high-value model. Fast and smart. Ideal for most feature development and coding.'}
                 </p>
               </div>
 
@@ -545,14 +545,14 @@ export const CreationChat: React.FC<CreationChatProps> = ({
               <div className="bg-white/5 rounded-lg p-3 border border-white/5">
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-bold text-amber-400 flex items-center gap-2">
-                    <span>🧠</span> {language === 'zh' ? '高级 (Gemini 3 Pro Preview)' : 'Advanced (Gemini 3 Pro Preview)'}
+                    <span>🧠</span> {language === 'zh' ? '专家模式' : 'Expert Mode'}
                   </div>
                   <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded border border-amber-500/30">
                     {language === 'zh' ? '高消耗' : 'High Cost'}
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  {language === 'zh' ? '最强推理能力，恢复速度慢。适合极其复杂的逻辑、或当其他模型无法解决问题时使用。' : 'Strongest reasoning. Best for extremely complex logic, algorithms, or when other models fail.'}
+                  {language === 'zh' ? '最强推理能力，擅长解决复杂难题。消耗较高，建议仅在处理极其复杂的逻辑或算法时使用。' : 'Strongest reasoning for complex problems. High cost. Use only for difficult logic or algorithms.'}
                 </p>
               </div>
             </div>

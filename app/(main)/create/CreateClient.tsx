@@ -177,7 +177,7 @@ function CreateContent() {
   // Token汇率说明：
   // - DeepSeek V3: 免费模型，不消耗积分
   // - Gemini 2.5 Flash: 1积分 = 15000 tokens（便宜）
-  // - Gemini 3 Flash: 1积分 = 4000 tokens（均衡）
+  // - Gemini 3 Flash: 1积分 = 7000 tokens（性价比高）
   // - Gemini 3 Pro: 1积分 = 3000 tokens（强大）
   // 注意：上下文 > 200k tokens 时，价格自动翻倍
   type ModelType = 'deepseek-v3' | 'gemini-2.5-flash' | 'gemini-3-flash-preview' | 'gemini-3-pro-preview';
@@ -191,25 +191,25 @@ function CreateContent() {
       isFree: true
     },
     'gemini-2.5-flash': { 
-      name: language === 'zh' ? '快速模型' : 'Fast Model', 
+      name: language === 'zh' ? '极速模式' : 'Speed Mode', 
       tokensPerCredit: 15000, 
       icon: '⚡', 
-      description: language === 'zh' ? '日常' : 'Daily',
-      subtitle: language === 'zh' ? '便宜快速，适合简单任务' : 'Fast & cheap for simple tasks'
+      description: language === 'zh' ? '极速' : 'Speed',
+      subtitle: language === 'zh' ? '响应最快，消耗极低' : 'Fastest & lowest cost'
     },
     'gemini-3-flash-preview': { 
-      name: language === 'zh' ? '均衡模型' : 'Balanced Model', 
-      tokensPerCredit: 4000, 
+      name: language === 'zh' ? '标准模式' : 'Standard Mode', 
+      tokensPerCredit: 7000, 
       icon: '🚀', 
-      description: language === 'zh' ? '复杂' : 'Complex',
-      subtitle: language === 'zh' ? '均衡性能，适合较复杂需求' : 'Balanced for moderate complexity'
+      description: language === 'zh' ? '标准' : 'Standard',
+      subtitle: language === 'zh' ? '智能且快速，高性价比' : 'Smart & fast, best value'
     },
     'gemini-3-pro-preview': { 
-      name: language === 'zh' ? '高级模型' : 'Advanced Model', 
+      name: language === 'zh' ? '专家模式' : 'Expert Mode', 
       tokensPerCredit: 3000, 
       icon: '🧠', 
-      description: language === 'zh' ? '高级' : 'Advanced',
-      subtitle: language === 'zh' ? '最强智能，复杂逻辑首选' : 'Most powerful for complex logic'
+      description: language === 'zh' ? '专家' : 'Expert',
+      subtitle: language === 'zh' ? '最强推理，解决难题' : 'Strongest reasoning'
     }
   };
 
