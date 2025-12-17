@@ -337,7 +337,7 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-300 leading-relaxed whitespace-pre-wrap font-light">
-                      {details.plan}
+                      {cleanPlanContent(details.plan)}
                     </p>
                   </div>
                 )}
@@ -473,6 +473,16 @@ const ThinkingDots: React.FC<{ text: string }> = ({ text }) => (
     {text}
   </div>
 );
+
+// 辅助函数：清理 AI 思考/计划内容（移除 /// 标记）
+const cleanPlanContent = (content: string) => {
+  if (!content) return '';
+  return content
+    .replace(/\/\/\/\s*$/gm, '')  // 移除行尾的 ///
+    .replace(/^\s*\/\/\/\s*/gm, '') // 移除行首的 ///
+    .replace(/\s*\/\/\/\s*/g, ' ') // 将中间的 /// 替换为空格
+    .trim();
+};
 
 // 辅助函数：清理代码显示
 const cleanCode = (code: string) => {

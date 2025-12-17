@@ -104,9 +104,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 </html>`;
 
 export const GET_SYSTEM_PROMPT = (language: string, isDiffMode: boolean) => {
-    const summaryLang = language === 'zh' ? 'Chinese' : 'English';
+    const summaryLang = language === 'zh' ? '中文' : 'English';
     const langInstruction = language === 'zh' 
-        ? '**语言要求**: ANALYSIS 和 SUMMARY 必须使用中文输出，不要使用英文。'
+        ? '**⚠️ 语言要求 (CRITICAL)**: ANALYSIS 和 SUMMARY 的内容必须完全使用中文输出！例如："正在定位 BattleScene 组件函数签名，准备添加 isTrainerBattle 属性..." 不要使用英文！'
         : '**Language**: ANALYSIS and SUMMARY must be in English.';
     
     if (isDiffMode) {
@@ -498,10 +498,10 @@ ${HTML_TEMPLATE}
 };
 
 export const GET_BACKEND_CONFIG_PROMPT = (language: string) => {
-  const summaryLang = language === 'zh' ? 'Chinese' : 'English';
+  const summaryLang = language === 'zh' ? '中文' : 'English';
   const summaryText = language === 'zh' ? '后端表单收集已配置' : 'Backend form collection is configured';
   const langInstruction = language === 'zh' 
-      ? '**语言要求**: ANALYSIS 和 SUMMARY 必须使用中文输出，不要使用英文。'
+      ? '**⚠️ 语言要求 (CRITICAL)**: ANALYSIS 和 SUMMARY 的内容必须完全使用中文输出！例如："正在分析表单结构，准备添加后端连接..." 不要使用英文！'
       : '**Language**: ANALYSIS and SUMMARY must be in English.';
 
   // 中英文双语任务描述
@@ -667,9 +667,9 @@ ${langInstruction}
 };
 
 export const GET_LOCAL_FIRST_CONFIG_PROMPT = (language: string) => {
-  const summaryLang = language === 'zh' ? 'Chinese' : 'English';
+  const summaryLang = language === 'zh' ? '中文' : 'English';
   const langInstruction = language === 'zh' 
-      ? '**语言要求**: ANALYSIS 和 SUMMARY 必须使用中文输出，不要使用英文。'
+      ? '**⚠️ 语言要求 (CRITICAL)**: ANALYSIS 和 SUMMARY 的内容必须完全使用中文输出！例如："正在分析数据结构，识别私有数据和公共数据..." 不要使用英文！'
       : '**Language**: ANALYSIS and SUMMARY must be in English.';
   return `You are an expert Local-First Architecture Developer.
 Your task is to transform the provided React code into a **Hybrid Local-First Application**.
