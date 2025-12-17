@@ -734,71 +734,140 @@ export const getPreviewContent = (content: string | null, options?: {
       };
       
       // Blank screen detection - check if React rendered anything
-      function checkForBlankScreen() {
-        if (hasRendered) return;
-        
-        // Check if there's meaningful content in root or body
-        var root = document.getElementById('root');
-        var hasContent = false;
-        
-        // 🆕 更严格的内容检测
-        if (root && root.children.length > 0 && root.innerHTML.trim() !== '') {
-          // 检查是否有可见的文本内容
-          var textContent = root.innerText || '';
-          if (textContent.trim().length > 5) {
-            hasContent = true;
+      // 🆕 改进版：轮询检测 + 放宽标准 + 深度搜索
+      function hasVisualContent() {
+        // 1. 检查多个常见容器
+        var containers = ['root', 'app', 'main', '__next'];
+        for (var i = 0; i < containers.length; i++) {
+          var container = document.getElementById(containers[i]);
+          if (container && container.children.length > 0) {
+            // 容器有子元素，进一步检查
+            if (hasVisualElements(container)) return true;
           }
         }
         
-        // 检查 body 中是否有除了脚本以外的内容
-        if (!hasContent && document.body) {
-          var bodyChildren = document.body.children;
-          for (var i = 0; i < bodyChildren.length; i++) {
-            var child = bodyChildren[i];
-            if (child.tagName !== 'SCRIPT' && child.id !== 'root') {
-              // 有其他非脚本元素
-              var childText = child.innerText || '';
-              if (childText.trim().length > 5) {
-                hasContent = true;
-                break;
-              }
+        // 2. 检查 body 中的内容
+        if (document.body) {
+          if (hasVisualElements(document.body)) return true;
+        }
+        
+        return false;
+      }
+      
+      function hasVisualElements(container) {
+        // 深度搜索关键视觉元素
+        var visualSelectors = 'canvas, svg, img, video, iframe, button, input, textarea, select, table, form, nav, header, footer, main, article, section, aside, figure';
+        var visualElements = container.querySelectorAll(visualSelectors);
+        if (visualElements.length > 0) return true;
+        
+        // 检查是否有带背景/边框的 div（如纯色块、渐变背景等）
+        var divs = container.querySelectorAll('div, span, p, h1, h2, h3, h4, h5, h6, a, li');
+        for (var i = 0; i < divs.length; i++) {
+          var el = divs[i];
+          // 跳过脚本和样式相关元素
+          if (el.closest('script') || el.closest('style')) continue;
+          
+          var style = window.getComputedStyle(el);
+          var rect = el.getBoundingClientRect();
+          
+          // 有尺寸且有视觉样式
+          if (rect.width > 0 && rect.height > 0) {
+            // 有背景色（非透明）
+            var bgColor = style.backgroundColor;
+            if (bgColor && bgColor !== 'transparent' && bgColor !== 'rgba(0, 0, 0, 0)') {
+              return true;
+            }
+            // 有背景图
+            if (style.backgroundImage && style.backgroundImage !== 'none') {
+              return true;
+            }
+            // 有边框
+            if (style.borderWidth && parseFloat(style.borderWidth) > 0 && style.borderStyle !== 'none') {
+              return true;
+            }
+            // 有文本内容
+            var text = el.innerText || '';
+            if (text.trim().length > 0) {
+              return true;
             }
           }
         }
         
-        if (!hasContent) {
-          console.warn('Blank screen detected - app may have failed to render');
-          
-          // 🆕 收集所有已捕获的错误信息
-          var errorMessages = errorList.map(function(e) { return e.message; }).join('\\n');
-          var detailedMessage = errorMessages 
-            ? 'App failed to render. Errors:\\n' + errorMessages.substring(0, 500)
-            : 'App failed to render - blank screen detected (no console errors captured, may be a syntax error).';
-          
-          var blankError = {
-            message: detailedMessage,
-            type: 'blank-screen',
-            line: null,
-            column: null,
-            stack: null,
-            collectedErrors: errorList.slice(0, 5) // 🆕 包含收集到的错误
-          };
-          try {
-            window.parent.postMessage({ type: 'spark-app-error', error: blankError, autoFix: true }, '*');
-          } catch(e) {}
-        } else {
-          hasRendered = true;
-        }
+        // 检查 FontAwesome 图标（i 标签带 fa- 类）
+        var icons = container.querySelectorAll('i[class*="fa-"], span[class*="icon"], svg[class*="icon"]');
+        if (icons.length > 0) return true;
+        
+        return false;
       }
       
-      // Check for blank screen after a delay (give React time to render)
-      // 🆕 增加延迟时间到 3 秒
+      function checkForBlankScreen() {
+        if (hasRendered) return true;
+        
+        if (hasVisualContent()) {
+          hasRendered = true;
+          return true;
+        }
+        
+        return false;
+      }
+      
+      function reportBlankScreen() {
+        if (hasRendered) return;
+        
+        console.warn('Blank screen detected - app may have failed to render');
+        
+        // 收集所有已捕获的错误信息
+        var errorMessages = errorList.map(function(e) { return e.message; }).join('\\n');
+        var detailedMessage = errorMessages 
+          ? 'App failed to render. Errors:\\n' + errorMessages.substring(0, 500)
+          : 'App failed to render - blank screen detected (no console errors captured, may be a syntax error).';
+        
+        var blankError = {
+          message: detailedMessage,
+          type: 'blank-screen',
+          line: null,
+          column: null,
+          stack: null,
+          collectedErrors: errorList.slice(0, 5)
+        };
+        try {
+          window.parent.postMessage({ type: 'spark-app-error', error: blankError, autoFix: true }, '*');
+        } catch(e) {}
+      }
+      
+      // 🆕 轮询检测：每 500ms 检测一次，最长 10 秒
+      function startBlankScreenCheck() {
+        var checkCount = 0;
+        var maxChecks = 20; // 20 * 500ms = 10 seconds
+        
+        var intervalId = setInterval(function() {
+          checkCount++;
+          
+          if (checkForBlankScreen()) {
+            // 检测到内容，停止检测
+            clearInterval(intervalId);
+            return;
+          }
+          
+          if (checkCount >= maxChecks) {
+            // 超时，报告白屏
+            clearInterval(intervalId);
+            reportBlankScreen();
+          }
+        }, 500);
+        
+        // 存储 intervalId 以便需要时清理
+        renderCheckTimeout = intervalId;
+      }
+      
+      // Check for blank screen after a delay (give initial scripts time to load)
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
-          renderCheckTimeout = setTimeout(checkForBlankScreen, 3000);
+          // 首次检测延迟 1 秒开始（给 Babel 启动时间）
+          setTimeout(startBlankScreenCheck, 1000);
         });
       } else {
-        renderCheckTimeout = setTimeout(checkForBlankScreen, 3000);
+        setTimeout(startBlankScreenCheck, 1000);
       }
       
       // 🆕 不再因为 createElement 就取消白屏检测
