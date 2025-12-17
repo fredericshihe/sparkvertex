@@ -724,16 +724,28 @@ function CreateContent() {
         const body = iframeDoc.body;
         const root = iframeDoc.getElementById('root');
         
-        // 计算实际可见内容
+        // 计算实际可见内容（改进版：支持 canvas/svg 等非文本内容）
         const hasVisibleContent = (() => {
           // 检查 body 是否有子元素
           if (!body || body.children.length === 0) return false;
+          
+          // 🆕 检查是否有 canvas、svg、video、iframe 等可视化元素（游戏/图表等）
+          const visualElements = iframeDoc.querySelectorAll('canvas, svg, video, iframe, img[src], audio');
+          if (visualElements.length > 0) {
+            // 有可视化元素，认为不是白屏
+            return true;
+          }
           
           // 检查 root 元素
           if (root) {
             // 如果 root 存在但为空
             if (root.innerHTML.trim() === '' || root.children.length === 0) {
               return false;
+            }
+            // 检查 root 内是否有背景色或可见样式
+            const rootStyle = window.getComputedStyle(root);
+            if (rootStyle.backgroundColor && rootStyle.backgroundColor !== 'transparent' && rootStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+              return true;
             }
           }
           
@@ -792,7 +804,7 @@ function CreateContent() {
         // 跨域错误或其他问题，静默处理
         console.warn('[BlankScreen] Detection error:', e);
       }
-    }, 3000); // 3秒延迟，给 React 足够的渲染时间
+    }, 8000); // 8秒延迟，给复杂应用（游戏等）足够的渲染时间
     
     return () => clearTimeout(checkTimer);
   }, [generatedCode, isGenerating, language, runtimeError]);

@@ -512,31 +512,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
           
           {/* Floating Preview Controls - Left Side Vertical Layout */}
           <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 z-10">
-            {runtimeError && (
-               <div className="absolute left-full ml-4 top-0 w-max max-w-[50vw] animate-bounce-in">
-                 <div className="bg-red-500/90 backdrop-blur-md text-white px-4 py-3 rounded-xl shadow-2xl border border-red-400 flex items-center gap-3">
-                   <i className="fa-solid fa-triangle-exclamation text-xl animate-pulse"></i>
-                   <div className="flex flex-col">
-                     <span className="text-xs font-bold uppercase opacity-80">{language === 'zh' ? '检测到错误' : 'Error Detected'}</span>
-                     <span className="text-sm font-mono max-w-[200px] truncate" title={runtimeError}>{runtimeError}</span>
-                   </div>
-                   <div className="h-8 w-px bg-white/20 mx-1"></div>
-                   <button 
-                     onClick={() => handleFixError()}
-                     className="bg-white text-red-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 transition flex items-center gap-1 whitespace-nowrap shadow-sm"
-                   >
-                     <i className="fa-solid fa-wand-magic-sparkles"></i>
-                     {language === 'zh' ? 'AI 修复' : 'Fix with AI'}
-                   </button>
-                   <button 
-                     onClick={() => setRuntimeError(null)}
-                     className="text-white/70 hover:text-white transition"
-                   >
-                     <X size={16} />
-                   </button>
-                 </div>
-               </div>
-            )}
+            {/* 错误提示已移至聊天对话框，避免重复显示 */}
 
             {/* Device Mode Buttons - Vertical */}
             <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-2xl p-1.5 flex flex-col shadow-2xl ring-1 ring-white/5" data-tour="device-switch">

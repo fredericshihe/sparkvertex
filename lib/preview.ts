@@ -835,10 +835,10 @@ export const getPreviewContent = (content: string | null, options?: {
         } catch(e) {}
       }
       
-      // 🆕 轮询检测：每 500ms 检测一次，最长 10 秒
+      // 🆕 轮询检测：每 500ms 检测一次，最长 30 秒（游戏等复杂应用可能需要更长加载时间）
       function startBlankScreenCheck() {
         var checkCount = 0;
-        var maxChecks = 20; // 20 * 500ms = 10 seconds
+        var maxChecks = 60; // 60 * 500ms = 30 seconds
         
         var intervalId = setInterval(function() {
           checkCount++;
