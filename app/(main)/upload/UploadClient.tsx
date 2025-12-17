@@ -120,6 +120,7 @@ async function calculateContentHash(content: string) {
 }
 
 async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, temperature = 0.7) {
+  console.log('[DeepSeek API] Calling with system prompt:', systemPrompt.substring(0, 50) + '...');
   try {
     const response = await fetch('/api/analyze', {
       method: 'POST',
@@ -134,6 +135,7 @@ async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, tempera
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       const errorMessage = data.error || `API Error: ${response.status}`;
+      console.error('[DeepSeek API] Error response:', response.status, errorMessage);
       
       // Throw specific errors for Rate Limit, Auth, and Validation
       if (response.status === 429) throw new Error(errorMessage); // Rate Limit
@@ -144,9 +146,10 @@ async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, tempera
     }
 
     const data = await response.json();
+    console.log('[DeepSeek API] Success, content length:', data.content?.length || 0);
     return data.content;
   } catch (err: any) {
-    console.error('AI API Error:', err);
+    console.error('[DeepSeek API] Error:', err);
     // Re-throw if it's one of our specific errors
     if (err.message && (
       err.message.includes('Rate limit') || 
@@ -338,6 +341,7 @@ Return only comma-separated tag names. No other text. Code:\n\n${htmlContent.sub
 }
 
 async function analyzePrompt(htmlContent: string, language: string = 'en', temperature: number = 0.5) {
+  console.log('[analyzePrompt] Starting prompt analysis, language:', language);
   const isZh = language === 'zh';
   const systemPrompt = isZh
     ? '你是一个资深的 Prompt 工程师。你需要分析 HTML 代码并生成一个简洁、核心的 Prompt，用于指导 AI 重新生成类似应用。'
@@ -363,10 +367,18 @@ No verbose technical details or edge cases, only the core generation instruction
 
 Code:\n\n${htmlContent.substring(0, 20000)}`;
   
-  const result = await callDeepSeekAPI(systemPrompt, userPrompt, temperature);
-  if (!result) return isZh ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.';
-  
-  return typeof result === 'string' ? result : String(result);
+  try {
+    const result = await callDeepSeekAPI(systemPrompt, userPrompt, temperature);
+    console.log('[analyzePrompt] API result:', result ? 'success' : 'null', result?.substring(0, 50));
+    if (!result) {
+      console.warn('[analyzePrompt] No result, using fallback');
+      return isZh ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.';
+    }
+    return typeof result === 'string' ? result : String(result);
+  } catch (err) {
+    console.error('[analyzePrompt] Error:', err);
+    return isZh ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.';
+  }
 }
 
 async function analyzeAppType(htmlContent: string) {
@@ -1435,15 +1447,14 @@ function UploadContent() {
     setIsAnalyzing(true);
     setIsSecuritySafe(false);
     
+    // 简化任务列表，与实际 API 调用对应
+    // 0: security, 1: metadata (title+desc+category+tags), 2: prompt, 3: mobile, 4: icon
     const tasks: { id: string; label: string; status: 'pending' | 'done' }[] = [
-      { id: 'security', label: t.upload.task_security, status: 'pending' },
-      { id: 'category', label: t.upload.task_category, status: 'pending' },
-      { id: 'title', label: t.upload.task_title, status: preComputedData?.title ? 'done' : 'pending' },
-      { id: 'desc', label: t.upload.task_desc, status: preComputedData?.description ? 'done' : 'pending' },
-      { id: 'tech', label: t.upload.task_tech, status: 'pending' },
-      { id: 'prompt', label: t.upload.task_prompt, status: 'pending' },
-      { id: 'mobile', label: t.upload.task_mobile, status: 'pending' },
-      { id: 'icon', label: t.upload.task_icon, status: 'pending' },
+      { id: 'security', label: t.upload.task_security, status: 'pending' },       // 0
+      { id: 'metadata', label: t.upload.task_title, status: 'pending' },          // 1 (合并了标题/描述/分类/标签)
+      { id: 'prompt', label: t.upload.task_prompt, status: 'pending' },           // 2
+      { id: 'mobile', label: t.upload.task_mobile, status: 'pending' },           // 3
+      { id: 'icon', label: t.upload.task_icon, status: 'pending' },               // 4
     ];
 
     const updateProgressUI = () => {
@@ -1570,12 +1581,18 @@ function UploadContent() {
       let techTags: string[] = [];
 
       if (metadata) {
+          console.log('[AI Analysis] Metadata received:', { 
+            title: metadata.title?.substring(0, 30), 
+            desc: metadata.description?.substring(0, 30),
+            category: metadata.category,
+            tags: metadata.tags 
+          });
           titleRes = metadata.title || titleRes;
           descRes = metadata.description || '';
           // 简单的类别映射
           const catMap: Record<string, string> = {
-            'Game': 'game', '游戏': 'game',
-            'Utility': 'tool', '工具': 'tool',
+            'Game': 'game', '游戏': 'game', 'Games': 'game',
+            'Utility': 'tool', '工具': 'tool', 'Tools': 'tool', 'Utilities': 'tool',
             'Productivity': 'productivity', '效率': 'productivity',
             'Education': 'education', '教育': 'education',
             'Lifestyle': 'lifestyle', '生活': 'lifestyle',
@@ -1583,30 +1600,39 @@ function UploadContent() {
             'DevTool': 'devtool', '开发者工具': 'devtool',
             'Portfolio': 'portfolio', '个人主页': 'portfolio',
             'Appointment': 'appointment', '服务预约': 'appointment',
-            'AI': 'tool', 'AI应用': 'tool'
+            'AI': 'tool', 'AI应用': 'tool',
+            'Entertainment': 'entertainment', '娱乐': 'entertainment'
           };
           const rawCat = metadata.category || '工具';
           category = catMap[rawCat] || 'tool';
           techTags = metadata.tags || [];
 
+          // 始终设置标题和描述（不再检查 preComputedData）
           if (analysisSessionIdRef.current === currentSessionId) {
-              if (!preComputedData?.title) setTitle(titleRes);
-              else setTitle(preComputedData.title);
-
-              if (!preComputedData?.description) setDescription(descRes);
-              else setDescription(preComputedData.description);
+              setTitle(titleRes);
+              setDescription(descRes);
+              console.log('[AI Analysis] Title and Description set:', titleRes, descRes.substring(0, 30));
           }
+      } else {
+          console.warn('[AI Analysis] No metadata received!');
       }
 
       // 第二批：Prompt + 移动端优化 (2个并发)
+      console.log('[AI Analysis] Starting Prompt analysis...');
       const promptPromise = analyzePrompt(html, language).then(res => {
-        if (analysisSessionIdRef.current === currentSessionId) setPrompt(res);
+        console.log('[AI Analysis] Prompt result:', res?.substring(0, 100));
+        if (analysisSessionIdRef.current === currentSessionId) {
+          setPrompt(res || (language === 'zh' ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.'));
+        }
         return res;
+      }).catch(err => {
+        console.error('[AI Analysis] Prompt analysis failed:', err);
+        return language === 'zh' ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.';
       });
       
       const [promptRes, mobileResult] = await Promise.all([
-        runTask(2, promptPromise),
-        runTask(3, optimizeMobileCode(html)),
+        runTask(2, promptPromise),  // index 2 = prompt
+        runTask(3, optimizeMobileCode(html)),  // index 3 = mobile
       ]);
       
       // 检查是否被中断
@@ -1618,8 +1644,10 @@ function UploadContent() {
       // 第三批：App类型分析、图标生成（2个并发）
       const [appTypes, iconRes] = await Promise.all([
         analyzeAppType(html),
-        runTask(4, generateIconTask(Promise.resolve(titleRes), Promise.resolve(descRes)))
+        runTask(4, generateIconTask(Promise.resolve(titleRes), Promise.resolve(descRes)))  // index 4 = icon
       ]);
+      
+      console.log('[AI Analysis] Final Prompt value:', promptRes?.substring(0, 100));
 
       // Final check before updating state
       if (analysisSessionIdRef.current !== currentSessionId) {
