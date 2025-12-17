@@ -48,14 +48,25 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   const shareRef = useRef<HTMLDivElement>(null);
   const [shareImageUrl, setShareImageUrl] = useState<string>('');
 
-  // Register Service Worker for Offline Support (Only in App Mode)
+  // Register Service Worker for Offline Support (Always)
   useEffect(() => {
-    if (viewMode === 'app' && 'serviceWorker' in navigator) {
+    if ('serviceWorker' in navigator) {
       // Check if we are in a secure context (HTTPS or localhost)
       if (window.isSecureContext) {
         navigator.serviceWorker.register('/app-worker.js')
           .then(registration => {
             console.log('App ServiceWorker registration successful with scope: ', registration.scope);
+            
+            // Warm up the cache: Fetch the current page so the SW can cache it immediately
+            // This ensures that if the user goes offline right after loading, the page is already cached.
+            if (navigator.serviceWorker.controller) {
+              fetch(window.location.href).catch(err => console.log('Cache warmup failed:', err));
+            } else {
+              // If not yet controlled (first load), wait for controller change or just rely on next reload
+              navigator.serviceWorker.addEventListener('controllerchange', () => {
+                 fetch(window.location.href).catch(err => console.log('Cache warmup failed:', err));
+              });
+            }
           })
           .catch(err => {
             console.log('App ServiceWorker registration failed: ', err);
@@ -64,7 +75,7 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
         console.warn('Service Worker registration skipped: Not in a secure context (HTTPS required).');
       }
     }
-  }, [viewMode]);
+  }, []);
 
   const [qrIconDataUrl, setQrIconDataUrl] = useState<string>('');
   // Logo Data URL for Share Card

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spark-app-offline-v2';
+const CACHE_NAME = 'spark-app-offline-v3';
 
 // CDN Whitelist
 const CDN_DOMAINS = [
@@ -25,11 +25,9 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // 1. Handle Navigation Requests (HTML Pages)
-  // This is critical for offline support of the main page
-  if (event.request.mode === 'navigate') {
-    // Only handle app routes
-    if (url.pathname.startsWith('/p/') || url.pathname.startsWith('/run/')) {
+  // 1. Handle App Routes (HTML Pages) - Cache Strategy: Network First, falling back to Cache
+  // We handle both 'navigate' (browser reload) and normal fetches (cache warmup)
+  if (url.pathname.startsWith('/p/') || url.pathname.startsWith('/run/')) {
       event.respondWith(
         fetch(event.request)
           .then(response => {
@@ -58,9 +56,10 @@ self.addEventListener('fetch', (event) => {
             return response;
           })
           .catch((err) => {
-            console.log('[SW] Network failed, checking cache for:', event.request.url);
-            // If offline, try to return cached response
-            // Use ignoreSearch: true to match /p/123 even if cached as /p/123?mode=app
+            console.log('[SW] Network failed for app route, checking cache:', event.request.url);
+            
+            // Only return cached HTML for navigation requests to avoid mixing data/html
+            // But since these routes ARE html, it's generally safe.
             return caches.match(event.request, { ignoreSearch: true }).then(cachedResponse => {
               if (cachedResponse) {
                 console.log('[SW] Cache hit for:', event.request.url);
@@ -72,7 +71,6 @@ self.addEventListener('fetch', (event) => {
           })
       );
       return;
-    }
   }
 
   // 2. Cache Static Resources (Next.js, Images, etc.)
