@@ -1590,9 +1590,6 @@ function UploadContent() {
         analyzeAppType(html),
         runTask(4, generateIconTask(Promise.resolve(titleRes), Promise.resolve(descRes)))
       ]);
-        analyzeAppType(html),
-        runTask(7, generateIconTask(Promise.resolve(titleRes), Promise.resolve(descRes)))
-      ]);
 
       // Final check before updating state
       if (analysisSessionIdRef.current !== currentSessionId) {
