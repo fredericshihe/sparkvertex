@@ -183,7 +183,7 @@ function CreateContent() {
   type ModelType = 'deepseek-v3' | 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'gemini-3-pro-preview';
   const MODEL_CONFIG: Record<ModelType, { name: string; tokensPerCredit: number; icon: string; description: string; subtitle: string; isFree?: boolean }> = {
     'deepseek-v3': {
-      name: 'DeepSeek V3.2',
+      name: language === 'zh' ? '免费模型' : 'Free Model',
       tokensPerCredit: 0, // 免费模型
       icon: '🆓',
       description: language === 'zh' ? '免费' : 'Free',
@@ -191,21 +191,21 @@ function CreateContent() {
       isFree: true
     },
     'gemini-2.5-flash': { 
-      name: 'Gemini 2.5 Flash', 
+      name: language === 'zh' ? '快速模型' : 'Fast Model', 
       tokensPerCredit: 15000, 
       icon: '⚡', 
       description: language === 'zh' ? '日常' : 'Daily',
       subtitle: language === 'zh' ? '便宜快速，适合简单任务' : 'Fast & cheap for simple tasks'
     },
     'gemini-2.5-pro': { 
-      name: 'Gemini 2.5 Pro', 
+      name: language === 'zh' ? '均衡模型' : 'Balanced Model', 
       tokensPerCredit: 4000, 
       icon: '🚀', 
       description: language === 'zh' ? '复杂' : 'Complex',
       subtitle: language === 'zh' ? '均衡性能，适合较复杂需求' : 'Balanced for moderate complexity'
     },
     'gemini-3-pro-preview': { 
-      name: 'Gemini 3 Pro Preview', 
+      name: language === 'zh' ? '高级模型' : 'Advanced Model', 
       tokensPerCredit: 3000, 
       icon: '🧠', 
       description: language === 'zh' ? '高级' : 'Advanced',

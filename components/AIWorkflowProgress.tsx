@@ -70,14 +70,26 @@ const STAGE_CONFIG = {
   }
 };
 
-// 意图中文映射
+// 意图中文映射 - 支持 DeepSeek 返回的大写格式
 const INTENT_LABELS: Record<string, { zh: string; en: string }> = {
+  // 小写格式 (旧版兼容)
   'add_feature': { zh: '添加新功能', en: 'Add Feature' },
   'fix_bug': { zh: '修复问题', en: 'Fix Bug' },
   'modify_style': { zh: '调整样式', en: 'Modify Style' },
   'refactor': { zh: '代码重构', en: 'Refactor' },
   'optimize': { zh: '性能优化', en: 'Optimize' },
-  'general': { zh: '通用修改', en: 'General Modification' }
+  'general': { zh: '通用修改', en: 'General Modification' },
+  // 大写格式 (DeepSeek 返回值)
+  'UI_MODIFICATION': { zh: '界面修改', en: 'UI Modification' },
+  'LOGIC_FIX': { zh: '逻辑修复', en: 'Logic Fix' },
+  'NEW_FEATURE': { zh: '新增功能', en: 'New Feature' },
+  'DATA_OPERATION': { zh: '数据操作', en: 'Data Operation' },
+  'CONFIG_HELP': { zh: '配置帮助', en: 'Config Help' },
+  'PERFORMANCE': { zh: '性能优化', en: 'Performance' },
+  'REFACTOR': { zh: '代码重构', en: 'Refactor' },
+  'QA_EXPLANATION': { zh: '问答解释', en: 'Q&A' },
+  'BACKEND_SETUP': { zh: '后端配置', en: 'Backend Setup' },
+  'UNKNOWN': { zh: '通用修改', en: 'General' }
 };
 
 export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({

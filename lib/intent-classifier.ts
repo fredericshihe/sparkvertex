@@ -699,10 +699,11 @@ When analyzing the Architecture Summary, pay attention to component features:
 
 ## 📝 OUTPUT FORMAT
 **Output ONLY valid JSON. No explanations outside JSON. Start with \`{\`**
+**IMPORTANT: The "reasoning" field MUST be in Chinese (中文).**
 
 \`\`\`json
 {
-  "reasoning": "Brief analysis: User wants X. File A needs modification because... File B is reference only because...",
+  "reasoning": "用中文简要分析：用户想要做什么，需要修改哪些文件，为什么...",
   "intent": "LOGIC_FIX | UI_MODIFICATION | NEW_FEATURE | DATA_OPERATION | CONFIG_HELP | PERFORMANCE | REFACTOR | QA_EXPLANATION | UNKNOWN",
   "files_to_edit": ["ComponentA", "ComponentB"],
   "files_to_read": ["TypeDefinitions", "Constants"]
