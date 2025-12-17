@@ -365,26 +365,33 @@ export const CreationChat: React.FC<CreationChatProps> = ({
         {/* Model Selector & Tools */}
         <div className="flex justify-between items-center mb-3 gap-2">
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-            <div className="flex bg-white/5 p-1 rounded-lg border border-white/10">
-              {(Object.entries(MODEL_CONFIG) as [string, any][]).map(([key, config]) => (
-                <button
-                  key={key}
-                  onClick={() => setSelectedModel(key)}
-                  disabled={isGenerating}
-                  className={`text-xs px-3 py-2 rounded-md transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                    selectedModel === key
-                      ? config.isFree 
-                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30 font-medium'
-                        : 'bg-white text-black shadow-lg shadow-white/20 font-medium'
-                      : config.isFree
-                        ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
-                  } disabled:opacity-50`}
-                >
-                  <span>{config.icon}</span>
-                  <span className="hidden sm:inline">{config.description}</span>
-                </button>
-              ))}
+            <div className="flex items-center gap-0.5 bg-black/40 p-0.5 rounded-full border border-white/10 backdrop-blur-md">
+              {(Object.entries(MODEL_CONFIG) as [string, any][]).map(([key, config]) => {
+                const isSelected = selectedModel === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setSelectedModel(key)}
+                    disabled={isGenerating}
+                    className={`relative px-3 py-1.5 rounded-full transition-all duration-300 flex items-center gap-1.5 ${
+                      isSelected
+                        ? config.isFree
+                          ? 'bg-green-500/20 text-green-400 ring-1 ring-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.1)]'
+                          : 'bg-white/15 text-white ring-1 ring-white/20 shadow-[0_0_10px_rgba(255,255,255,0.1)]'
+                        : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                    } disabled:opacity-50`}
+                    title={config.subtitle}
+                  >
+                    <span className={`text-xs transition-transform duration-300 ${isSelected ? 'scale-110' : 'scale-100'}`}>{config.icon}</span>
+                    {/* 智能显示文字：选中时显示，或者在宽屏下显示 */}
+                    <span className={`text-[10px] font-medium whitespace-nowrap transition-all duration-300 ${
+                      isSelected ? 'max-w-[100px] opacity-100 ml-0.5' : 'max-w-0 opacity-0 sm:max-w-[100px] sm:opacity-100 overflow-hidden'
+                    }`}>
+                      {config.description}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
             
             {/* Model Info Button */}

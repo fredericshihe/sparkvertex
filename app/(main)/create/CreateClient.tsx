@@ -214,7 +214,7 @@ function CreateContent() {
   };
 
   // State: Generation
-  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-3-pro-preview');
+  const [selectedModel, setSelectedModel] = useState<ModelType>('gemini-3-flash-preview');
   const [generatedCode, setGeneratedCode] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [modificationCount, setModificationCount] = useState(0);

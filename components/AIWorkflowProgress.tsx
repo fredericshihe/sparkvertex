@@ -329,16 +329,18 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
 
                 {/* AI 思考/计划展示 */}
                 {details.plan && (
-                  <div className="bg-blue-500/5 rounded-lg p-3 border border-blue-500/10 max-h-32 overflow-y-auto custom-scrollbar">
-                    <div className="flex items-center gap-2 mb-2 sticky top-0 bg-inherit backdrop-blur-sm">
+                  <div className="bg-blue-500/5 rounded-lg border border-blue-500/10 max-h-32 overflow-y-auto custom-scrollbar relative">
+                    <div className="flex items-center gap-2 px-3 py-2 sticky top-0 bg-[#0f1115] z-10 border-b border-blue-500/10">
                       <i className="fa-solid fa-lightbulb text-yellow-400 text-[10px]"></i>
                       <span className="text-[10px] font-medium text-blue-300 uppercase tracking-wider">
                         {language === 'zh' ? 'AI 思考' : 'AI Thinking'}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-300 leading-relaxed whitespace-pre-wrap font-light">
-                      {cleanPlanContent(details.plan)}
-                    </p>
+                    <div className="p-3 pt-2">
+                      <p className="text-[11px] text-slate-300 leading-relaxed whitespace-pre-wrap font-light">
+                        {cleanPlanContent(details.plan)}
+                      </p>
+                    </div>
                   </div>
                 )}
 
