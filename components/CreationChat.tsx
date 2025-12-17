@@ -530,7 +530,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
               <div className="bg-white/5 rounded-lg p-3 border border-white/5">
                 <div className="flex items-center justify-between mb-2">
                   <div className="font-bold text-purple-400 flex items-center gap-2">
-                    <span>🚀</span> {language === 'zh' ? '复杂 (Gemini 2.5 Pro)' : 'Complex (Gemini 2.5 Pro)'}
+                    <span>🚀</span> {language === 'zh' ? '复杂 (Gemini 3 Flash Preview)' : 'Complex (Gemini 3 Flash Preview)'}
                   </div>
                   <span className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded border border-purple-500/30">
                     {language === 'zh' ? '中等消耗' : 'Medium Cost'}

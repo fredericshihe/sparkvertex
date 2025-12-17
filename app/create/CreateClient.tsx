@@ -174,10 +174,10 @@ function CreateContent() {
   // Token汇率说明：
   // - DeepSeek V3: 免费模型，不消耗积分
   // - Gemini 2.5 Flash: 1积分 = 15000 tokens（便宜）
-  // - Gemini 2.5 Pro: 1积分 = 4000 tokens（均衡）
+  // - Gemini 3 Flash: 1积分 = 4000 tokens（均衡）
   // - Gemini 3 Pro: 1积分 = 3000 tokens（强大）
   // 注意：上下文 > 200k tokens 时，价格自动翻倍
-  type ModelType = 'deepseek-v3' | 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'gemini-3-pro-preview';
+  type ModelType = 'deepseek-v3' | 'gemini-2.5-flash' | 'gemini-3-flash-preview' | 'gemini-3-pro-preview';
   const MODEL_CONFIG: Record<ModelType, { name: string; tokensPerCredit: number; icon: string; description: string; subtitle: string; isFree?: boolean }> = {
     'deepseek-v3': {
       name: language === 'zh' ? '免费模型' : 'Free Model',
@@ -194,7 +194,7 @@ function CreateContent() {
       description: language === 'zh' ? '日常' : 'Daily',
       subtitle: language === 'zh' ? '便宜快速，适合简单任务' : 'Fast & cheap for simple tasks'
     },
-    'gemini-2.5-pro': { 
+    'gemini-3-flash-preview': { 
       name: language === 'zh' ? '均衡模型' : 'Balanced Model', 
       tokensPerCredit: 4000, 
       icon: '🚀', 

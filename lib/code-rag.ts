@@ -2113,7 +2113,7 @@ export async function findRelevantCodeChunks(
     const MODEL_CHUNK_MULTIPLIER: Record<string, number> = {
         'deepseek-v3': 0.8,       // DeepSeek 输出限制，减少上下文
         'gemini-2.5-flash': 1.2,  // Flash 模型可以处理更多
-        'gemini-2.5-pro': 1.5,    // Pro 模型上下文窗口最大
+        'gemini-3-flash-preview': 1.5,    // Flash Preview 模型
         'gemini-3-pro-preview': 1.5
     };
     const chunkMultiplier = MODEL_CHUNK_MULTIPLIER[modelName || ''] || 1.0;

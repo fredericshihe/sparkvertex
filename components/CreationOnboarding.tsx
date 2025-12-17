@@ -348,20 +348,20 @@ export const CreationOnboarding: React.FC<CreationOnboardingProps> = ({
       
       {/* Popover Card */}
       <div 
-        className={`absolute w-[320px] bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden transition-all duration-300 pointer-events-auto ${isAnimating ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
+        className={`absolute w-[420px] bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden transition-all duration-300 pointer-events-auto ${isAnimating ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
         style={popoverStyle}
       >
         {/* Content */}
-        <div className="p-5">
-          <div className="flex items-start gap-4 mb-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-500/20 to-purple-600/20 flex items-center justify-center text-brand-400 shrink-0 border border-brand-500/20">
+        <div className="p-6">
+          <div className="flex items-start gap-5 mb-4">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-brand-500/20 to-purple-600/20 flex items-center justify-center text-brand-400 shrink-0 border border-brand-500/20">
               {step.icon}
             </div>
             <div className="flex-1">
-              <h3 className="text-base font-bold text-white mb-1 leading-tight">
+              <h3 className="text-lg font-bold text-white mb-2 leading-tight">
                 {step.title}
               </h3>
-              <p className="text-slate-400 text-xs leading-relaxed">
+              <p className="text-slate-300 text-sm leading-relaxed">
                 {step.description}
               </p>
             </div>
@@ -385,24 +385,24 @@ export const CreationOnboarding: React.FC<CreationOnboardingProps> = ({
             </div>
 
             {/* Navigation */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 onClick={onSkip}
-                className="text-[10px] font-medium text-slate-500 hover:text-slate-300 transition px-2 py-1"
+                className="text-xs font-medium text-slate-500 hover:text-slate-300 transition px-2 py-1"
               >
                 {language === 'zh' ? '跳过' : 'Skip'}
               </button>
               
               <button
                 onClick={handleNext}
-                className="px-3 py-1.5 bg-white text-black text-xs font-bold rounded-lg hover:bg-slate-200 transition flex items-center gap-1"
+                className="px-4 py-2 bg-white text-black text-sm font-bold rounded-lg hover:bg-slate-200 transition flex items-center gap-1"
               >
                 {isLastStep ? (
                   language === 'zh' ? '开始' : 'Start'
                 ) : (
                   <>
                     {language === 'zh' ? '下一步' : 'Next'}
-                    <ChevronRight size={12} />
+                    <ChevronRight size={14} />
                   </>
                 )}
               </button>

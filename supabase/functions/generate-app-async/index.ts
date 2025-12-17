@@ -95,14 +95,14 @@ serve(async (req) => {
     // 不同模型的积分汇率（基于 Gemini 官方定价）:
     // - deepseek-v3: 免费模型，不消耗积分
     // - gemini-2.5-flash: 1积分 = 15000 tokens (最便宜，速度快)
-    // - gemini-2.5-pro: 1积分 = 4000 tokens (均衡)
+    // - gemini-3-flash-preview: 1积分 = 4000 tokens (均衡)
     // - gemini-3-pro-preview: 1积分 = 3000 tokens (最强，最贵)
     // 注意：上下文 > 200k tokens 时，价格自动翻倍（tokensPerCredit / 2）
-    const VALID_MODELS = ['deepseek-v3', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3-pro-preview'];
+    const VALID_MODELS = ['deepseek-v3', 'gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-3-pro-preview'];
     const DEFAULT_TOKENS_PER_CREDIT: Record<string, number> = {
         'deepseek-v3': 0, // 免费
         'gemini-2.5-flash': 15000,
-        'gemini-2.5-pro': 4000,
+        'gemini-3-flash-preview': 4000,
         'gemini-3-pro-preview': 3000
     };
     // 超长上下文阈值（200k tokens）
@@ -283,20 +283,20 @@ serve(async (req) => {
                         if (response.status === 503 || response.status === 429) {
                             console.warn(`API 错误 (${response.status}): ${errorText}`);
                             
-                            // 如果遇到 429 错误，尝试切换到 Gemini 2.5 Pro
-                            if (response.status === 429 && !image_url && currentModel !== 'gemini-2.5-pro') {
-                                console.warn('配额超限，切换到 Gemini 2.5 Pro 备用模型...');
-                                currentModel = 'gemini-2.5-pro'; 
+                            // 如果遇到 429 错误，尝试切换到 Gemini 3 Flash Preview
+                            if (response.status === 429 && !image_url && currentModel !== 'gemini-3-flash-preview') {
+                                console.warn('配额超限，切换到 Gemini 3 Flash Preview 备用模型...');
+                                currentModel = 'gemini-3-flash-preview'; 
                                 retryCount = 0;
                                 continue;
                             }
 
                             retryCount++;
                             if (retryCount > maxRetries) {
-                                // 如果还未切换且可以切换，尝试 Gemini 2.5 Pro
-                                if (!image_url && currentModel !== 'gemini-2.5-pro') {
-                                     console.warn('重试次数已达上限，切换到 Gemini 2.5 Pro 备用模型...');
-                                     currentModel = 'gemini-2.5-pro';
+                                // 如果还未切换且可以切换，尝试 Gemini 3 Flash Preview
+                                if (!image_url && currentModel !== 'gemini-3-flash-preview') {
+                                     console.warn('重试次数已达上限，切换到 Gemini 3 Flash Preview 备用模型...');
+                                     currentModel = 'gemini-3-flash-preview';
                                      retryCount = 0;
                                      continue;
                                 }
@@ -621,7 +621,7 @@ serve(async (req) => {
                     }
                     
                     // 根据用户选择的模型使用对应的积分汇率
-                    // gemini-2.5-flash: 1积分=15000tokens, gemini-2.5-pro: 1积分=4000tokens, gemini-3-pro-preview: 1积分=3000tokens
+                    // gemini-2.5-flash: 1积分=15000tokens, gemini-3-flash-preview: 1积分=4000tokens, gemini-3-pro-preview: 1积分=3000tokens
                     // 超长上下文时，汇率减半（相当于价格翻倍）
                     return Math.ceil(totalTokens / effectiveTokensPerCredit);
                 })();
