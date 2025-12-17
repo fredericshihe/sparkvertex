@@ -1254,23 +1254,9 @@ function UploadContent() {
       }
 
       // 2. Vector Check (Slower, but required early)
-      // We need to extract title and description first to generate embedding
-      let titleRes = '';
-      let descRes = '';
-      let categoryRes = '工具';
-      let tagsRes: string[] = [];
       let embedding = null;
 
       try {
-        // Run analysis (Merged into analyzeMetadata)
-        const metadata = await analyzeMetadata(content, language);
-        titleRes = metadata.title;
-        descRes = metadata.description;
-        categoryRes = metadata.category;
-        tagsRes = metadata.tags;
-        
-        console.log('🔍 [Duplicate Check] Generated Metadata:', metadata);
-
         // Use the code content directly for embedding to detect slight modifications (e.g. color changes)
         // Truncate to 20000 chars to fit within token limits (approx 5k tokens)
         const textToEmbed = content.substring(0, 20000);
@@ -1372,14 +1358,10 @@ function UploadContent() {
       setDuplicateCheckPassed(true);
       console.log('🔍 [Duplicate Check] Passed');
       
-      // Return pre-computed data to avoid re-analysis
+      // Return embedding for later use if needed
       return { 
         passed: true, 
         data: { 
-          title: titleRes, 
-          description: descRes,
-          category: categoryRes,
-          tags: tagsRes,
           embedding: embedding 
         } 
       }; 
@@ -1566,18 +1548,8 @@ function UploadContent() {
       const securityPromise = runTask(0, checkMaliciousCode(html));
       
       // 1. 元数据分析 (合并 Title, Desc, Category, Tags)
-      let metadataPromise;
-      if (preComputedData?.title && preComputedData?.description) {
-          // 如果有预计算数据，模拟 metadata 结果
-          metadataPromise = Promise.resolve({
-              title: preComputedData.title,
-              description: preComputedData.description,
-              category: preComputedData.category || '工具',
-              tags: preComputedData.tags || ['HTML5']
-          });
-      } else {
-          metadataPromise = runTask(1, analyzeMetadata(html, language));
-      }
+      // 始终重新分析，不复用旧数据，确保每次上传都获取最新结果
+      const metadataPromise = runTask(1, analyzeMetadata(html, language));
 
       // 第一批：安全检查 + 元数据 (2个并发)
       const [securityResult, metadata] = await Promise.all([
