@@ -791,7 +791,8 @@ function UploadContent() {
                 } else {
                     setIsDuplicateRestricted(false);
                 }
-                performAIAnalysis(fileContent);
+                // Pass the pre-computed data (title, desc, etc.) to avoid re-analysis
+                performAIAnalysis(fileContent, result.data);
               }
             });
         }
@@ -1256,16 +1257,19 @@ function UploadContent() {
       // We need to extract title and description first to generate embedding
       let titleRes = '';
       let descRes = '';
+      let categoryRes = '工具';
+      let tagsRes: string[] = [];
       let embedding = null;
 
       try {
-        // Run analysis in parallel
-        [titleRes, descRes] = await Promise.all([
-          analyzeTitle(content, language),
-          analyzeDescription(content, language)
-        ]);
+        // Run analysis (Merged into analyzeMetadata)
+        const metadata = await analyzeMetadata(content, language);
+        titleRes = metadata.title;
+        descRes = metadata.description;
+        categoryRes = metadata.category;
+        tagsRes = metadata.tags;
         
-        console.log('🔍 [Duplicate Check] Generated Title:', titleRes);
+        console.log('🔍 [Duplicate Check] Generated Metadata:', metadata);
 
         // Use the code content directly for embedding to detect slight modifications (e.g. color changes)
         // Truncate to 20000 chars to fit within token limits (approx 5k tokens)
@@ -1374,6 +1378,8 @@ function UploadContent() {
         data: { 
           title: titleRes, 
           description: descRes,
+          category: categoryRes,
+          tags: tagsRes,
           embedding: embedding 
         } 
       }; 
@@ -1566,8 +1572,8 @@ function UploadContent() {
           metadataPromise = Promise.resolve({
               title: preComputedData.title,
               description: preComputedData.description,
-              category: '工具', // 默认
-              tags: ['HTML5'] // 默认
+              category: preComputedData.category || '工具',
+              tags: preComputedData.tags || ['HTML5']
           });
       } else {
           metadataPromise = runTask(1, analyzeMetadata(html, language));
