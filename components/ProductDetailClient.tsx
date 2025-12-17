@@ -48,6 +48,24 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
   const shareRef = useRef<HTMLDivElement>(null);
   const [shareImageUrl, setShareImageUrl] = useState<string>('');
 
+  // Register Service Worker for Offline Support (Only in App Mode)
+  useEffect(() => {
+    if (viewMode === 'app' && 'serviceWorker' in navigator) {
+      // Check if we are in a secure context (HTTPS or localhost)
+      if (window.isSecureContext) {
+        navigator.serviceWorker.register('/app-worker.js')
+          .then(registration => {
+            console.log('App ServiceWorker registration successful with scope: ', registration.scope);
+          })
+          .catch(err => {
+            console.log('App ServiceWorker registration failed: ', err);
+          });
+      } else {
+        console.warn('Service Worker registration skipped: Not in a secure context (HTTPS required).');
+      }
+    }
+  }, [viewMode]);
+
   const [qrIconDataUrl, setQrIconDataUrl] = useState<string>('');
   // Logo Data URL for Share Card
   const [logoDataUrl, setLogoDataUrl] = useState<string>('');
