@@ -11,14 +11,21 @@ export async function getRAGContext(supabase: SupabaseClient, userPrompt: string
         return '';
     }
 
+    // 设置 10 秒超时，避免 embed 函数阻塞太久
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const embedResponse = await fetch(`${supabaseUrl}/functions/v1/embed`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${supabaseKey}`
       },
-      body: JSON.stringify({ input: userPrompt })
+      body: JSON.stringify({ input: userPrompt }),
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
 
     if (!embedResponse.ok) {
         console.warn('RAG: Embed function failed', await embedResponse.text());

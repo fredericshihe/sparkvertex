@@ -1518,16 +1518,38 @@ function UploadContent() {
         return res;
       });
       
-      const [securityResult, category, titleRes, descRes, techTags, promptRes, appTypes, mobileResult, iconRes] = await Promise.all([
+      // 分批执行分析任务，避免同时发送过多请求导致 504 超时
+      // 第一批：安全检查、分类、标题、描述（4个并发）
+      const [securityResult, category, titleRes, descRes] = await Promise.all([
         runTask(0, checkMaliciousCode(html)),
         runTask(1, analyzeCategory(html, language)),
         runTask(2, titlePromise),
         runTask(3, descPromise),
+      ]);
+      
+      // 检查是否被中断
+      if (analysisSessionIdRef.current !== currentSessionId) {
+        console.log('Analysis result ignored due to reset/re-upload (batch 1)');
+        return;
+      }
+      
+      // 第二批：技术栈、Prompt、移动端优化（3个并发）
+      const [techTags, promptRes, mobileResult] = await Promise.all([
         runTask(4, analyzeTechStack(html)),
         runTask(5, promptPromise),
-        analyzeAppType(html),
         runTask(6, optimizeMobileCode(html)),
-        runTask(7, generateIconTask(titlePromise, descPromise))
+      ]);
+      
+      // 检查是否被中断
+      if (analysisSessionIdRef.current !== currentSessionId) {
+        console.log('Analysis result ignored due to reset/re-upload (batch 2)');
+        return;
+      }
+      
+      // 第三批：App类型分析、图标生成（2个并发）
+      const [appTypes, iconRes] = await Promise.all([
+        analyzeAppType(html),
+        runTask(7, generateIconTask(Promise.resolve(titleRes), Promise.resolve(descRes)))
       ]);
 
       // Final check before updating state
