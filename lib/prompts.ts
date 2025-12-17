@@ -150,8 +150,8 @@ Your task is to modify the provided React code based on the user's request.
 
 ### Output Format
 ${langInstruction}
-1. **Analysis**: Start with \`/// ANALYSIS: ... ///\` describing the target code signature in ${summaryLang}.
-2. **Summary**: Brief summary in \`/// SUMMARY: ... ///\` (${summaryLang}).
+1. **Analysis**: Start with \`/// ANALYSIS: ... ///\` ${language === 'zh' ? '用中文描述你要修改的目标代码。例如："正在定位 MOVE_EFFECT_CONFIG 对象，准备替换为增强的视觉配置..."' : `describing the target code signature in ${summaryLang}.`}
+2. **Summary**: Brief summary in \`/// SUMMARY: ... ///\` ${language === 'zh' ? '用中文简要总结修改内容。' : `(${summaryLang}).`}
 3. **Patch**: Use this strict format with LINE NUMBERS:
 <<<<SEARCH @L[start]-L[end]
 [Exact original code with 3-5 lines of context]
@@ -634,10 +634,7 @@ const handleSubmit = async (e) => {
 
 ### Output Format (Strict Diff Mode)
 ${langInstruction}
-1. **Analysis**: Start with \`/// ANALYSIS: ... ///\` describing:
-   - What form(s) you found (or "No form found, will create Contact Us section")
-   - Which button/handler you will modify
-   - What fields will be included in payload
+1. **Analysis**: Start with \`/// ANALYSIS: ... ///\` ${language === 'zh' ? '用中文描述：你找到了什么表单，要修改哪个按钮/处理器，包含哪些字段。例如："找到联系表单，准备连接提交按钮到后端 API..."' : 'describing: What form(s) you found, which button/handler you will modify, what fields will be included in payload'}
 2. **Summary**: You MUST output exactly this summary: \`/// SUMMARY: ${summaryText} ///\`.
 3. **Patch**: Use this strict format:
 <<<<SEARCH
@@ -823,8 +820,8 @@ const localService = {
 
 ### Output Format (Strict Diff Mode)
 ${langInstruction}
-1. **Analysis**: Start with \`/// ANALYSIS: ... ///\`. Explain which data is Private (PGLite) and which is Public (Inbox) in ${summaryLang}.
-2. **Summary**: Brief summary in \`/// SUMMARY: ... ///\` (${summaryLang}).
+1. **Analysis**: Start with \`/// ANALYSIS: ... ///\`. ${language === 'zh' ? '用中文解释哪些数据是私有的（PGLite），哪些是公开的（Inbox）。例如："识别到待办事项为私有数据，联系表单为公开数据..."' : `Explain which data is Private (PGLite) and which is Public (Inbox) in ${summaryLang}.`}
+2. **Summary**: Brief summary in \`/// SUMMARY: ... ///\` ${language === 'zh' ? '用中文简要总结修改内容。' : `(${summaryLang}).`}
 3. **Patch**: Use \`<<<<SEARCH ... ==== ... >>>>\` format to apply changes.
 `;
 };
