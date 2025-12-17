@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spark-app-offline-v1';
+const CACHE_NAME = 'spark-app-offline-v2';
 
 // CDN Whitelist
 const CDN_DOMAINS = [
@@ -11,6 +11,7 @@ const CDN_DOMAINS = [
 ];
 
 self.addEventListener('install', (event) => {
+  console.log('[SW] Installing Service Worker v2');
   self.skipWaiting();
 });
 
@@ -34,18 +35,38 @@ self.addEventListener('fetch', (event) => {
           .then(response => {
             // Cache valid responses
             if (response.status === 200) {
-              const responseClone = response.clone();
-              caches.open(CACHE_NAME).then(cache => {
-                cache.put(event.request, responseClone);
+              // Create a copy of the response to modify headers
+              // We remove the 'Vary' header to prevent cache mismatch issues
+              const newHeaders = new Headers(response.headers);
+              newHeaders.delete('vary');
+
+              const responseToCache = new Response(response.clone().body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: newHeaders
               });
+
+              const cacheUpdate = caches.open(CACHE_NAME).then(cache => {
+                return cache.put(event.request, responseToCache);
+              });
+              
+              // Ensure caching completes
+              if (event.waitUntil) {
+                event.waitUntil(cacheUpdate);
+              }
             }
             return response;
           })
-          .catch(() => {
+          .catch((err) => {
+            console.log('[SW] Network failed, checking cache for:', event.request.url);
             // If offline, try to return cached response
             // Use ignoreSearch: true to match /p/123 even if cached as /p/123?mode=app
             return caches.match(event.request, { ignoreSearch: true }).then(cachedResponse => {
-              if (cachedResponse) return cachedResponse;
+              if (cachedResponse) {
+                console.log('[SW] Cache hit for:', event.request.url);
+                return cachedResponse;
+              }
+              console.log('[SW] Cache miss for:', event.request.url);
               return Promise.reject('no-cache');
             });
           })
