@@ -24,11 +24,21 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // 1. Cache App Pages (/p/xxx)
-  if (url.pathname.startsWith('/p/') || url.pathname.startsWith('/run/')) {
+  // 1. Cache App Pages & Next.js Resources
+  // - Pages: /p/xxx, /run/xxx
+  // - Next.js Static: /_next/static/xxx
+  // - Public Assets: /icons/xxx, /logo.png
+  if (
+    url.pathname.startsWith('/p/') || 
+    url.pathname.startsWith('/run/') ||
+    url.pathname.startsWith('/_next/') ||
+    url.pathname.startsWith('/icons/') ||
+    url.pathname === '/logo.png'
+  ) {
      event.respondWith(
        fetch(event.request)
          .then(response => {
+           // Cache valid responses
            if (response.status === 200) {
              const responseClone = response.clone();
              caches.open(CACHE_NAME).then(cache => {
@@ -38,7 +48,14 @@ self.addEventListener('fetch', (event) => {
            return response;
          })
          .catch(() => {
-           return caches.match(event.request);
+           // If offline, try to return cached response
+           return caches.match(event.request).then(cachedResponse => {
+             if (cachedResponse) return cachedResponse;
+             
+             // Fallback for HTML pages: return a generic offline page if available
+             // or just let it fail if not cached
+             return Promise.reject('no-cache');
+           });
          })
      );
      return;
