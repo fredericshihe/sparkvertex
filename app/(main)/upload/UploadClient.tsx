@@ -1783,7 +1783,7 @@ function UploadContent() {
           });
           titleRes = metadata.title || titleRes;
           descRes = metadata.description || '';
-          // 简单的类别映射
+          // 分类 key 映射（用于内部存储）
           const catMap: Record<string, string> = {
             'Game': 'game', '游戏': 'game', 'Games': 'game',
             'Utility': 'tool', '工具': 'tool', 'Tools': 'tool', 'Utilities': 'tool',
@@ -1797,8 +1797,22 @@ function UploadContent() {
             'AI': 'tool', 'AI应用': 'tool',
             'Entertainment': 'entertainment', '娱乐': 'entertainment'
           };
+          // 分类显示名称映射（用于 UI 显示）
+          const catDisplayMap: Record<string, string> = {
+            'game': language === 'zh' ? '游戏' : 'Game',
+            'tool': language === 'zh' ? '工具' : 'Tool',
+            'productivity': language === 'zh' ? '效率' : 'Productivity',
+            'education': language === 'zh' ? '教育' : 'Education',
+            'lifestyle': language === 'zh' ? '生活' : 'Lifestyle',
+            'visualization': language === 'zh' ? '可视化' : 'Visualization',
+            'devtool': language === 'zh' ? '开发者工具' : 'DevTool',
+            'portfolio': language === 'zh' ? '个人主页' : 'Portfolio',
+            'appointment': language === 'zh' ? '服务预约' : 'Appointment',
+            'entertainment': language === 'zh' ? '娱乐' : 'Entertainment'
+          };
           const rawCat = metadata.category || '工具';
-          category = catMap[rawCat] || 'tool';
+          const categoryKey = catMap[rawCat] || 'tool';
+          category = catDisplayMap[categoryKey] || (language === 'zh' ? '工具' : 'Tool');
           techTags = metadata.tags || [];
 
           // 始终设置标题和描述（不再检查 preComputedData）
