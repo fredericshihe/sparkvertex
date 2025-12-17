@@ -335,9 +335,22 @@ serve(async (req) => {
                 let lastUpdate = Date.now();
                 let lastBroadcastLength = fullContent.length;
                 let userCancelled = false; // 标记用户是否主动取消
+                let isFirstChunk = true; // 🆕 首次响应标记，用于立即发送
                 
                 const taskChannel = supabaseAdmin.channel(`task-${taskId}`);
                 // Using httpSend() for REST delivery, no WebSocket subscription needed
+
+                // 🆕 发送心跳/连接确认，让前端知道 AI 已开始处理
+                try {
+                    await taskChannel.httpSend('heartbeat', { 
+                        taskId, 
+                        status: 'ai_started',
+                        message: 'AI 引擎已启动，正在生成代码...'
+                    });
+                    console.log('💓 心跳已发送: AI 开始生成');
+                } catch (e) {
+                    console.warn('心跳发送失败:', e);
+                }
 
                 if (reader) {
                   try {
@@ -427,12 +440,22 @@ serve(async (req) => {
                           }
                       }
 
-                // 优化3: Realtime 防抖
-                      // 累积约150字符或等待500ms后再广播
-                      // 显著减少 WebSocket 消息数量
+                // 优化3: Realtime 防抖 (已优化)
+                      // 🆕 首次响应立即发送，后续累积 50 字符或 300ms 后广播
+                      // 大幅减少用户感知延迟
                       const contentDiff = fullContent.length - lastBroadcastLength;
                       
-                      if (contentDiff > 150 || (contentDiff > 0 && Date.now() - lastUpdate > 500)) {
+                      // 🆕 首次收到内容时立即发送（用户感知延迟优化）
+                      const shouldBroadcast = isFirstChunk && contentDiff > 0 || 
+                                              contentDiff > 50 || 
+                                              (contentDiff > 0 && Date.now() - lastUpdate > 300);
+                      
+                      if (shouldBroadcast) {
+                          if (isFirstChunk && contentDiff > 0) {
+                              console.log('🚀 首次响应，立即广播');
+                              isFirstChunk = false;
+                          }
+                          
                           const newChunk = fullContent.slice(lastBroadcastLength);
                           
                           const payload = { 

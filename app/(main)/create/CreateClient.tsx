@@ -2528,6 +2528,16 @@ ${description}
         .channel(`task-${taskId}`)
         .on(
           'broadcast',
+          { event: 'heartbeat' },
+          (payload) => {
+             // 🆕 心跳事件：AI 引擎已启动
+             console.log('[Heartbeat] AI started:', payload.payload);
+             setLoadingText(language === 'zh' ? '🚀 AI 引擎已启动，正在编写代码...' : '🚀 AI engine started, writing code...');
+             setWorkflowStage('generating');
+          }
+        )
+        .on(
+          'broadcast',
           { event: 'chunk' },
           (payload) => {
              const { fullContent } = payload.payload;

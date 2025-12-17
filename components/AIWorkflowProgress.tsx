@@ -315,20 +315,20 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
                       : (stage === 'generating' ? 'Building App in progress...' : 'Building App')}
                 </span>
 
-                {/* 计划展示 - 已移除详细内容显示 */}
-                {/* {details.plan && (
-                  <div className="bg-blue-500/5 rounded-lg p-3 border border-blue-500/10 max-h-40 overflow-y-auto custom-scrollbar">
+                {/* AI 思考/计划展示 */}
+                {details.plan && (
+                  <div className="bg-blue-500/5 rounded-lg p-3 border border-blue-500/10 max-h-32 overflow-y-auto custom-scrollbar">
                     <div className="flex items-center gap-2 mb-2 sticky top-0 bg-inherit backdrop-blur-sm">
-                      <i className="fa-solid fa-list-check text-blue-400 text-[10px]"></i>
+                      <i className="fa-solid fa-lightbulb text-yellow-400 text-[10px]"></i>
                       <span className="text-[10px] font-medium text-blue-300 uppercase tracking-wider">
-                        {language === 'zh' ? '生成计划' : 'Plan'}
+                        {language === 'zh' ? 'AI 思考' : 'AI Thinking'}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-300 leading-relaxed whitespace-pre-wrap font-mono opacity-80">
+                    <p className="text-[11px] text-slate-300 leading-relaxed whitespace-pre-wrap font-light">
                       {details.plan}
                     </p>
                   </div>
-                )} */}
+                )}
 
                 {/* 步骤执行 */}
                 {(details.completedSteps?.length || details.currentStep) && (() => {
