@@ -9,12 +9,6 @@ import { NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getRAGContext } from '@/lib/rag';
 
-// 使用 Node.js Runtime 以支持更长的超时设置
-export const runtime = 'nodejs';
-// 增加最大执行时间 (Vercel Hobby 限制 60s, Pro 限制 300s)
-export const maxDuration = 60;
-export const dynamic = 'force-dynamic';
-
 export async function POST(request: Request) {
   try {
     // 1. Security Check: Verify User Session
@@ -100,21 +94,14 @@ export async function POST(request: Request) {
       
       while (edgeRetryCount <= maxEdgeRetries) {
         try {
-          // 设置 25 秒超时，确保有足够时间重试或 fallback
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 25000);
-          
           const edgeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-html`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${supabaseKey}`
             },
-            body: JSON.stringify({ system_prompt: finalSystemPrompt, user_prompt, temperature }),
-            signal: controller.signal
+            body: JSON.stringify({ system_prompt: finalSystemPrompt, user_prompt, temperature })
           });
-          
-          clearTimeout(timeoutId);
 
           if (edgeResponse.status === 503 || edgeResponse.status === 504 || edgeResponse.status === 429) {
              if (edgeRetryCount === maxEdgeRetries) {
@@ -230,10 +217,6 @@ export async function POST(request: Request) {
 
     while (retryCount <= maxRetries) {
       try {
-        // 设置 30 秒超时
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
-        
         const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -247,11 +230,8 @@ export async function POST(request: Request) {
               { role: "user", content: user_prompt }
             ],
             temperature: temperature
-          }),
-          signal: controller.signal
+          })
         });
-        
-        clearTimeout(timeoutId);
 
         if (response.status === 429 || response.status === 503 || response.status === 500 || response.status === 502 || response.status === 504) {
            if (retryCount === maxRetries) {
