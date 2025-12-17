@@ -1493,38 +1493,38 @@ function UploadContent() {
 
       // Create promises with side effects to update UI immediately
       // If preComputedData exists, use it directly
-      const titlePromise = preComputedData?.title 
-        ? Promise.resolve(preComputedData.title).then(res => {
-            if (analysisSessionIdRef.current === currentSessionId) setTitle(res);
-            return res;
-          })
-        : analyzeTitle(html, language).then(res => {
-            if (analysisSessionIdRef.current === currentSessionId) setTitle(res);
-            return res;
-          });
-      
-      const descPromise = preComputedData?.description
-        ? Promise.resolve(preComputedData.description).then(res => {
-            if (analysisSessionIdRef.current === currentSessionId) setDescription(res);
-            return res;
-          })
-        : analyzeDescription(html, language).then(res => {
-            if (analysisSessionIdRef.current === currentSessionId) setDescription(res);
-            return res;
-          });
+      // [Refactored] Merged into analyzeMetadata to reduce API calls
+      /*
+      const titlePromise = ...
+      const descPromise = ...
+      const promptPromise = ...
+      */
 
-      const promptPromise = analyzePrompt(html, language).then(res => {
-        if (analysisSessionIdRef.current === currentSessionId) setPrompt(res);
-        return res;
-      });
       
       // 分批执行分析任务，避免同时发送过多请求导致 504 超时
-      // 第一批：安全检查、分类、标题、描述（4个并发）
-      const [securityResult, category, titleRes, descRes] = await Promise.all([
-        runTask(0, checkMaliciousCode(html)),
-        runTask(1, analyzeCategory(html, language)),
-        runTask(2, titlePromise),
-        runTask(3, descPromise),
+      // 优化：使用 analyzeMetadata 合并请求，减少并发
+      
+      // 0. 安全检查 (独立运行)
+      const securityPromise = runTask(0, checkMaliciousCode(html));
+      
+      // 1. 元数据分析 (合并 Title, Desc, Category, Tags)
+      let metadataPromise;
+      if (preComputedData?.title && preComputedData?.description) {
+          // 如果有预计算数据，模拟 metadata 结果
+          metadataPromise = Promise.resolve({
+              title: preComputedData.title,
+              description: preComputedData.description,
+              category: '工具', // 默认
+              tags: ['HTML5'] // 默认
+          });
+      } else {
+          metadataPromise = runTask(1, analyzeMetadata(html, language));
+      }
+
+      // 第一批：安全检查 + 元数据 (2个并发)
+      const [securityResult, metadata] = await Promise.all([
+        securityPromise,
+        metadataPromise
       ]);
       
       // 检查是否被中断
@@ -1532,12 +1532,51 @@ function UploadContent() {
         console.log('Analysis result ignored due to reset/re-upload (batch 1)');
         return;
       }
+
+      // 处理 Metadata 结果
+      let titleRes = language === 'zh' ? '未命名作品' : 'Untitled';
+      let descRes = '';
+      let category = '工具';
+      let techTags: string[] = [];
+
+      if (metadata) {
+          titleRes = metadata.title || titleRes;
+          descRes = metadata.description || '';
+          // 简单的类别映射
+          const catMap: Record<string, string> = {
+            'Game': 'game', '游戏': 'game',
+            'Utility': 'tool', '工具': 'tool',
+            'Productivity': 'productivity', '效率': 'productivity',
+            'Education': 'education', '教育': 'education',
+            'Lifestyle': 'lifestyle', '生活': 'lifestyle',
+            'Visualization': 'visualization', '可视化': 'visualization',
+            'DevTool': 'devtool', '开发者工具': 'devtool',
+            'Portfolio': 'portfolio', '个人主页': 'portfolio',
+            'Appointment': 'appointment', '服务预约': 'appointment',
+            'AI': 'tool', 'AI应用': 'tool'
+          };
+          const rawCat = metadata.category || '工具';
+          category = catMap[rawCat] || 'tool';
+          techTags = metadata.tags || [];
+
+          if (analysisSessionIdRef.current === currentSessionId) {
+              if (!preComputedData?.title) setTitle(titleRes);
+              else setTitle(preComputedData.title);
+
+              if (!preComputedData?.description) setDescription(descRes);
+              else setDescription(preComputedData.description);
+          }
+      }
+
+      // 第二批：Prompt + 移动端优化 (2个并发)
+      const promptPromise = analyzePrompt(html, language).then(res => {
+        if (analysisSessionIdRef.current === currentSessionId) setPrompt(res);
+        return res;
+      });
       
-      // 第二批：技术栈、Prompt、移动端优化（3个并发）
-      const [techTags, promptRes, mobileResult] = await Promise.all([
-        runTask(4, analyzeTechStack(html)),
-        runTask(5, promptPromise),
-        runTask(6, optimizeMobileCode(html)),
+      const [promptRes, mobileResult] = await Promise.all([
+        runTask(2, promptPromise),
+        runTask(3, optimizeMobileCode(html)),
       ]);
       
       // 检查是否被中断
@@ -1548,6 +1587,9 @@ function UploadContent() {
       
       // 第三批：App类型分析、图标生成（2个并发）
       const [appTypes, iconRes] = await Promise.all([
+        analyzeAppType(html),
+        runTask(4, generateIconTask(Promise.resolve(titleRes), Promise.resolve(descRes)))
+      ]);
         analyzeAppType(html),
         runTask(7, generateIconTask(Promise.resolve(titleRes), Promise.resolve(descRes)))
       ]);
