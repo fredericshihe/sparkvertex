@@ -119,79 +119,172 @@ async function calculateContentHash(content: string) {
   return await sha256(normalized);
 }
 
-async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, temperature = 0.7) {
+// 带重试机制的 API 调用
+async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, temperature = 0.7, maxRetries = 2) {
   console.log('[DeepSeek API] Calling with system prompt:', systemPrompt.substring(0, 50) + '...');
-  try {
-    const response = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_prompt: systemPrompt,
-        user_prompt: userPrompt,
-        temperature: temperature
-      })
-    });
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      const errorMessage = data.error || `API Error: ${response.status}`;
-      console.error('[DeepSeek API] Error response:', response.status, errorMessage);
+  
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        console.log(`[DeepSeek API] Retry attempt ${attempt}/${maxRetries}...`);
+        // 指数退避等待
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
+      }
       
-      // Throw specific errors for Rate Limit, Auth, and Validation
-      if (response.status === 429) throw new Error(errorMessage); // Rate Limit
-      if (response.status === 401) throw new Error(errorMessage); // Auth
-      if (response.status === 400) throw new Error(errorMessage); // Validation
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120秒超时
       
-      throw new Error(errorMessage);
-    }
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_prompt: systemPrompt,
+          user_prompt: userPrompt,
+          temperature: temperature
+        }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
 
-    const data = await response.json();
-    console.log('[DeepSeek API] Success, content length:', data.content?.length || 0);
-    return data.content;
-  } catch (err: any) {
-    console.error('[DeepSeek API] Error:', err);
-    // Re-throw if it's one of our specific errors
-    if (err.message && (
-      err.message.includes('Rate limit') || 
-      err.message.includes('Unauthorized') || 
-      err.message.includes('too long') ||
-      err.message.includes('429') ||
-      err.message.includes('401') ||
-      err.message.includes('400')
-    )) {
-      throw err;
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const errorMessage = data.error || `API Error: ${response.status}`;
+        console.error('[DeepSeek API] Error response:', response.status, errorMessage);
+        
+        // 不重试的错误类型
+        if (response.status === 429) throw new Error(errorMessage); // Rate Limit
+        if (response.status === 401) throw new Error(errorMessage); // Auth
+        if (response.status === 400) throw new Error(errorMessage); // Validation
+        
+        // 504/503 可以重试
+        if (response.status === 504 || response.status === 503 || response.status === 502) {
+          lastError = new Error(errorMessage);
+          continue; // 重试
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      console.log('[DeepSeek API] Success, content length:', data.content?.length || 0);
+      return data.content;
+    } catch (err: any) {
+      console.error('[DeepSeek API] Error:', err);
+      
+      // 不重试的错误
+      if (err.message && (
+        err.message.includes('Rate limit') || 
+        err.message.includes('Unauthorized') || 
+        err.message.includes('too long') ||
+        err.message.includes('429') ||
+        err.message.includes('401') ||
+        err.message.includes('400')
+      )) {
+        throw err;
+      }
+      
+      // 超时或网络错误可以重试
+      if (err.name === 'AbortError' || err.message?.includes('504') || err.message?.includes('timeout')) {
+        lastError = err;
+        continue;
+      }
+      
+      lastError = err;
     }
-    return null;
   }
+  
+  console.warn('[DeepSeek API] All retries failed, returning null');
+  return null;
 }
 
 async function analyzeMetadata(htmlContent: string, language: string = 'zh') {
   const isZh = language === 'zh';
+  
+  // 提取关键信息，减少发送的数据量
+  const extractKeyInfo = (html: string) => {
+    // 提取 title
+    const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : '';
+    
+    // 提取 meta description
+    const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i);
+    const metaDesc = descMatch ? descMatch[1].trim() : '';
+    
+    // 提取主要文本内容（去除脚本和样式）
+    let textContent = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .substring(0, 1000);
+    
+    // 检测使用的技术
+    const techHints: string[] = [];
+    if (html.includes('react') || html.includes('React')) techHints.push('React');
+    if (html.includes('vue') || html.includes('Vue')) techHints.push('Vue');
+    if (html.includes('tailwind') || html.includes('Tailwind')) techHints.push('Tailwind');
+    if (html.includes('three.js') || html.includes('THREE')) techHints.push('Three.js');
+    if (html.includes('canvas') || html.includes('Canvas')) techHints.push('Canvas');
+    if (html.includes('gsap') || html.includes('GSAP')) techHints.push('GSAP');
+    if (html.includes('d3') || html.includes('D3')) techHints.push('D3.js');
+    
+    return { title, metaDesc, textContent, techHints };
+  };
+  
+  const keyInfo = extractKeyInfo(htmlContent);
+  
   const systemPrompt = isZh
-    ? '你是一个资深的产品经理和技术专家。你需要分析 HTML 代码并提取关键元数据：标题、描述、分类和技术标签。'
-    : 'You are a Senior Product Manager and Tech Expert. Analyze the HTML code and extract key metadata: Title, Description, Category, and Tech Tags.';
+    ? '你是一个资深的产品经理。根据提供的应用信息，生成标题、描述、分类和标签。'
+    : 'You are a Senior Product Manager. Generate title, description, category and tags based on the app info.';
 
+  // 使用精简的 prompt，只发送关键信息而不是完整代码
   const userPrompt = isZh
-    ? `请分析以下 HTML 代码，返回一个 JSON 对象，包含以下字段：
-1. title: 10-30字的吸引人标题。
-2. description: 50-100字的产品描述，突出核心功能。
-3. category: 从以下列表中选择最匹配的一个分类：'Games', 'Tools', 'Social', 'Entertainment', 'Productivity', 'Education', 'Finance', 'Utilities', 'Lifestyle', 'Health', 'News', 'Shopping', 'Travel', 'Business', 'Sports', 'Weather', 'Reference', 'Graphics', 'Photo', 'Video', 'Music', 'Medical', 'Food', 'Navigation', 'Books', 'Magazines', 'Catalogs', 'Stickers'。
-4. tags: 3-6个技术栈标签（如 HTML5, React, Tailwind, Three.js 等）。
+    ? `根据以下应用信息，返回 JSON：
+现有标题: ${keyInfo.title || '无'}
+现有描述: ${keyInfo.metaDesc || '无'}
+检测到的技术: ${keyInfo.techHints.join(', ') || '无'}
+内容摘要: ${keyInfo.textContent.substring(0, 500)}
 
-只返回 JSON 字符串，不要包含 Markdown 格式或其他文本。
+返回格式：{"title":"标题","description":"描述","category":"分类","tags":["标签1","标签2"]}
+分类选项：Games, Tools, Entertainment, Productivity, Education, Utilities, Lifestyle, Visualization
+只返回 JSON。`
+    : `Based on the following app info, return JSON:
+Existing title: ${keyInfo.title || 'None'}
+Existing desc: ${keyInfo.metaDesc || 'None'}
+Detected tech: ${keyInfo.techHints.join(', ') || 'None'}
+Content summary: ${keyInfo.textContent.substring(0, 500)}
 
-代码:\n\n${htmlContent.substring(0, 20000)}`
-    : `Analyze the following HTML code and return a JSON object with the following fields:
-1. title: 10-30 characters attractive title.
-2. description: 50-100 words product description, highlighting core features.
-3. category: Choose the best matching category from: 'Games', 'Tools', 'Social', 'Entertainment', 'Productivity', 'Education', 'Finance', 'Utilities', 'Lifestyle', 'Health', 'News', 'Shopping', 'Travel', 'Business', 'Sports', 'Weather', 'Reference', 'Graphics', 'Photo', 'Video', 'Music', 'Medical', 'Food', 'Navigation', 'Books', 'Magazines', 'Catalogs', 'Stickers'.
-4. tags: 3-6 tech stack tags (e.g., HTML5, React, Tailwind, Three.js, etc.).
-
-Return only the JSON string, no Markdown formatting or other text.
-
-Code:\n\n${htmlContent.substring(0, 20000)}`;
+Format: {"title":"title","description":"desc","category":"cat","tags":["tag1","tag2"]}
+Categories: Games, Tools, Entertainment, Productivity, Education, Utilities, Lifestyle, Visualization
+Return only JSON.`;
 
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
+  
+  // 如果 API 调用失败，使用本地推断
+  if (!result) {
+    console.warn('[analyzeMetadata] API failed, using local inference');
+    const localTitle = keyInfo.title || (isZh ? '创意 Web 应用' : 'Creative Web App');
+    const localDesc = keyInfo.metaDesc || (isZh ? '这是一个交互式 Web 应用。' : 'This is an interactive Web App.');
+    const localTags = keyInfo.techHints.length > 0 ? keyInfo.techHints : ['HTML5', 'CSS3', 'JavaScript'];
+    
+    // 简单的分类推断
+    let localCategory = 'Tools';
+    const lowerContent = (keyInfo.textContent + keyInfo.title).toLowerCase();
+    if (lowerContent.includes('game') || lowerContent.includes('游戏') || lowerContent.includes('play')) localCategory = 'Games';
+    else if (lowerContent.includes('chart') || lowerContent.includes('graph') || lowerContent.includes('可视化')) localCategory = 'Visualization';
+    else if (lowerContent.includes('todo') || lowerContent.includes('note') || lowerContent.includes('效率')) localCategory = 'Productivity';
+    
+    return {
+      title: localTitle,
+      description: localDesc,
+      category: localCategory,
+      tags: localTags.slice(0, 6)
+    };
+  }
   
   try {
     let jsonStr = typeof result === 'string' ? result : String(result);
@@ -200,19 +293,19 @@ Code:\n\n${htmlContent.substring(0, 20000)}`;
     const data = JSON.parse(jsonStr);
     
     return {
-      title: data.title || (isZh ? '未命名作品' : 'Untitled App'),
-      description: data.description || (isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.'),
+      title: data.title || keyInfo.title || (isZh ? '未命名作品' : 'Untitled App'),
+      description: data.description || keyInfo.metaDesc || (isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.'),
       category: data.category || 'Tools',
-      tags: Array.isArray(data.tags) ? data.tags : ['HTML5']
+      tags: Array.isArray(data.tags) ? data.tags : (keyInfo.techHints.length > 0 ? keyInfo.techHints : ['HTML5'])
     };
   } catch (e) {
     console.error('Failed to parse AI metadata response:', e);
-    // Fallback
+    // Fallback with local info
     return {
-      title: isZh ? '未命名作品' : 'Untitled App',
-      description: isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.',
+      title: keyInfo.title || (isZh ? '未命名作品' : 'Untitled App'),
+      description: keyInfo.metaDesc || (isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.'),
       category: 'Tools',
-      tags: ['HTML5']
+      tags: keyInfo.techHints.length > 0 ? keyInfo.techHints : ['HTML5']
     };
   }
 }
@@ -343,71 +436,66 @@ Return only comma-separated tag names. No other text. Code:\n\n${htmlContent.sub
 async function analyzePrompt(htmlContent: string, language: string = 'en', temperature: number = 0.5) {
   console.log('[analyzePrompt] Starting prompt analysis, language:', language);
   const isZh = language === 'zh';
+  
+  // 提取关键信息，避免发送完整代码
+  const extractForPrompt = (html: string) => {
+    const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
+    const title = titleMatch ? titleMatch[1].trim() : '';
+    
+    // 提取主要功能相关的关键词
+    let content = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .substring(0, 800);
+    
+    // 检测交互类型
+    const hasCanvas = html.includes('canvas') || html.includes('Canvas');
+    const hasAnimation = html.includes('animation') || html.includes('transition') || html.includes('gsap');
+    const hasForm = html.includes('<form') || html.includes('<input');
+    const has3D = html.includes('three') || html.includes('webgl') || html.includes('3d');
+    
+    return { title, content, hasCanvas, hasAnimation, hasForm, has3D };
+  };
+  
+  const info = extractForPrompt(htmlContent);
+  
   const systemPrompt = isZh
-    ? '你是一个资深的 Prompt 工程师。你需要分析 HTML 代码并生成一个简洁、核心的 Prompt，用于指导 AI 重新生成类似应用。'
-    : 'You are a Senior Prompt Engineer. Analyze the HTML code and generate a concise, core Prompt for AI to regenerate a similar app.';
+    ? '你是 Prompt 工程师。根据应用信息生成简洁的 AI 生成指令。'
+    : 'You are a Prompt Engineer. Generate concise AI instructions based on app info.';
     
   const userPrompt = isZh
-    ? `请分析以下代码，生成一个**核心功能 Prompt** (50-100字)。
-重点：核心功能、交互逻辑、视觉风格。只返回 Prompt 文本。
+    ? `根据以下信息，生成 100-150 字的核心 Prompt：
+标题: ${info.title || '无'}
+内容: ${info.content.substring(0, 400)}
+特性: ${[info.hasCanvas && 'Canvas', info.hasAnimation && '动画', info.hasForm && '表单', info.has3D && '3D'].filter(Boolean).join(', ') || '基础网页'}
 
-代码:\n\n${htmlContent.substring(0, 8000)}`
-    : `Analyze the code, generate a **Core Prompt** (50-100 words).
-Focus: core function, interaction, visual style. Return only the prompt text.
+只返回 Prompt 文本。`
+    : `Generate a 50-100 word core prompt based on:
+Title: ${info.title || 'None'}
+Content: ${info.content.substring(0, 400)}
+Features: ${[info.hasCanvas && 'Canvas', info.hasAnimation && 'Animation', info.hasForm && 'Form', info.has3D && '3D'].filter(Boolean).join(', ') || 'Basic web'}
 
-Code:\n\n${htmlContent.substring(0, 8000)}`;
+Return only the prompt text.`;
   
   try {
-    // 使用 AbortController 设置 30 秒超时
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-    
     const result = await callDeepSeekAPI(systemPrompt, userPrompt, temperature);
-    clearTimeout(timeoutId);
-    
     console.log('[analyzePrompt] API result:', result ? 'success' : 'null', result?.substring(0, 50));
     if (!result) {
-      console.warn('[analyzePrompt] No result, using fallback');
-      return generateLocalPrompt(htmlContent, isZh);
+      // 本地生成简单 prompt
+      const localPrompt = isZh 
+        ? `创建一个${info.title ? `名为"${info.title}"的` : ''}${info.has3D ? '3D ' : ''}${info.hasCanvas ? 'Canvas ' : ''}${info.hasAnimation ? '带动画的' : ''}Web 应用。`
+        : `Create a${info.title ? ` "${info.title}"` : ''}${info.has3D ? ' 3D' : ''}${info.hasCanvas ? ' Canvas' : ''}${info.hasAnimation ? ' animated' : ''} web application.`;
+      console.warn('[analyzePrompt] Using local fallback:', localPrompt);
+      return localPrompt;
     }
     return typeof result === 'string' ? result : String(result);
-  } catch (err: any) {
-    console.error('[analyzePrompt] Error:', err?.message || err);
-    // 超时或其他错误时，使用本地生成
-    return generateLocalPrompt(htmlContent, isZh);
+  } catch (err) {
+    console.error('[analyzePrompt] Error:', err);
+    return isZh ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.';
   }
-}
-
-// 本地生成 Prompt（当 AI 超时时使用）
-function generateLocalPrompt(htmlContent: string, isZh: boolean): string {
-  const hasCanvas = htmlContent.includes('canvas') || htmlContent.includes('Canvas');
-  const hasThreeJS = htmlContent.includes('three') || htmlContent.includes('THREE');
-  const hasGame = htmlContent.includes('game') || htmlContent.includes('Game') || htmlContent.includes('score');
-  const hasChart = htmlContent.includes('chart') || htmlContent.includes('Chart') || htmlContent.includes('echarts');
-  const hasForm = htmlContent.includes('<form') || htmlContent.includes('<input');
-  const hasTailwind = htmlContent.includes('tailwind') || htmlContent.includes('tw-');
-  
-  let prompt = '';
-  
-  if (hasThreeJS) {
-    prompt = isZh ? '创建一个 3D 可视化应用，使用 Three.js 实现交互式 3D 场景。' : 'Create a 3D visualization app with Three.js for interactive 3D scenes.';
-  } else if (hasGame) {
-    prompt = isZh ? '创建一个网页游戏，包含游戏循环、分数系统和交互控制。' : 'Create a web game with game loop, scoring system and interactive controls.';
-  } else if (hasCanvas) {
-    prompt = isZh ? '创建一个 Canvas 绘图应用，支持交互式绑制和动画效果。' : 'Create a Canvas drawing app with interactive drawing and animations.';
-  } else if (hasChart) {
-    prompt = isZh ? '创建一个数据可视化仪表盘，使用图表展示数据。' : 'Create a data visualization dashboard with charts.';
-  } else if (hasForm) {
-    prompt = isZh ? '创建一个表单应用，包含用户输入和数据处理功能。' : 'Create a form application with user input and data processing.';
-  } else {
-    prompt = isZh ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.';
-  }
-  
-  if (hasTailwind) {
-    prompt += isZh ? ' 使用 Tailwind CSS 构建响应式界面。' : ' Use Tailwind CSS for responsive UI.';
-  }
-  
-  return prompt;
 }
 
 async function analyzeAppType(htmlContent: string) {
