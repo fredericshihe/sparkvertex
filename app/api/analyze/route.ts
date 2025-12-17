@@ -9,6 +9,11 @@ import { NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getRAGContext } from '@/lib/rag';
 
+// 使用 Node.js runtime 以支持更长的超时时间
+export const runtime = 'nodejs';
+// Vercel Pro/Enterprise 可以设置更长时间，Hobby 计划最长 60 秒
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     // 1. Security Check: Verify User Session
