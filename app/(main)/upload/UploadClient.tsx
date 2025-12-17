@@ -119,22 +119,163 @@ async function calculateContentHash(content: string) {
   return await sha256(normalized);
 }
 
-// 带重试机制的 API 调用
-async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, temperature = 0.7, maxRetries = 2) {
+/**
+ * 从 HTML 代码中提取关键信息骨架，大幅减少发送给 AI 的数据量
+ * 参考 intent-classifier.ts 的 generateFileSummary 方法
+ */
+function extractCodeSkeleton(htmlContent: string): string {
+  const skeleton: string[] = [];
+  
+  // 1. 提取 <title> 标签
+  const titleMatch = htmlContent.match(/<title[^>]*>([^<]*)<\/title>/i);
+  if (titleMatch) {
+    skeleton.push(`[Title] ${titleMatch[1].trim()}`);
+  }
+  
+  // 2. 提取 meta 描述
+  const metaDescMatch = htmlContent.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
+  if (metaDescMatch) {
+    skeleton.push(`[Meta] ${metaDescMatch[1].substring(0, 100)}`);
+  }
+  
+  // 3. 检测使用的框架/库
+  const frameworks: string[] = [];
+  if (htmlContent.includes('react') || htmlContent.includes('React')) frameworks.push('React');
+  if (htmlContent.includes('vue') || htmlContent.includes('Vue')) frameworks.push('Vue');
+  if (htmlContent.includes('tailwind') || htmlContent.includes('Tailwind')) frameworks.push('Tailwind');
+  if (htmlContent.includes('three') || htmlContent.includes('THREE')) frameworks.push('Three.js');
+  if (htmlContent.includes('canvas') || htmlContent.includes('Canvas')) frameworks.push('Canvas');
+  if (htmlContent.includes('webgl') || htmlContent.includes('WebGL')) frameworks.push('WebGL');
+  if (htmlContent.includes('d3') || htmlContent.includes('D3')) frameworks.push('D3.js');
+  if (htmlContent.includes('gsap') || htmlContent.includes('GSAP')) frameworks.push('GSAP');
+  if (htmlContent.includes('pixi') || htmlContent.includes('PIXI')) frameworks.push('PixiJS');
+  if (htmlContent.includes('phaser') || htmlContent.includes('Phaser')) frameworks.push('Phaser');
+  if (htmlContent.includes('babylonjs') || htmlContent.includes('BABYLON')) frameworks.push('Babylon.js');
+  if (htmlContent.includes('anime.js') || htmlContent.includes('anime(')) frameworks.push('Anime.js');
+  if (htmlContent.includes('chart') || htmlContent.includes('Chart')) frameworks.push('Chart.js');
+  if (htmlContent.includes('echarts') || htmlContent.includes('ECharts')) frameworks.push('ECharts');
+  if (htmlContent.includes('socket') || htmlContent.includes('WebSocket')) frameworks.push('WebSocket');
+  if (htmlContent.includes('indexedDB') || htmlContent.includes('IndexedDB')) frameworks.push('IndexedDB');
+  if (htmlContent.includes('localStorage')) frameworks.push('LocalStorage');
+  
+  if (frameworks.length > 0) {
+    skeleton.push(`[Tech] ${frameworks.join(', ')}`);
+  }
+  
+  // 4. 提取主要的 CSS 类名（前 20 个独特类名）
+  const classMatches = htmlContent.match(/class=["']([^"']+)["']/gi);
+  if (classMatches) {
+    const classes = new Set<string>();
+    classMatches.forEach(m => {
+      const classStr = m.replace(/class=["']/i, '').replace(/["']$/, '');
+      classStr.split(/\s+/).forEach(c => {
+        if (c && c.length > 2 && c.length < 30 && !c.startsWith('_')) {
+          classes.add(c);
+        }
+      });
+    });
+    const topClasses = Array.from(classes).slice(0, 20);
+    if (topClasses.length > 0) {
+      skeleton.push(`[Classes] ${topClasses.join(', ')}`);
+    }
+  }
+  
+  // 5. 提取主要函数名
+  const funcMatches = htmlContent.match(/function\s+(\w+)\s*\(/g);
+  const arrowFuncMatches = htmlContent.match(/(?:const|let|var)\s+(\w+)\s*=\s*(?:\([^)]*\)|[^=])\s*=>/g);
+  const funcNames = new Set<string>();
+  
+  if (funcMatches) {
+    funcMatches.forEach(m => {
+      const name = m.replace(/function\s+/, '').replace(/\s*\($/, '');
+      if (name && name.length > 2 && name.length < 30) {
+        funcNames.add(name);
+      }
+    });
+  }
+  if (arrowFuncMatches) {
+    arrowFuncMatches.forEach(m => {
+      const name = m.match(/(?:const|let|var)\s+(\w+)/)?.[1];
+      if (name && name.length > 2 && name.length < 30) {
+        funcNames.add(name);
+      }
+    });
+  }
+  
+  const topFuncs = Array.from(funcNames).slice(0, 15);
+  if (topFuncs.length > 0) {
+    skeleton.push(`[Functions] ${topFuncs.join(', ')}`);
+  }
+  
+  // 6. 提取主要 HTML 结构标签
+  const structureTags = ['header', 'nav', 'main', 'section', 'article', 'aside', 'footer', 'form', 'table', 'ul', 'ol'];
+  const foundTags: string[] = [];
+  structureTags.forEach(tag => {
+    if (htmlContent.includes(`<${tag}`)) {
+      foundTags.push(tag);
+    }
+  });
+  if (foundTags.length > 0) {
+    skeleton.push(`[Structure] ${foundTags.join(', ')}`);
+  }
+  
+  // 7. 检测交互元素
+  const interactions: string[] = [];
+  if (htmlContent.includes('onclick') || htmlContent.includes('onClick')) interactions.push('Click');
+  if (htmlContent.includes('onsubmit') || htmlContent.includes('onSubmit')) interactions.push('Submit');
+  if (htmlContent.includes('oninput') || htmlContent.includes('onInput') || htmlContent.includes('onChange')) interactions.push('Input');
+  if (htmlContent.includes('ondrag') || htmlContent.includes('onDrag')) interactions.push('Drag');
+  if (htmlContent.includes('onkeydown') || htmlContent.includes('onKeyDown')) interactions.push('Keyboard');
+  if (htmlContent.includes('ontouchstart') || htmlContent.includes('onTouchStart')) interactions.push('Touch');
+  if (htmlContent.includes('requestAnimationFrame')) interactions.push('Animation');
+  if (htmlContent.includes('setInterval') || htmlContent.includes('setTimeout')) interactions.push('Timer');
+  
+  if (interactions.length > 0) {
+    skeleton.push(`[Interactions] ${interactions.join(', ')}`);
+  }
+  
+  // 8. 提取可见文本内容（前 500 字符）
+  const textContent = htmlContent
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 500);
+  
+  if (textContent.length > 20) {
+    skeleton.push(`[Content] ${textContent}...`);
+  }
+  
+  // 9. 代码统计
+  const stats = {
+    lines: htmlContent.split('\n').length,
+    chars: htmlContent.length,
+    hasCSS: htmlContent.includes('<style') || htmlContent.includes('style='),
+    hasJS: htmlContent.includes('<script')
+  };
+  skeleton.push(`[Stats] ${stats.lines} lines, ${Math.round(stats.chars/1024)}KB, CSS:${stats.hasCSS}, JS:${stats.hasJS}`);
+  
+  return skeleton.join('\n');
+}
+
+/**
+ * 带自动重试的 DeepSeek API 调用
+ * - 504/503/502 错误时最多重试 2 次
+ * - 使用指数退避（1s, 2s, 4s）
+ * - 客户端 120 秒超时保护
+ */
+async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, temperature = 0.7) {
   console.log('[DeepSeek API] Calling with system prompt:', systemPrompt.substring(0, 50) + '...');
   
-  let lastError: Error | null = null;
+  const maxRetries = 2;
+  const clientTimeout = 120000; // 120 秒客户端超时
   
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      if (attempt > 0) {
-        console.log(`[DeepSeek API] Retry attempt ${attempt}/${maxRetries}...`);
-        // 指数退避等待
-        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
-      }
-      
+      // 创建 AbortController 用于超时控制
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 120秒超时
+      const timeoutId = setTimeout(() => controller.abort(), clientTimeout);
       
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -149,21 +290,26 @@ async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, tempera
       
       clearTimeout(timeoutId);
 
+      // 检查是否需要重试的错误
+      if (response.status === 504 || response.status === 503 || response.status === 502) {
+        if (attempt < maxRetries) {
+          const waitTime = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+          console.warn(`[DeepSeek API] ${response.status} error, retrying in ${waitTime}ms (attempt ${attempt + 1}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
+        }
+        console.error(`[DeepSeek API] Failed after ${maxRetries} retries with status ${response.status}`);
+        return null;
+      }
+
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         const errorMessage = data.error || `API Error: ${response.status}`;
         console.error('[DeepSeek API] Error response:', response.status, errorMessage);
         
-        // 不重试的错误类型
-        if (response.status === 429) throw new Error(errorMessage); // Rate Limit
-        if (response.status === 401) throw new Error(errorMessage); // Auth
-        if (response.status === 400) throw new Error(errorMessage); // Validation
-        
-        // 504/503 可以重试
-        if (response.status === 504 || response.status === 503 || response.status === 502) {
-          lastError = new Error(errorMessage);
-          continue; // 重试
-        }
+        if (response.status === 429) throw new Error(errorMessage);
+        if (response.status === 401) throw new Error(errorMessage);
+        if (response.status === 400) throw new Error(errorMessage);
         
         throw new Error(errorMessage);
       }
@@ -171,10 +317,21 @@ async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, tempera
       const data = await response.json();
       console.log('[DeepSeek API] Success, content length:', data.content?.length || 0);
       return data.content;
-    } catch (err: any) {
-      console.error('[DeepSeek API] Error:', err);
       
-      // 不重试的错误
+    } catch (err: any) {
+      // 处理超时错误
+      if (err.name === 'AbortError') {
+        if (attempt < maxRetries) {
+          const waitTime = Math.pow(2, attempt) * 1000;
+          console.warn(`[DeepSeek API] Timeout, retrying in ${waitTime}ms (attempt ${attempt + 1}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
+        }
+        console.error('[DeepSeek API] Timeout after all retries');
+        return null;
+      }
+      
+      console.error('[DeepSeek API] Error:', err);
       if (err.message && (
         err.message.includes('Rate limit') || 
         err.message.includes('Unauthorized') || 
@@ -185,106 +342,40 @@ async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, tempera
       )) {
         throw err;
       }
-      
-      // 超时或网络错误可以重试
-      if (err.name === 'AbortError' || err.message?.includes('504') || err.message?.includes('timeout')) {
-        lastError = err;
-        continue;
-      }
-      
-      lastError = err;
+      return null;
     }
   }
   
-  console.warn('[DeepSeek API] All retries failed, returning null');
   return null;
 }
 
 async function analyzeMetadata(htmlContent: string, language: string = 'zh') {
   const isZh = language === 'zh';
-  
-  // 提取关键信息，减少发送的数据量
-  const extractKeyInfo = (html: string) => {
-    // 提取 title
-    const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : '';
-    
-    // 提取 meta description
-    const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i);
-    const metaDesc = descMatch ? descMatch[1].trim() : '';
-    
-    // 提取主要文本内容（去除脚本和样式）
-    let textContent = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 1000);
-    
-    // 检测使用的技术
-    const techHints: string[] = [];
-    if (html.includes('react') || html.includes('React')) techHints.push('React');
-    if (html.includes('vue') || html.includes('Vue')) techHints.push('Vue');
-    if (html.includes('tailwind') || html.includes('Tailwind')) techHints.push('Tailwind');
-    if (html.includes('three.js') || html.includes('THREE')) techHints.push('Three.js');
-    if (html.includes('canvas') || html.includes('Canvas')) techHints.push('Canvas');
-    if (html.includes('gsap') || html.includes('GSAP')) techHints.push('GSAP');
-    if (html.includes('d3') || html.includes('D3')) techHints.push('D3.js');
-    
-    return { title, metaDesc, textContent, techHints };
-  };
-  
-  const keyInfo = extractKeyInfo(htmlContent);
-  
   const systemPrompt = isZh
-    ? '你是一个资深的产品经理。根据提供的应用信息，生成标题、描述、分类和标签。'
-    : 'You are a Senior Product Manager. Generate title, description, category and tags based on the app info.';
+    ? '你是一个资深的产品经理和技术专家。你需要分析 HTML 代码并提取关键元数据：标题、描述、分类和技术标签。'
+    : 'You are a Senior Product Manager and Tech Expert. Analyze the HTML code and extract key metadata: Title, Description, Category, and Tech Tags.';
 
-  // 使用精简的 prompt，只发送关键信息而不是完整代码
   const userPrompt = isZh
-    ? `根据以下应用信息，返回 JSON：
-现有标题: ${keyInfo.title || '无'}
-现有描述: ${keyInfo.metaDesc || '无'}
-检测到的技术: ${keyInfo.techHints.join(', ') || '无'}
-内容摘要: ${keyInfo.textContent.substring(0, 500)}
+    ? `请分析以下 HTML 代码，返回一个 JSON 对象，包含以下字段：
+1. title: 10-30字的吸引人标题。
+2. description: 50-100字的产品描述，突出核心功能。
+3. category: 从以下列表中选择最匹配的一个分类：'Games', 'Tools', 'Social', 'Entertainment', 'Productivity', 'Education', 'Finance', 'Utilities', 'Lifestyle', 'Health', 'News', 'Shopping', 'Travel', 'Business', 'Sports', 'Weather', 'Reference', 'Graphics', 'Photo', 'Video', 'Music', 'Medical', 'Food', 'Navigation', 'Books', 'Magazines', 'Catalogs', 'Stickers'。
+4. tags: 3-6个技术栈标签（如 HTML5, React, Tailwind, Three.js 等）。
 
-返回格式：{"title":"标题","description":"描述","category":"分类","tags":["标签1","标签2"]}
-分类选项：Games, Tools, Entertainment, Productivity, Education, Utilities, Lifestyle, Visualization
-只返回 JSON。`
-    : `Based on the following app info, return JSON:
-Existing title: ${keyInfo.title || 'None'}
-Existing desc: ${keyInfo.metaDesc || 'None'}
-Detected tech: ${keyInfo.techHints.join(', ') || 'None'}
-Content summary: ${keyInfo.textContent.substring(0, 500)}
+只返回 JSON 字符串，不要包含 Markdown 格式或其他文本。
 
-Format: {"title":"title","description":"desc","category":"cat","tags":["tag1","tag2"]}
-Categories: Games, Tools, Entertainment, Productivity, Education, Utilities, Lifestyle, Visualization
-Return only JSON.`;
+代码骨架（已压缩提取核心信息）:\n\n${extractCodeSkeleton(htmlContent)}`
+    : `Analyze the following HTML code and return a JSON object with the following fields:
+1. title: 10-30 characters attractive title.
+2. description: 50-100 words product description, highlighting core features.
+3. category: Choose the best matching category from: 'Games', 'Tools', 'Social', 'Entertainment', 'Productivity', 'Education', 'Finance', 'Utilities', 'Lifestyle', 'Health', 'News', 'Shopping', 'Travel', 'Business', 'Sports', 'Weather', 'Reference', 'Graphics', 'Photo', 'Video', 'Music', 'Medical', 'Food', 'Navigation', 'Books', 'Magazines', 'Catalogs', 'Stickers'.
+4. tags: 3-6 tech stack tags (e.g., HTML5, React, Tailwind, Three.js, etc.).
+
+Return only the JSON string, no Markdown formatting or other text.
+
+Code Skeleton (compressed core info):\n\n${extractCodeSkeleton(htmlContent)}`;
 
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
-  
-  // 如果 API 调用失败，使用本地推断
-  if (!result) {
-    console.warn('[analyzeMetadata] API failed, using local inference');
-    const localTitle = keyInfo.title || (isZh ? '创意 Web 应用' : 'Creative Web App');
-    const localDesc = keyInfo.metaDesc || (isZh ? '这是一个交互式 Web 应用。' : 'This is an interactive Web App.');
-    const localTags = keyInfo.techHints.length > 0 ? keyInfo.techHints : ['HTML5', 'CSS3', 'JavaScript'];
-    
-    // 简单的分类推断
-    let localCategory = 'Tools';
-    const lowerContent = (keyInfo.textContent + keyInfo.title).toLowerCase();
-    if (lowerContent.includes('game') || lowerContent.includes('游戏') || lowerContent.includes('play')) localCategory = 'Games';
-    else if (lowerContent.includes('chart') || lowerContent.includes('graph') || lowerContent.includes('可视化')) localCategory = 'Visualization';
-    else if (lowerContent.includes('todo') || lowerContent.includes('note') || lowerContent.includes('效率')) localCategory = 'Productivity';
-    
-    return {
-      title: localTitle,
-      description: localDesc,
-      category: localCategory,
-      tags: localTags.slice(0, 6)
-    };
-  }
   
   try {
     let jsonStr = typeof result === 'string' ? result : String(result);
@@ -293,19 +384,19 @@ Return only JSON.`;
     const data = JSON.parse(jsonStr);
     
     return {
-      title: data.title || keyInfo.title || (isZh ? '未命名作品' : 'Untitled App'),
-      description: data.description || keyInfo.metaDesc || (isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.'),
+      title: data.title || (isZh ? '未命名作品' : 'Untitled App'),
+      description: data.description || (isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.'),
       category: data.category || 'Tools',
-      tags: Array.isArray(data.tags) ? data.tags : (keyInfo.techHints.length > 0 ? keyInfo.techHints : ['HTML5'])
+      tags: Array.isArray(data.tags) ? data.tags : ['HTML5']
     };
   } catch (e) {
     console.error('Failed to parse AI metadata response:', e);
-    // Fallback with local info
+    // Fallback
     return {
-      title: keyInfo.title || (isZh ? '未命名作品' : 'Untitled App'),
-      description: keyInfo.metaDesc || (isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.'),
+      title: isZh ? '未命名作品' : 'Untitled App',
+      description: isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.',
       category: 'Tools',
-      tags: keyInfo.techHints.length > 0 ? keyInfo.techHints : ['HTML5']
+      tags: ['HTML5']
     };
   }
 }
@@ -316,7 +407,7 @@ async function analyzeCategory(htmlContent: string, language: string = 'en') {
   if (isZh) {
     const categories = ['游戏', '工具', '效率', '教育', '生活', '可视化', '开发者工具', '个人主页', '服务预约'];
     const systemPrompt = '你是一个应用商店分类专家。分析 HTML 代码并将其归类到最合适的类别中。';
-    const userPrompt = `分析以下 HTML 代码的核心功能，并将其归类为以下类别之一：\n${categories.join(', ')}\n\n只返回类别名称，不要解释。代码：\n\n${htmlContent.substring(0, 20000)}`;
+    const userPrompt = `分析以下 HTML 代码的核心功能，并将其归类为以下类别之一：\n${categories.join(', ')}\n\n只返回类别名称，不要解释。代码骨架：\n\n${extractCodeSkeleton(htmlContent)}`;
     
     const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
     if (!result) return '工具';
@@ -327,7 +418,7 @@ async function analyzeCategory(htmlContent: string, language: string = 'en') {
 
   const categories = ['Game', 'Utility', 'Productivity', 'Education', 'Lifestyle', 'Visualization', 'DevTool', 'Portfolio', 'Appointment', 'AI'];
   const systemPrompt = 'You are an App Store category expert. Analyze the HTML code and categorize it into the most suitable category.';
-  const userPrompt = `Analyze the core function of the following HTML code and categorize it into one of these categories:\n${categories.join(', ')}\n\nReturn only the category name. No explanation. Code:\n\n${htmlContent.substring(0, 20000)}`;
+  const userPrompt = `Analyze the core function of the following HTML code and categorize it into one of these categories:\n${categories.join(', ')}\n\nReturn only the category name. No explanation. Code Skeleton:\n\n${extractCodeSkeleton(htmlContent)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
   if (!result) return 'tool'; // Default to tool (utility)
@@ -366,7 +457,7 @@ async function analyzeTitle(htmlContent: string, language: string = 'en', temper
 3. 如果代码中有 <title>，请优化它。
 4. **不要使用视觉风格形容词** (如可爱、赛博朋克)，关注功能。
 
-只返回标题文本，不要引号，不要解释。代码:\n\n${htmlContent.substring(0, 20000)}`
+只返回标题文本，不要引号，不要解释。代码骨架:\n\n${extractCodeSkeleton(htmlContent)}`
     : `Analyze the following HTML code, extract or create a title (10-60 characters).
 Requirements:
 1. Include core keywords.
@@ -374,7 +465,7 @@ Requirements:
 3. If <title> exists, optimize it.
 4. **No visual style adjectives** (e.g., Cute, Cyberpunk, Minimalist), focus on function.
 
-Return only the title text. No quotes. No explanation. Code:\n\n${htmlContent.substring(0, 20000)}`;
+Return only the title text. No quotes. No explanation. Code Skeleton:\n\n${extractCodeSkeleton(htmlContent)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, temperature);
   if (!result) return isZh ? '未命名应用' : 'Untitled App';
@@ -396,14 +487,14 @@ async function analyzeDescription(htmlContent: string, language: string = 'en', 
 2. 语言风格现代、专业、简洁。
 3. 避免空洞的形容词。
 
-只返回描述文本。代码:\n\n${htmlContent.substring(0, 20000)}`
+只返回描述文本。代码骨架:\n\n${extractCodeSkeleton(htmlContent)}`
     : `Analyze the features of the following HTML code, generate a product description (40-80 words).
 Requirements:
 1. Highlight core value and tech features.
 2. Modern, professional, concise style.
 3. Avoid empty adjectives.
 
-Return only the description text. Code:\n\n${htmlContent.substring(0, 20000)}`;
+Return only the description text. Code Skeleton:\n\n${extractCodeSkeleton(htmlContent)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, temperature);
   if (!result) return isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.';
@@ -423,7 +514,7 @@ Options:
 - Network: WebSocket, WebRTC, API Integration
 - Advanced: PWA, Service Worker, WebAssembly, AI/ML, Web Audio
 
-Return only comma-separated tag names. No other text. Code:\n\n${htmlContent.substring(0, 20000)}`;
+Return only comma-separated tag names. No other text. Code Skeleton:\n\n${extractCodeSkeleton(htmlContent)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
   if (!result) return ['HTML5', 'JavaScript', 'CSS3'];
@@ -436,60 +527,36 @@ Return only comma-separated tag names. No other text. Code:\n\n${htmlContent.sub
 async function analyzePrompt(htmlContent: string, language: string = 'en', temperature: number = 0.5) {
   console.log('[analyzePrompt] Starting prompt analysis, language:', language);
   const isZh = language === 'zh';
-  
-  // 提取关键信息，避免发送完整代码
-  const extractForPrompt = (html: string) => {
-    const titleMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : '';
-    
-    // 提取主要功能相关的关键词
-    let content = html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 800);
-    
-    // 检测交互类型
-    const hasCanvas = html.includes('canvas') || html.includes('Canvas');
-    const hasAnimation = html.includes('animation') || html.includes('transition') || html.includes('gsap');
-    const hasForm = html.includes('<form') || html.includes('<input');
-    const has3D = html.includes('three') || html.includes('webgl') || html.includes('3d');
-    
-    return { title, content, hasCanvas, hasAnimation, hasForm, has3D };
-  };
-  
-  const info = extractForPrompt(htmlContent);
-  
   const systemPrompt = isZh
-    ? '你是 Prompt 工程师。根据应用信息生成简洁的 AI 生成指令。'
-    : 'You are a Prompt Engineer. Generate concise AI instructions based on app info.';
+    ? '你是一个资深的 Prompt 工程师。你需要分析 HTML 代码并生成一个简洁、核心的 Prompt，用于指导 AI 重新生成类似应用。'
+    : 'You are a Senior Prompt Engineer. Analyze the HTML code and generate a concise, core Prompt for AI to regenerate a similar app.';
     
   const userPrompt = isZh
-    ? `根据以下信息，生成 100-150 字的核心 Prompt：
-标题: ${info.title || '无'}
-内容: ${info.content.substring(0, 400)}
-特性: ${[info.hasCanvas && 'Canvas', info.hasAnimation && '动画', info.hasForm && '表单', info.has3D && '3D'].filter(Boolean).join(', ') || '基础网页'}
+    ? `请分析以下代码，生成一个**核心功能 Prompt** (100-200字)。
+重点描述：
+1. 核心功能与目标。
+2. 关键交互逻辑。
+3. 视觉风格关键词。
 
-只返回 Prompt 文本。`
-    : `Generate a 50-100 word core prompt based on:
-Title: ${info.title || 'None'}
-Content: ${info.content.substring(0, 400)}
-Features: ${[info.hasCanvas && 'Canvas', info.hasAnimation && 'Animation', info.hasForm && 'Form', info.has3D && '3D'].filter(Boolean).join(', ') || 'Basic web'}
+不要包含冗长的技术细节或边缘情况，只保留最核心的生成指令。
 
-Return only the prompt text.`;
+代码骨架:\n\n${extractCodeSkeleton(htmlContent)}`
+    : `Analyze the following code, generate a **Core Function Prompt** (100-200 words).
+Focus on:
+1. Core function and goal.
+2. Key interaction logic.
+3. Visual style keywords.
+
+No verbose technical details or edge cases, only the core generation instructions.
+
+Code Skeleton:\n\n${extractCodeSkeleton(htmlContent)}`;
   
   try {
     const result = await callDeepSeekAPI(systemPrompt, userPrompt, temperature);
     console.log('[analyzePrompt] API result:', result ? 'success' : 'null', result?.substring(0, 50));
     if (!result) {
-      // 本地生成简单 prompt
-      const localPrompt = isZh 
-        ? `创建一个${info.title ? `名为"${info.title}"的` : ''}${info.has3D ? '3D ' : ''}${info.hasCanvas ? 'Canvas ' : ''}${info.hasAnimation ? '带动画的' : ''}Web 应用。`
-        : `Create a${info.title ? ` "${info.title}"` : ''}${info.has3D ? ' 3D' : ''}${info.hasCanvas ? ' Canvas' : ''}${info.hasAnimation ? ' animated' : ''} web application.`;
-      console.warn('[analyzePrompt] Using local fallback:', localPrompt);
-      return localPrompt;
+      console.warn('[analyzePrompt] No result, using fallback');
+      return isZh ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.';
     }
     return typeof result === 'string' ? result : String(result);
   } catch (err) {
@@ -508,8 +575,8 @@ async function analyzeAppType(htmlContent: string) {
 Return a JSON string array containing matching category names. If none match, return empty array [].
 Return only JSON array. No other text.
 
-Code snippet:
-${htmlContent.substring(0, 10000)}`;
+Code Skeleton:
+${extractCodeSkeleton(htmlContent)}`;
 
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.3);
   if (!result) return [];
@@ -594,7 +661,9 @@ Return JSON format:
   "severity": "low" | "medium" | "high"
 }
 
-Code:\n\n${htmlContent.substring(0, 50000)}`;
+Code Skeleton + Script Analysis:\n\n${extractCodeSkeleton(htmlContent)}
+
+Raw Script Tags (for security check):\n\n${(htmlContent.match(/<script[\s\S]*?<\/script>/gi) || []).slice(0, 5).join('\n\n').substring(0, 8000)}`;
   
   const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.2);
   if (!result) return performBasicSecurityCheck(htmlContent);
