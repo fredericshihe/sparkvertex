@@ -348,37 +348,66 @@ async function analyzePrompt(htmlContent: string, language: string = 'en', tempe
     : 'You are a Senior Prompt Engineer. Analyze the HTML code and generate a concise, core Prompt for AI to regenerate a similar app.';
     
   const userPrompt = isZh
-    ? `请分析以下代码，生成一个**核心功能 Prompt** (100-200字)。
-重点描述：
-1. 核心功能与目标。
-2. 关键交互逻辑。
-3. 视觉风格关键词。
+    ? `请分析以下代码，生成一个**核心功能 Prompt** (50-100字)。
+重点：核心功能、交互逻辑、视觉风格。只返回 Prompt 文本。
 
-不要包含冗长的技术细节或边缘情况，只保留最核心的生成指令。
+代码:\n\n${htmlContent.substring(0, 8000)}`
+    : `Analyze the code, generate a **Core Prompt** (50-100 words).
+Focus: core function, interaction, visual style. Return only the prompt text.
 
-代码:\n\n${htmlContent.substring(0, 20000)}`
-    : `Analyze the following code, generate a **Core Function Prompt** (100-200 words).
-Focus on:
-1. Core function and goal.
-2. Key interaction logic.
-3. Visual style keywords.
-
-No verbose technical details or edge cases, only the core generation instructions.
-
-Code:\n\n${htmlContent.substring(0, 20000)}`;
+Code:\n\n${htmlContent.substring(0, 8000)}`;
   
   try {
+    // 使用 AbortController 设置 30 秒超时
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
     const result = await callDeepSeekAPI(systemPrompt, userPrompt, temperature);
+    clearTimeout(timeoutId);
+    
     console.log('[analyzePrompt] API result:', result ? 'success' : 'null', result?.substring(0, 50));
     if (!result) {
       console.warn('[analyzePrompt] No result, using fallback');
-      return isZh ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.';
+      return generateLocalPrompt(htmlContent, isZh);
     }
     return typeof result === 'string' ? result : String(result);
-  } catch (err) {
-    console.error('[analyzePrompt] Error:', err);
-    return isZh ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.';
+  } catch (err: any) {
+    console.error('[analyzePrompt] Error:', err?.message || err);
+    // 超时或其他错误时，使用本地生成
+    return generateLocalPrompt(htmlContent, isZh);
   }
+}
+
+// 本地生成 Prompt（当 AI 超时时使用）
+function generateLocalPrompt(htmlContent: string, isZh: boolean): string {
+  const hasCanvas = htmlContent.includes('canvas') || htmlContent.includes('Canvas');
+  const hasThreeJS = htmlContent.includes('three') || htmlContent.includes('THREE');
+  const hasGame = htmlContent.includes('game') || htmlContent.includes('Game') || htmlContent.includes('score');
+  const hasChart = htmlContent.includes('chart') || htmlContent.includes('Chart') || htmlContent.includes('echarts');
+  const hasForm = htmlContent.includes('<form') || htmlContent.includes('<input');
+  const hasTailwind = htmlContent.includes('tailwind') || htmlContent.includes('tw-');
+  
+  let prompt = '';
+  
+  if (hasThreeJS) {
+    prompt = isZh ? '创建一个 3D 可视化应用，使用 Three.js 实现交互式 3D 场景。' : 'Create a 3D visualization app with Three.js for interactive 3D scenes.';
+  } else if (hasGame) {
+    prompt = isZh ? '创建一个网页游戏，包含游戏循环、分数系统和交互控制。' : 'Create a web game with game loop, scoring system and interactive controls.';
+  } else if (hasCanvas) {
+    prompt = isZh ? '创建一个 Canvas 绘图应用，支持交互式绑制和动画效果。' : 'Create a Canvas drawing app with interactive drawing and animations.';
+  } else if (hasChart) {
+    prompt = isZh ? '创建一个数据可视化仪表盘，使用图表展示数据。' : 'Create a data visualization dashboard with charts.';
+  } else if (hasForm) {
+    prompt = isZh ? '创建一个表单应用，包含用户输入和数据处理功能。' : 'Create a form application with user input and data processing.';
+  } else {
+    prompt = isZh ? '创建一个具有现代 UI 的 Web 应用。' : 'Create a web application with modern UI.';
+  }
+  
+  if (hasTailwind) {
+    prompt += isZh ? ' 使用 Tailwind CSS 构建响应式界面。' : ' Use Tailwind CSS for responsive UI.';
+  }
+  
+  return prompt;
 }
 
 async function analyzeAppType(htmlContent: string) {
