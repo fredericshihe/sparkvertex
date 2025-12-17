@@ -162,6 +162,58 @@ async function callDeepSeekAPI(systemPrompt: string, userPrompt: string, tempera
   }
 }
 
+async function analyzeMetadata(htmlContent: string, language: string = 'zh') {
+  const isZh = language === 'zh';
+  const systemPrompt = isZh
+    ? '你是一个资深的产品经理和技术专家。你需要分析 HTML 代码并提取关键元数据：标题、描述、分类和技术标签。'
+    : 'You are a Senior Product Manager and Tech Expert. Analyze the HTML code and extract key metadata: Title, Description, Category, and Tech Tags.';
+
+  const userPrompt = isZh
+    ? `请分析以下 HTML 代码，返回一个 JSON 对象，包含以下字段：
+1. title: 10-30字的吸引人标题。
+2. description: 50-100字的产品描述，突出核心功能。
+3. category: 从以下列表中选择最匹配的一个分类：'Games', 'Tools', 'Social', 'Entertainment', 'Productivity', 'Education', 'Finance', 'Utilities', 'Lifestyle', 'Health', 'News', 'Shopping', 'Travel', 'Business', 'Sports', 'Weather', 'Reference', 'Graphics', 'Photo', 'Video', 'Music', 'Medical', 'Food', 'Navigation', 'Books', 'Magazines', 'Catalogs', 'Stickers'。
+4. tags: 3-6个技术栈标签（如 HTML5, React, Tailwind, Three.js 等）。
+
+只返回 JSON 字符串，不要包含 Markdown 格式或其他文本。
+
+代码:\n\n${htmlContent.substring(0, 20000)}`
+    : `Analyze the following HTML code and return a JSON object with the following fields:
+1. title: 10-30 characters attractive title.
+2. description: 50-100 words product description, highlighting core features.
+3. category: Choose the best matching category from: 'Games', 'Tools', 'Social', 'Entertainment', 'Productivity', 'Education', 'Finance', 'Utilities', 'Lifestyle', 'Health', 'News', 'Shopping', 'Travel', 'Business', 'Sports', 'Weather', 'Reference', 'Graphics', 'Photo', 'Video', 'Music', 'Medical', 'Food', 'Navigation', 'Books', 'Magazines', 'Catalogs', 'Stickers'.
+4. tags: 3-6 tech stack tags (e.g., HTML5, React, Tailwind, Three.js, etc.).
+
+Return only the JSON string, no Markdown formatting or other text.
+
+Code:\n\n${htmlContent.substring(0, 20000)}`;
+
+  const result = await callDeepSeekAPI(systemPrompt, userPrompt, 0.5);
+  
+  try {
+    let jsonStr = typeof result === 'string' ? result : String(result);
+    // Clean up potential markdown code blocks
+    jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
+    const data = JSON.parse(jsonStr);
+    
+    return {
+      title: data.title || (isZh ? '未命名作品' : 'Untitled App'),
+      description: data.description || (isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.'),
+      category: data.category || 'Tools',
+      tags: Array.isArray(data.tags) ? data.tags : ['HTML5']
+    };
+  } catch (e) {
+    console.error('Failed to parse AI metadata response:', e);
+    // Fallback
+    return {
+      title: isZh ? '未命名作品' : 'Untitled App',
+      description: isZh ? '这是一个创意 Web 应用。' : 'This is a creative Web App.',
+      category: 'Tools',
+      tags: ['HTML5']
+    };
+  }
+}
+
 async function analyzeCategory(htmlContent: string, language: string = 'en') {
   const isZh = language === 'zh';
 
