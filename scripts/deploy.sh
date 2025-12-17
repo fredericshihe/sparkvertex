@@ -57,3 +57,12 @@ fi
 
 echo "✅ 部署成功！网站已更新。"
 echo "📊 查看日志: pm2 logs $PM2_NAME"
+
+# 5. 刷新阿里云 CDN 缓存（可选，需要配置 aliyun CLI）
+if command -v aliyun &> /dev/null; then
+  echo "🔄 正在刷新 CDN 缓存..."
+  aliyun cdn RefreshObjectCaches --ObjectPath "https://sparkvertex.cn/" --ObjectType Directory 2>/dev/null || echo "⚠️ CDN 刷新失败，请手动刷新"
+else
+  echo "💡 提示：安装 aliyun CLI 可自动刷新 CDN 缓存"
+  echo "   或手动刷新：阿里云控制台 → CDN → 刷新预热 → 输入 https://sparkvertex.cn/"
+fi

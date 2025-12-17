@@ -1447,14 +1447,15 @@ function UploadContent() {
     setIsAnalyzing(true);
     setIsSecuritySafe(false);
     
-    // 简化任务列表，与实际 API 调用对应
-    // 0: security, 1: metadata (title+desc+category+tags), 2: prompt, 3: mobile, 4: icon
+    // 任务列表：6 个步骤
+    // 0: security, 1: title+desc, 2: category+tags, 3: prompt, 4: mobile, 5: icon
     const tasks: { id: string; label: string; status: 'pending' | 'done' }[] = [
-      { id: 'security', label: t.upload.task_security, status: 'pending' },       // 0
-      { id: 'metadata', label: t.upload.task_title, status: 'pending' },          // 1 (合并了标题/描述/分类/标签)
-      { id: 'prompt', label: t.upload.task_prompt, status: 'pending' },           // 2
-      { id: 'mobile', label: t.upload.task_mobile, status: 'pending' },           // 3
-      { id: 'icon', label: t.upload.task_icon, status: 'pending' },               // 4
+      { id: 'security', label: t.upload.task_security, status: 'pending' },       // 0 安全检测
+      { id: 'title', label: t.upload.task_title, status: 'pending' },             // 1 标题描述
+      { id: 'category', label: t.upload.task_category, status: 'pending' },       // 2 分类标签
+      { id: 'prompt', label: t.upload.task_prompt, status: 'pending' },           // 3 Prompt逆向
+      { id: 'mobile', label: t.upload.task_mobile, status: 'pending' },           // 4 移动端适配
+      { id: 'icon', label: t.upload.task_icon, status: 'pending' },               // 5 图标生成
     ];
 
     const updateProgressUI = () => {
@@ -1553,14 +1554,21 @@ function UploadContent() {
 
       
       // 分批执行分析任务，避免同时发送过多请求导致 504 超时
-      // 优化：使用 analyzeMetadata 合并请求，减少并发
       
       // 0. 安全检查 (独立运行)
       const securityPromise = runTask(0, checkMaliciousCode(html));
       
-      // 1. 元数据分析 (合并 Title, Desc, Category, Tags)
-      // 始终重新分析，不复用旧数据，确保每次上传都获取最新结果
-      const metadataPromise = runTask(1, analyzeMetadata(html, language));
+      // 1. 元数据分析 (标题+描述+分类+标签)
+      // 始终重新分析，确保每次上传都获取最新结果
+      const metadataPromise = analyzeMetadata(html, language).then(result => {
+        // 完成后同时标记 task 1 (标题描述) 和 task 2 (分类标签) 为完成
+        if (analysisSessionIdRef.current === currentSessionId) {
+          tasks[1].status = 'done'; // 标题描述
+          tasks[2].status = 'done'; // 分类标签
+          updateProgressUI();
+        }
+        return result;
+      });
 
       // 第一批：安全检查 + 元数据 (2个并发)
       const [securityResult, metadata] = await Promise.all([
@@ -1631,8 +1639,8 @@ function UploadContent() {
       });
       
       const [promptRes, mobileResult] = await Promise.all([
-        runTask(2, promptPromise),  // index 2 = prompt
-        runTask(3, optimizeMobileCode(html)),  // index 3 = mobile
+        runTask(3, promptPromise),  // index 3 = prompt
+        runTask(4, optimizeMobileCode(html)),  // index 4 = mobile
       ]);
       
       // 检查是否被中断
@@ -1644,7 +1652,7 @@ function UploadContent() {
       // 第三批：App类型分析、图标生成（2个并发）
       const [appTypes, iconRes] = await Promise.all([
         analyzeAppType(html),
-        runTask(4, generateIconTask(Promise.resolve(titleRes), Promise.resolve(descRes)))  // index 4 = icon
+        runTask(5, generateIconTask(Promise.resolve(titleRes), Promise.resolve(descRes)))  // index 5 = icon
       ]);
       
       console.log('[AI Analysis] Final Prompt value:', promptRes?.substring(0, 100));
