@@ -1,8 +1,65 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// 简单的内存限流 (Simple In-Memory Rate Limiting)
+// 注意：在 Serverless 环境或多实例部署中，内存限流是独立的，不是全局共享的。
+// 对于单台轻量服务器，这足够有效。
+const rateLimitMap = new Map();
+
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1分钟
+const MAX_REQUESTS_PER_WINDOW = 100; // 每分钟 100 次请求 (根据实际情况调整)
+
+function checkRateLimit(ip: string) {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW;
+  
+  const requestLog = rateLimitMap.get(ip) || [];
+  // 过滤掉过期的请求记录
+  const recentRequests = requestLog.filter((timestamp: number) => timestamp > windowStart);
+  
+  if (recentRequests.length >= MAX_REQUESTS_PER_WINDOW) {
+    return false; // 超限
+  }
+  
+  recentRequests.push(now);
+  rateLimitMap.set(ip, recentRequests);
+  
+  // 定期清理内存 (防止 Map 无限增长)
+  if (rateLimitMap.size > 10000) {
+    rateLimitMap.clear();
+  }
+  
+  return true; // 通过
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
+  const ip = request.headers.get('x-forwarded-for') || 'unknown';
+
+  // 0. 安全鉴权 (Security Auth) - 防止源站 IP 泄露被直接攻击
+  // 配合阿里云 CDN 的 "回源 HTTP 请求头" 功能使用
+  // 在 CDN 控制台设置: X-Source-Auth = process.env.CDN_SOURCE_SECRET
+  const cdnSecret = process.env.CDN_SOURCE_SECRET;
+  const requestSecret = request.headers.get('x-source-auth');
+
+  // 仅在生产环境且配置了密钥时生效
+  // 排除本地开发环境 (localhost) 和 静态资源
+  if (process.env.NODE_ENV === 'production' && cdnSecret && !pathname.startsWith('/_next/') && !pathname.startsWith('/static/')) {
+      if (requestSecret !== cdnSecret) {
+          // 如果请求没有带正确的密钥，说明不是来自 CDN，而是直接攻击源站 IP
+          return new NextResponse('Forbidden: Direct Access Not Allowed', { status: 403 });
+      }
+  }
+
+  // 1. 安全限流 (Rate Limiting) - 仅针对 API 和 动态页面
+  // 静态资源已在下方排除，这里主要保护计算密集型接口
+  if (!pathname.startsWith('/_next/') && !pathname.startsWith('/static/')) {
+      if (!checkRateLimit(ip)) {
+          return new NextResponse('Too Many Requests', { status: 429 });
+      }
+  }
+
+  // 静态资源与 PWA 文件不需要 Supabase Session 刷新，避免增加首屏 TTFB
 
   // 静态资源与 PWA 文件不需要 Supabase Session 刷新，避免增加首屏 TTFB
   // 注意：matcher 已尽量排除，但这里再做一次兜底判断
