@@ -44,7 +44,8 @@ export async function middleware(request: NextRequest) {
 
   // 仅在生产环境且配置了密钥时生效
   // 排除本地开发环境 (localhost) 和 静态资源
-  if (process.env.NODE_ENV === 'production' && cdnSecret && !pathname.startsWith('/_next/') && !pathname.startsWith('/static/')) {
+  // 同时也排除 Vercel 环境 (Vercel 自带防护，不需要这个回源鉴权)
+  if (process.env.NODE_ENV === 'production' && cdnSecret && !process.env.VERCEL && !pathname.startsWith('/_next/') && !pathname.startsWith('/static/')) {
       if (requestSecret !== cdnSecret) {
           // 如果请求没有带正确的密钥，说明不是来自 CDN，而是直接攻击源站 IP
           return new NextResponse('Forbidden: Direct Access Not Allowed', { status: 403 });
