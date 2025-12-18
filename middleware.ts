@@ -42,6 +42,19 @@ export async function middleware(request: NextRequest) {
   const cdnSecret = process.env.CDN_SOURCE_SECRET;
   const requestSecret = request.headers.get('x-source-auth');
 
+  // [Debug] 针对验证脚本的调试日志
+  const userAgent = request.headers.get('user-agent') || '';
+  if (userAgent.includes('Security-Check-Script')) {
+      console.log('[Security Check Debug]', {
+          nodeEnv: process.env.NODE_ENV,
+          hasCdnSecret: !!cdnSecret, // 是否读取到了密钥
+          secretLength: cdnSecret ? cdnSecret.length : 0,
+          receivedHeader: requestSecret,
+          isVercel: !!process.env.VERCEL,
+          pathname
+      });
+  }
+
   // 仅在生产环境且配置了密钥时生效
   // 排除本地开发环境 (localhost) 和 静态资源
   // 同时也排除 Vercel 环境 (Vercel 自带防护，不需要这个回源鉴权)
