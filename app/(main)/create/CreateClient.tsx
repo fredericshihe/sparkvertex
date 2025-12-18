@@ -3685,9 +3685,13 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       }
       
       // Inject Code RAG Context (Relevant Chunks)
-      if (codeContext) {
+      // 优化：如果已经使用了压缩代码 (compressedCode)，则不再添加 codeContext
+      // 因为 compressedCode 已经包含了上下文相关的完整代码结构，codeContext 往往是重复的片段
+      if (codeContext && !compressedCode) {
           console.log('[CacheOptimization] Moving Code RAG Context to User Prompt prefix');
           contextPrefix += `\n### Relevant Code Snippets\n${codeContext}\n`;
+      } else if (codeContext && compressedCode) {
+          console.log('[CacheOptimization] Skipping Code RAG Context because Compressed Code is used');
       }
       
       // 将上下文前缀添加到 User Prompt 开头
