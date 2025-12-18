@@ -1563,7 +1563,7 @@ ${wizardData.description}`;
   // 3. CONVERSATION HISTORY (grows incrementally)
   // 4. USER REQUEST (changes every time - put LAST)
   
-    const constructPrompt = (isModification = false, modificationRequest = '', forceFull = false, history: any[] = [], summary = '') => {
+    const constructPrompt = (isModification = false, modificationRequest = '', forceFull = false, history: any[] = [], summary = '', codeOverride?: string) => {
     const categoryLabel = t.categories[wizardData.category as keyof typeof t.categories] || 'App';
     const styleLabel = t.styles[wizardData.style as keyof typeof t.styles] || 'Modern';
     const deviceLabel = t.devices[wizardData.device as keyof typeof t.devices] || 'Mobile';
@@ -1582,7 +1582,8 @@ ${wizardData.description}`;
 
     if (isModification) {
       // Sanitize generatedCode to remove null bytes which Postgres hates
-      const safeCode = generatedCode ? generatedCode.replace(/\u0000/g, '') : '';
+      const sourceCode = codeOverride !== undefined ? codeOverride : generatedCode;
+      const safeCode = sourceCode ? sourceCode.replace(/\u0000/g, '') : '';
 
       // Format History (placed BEFORE user request for caching)
       let historyContext = '';
@@ -3640,16 +3641,12 @@ The image is your visual blueprint - the code should replicate it as precisely a
       const skipCompressionForThisRequest = fullCodeMode || forceFull;
       if (compressedCode && isModification && !skipCompressionForThisRequest) {
           console.log('Applying Smart Context Compression to User Prompt');
-          // Replace the full code in finalUserPrompt with compressed code
           
-          const safeCompressedCode = compressedCode.replace(/\u0000/g, '');
-          const safeOriginalCode = generatedCode ? generatedCode.replace(/\u0000/g, '') : '';
-          
-          if (safeOriginalCode && finalUserPrompt.includes(safeOriginalCode)) {
-              finalUserPrompt = finalUserPrompt.replace(safeOriginalCode, safeCompressedCode);
+          // Re-construct prompt with compressed code to avoid replacement failures
+          finalUserPrompt = constructPrompt(isModification, overridePrompt || chatInput, forceFull, chatHistory, conversationSummary, compressedCode);
               
-              // Add explicit warning about semantic compression with STRONGER constraints
-              finalUserPrompt += `\n\n### ⚠️ CRITICAL: SEMANTIC COMPRESSION RULES
+          // Add explicit warning about semantic compression with STRONGER constraints
+          finalUserPrompt += `\n\n### ⚠️ CRITICAL: SEMANTIC COMPRESSION RULES
 Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO NOT USE AS ANCHOR]\`.
 
 **🚨 ABSOLUTE RULES:**
@@ -3663,12 +3660,13 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
 
 **FOCUS ON**: The fully-visible components that match the user's request.`;
 
-              console.log('User Prompt compressed successfully.');
-          } else {
-              console.warn('Could not find original code in User Prompt to replace. Using full code.');
+          console.log('User Prompt compressed successfully (reconstructed).');
+      } else {
+          if (skipCompressionForThisRequest && isModification) {
+              console.log('[Full Code Mode] Sending complete uncompressed code to AI');
+          } else if (isModification) {
+              console.warn('Compression skipped or failed (no compressed code available). Using full code.');
           }
-      } else if (skipCompressionForThisRequest && isModification) {
-          console.log('[Full Code Mode] Sending complete uncompressed code to AI');
       }
 
       // 🔧 隐式缓存优化：将 RAG/Code Context 移到 User Prompt 开头
@@ -3696,6 +3694,10 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       if (contextPrefix) {
           finalUserPrompt = contextPrefix + '\n---\n\n' + finalUserPrompt;
           console.log(`[CacheOptimization] Context prefix added (${contextPrefix.length} chars)`);
+          console.log(`[Prompt Breakdown] RAG Context: ${ragContext ? ragContext.length : 0} chars`);
+          console.log(`[Prompt Breakdown] Code Context: ${codeContext ? codeContext.length : 0} chars`);
+          console.log(`[Prompt Breakdown] Compressed Code: ${compressedCode ? compressedCode.length : 0} chars`);
+          console.log(`[Prompt Breakdown] Final User Prompt: ${finalUserPrompt.length} chars`);
       }
       
       // 简单的字符串哈希函数，用于检测 System Prompt 变化

@@ -8,11 +8,21 @@ import {
 import { NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getRAGContext } from '@/lib/rag';
+import { createClient } from '@supabase/supabase-js';
 
 // 使用 Node.js runtime 以支持更长的超时时间
 export const runtime = 'nodejs';
 // 设置为 300 秒以匹配 Nginx 配置
 export const maxDuration = 300;
+
+// Token 计算辅助函数
+const calculateTokens = (text: string) => {
+    const chineseRegex = /[\u4e00-\u9fa5]/g;
+    const chineseMatches = text.match(chineseRegex);
+    const chineseCount = chineseMatches ? chineseMatches.length : 0;
+    const otherCount = (text || '').length - chineseCount;
+    return chineseCount + Math.ceil(otherCount / 4);
+};
 
 export async function POST(request: Request) {
   try {
@@ -34,6 +44,17 @@ export async function POST(request: Request) {
 
     if (!allowed) {
       return ApiErrors.rateLimited(`请求过于频繁: ${rateLimitError}`);
+    }
+
+    // 3. Pre-flight Credit Check
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('credits')
+      .eq('id', session.user.id)
+      .single();
+      
+    if (!profile || (Number(profile.credits) || 0) < 0.1) {
+       return ApiErrors.paymentRequired('积分不足，无法进行意图分析');
     }
 
     const { system_prompt, user_prompt, temperature = 0.7 } = await request.json();
@@ -148,6 +169,8 @@ export async function POST(request: Request) {
                 }
               }
               if (fullContent) {
+                // Deduct Credits (Edge Function Path)
+                await deductCredits(session.user.id, finalSystemPrompt + user_prompt, fullContent);
                 return NextResponse.json({ content: fullContent });
               }
             }
@@ -165,10 +188,44 @@ export async function POST(request: Request) {
       }
     }
 
-    const apiKey = process.env.DEEPSEEK_API_KEY;
+    const apiKey = process.env.DEEPSEEK_API_KEY; // Keep for mock logic check if needed, but we use Google Key now
     
+    // Helper to deduct credits
+    const deductCredits = async (userId: string, input: string, output: string) => {
+        try {
+            const supabaseAdmin = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!, 
+                process.env.SUPABASE_SERVICE_ROLE_KEY!
+            );
+            
+            const totalTokens = calculateTokens(input) + calculateTokens(output);
+            // Cost: 1 Credit = 7000 Tokens (Gemini 3 Flash)
+            // Use float precision, min 0.01
+            const cost = Math.max(0.01, Number((totalTokens / 7000).toFixed(4)));
+            
+            const { data: currentProfile } = await supabaseAdmin
+                .from('profiles')
+                .select('credits')
+                .eq('id', userId)
+                .single();
+                
+            if (currentProfile) {
+                const newBalance = Math.max(0, (Number(currentProfile.credits) || 0) - cost);
+                await supabaseAdmin
+                    .from('profiles')
+                    .update({ credits: newBalance })
+                    .eq('id', userId);
+                    
+                apiLog.info('Analyze', `Credits deducted: ${cost} (Tokens: ${totalTokens})`);
+            }
+        } catch (e) {
+            apiLog.error('Analyze', 'Failed to deduct credits', e);
+            // Don't fail the request if deduction fails, but log it
+        }
+    };
+
     // Mock response if no key (or for specific demo prompts if needed)
-    if (!apiKey) {
+    if (!process.env.GOOGLE_API_KEY && !apiKey) {
       // ... (mock logic remains same)
       await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000)); // Simulate network delay
       
@@ -215,21 +272,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ content: 'Mock AI Response' });
     }
 
-    // Real DeepSeek API Call with Retry
+    // Real Gemini 3 Flash Preview API Call with Retry (Fallback)
     let retryCount = 0;
     const maxRetries = 3;
     let lastError: any;
+    const googleApiKey = process.env.GOOGLE_API_KEY;
 
-    while (retryCount <= maxRetries) {
+    if (!googleApiKey) {
+        // Mock response if no key (keep existing mock logic)
+        // ... (mock logic omitted for brevity, assuming it's handled by the existing mock block above if apiKey is missing)
+        // Actually, the previous code checked `process.env.DEEPSEEK_API_KEY`. 
+        // We should check GOOGLE_API_KEY now.
+        // But let's keep the mock logic if NO key is available.
+    }
+
+    while (retryCount <= maxRetries && googleApiKey) {
       try {
-        const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
+            'Authorization': `Bearer ${googleApiKey}`
           },
           body: JSON.stringify({
-            model: "deepseek-chat",
+            model: "gemini-3-flash-preview",
             messages: [
               { role: "system", content: finalSystemPrompt || "You are a helpful assistant." },
               { role: "user", content: user_prompt }
@@ -241,10 +307,10 @@ export async function POST(request: Request) {
         if (response.status === 429 || response.status === 503 || response.status === 500 || response.status === 502 || response.status === 504) {
            if (retryCount === maxRetries) {
              const errorText = await response.text();
-             throw new Error(`DeepSeek API Error after retries: ${response.status} ${errorText}`);
+             throw new Error(`Gemini API Error after retries: ${response.status} ${errorText}`);
            }
            const waitTime = Math.pow(2, retryCount) * 1000 + Math.random() * 500;
-           apiLog.warn('Analyze', `DeepSeek API ${response.status}. Retrying in ${Math.round(waitTime)}ms...`);
+           apiLog.warn('Analyze', `Gemini API ${response.status}. Retrying in ${Math.round(waitTime)}ms...`);
            await new Promise(resolve => setTimeout(resolve, waitTime));
            retryCount++;
            continue;
@@ -252,24 +318,27 @@ export async function POST(request: Request) {
 
         if (!response.ok) {
           const errorText = await response.text();
-          throw new Error(`DeepSeek API Error: ${response.status} ${errorText}`);
+          throw new Error(`Gemini API Error: ${response.status} ${errorText}`);
         }
 
         const data = await response.json();
         const content = data.choices[0].message.content;
+
+        // Deduct Credits (Fallback Path)
+        await deductCredits(session.user.id, finalSystemPrompt + user_prompt, content);
 
         return NextResponse.json({ content });
       } catch (e) {
         lastError = e;
         if (retryCount === maxRetries) break;
         const waitTime = Math.pow(2, retryCount) * 1000;
-        apiLog.warn('Analyze', 'DeepSeek API Network Error. Retrying...', e);
+        apiLog.warn('Analyze', 'Gemini API Network Error. Retrying...', e);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         retryCount++;
       }
     }
 
-    throw lastError || new Error('DeepSeek API failed after retries');
+    throw lastError || new Error('Analysis failed after retries');
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
