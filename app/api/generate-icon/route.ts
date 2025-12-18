@@ -147,14 +147,21 @@ Output ONLY the generated prompt string. Do not include any other text.`;
 
         const userPrompt = `App Name: ${title}\nDescription: ${description}`;
 
+        // Add timeout to prevent hanging requests (60 seconds)
+        const iconController = new AbortController();
+        const iconTimeout = setTimeout(() => iconController.abort(), 60000);
+
         const edgeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-html`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${supabaseKey}`
           },
-          body: JSON.stringify({ system_prompt: systemPrompt, user_prompt: userPrompt, temperature: 0.7 })
+          body: JSON.stringify({ system_prompt: systemPrompt, user_prompt: userPrompt, temperature: 0.7 }),
+          signal: iconController.signal
         });
+
+        clearTimeout(iconTimeout);
 
         if (edgeResponse.ok) {
           // Parse SSE stream from Edge Function (same logic as analyze route)

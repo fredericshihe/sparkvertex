@@ -153,6 +153,10 @@ export async function POST(request: Request) {
       const maxEdgeRetries = 2;
       
       while (edgeRetryCount <= maxEdgeRetries) {
+        // Add timeout to prevent hanging requests (60 seconds)
+        const edgeController = new AbortController();
+        const edgeTimeout = setTimeout(() => edgeController.abort(), 60000);
+        
         try {
           const edgeResponse = await fetch(`${supabaseUrl}/functions/v1/analyze-html`, {
             method: 'POST',
@@ -160,8 +164,11 @@ export async function POST(request: Request) {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${supabaseKey}`
             },
-            body: JSON.stringify({ system_prompt: finalSystemPrompt, user_prompt, temperature })
+            body: JSON.stringify({ system_prompt: finalSystemPrompt, user_prompt, temperature }),
+            signal: edgeController.signal
           });
+          
+          clearTimeout(edgeTimeout);
 
           if (edgeResponse.status === 503 || edgeResponse.status === 504 || edgeResponse.status === 429) {
              if (edgeRetryCount === maxEdgeRetries) {
@@ -213,8 +220,14 @@ export async function POST(request: Request) {
              apiLog.warn('Analyze', `Edge Function returned ${edgeResponse.status}, falling back.`);
              break;
           }
-        } catch (e) {
-          apiLog.warn('Analyze', 'Edge Function attempt failed, retrying/falling back.', e);
+        } catch (e: any) {
+          clearTimeout(edgeTimeout);
+          // Handle timeout specifically
+          if (e?.name === 'AbortError') {
+            apiLog.warn('Analyze', `Edge Function timeout (60s), attempt ${edgeRetryCount + 1}/${maxEdgeRetries + 1}`);
+          } else {
+            apiLog.warn('Analyze', 'Edge Function attempt failed, retrying/falling back.', e);
+          }
           if (edgeRetryCount === maxEdgeRetries) break;
           await new Promise(resolve => setTimeout(resolve, 1000));
           edgeRetryCount++;

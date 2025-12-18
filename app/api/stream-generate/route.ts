@@ -40,6 +40,10 @@ export async function POST(request: Request) {
       return new Response('Configuration Error', { status: 500 });
     }
 
+    // Add timeout to prevent hanging requests (90 seconds for streaming)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 90000);
+
     // Call the Edge Function
     const response = await fetch(`${supabaseUrl}/functions/v1/analyze-html`, {
       method: 'POST',
@@ -52,8 +56,11 @@ export async function POST(request: Request) {
         user_prompt,
         temperature,
         stream: true
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeout);
 
     if (!response.ok) {
       const errorText = await response.text();
