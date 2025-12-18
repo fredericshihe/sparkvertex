@@ -548,6 +548,7 @@ function applySmartASTPatch(source: string, replaceBlock: string): string | null
 function validatePatchedCode(originalSource: string, patchedCode: string): string {
     const startTime = performance.now();
     const isLargeFile = originalSource.length > 50000; // 50KB threshold
+    const isVeryLargeFile = originalSource.length > 120000 || patchedCode.length > 120000; // 120KB threshold
     
     // Step -1: Sanity Check for Truncation (Critical Fix for 26-byte bug)
     if (patchedCode.length < 100 && originalSource.length > 500) {
@@ -561,6 +562,34 @@ function validatePatchedCode(originalSource: string, patchedCode: string): strin
     // ⚡ Fast Path: Skip heavy AST validation for large files with small changes
     const changeSize = Math.abs(patchedCode.length - originalSource.length);
     const isSmallChange = changeSize < 10000; // Less than 10KB difference
+
+    // ⚡ Ultra Fast Path: Very large files can freeze the UI due to multiple AST parses.
+    // For these, keep validation lightweight regardless of change size.
+    if (isVeryLargeFile) {
+        console.log(
+            `[Patch] ⚡ Ultra fast path: Very large file (${Math.round(originalSource.length / 1024)}KB), ` +
+            `change=${changeSize} chars — skipping AST-based safety nets to prevent UI stall`
+        );
+
+        // Quick checks only (no AST parsing)
+        const hasDoctype = patchedCode.includes('<!DOCTYPE') || patchedCode.includes('<!doctype');
+        const hasHtmlTag = /<html[\s>]/i.test(patchedCode);
+        const looksLikeReact = /import\s+.*from|export\s+(default\s+)?(function|const|class)|return\s*\(?\s*<[A-Z]/.test(patchedCode);
+
+        if (!hasDoctype && !hasHtmlTag && !looksLikeReact) {
+            console.error('[Patch] Ultra fast path validation failed: Missing basic structure');
+            return originalSource;
+        }
+
+        // Length sanity: allow big changes but avoid extreme truncation/duplication
+        if (patchedCode.length < originalSource.length * 0.25 || patchedCode.length > originalSource.length * 5) {
+            console.error('[Patch] Ultra fast path validation failed: Suspicious length change');
+            return originalSource;
+        }
+
+        console.log(`[Patch] ⚡ Validation completed in ${(performance.now() - startTime).toFixed(0)}ms (ultra fast path)`);
+        return patchedCode;
+    }
     
     if (isLargeFile && isSmallChange) {
         console.log(`[Patch] ⚡ Fast path: Large file (${Math.round(originalSource.length/1024)}KB) with small change (${changeSize} chars), skipping full AST validation`);

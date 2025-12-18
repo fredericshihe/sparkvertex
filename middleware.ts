@@ -47,10 +47,13 @@ export async function middleware(request: NextRequest) {
   
   // 检查是否在 Vercel 环境 (Vercel 不需要此鉴权)
   const isVercel = !!process.env.VERCEL;
+  
+  // 检查是否在本地开发环境
+  const isDev = process.env.NODE_ENV === 'development';
 
   // 安全检查：只对非静态资源路径进行鉴权
-  // 在非 Vercel 环境 (即阿里云服务器) 强制启用
-  if (!isVercel && !pathname.startsWith('/_next/') && !pathname.startsWith('/static/')) {
+  // 在非 Vercel 环境 且 非开发环境 (即阿里云生产服务器) 强制启用
+  if (!isVercel && !isDev && !pathname.startsWith('/_next/') && !pathname.startsWith('/static/')) {
       if (requestSecret !== CDN_SECRET) {
           // 如果请求没有带正确的密钥，说明不是来自 CDN，而是直接攻击源站 IP
           return new NextResponse('Forbidden: Direct Access Not Allowed', { status: 403 });
