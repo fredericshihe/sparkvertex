@@ -38,28 +38,20 @@ export async function middleware(request: NextRequest) {
 
   // 0. 安全鉴权 (Security Auth) - 防止源站 IP 泄露被直接攻击
   // 配合阿里云 CDN 的 "回源 HTTP 请求头" 功能使用
-  // 在 CDN 控制台设置: X-Source-Auth = process.env.CDN_SOURCE_SECRET
-  const cdnSecret = process.env.CDN_SOURCE_SECRET;
+  // 在 CDN 控制台设置: X-Source-Auth = spark-vertex-secure-2025
+  
+  // 硬编码密钥 (因为环境变量在 PM2 + npm start 场景下传递有问题)
+  // 这对于单一部署环境是可以接受的
+  const CDN_SECRET = 'spark-vertex-secure-2025';
   const requestSecret = request.headers.get('x-source-auth');
+  
+  // 检查是否在 Vercel 环境 (Vercel 不需要此鉴权)
+  const isVercel = !!process.env.VERCEL;
 
-  // [Debug] 针对验证脚本的调试日志
-  const userAgent = request.headers.get('user-agent') || '';
-  if (userAgent.includes('Security-Check-Script')) {
-      console.log('[Security Check Debug]', {
-          nodeEnv: process.env.NODE_ENV,
-          hasCdnSecret: !!cdnSecret, // 是否读取到了密钥
-          secretLength: cdnSecret ? cdnSecret.length : 0,
-          receivedHeader: requestSecret,
-          isVercel: !!process.env.VERCEL,
-          pathname
-      });
-  }
-
-  // 仅在生产环境且配置了密钥时生效
-  // 排除本地开发环境 (localhost) 和 静态资源
-  // 同时也排除 Vercel 环境 (Vercel 自带防护，不需要这个回源鉴权)
-  if (process.env.NODE_ENV === 'production' && cdnSecret && !process.env.VERCEL && !pathname.startsWith('/_next/') && !pathname.startsWith('/static/')) {
-      if (requestSecret !== cdnSecret) {
+  // 安全检查：只对非静态资源路径进行鉴权
+  // 在非 Vercel 环境 (即阿里云服务器) 强制启用
+  if (!isVercel && !pathname.startsWith('/_next/') && !pathname.startsWith('/static/')) {
+      if (requestSecret !== CDN_SECRET) {
           // 如果请求没有带正确的密钥，说明不是来自 CDN，而是直接攻击源站 IP
           return new NextResponse('Forbidden: Direct Access Not Allowed', { status: 403 });
       }
