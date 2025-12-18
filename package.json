@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
     "deploy": "ssh -t root@8.217.236.183 'cd /www/wwwroot/sparkvertex.cn && git pull && chmod +x scripts/deploy.sh && ./scripts/deploy.sh'"
   },
