@@ -4,41 +4,8 @@ import { Renderer, Program, Mesh, Color, Triangle } from 'ogl';
 import { useEffect, useRef, useCallback } from 'react';
 
 // 🆕 全局 WebGL 上下文管理器 - 防止创建过多上下文
-const MAX_WEBGL_CONTEXTS = 8;
-const activeContexts: WeakRef<WebGLRenderingContext>[] = [];
-
-function registerContext(gl: WebGLRenderingContext) {
-  // 清理已失效的引用
-  for (let i = activeContexts.length - 1; i >= 0; i--) {
-    if (!activeContexts[i].deref()) {
-      activeContexts.splice(i, 1);
-    }
-  }
-  
-  // 如果超过限制，强制释放最旧的上下文
-  while (activeContexts.length >= MAX_WEBGL_CONTEXTS) {
-    const oldest = activeContexts.shift()?.deref();
-    if (oldest) {
-      console.log('[Galaxy] Force releasing old WebGL context');
-      oldest.getExtension('WEBGL_lose_context')?.loseContext();
-    }
-  }
-  
-  activeContexts.push(new WeakRef(gl));
-}
-
-function unregisterContext(gl: WebGLRenderingContext) {
-  const index = activeContexts.findIndex(ref => ref.deref() === gl);
-  if (index !== -1) {
-    activeContexts.splice(index, 1);
-  }
-  // 确保释放上下文
-  try {
-    gl.getExtension('WEBGL_lose_context')?.loseContext();
-  } catch (e) {
-    // 忽略已释放的上下文
-  }
-}
+// 移除复杂的 WeakRef 管理逻辑，回归 React 标准生命周期
+// Safari 对 WeakRef 和 WebGL 上下文的交互可能存在兼容性问题
 
 const vertexShader = `
 attribute vec2 uv;
@@ -308,8 +275,7 @@ export default function Galaxy({
     rendererRef.current = renderer;
     const gl = renderer.gl;
     
-    // 🆕 注册上下文到全局管理器
-    registerContext(gl);
+    // 移除 registerContext 调用
 
     if (props.transparent) {
       gl.enable(gl.BLEND);
@@ -431,9 +397,12 @@ export default function Galaxy({
         ctn.removeChild(gl.canvas);
       }
       
-      // 🆕 从全局管理器注销并释放上下文
-      unregisterContext(gl);
-      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      // 简化清理逻辑：直接释放上下文
+      try {
+        gl.getExtension('WEBGL_lose_context')?.loseContext();
+      } catch (e) {
+        // 忽略错误
+      }
       
       // 重置初始化标志，以便组件重新挂载时可以创建新上下文
       isInitializedRef.current = false;
