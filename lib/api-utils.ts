@@ -166,6 +166,7 @@ export const ApiErrors = {
   forbidden: (message = '无权限访问') => apiError(message, 403, 'FORBIDDEN'),
   notFound: (message = '资源不存在') => apiError(message, 404, 'NOT_FOUND'),
   badRequest: (message = '请求参数错误') => apiError(message, 400, 'BAD_REQUEST'),
+  paymentRequired: (message = '积分不足') => apiError(message, 402, 'PAYMENT_REQUIRED'),
   rateLimited: (message = '请求过于频繁，请稍后再试') => apiError(message, 429, 'RATE_LIMITED'),
   serverError: (message = '服务器内部错误') => apiError(message, 500, 'SERVER_ERROR'),
   payloadTooLarge: (message = '请求数据过大') => apiError(message, 413, 'PAYLOAD_TOO_LARGE'),

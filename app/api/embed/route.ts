@@ -28,14 +28,21 @@ export async function POST(request: Request) {
       return ApiErrors.serverError('Server configuration error');
     }
 
+    // Add timeout to prevent long waits (15 seconds)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
     const response = await fetch(`${supabaseUrl}/functions/v1/embed`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${supabaseKey}`
       },
-      body: JSON.stringify({ input: text })
+      body: JSON.stringify({ input: text }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeout);
 
     if (!response.ok) {
       const error = await response.text();
@@ -46,7 +53,12 @@ export async function POST(request: Request) {
     const data = await response.json();
     return apiSuccess({ embedding: data.embedding });
 
-  } catch (error) {
+  } catch (error: any) {
+    // Handle timeout specifically
+    if (error?.name === 'AbortError') {
+      apiLog.error('Embed', 'Request timeout after 15s');
+      return ApiErrors.serverError('Embedding request timeout');
+    }
     apiLog.error('Embed', 'Embedding error:', error);
     return ApiErrors.serverError('Internal server error');
   }

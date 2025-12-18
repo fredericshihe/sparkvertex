@@ -1384,8 +1384,8 @@ function UploadContent() {
     console.log('🔍 [Duplicate Check] Starting early detection...');
     setIsCheckingDuplicate(true);
     
-    // Add a small delay to make the check visible to user (UX)
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Reduced delay for faster UX (was 1500ms)
+    await new Promise(resolve => setTimeout(resolve, 300));
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -1459,11 +1459,18 @@ function UploadContent() {
         // Truncate to 20000 chars to fit within token limits (approx 5k tokens)
         const textToEmbed = content.substring(0, 20000);
         
+        // Add timeout to prevent long waits on slow networks
+        const embedController = new AbortController();
+        const embedTimeout = setTimeout(() => embedController.abort(), 15000); // 15s timeout
+        
         const embedRes = await fetch('/api/embed', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: textToEmbed })
+          body: JSON.stringify({ text: textToEmbed }),
+          signal: embedController.signal
         });
+        
+        clearTimeout(embedTimeout);
 
         if (embedRes.ok) {
           const embedData = await embedRes.json();
