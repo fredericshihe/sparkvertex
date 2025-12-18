@@ -301,7 +301,22 @@ serve(async (req) => {
                                      continue;
                                 }
                                 
-                                throw new Error(`上游 API 错误: ${response.status} ${errorText}`);
+                                // 构造友好的错误信息
+                                const modelNameMap: Record<string, string> = {
+                                    'deepseek-v3': '免费模型',
+                                    'gemini-2.5-flash': '极速模型',
+                                    'gemini-3-flash-preview': '标准模型',
+                                    'gemini-3-pro-preview': '专家模型'
+                                };
+                                const modelName = modelNameMap[currentModel] || currentModel;
+
+                                let friendlyError = `${modelName}调用受限`;
+                                if (response.status === 429) {
+                                    friendlyError = `${modelName}达到调用频率限制 (Rate Limit)。请稍后重试，或尝试切换其他模型。`;
+                                } else if (response.status === 503) {
+                                    friendlyError = `${modelName}服务暂时不可用 (Service Overloaded)。请稍后重试，或尝试切换其他模型。`;
+                                }
+                                throw new Error(friendlyError);
                             }
                             
                             const delay = retryCount * 1000; 

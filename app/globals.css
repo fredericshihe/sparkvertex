@@ -117,6 +117,22 @@ input, textarea, [contenteditable] {
     scrollbar-width: none;
 }
 
+/* Custom Scrollbar Class - Explicit Definition */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
 /* 3D Tilt Card Effect */
 .tilt-card {
     transform-style: preserve-3d;

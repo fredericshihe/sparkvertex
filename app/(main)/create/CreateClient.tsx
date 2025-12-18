@@ -3778,8 +3778,20 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
                 }
 
                 if (!res.ok) {
-                    const errText = await res.text();
-                    throw new Error(`服务调用失败 (Service Error: ${res.status})`);
+                    let errorMessage = `服务调用失败 (Service Error: ${res.status})`;
+                    try {
+                        const errorData = await res.json();
+                        if (errorData.error) {
+                            errorMessage = errorData.error;
+                        }
+                    } catch (e) {
+                        // 无法解析 JSON，尝试读取 text
+                        const errText = await res.text();
+                        if (errText && errText.length < 200) { // 避免显示过长的 HTML 错误页
+                             errorMessage = `${errorMessage}: ${errText}`;
+                        }
+                    }
+                    throw new Error(errorMessage);
                 }
                 
                 // Success - consume stream to keep connection alive

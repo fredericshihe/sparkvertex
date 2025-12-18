@@ -255,7 +255,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
       </div>
       
       {/* Chat History */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-6 bg-black/50 scroll-smooth custom-scrollbar">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-6 bg-black/50 scroll-smooth custom-scrollbar overscroll-contain">
         {/* Initial Message */}
         <div className="flex gap-4 animate-fade-in">
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-brand-500/20 to-blue-600/20 flex items-center justify-center text-brand-400 flex-shrink-0 border border-brand-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]">

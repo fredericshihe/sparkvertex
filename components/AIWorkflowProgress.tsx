@@ -329,7 +329,7 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
 
                 {/* AI 思考/计划展示 */}
                 {details.plan && (
-                  <div className="bg-blue-500/5 rounded-lg border border-blue-500/10 max-h-32 overflow-y-auto custom-scrollbar relative">
+                  <div className="bg-blue-500/5 rounded-lg border border-blue-500/10 max-h-32 overflow-y-auto custom-scrollbar relative overscroll-contain">
                     <div className="flex items-center gap-2 px-3 py-2 sticky top-0 bg-[#0f1115] z-10 border-b border-blue-500/10">
                       <i className="fa-solid fa-lightbulb text-yellow-400 text-[10px]"></i>
                       <span className="text-[10px] font-medium text-blue-300 uppercase tracking-wider">
@@ -380,7 +380,7 @@ export const AIWorkflowProgress: React.FC<AIWorkflowProgressProps> = ({
                     <div 
                         ref={codeViewportRef}
                         onScroll={handleCodeScroll}
-                        className="p-3 h-32 overflow-y-auto custom-scrollbar scroll-smooth"
+                        className="p-3 h-32 overflow-y-auto custom-scrollbar scroll-smooth overscroll-contain"
                     >
                       <pre className="font-mono text-[10px] text-slate-300/90 leading-relaxed break-all whitespace-pre-wrap">
                         {cleanCode(details.streamingCode)}
