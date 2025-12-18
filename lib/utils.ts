@@ -1,3 +1,18 @@
+/**
+ * 格式化积分显示，精确到小数点后一位
+ * - 整数直接返回
+ * - 小数保留一位小数
+ * @example formatCredits(10) => "10"
+ * @example formatCredits(2.5) => "2.5"
+ * @example formatCredits(1.234) => "1.2"
+ */
+export function formatCredits(credits: number): string {
+  if (Number.isInteger(credits)) {
+    return credits.toString();
+  }
+  return credits.toFixed(1);
+}
+
 export async function copyToClipboard(text: string): Promise<boolean> {
   if (!text) return false;
 

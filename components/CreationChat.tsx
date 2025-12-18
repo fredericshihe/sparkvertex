@@ -248,7 +248,7 @@ export const CreationChat: React.FC<CreationChatProps> = ({
            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black border border-white/10 transition-all duration-300 ${isCreditAnimating ? 'scale-110 border-red-500/50 bg-red-500/10' : ''}`}>
              <i className={`fa-solid fa-coins text-xs transition-colors duration-300 ${isCreditAnimating ? 'text-red-500' : 'text-yellow-500'}`}></i>
              <span className={`text-xs font-bold tabular-nums transition-colors duration-300 ${isCreditAnimating ? 'text-red-500' : 'text-slate-200'}`}>
-               {Number.isInteger(credits) ? credits : credits.toFixed(2)}
+               {Number.isInteger(credits) ? credits : credits.toFixed(1)}
              </span>
            </div>
         </div>
@@ -310,11 +310,11 @@ export const CreationChat: React.FC<CreationChatProps> = ({
               ) : (
                   <>
                       <div className="whitespace-pre-wrap leading-relaxed break-words">{msg.content}</div>
-                      {msg.cost && (
+                      {msg.cost !== undefined && msg.cost !== null && (
                           <div className="mt-3 pt-3 border-t border-white/5 flex justify-end">
                               <span className="text-[10px] font-medium text-amber-500/80 flex items-center gap-1.5 bg-amber-500/10 px-2 py-1 rounded-full border border-amber-500/10">
                                   <i className="fa-solid fa-bolt text-amber-500 text-[9px]"></i>
-                                  {language === 'zh' ? `消耗 ${msg.cost} 积分` : `Cost: ${msg.cost} credits`}
+                                  {language === 'zh' ? `消耗 ${Number.isInteger(msg.cost) ? msg.cost : msg.cost.toFixed(1)} 积分` : `Cost: ${Number.isInteger(msg.cost) ? msg.cost : msg.cost.toFixed(1)} credits`}
                               </span>
                           </div>
                       )}

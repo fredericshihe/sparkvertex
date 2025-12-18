@@ -2688,7 +2688,8 @@ ${description}
                      return newHistory;
                  });
 
-                 toastSuccess(language === 'zh' ? `生成完成，消耗 ${cost} 积分` : `Generation complete. Cost: ${cost} credits`);
+                 const formattedCost = Number.isInteger(cost) ? cost : cost.toFixed(1);
+                 toastSuccess(language === 'zh' ? `生成完成，消耗 ${formattedCost} 积分` : `Generation complete. Cost: ${formattedCost} credits`);
                  // Refresh profile to sync with server
                  checkAuth();
              }
@@ -5152,10 +5153,11 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
         console.warn('[AI Image] Credit deduction failed:', creditError);
       }
 
+      const formattedNewCredits = Number.isInteger(newCredits) ? newCredits : newCredits.toFixed(1);
       toastSuccess(
         language === 'zh' 
-          ? `图片生成成功！已扣除 10 积分，剩余 ${newCredits} 积分` 
-          : `Image generated! Used 10 credits, ${newCredits} remaining`
+          ? `图片生成成功！已扣除 10 积分，剩余 ${formattedNewCredits} 积分` 
+          : `Image generated! Used 10 credits, ${formattedNewCredits} remaining`
       );
 
     } catch (error: any) {

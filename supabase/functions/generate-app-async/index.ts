@@ -638,7 +638,9 @@ serve(async (req) => {
                     // 根据用户选择的模型使用对应的积分汇率
                     // gemini-2.5-flash: 1积分=15000tokens, gemini-3-flash-preview: 1积分=7000tokens, gemini-3-pro-preview: 1积分=3000tokens
                     // 超长上下文时，汇率减半（相当于价格翻倍）
-                    return Math.ceil(totalTokens / effectiveTokensPerCredit);
+                    // 精确到小数点后一位，最低消耗 0.1 积分
+                    const rawCost = totalTokens / effectiveTokensPerCredit;
+                    return Math.max(0.1, Number(rawCost.toFixed(1)));
                 })();
 
                 // 保存结果和 cost 到数据库

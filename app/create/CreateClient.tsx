@@ -2678,7 +2678,8 @@ ${description}
                      return newHistory;
                  });
 
-                 toastSuccess(language === 'zh' ? `生成完成，消耗 ${cost} 积分` : `Generation complete. Cost: ${cost} credits`);
+                 const formattedCost = Number.isInteger(cost) ? cost : cost.toFixed(1);
+                 toastSuccess(language === 'zh' ? `生成完成，消耗 ${formattedCost} 积分` : `Generation complete. Cost: ${formattedCost} credits`);
                  // Refresh profile to sync with server
                  checkAuth();
              }

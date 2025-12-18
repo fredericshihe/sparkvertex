@@ -200,8 +200,8 @@ export async function POST(request: Request) {
             
             const totalTokens = calculateTokens(input) + calculateTokens(output);
             // Cost: 1 Credit = 7000 Tokens (Gemini 3 Flash)
-            // Use float precision, min 0.01
-            const cost = Math.max(0.01, Number((totalTokens / 7000).toFixed(4)));
+            // 精确到小数点后一位，最低消耗 0.1 积分
+            const cost = Math.max(0.1, Number((totalTokens / 7000).toFixed(1)));
             
             const { data: currentProfile } = await supabaseAdmin
                 .from('profiles')

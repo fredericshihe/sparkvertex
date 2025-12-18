@@ -885,7 +885,7 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                           {language === 'zh' ? 'AI 生成图片' : 'AI Generate Image'}
                         </span>
                         <span className="text-[9px] text-zinc-500 ml-auto">
-                          {language === 'zh' ? `消耗 10 积分 (剩余 ${credits})` : `Cost 10 credits (${credits} left)`}
+                          {language === 'zh' ? `消耗 10 积分 (剩余 ${Number.isInteger(credits) ? credits : credits.toFixed(1)})` : `Cost 10 credits (${Number.isInteger(credits) ? credits : credits.toFixed(1)} left)`}
                         </span>
                       </div>
                       
