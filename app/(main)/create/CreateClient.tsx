@@ -2356,11 +2356,6 @@ ${description}
                         ? `智能修改遇到困难。是否尝试全量修复？\n\n注意：全量修复将消耗更多积分。\n${cost > 0 ? `本次修改消耗的 ${cost} 积分将自动退回。` : ''}`
                         : `Smart edit encountered difficulties. Do you want to try a full repair?\n\nNote: Full repair will consume more credits.\n${cost > 0 ? `The ${cost} credits consumed for this edit will be automatically refunded.` : ''}`;
                     
-                    // 🔧 FIX: Reset isGenerating BEFORE showing modal to prevent UI stuck
-                    setIsGenerating(false);
-                    setWorkflowStage('error');
-                    setCurrentTaskId(null);
-                    
                     openConfirmModal({
                       title: language === 'zh' ? '尝试全量修复' : 'Try Full Repair',
                       message: confirmMessage,
@@ -2380,9 +2375,9 @@ ${description}
                         await processRefund();
 
                         toastError(language === 'zh' ? '修改失败，请重试或尝试手动修改。' : 'Edit failed, please retry or try manual edit.');
+                        setIsGenerating(false);
                       }
                     });
-                    return; // 🔧 FIX: Early return to prevent fall-through
                 }
             } else {
                 // Full Generation Mode
@@ -2702,15 +2697,47 @@ ${description}
              // 🔧 FIX: Actively trigger handleTaskUpdate when completed broadcast is received
              // This ensures we don't rely solely on postgres_changes which can be delayed
              if (!isFinished) {
-                 console.log('[Broadcast] Received completed event, fetching task data to trigger handleTaskUpdate...');
-                 try {
-                     const { data, error } = await supabase.from('generation_tasks').select('*').eq('id', taskId).single();
-                     if (data && !error && data.status === 'completed') {
-                         console.log('[Broadcast] Triggering handleTaskUpdate with completed task data');
-                         handleTaskUpdate(data);
-                     }
-                 } catch (e) {
-                     console.warn('[Broadcast] Failed to fetch task data:', e);
+                 console.log('[Broadcast] Received completed event, triggering handleTaskUpdate...');
+                 
+                 // 🚀 优化：直接使用 broadcast 中的 fullContent 构造完成状态
+                 // 不再依赖数据库查询，因为数据库写入可能有延迟
+                 if (fullContent) {
+                     console.log('[Broadcast] Using fullContent from broadcast directly');
+                     handleTaskUpdate({
+                         id: taskId,
+                         status: 'completed',
+                         result_code: fullContent,
+                         cost: cost,
+                         error_message: null
+                     });
+                 } else {
+                     // 备用方案：如果 broadcast 没有 fullContent，尝试从数据库获取
+                     // 添加重试机制，因为数据库可能还没同步完成
+                     let retries = 0;
+                     const maxRetries = 5;
+                     const retryDelay = 500; // 500ms
+                     
+                     const fetchWithRetry = async () => {
+                         while (retries < maxRetries && !isFinished) {
+                             try {
+                                 const { data, error } = await supabase.from('generation_tasks').select('*').eq('id', taskId).single();
+                                 if (data && !error) {
+                                     if (data.status === 'completed') {
+                                         console.log(`[Broadcast] DB synced after ${retries} retries, triggering handleTaskUpdate`);
+                                         handleTaskUpdate(data);
+                                         return;
+                                     }
+                                     console.log(`[Broadcast] DB still ${data.status}, retry ${retries + 1}/${maxRetries}...`);
+                                 }
+                             } catch (e) {
+                                 console.warn('[Broadcast] Fetch failed:', e);
+                             }
+                             retries++;
+                             await new Promise(r => setTimeout(r, retryDelay));
+                         }
+                         console.warn('[Broadcast] Max retries reached, DB may not have synced');
+                     };
+                     fetchWithRetry();
                  }
              }
           }

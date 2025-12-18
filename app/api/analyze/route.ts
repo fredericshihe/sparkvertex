@@ -106,40 +106,6 @@ export async function POST(request: Request) {
       return ApiErrors.badRequest('输入内容过长');
     }
 
-    // Helper to deduct credits (定义在使用之前)
-    const deductCredits = async (userId: string, input: string, output: string) => {
-        try {
-            const supabaseAdmin = createClient(
-                process.env.NEXT_PUBLIC_SUPABASE_URL!, 
-                process.env.SUPABASE_SERVICE_ROLE_KEY!
-            );
-            
-            const totalTokens = calculateTokens(input) + calculateTokens(output);
-            // Cost: 1 Credit = 7000 Tokens (Gemini 3 Flash)
-            // 精确到小数点后一位，最低消耗 0.1 积分
-            const cost = Math.max(0.1, Number((totalTokens / 7000).toFixed(1)));
-            
-            const { data: currentProfile } = await supabaseAdmin
-                .from('profiles')
-                .select('credits')
-                .eq('id', userId)
-                .single();
-                
-            if (currentProfile) {
-                const newBalance = Math.max(0, (Number(currentProfile.credits) || 0) - cost);
-                await supabaseAdmin
-                    .from('profiles')
-                    .update({ credits: newBalance })
-                    .eq('id', userId);
-                    
-                apiLog.info('Analyze', `Credits deducted: ${cost} (Tokens: ${totalTokens})`);
-            }
-        } catch (e) {
-            apiLog.error('Analyze', 'Failed to deduct credits', e);
-            // Don't fail the request if deduction fails, but log it
-        }
-    };
-
     // 4. Try Supabase Edge Function (Priority)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -223,6 +189,40 @@ export async function POST(request: Request) {
     }
 
     const apiKey = process.env.DEEPSEEK_API_KEY; // Keep for mock logic check if needed, but we use Google Key now
+    
+    // Helper to deduct credits
+    const deductCredits = async (userId: string, input: string, output: string) => {
+        try {
+            const supabaseAdmin = createClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL!, 
+                process.env.SUPABASE_SERVICE_ROLE_KEY!
+            );
+            
+            const totalTokens = calculateTokens(input) + calculateTokens(output);
+            // Cost: 1 Credit = 7000 Tokens (Gemini 3 Flash)
+            // 精确到小数点后一位，最低消耗 0.1 积分
+            const cost = Math.max(0.1, Number((totalTokens / 7000).toFixed(1)));
+            
+            const { data: currentProfile } = await supabaseAdmin
+                .from('profiles')
+                .select('credits')
+                .eq('id', userId)
+                .single();
+                
+            if (currentProfile) {
+                const newBalance = Math.max(0, (Number(currentProfile.credits) || 0) - cost);
+                await supabaseAdmin
+                    .from('profiles')
+                    .update({ credits: newBalance })
+                    .eq('id', userId);
+                    
+                apiLog.info('Analyze', `Credits deducted: ${cost} (Tokens: ${totalTokens})`);
+            }
+        } catch (e) {
+            apiLog.error('Analyze', 'Failed to deduct credits', e);
+            // Don't fail the request if deduction fails, but log it
+        }
+    };
 
     // Mock response if no key (or for specific demo prompts if needed)
     if (!process.env.GOOGLE_API_KEY && !apiKey) {
