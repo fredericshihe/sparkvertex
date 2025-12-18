@@ -2356,6 +2356,11 @@ ${description}
                         ? `智能修改遇到困难。是否尝试全量修复？\n\n注意：全量修复将消耗更多积分。\n${cost > 0 ? `本次修改消耗的 ${cost} 积分将自动退回。` : ''}`
                         : `Smart edit encountered difficulties. Do you want to try a full repair?\n\nNote: Full repair will consume more credits.\n${cost > 0 ? `The ${cost} credits consumed for this edit will be automatically refunded.` : ''}`;
                     
+                    // 🔧 FIX: Reset isGenerating BEFORE showing modal to prevent UI stuck
+                    setIsGenerating(false);
+                    setWorkflowStage('error');
+                    setCurrentTaskId(null);
+                    
                     openConfirmModal({
                       title: language === 'zh' ? '尝试全量修复' : 'Try Full Repair',
                       message: confirmMessage,
@@ -2375,9 +2380,9 @@ ${description}
                         await processRefund();
 
                         toastError(language === 'zh' ? '修改失败，请重试或尝试手动修改。' : 'Edit failed, please retry or try manual edit.');
-                        setIsGenerating(false);
                       }
                     });
+                    return; // 🔧 FIX: Early return to prevent fall-through
                 }
             } else {
                 // Full Generation Mode
