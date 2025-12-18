@@ -201,6 +201,9 @@ export interface PatchResult {
  * Use this when you need to know which patches succeeded/failed (Partial Apply).
  */
 export function applyPatchesWithDetails(source: string, patchText: string, relaxedMode: boolean = false, targets: string[] = []): PatchResult {
+    const startTime = performance.now();
+    console.log(`[Patch] 🚀 Starting patch application (source: ${Math.round(source.length/1024)}KB, patch: ${Math.round(patchText.length/1024)}KB)`);
+    
     // relaxedMode: Use relaxed matching for first edits on uploaded code
     if (relaxedMode) {
         console.log('[Patch] Using relaxed matching mode for uploaded code');
@@ -296,11 +299,17 @@ export function applyPatchesWithDetails(source: string, patchText: string, relax
     }
 
     if (matches.length > 0) {
+         const matchStartTime = performance.now();
          const { code: rawResult, stats } = applyPatchesInternalWithStats(source, matches, relaxedMode, targets);
+         console.log(`[Patch] ⏱️ Patch matching took ${(performance.now() - matchStartTime).toFixed(0)}ms`);
+         
+         const validationStartTime = performance.now();
          const finalCode = validatePatchedCode(source, rawResult);
+         console.log(`[Patch] ⏱️ Validation took ${(performance.now() - validationStartTime).toFixed(0)}ms`);
          
          // If validation reverted code, treat as failure
          if (finalCode === source && rawResult !== source) {
+             console.log(`[Patch] ⏱️ Total time: ${(performance.now() - startTime).toFixed(0)}ms (validation reverted)`);
              return {
                  code: source,
                  stats: {
@@ -312,9 +321,11 @@ export function applyPatchesWithDetails(source: string, patchText: string, relax
              };
          }
 
+         console.log(`[Patch] ⏱️ Total time: ${(performance.now() - startTime).toFixed(0)}ms`);
          return { code: finalCode, stats };
     }
 
+    console.log(`[Patch] ⏱️ Total time: ${(performance.now() - startTime).toFixed(0)}ms (no patches found)`);
     return { 
         code: source, 
         stats: { total: 0, success: 0, failed: 0, failures: [] } 
@@ -529,16 +540,51 @@ function applySmartASTPatch(source: string, replaceBlock: string): string | null
 /**
  * Post-validation: Ensure the patched code is structurally valid.
  * If validation fails, return the original source to prevent corruption.
+ * 
+ * ⚡ Performance Optimization (Dec 2025):
+ * - Skip heavy AST validation for small patches (< 10KB change)
+ * - Add timing logs for performance monitoring
  */
 function validatePatchedCode(originalSource: string, patchedCode: string): string {
+    const startTime = performance.now();
+    const isLargeFile = originalSource.length > 50000; // 50KB threshold
+    
     // Step -1: Sanity Check for Truncation (Critical Fix for 26-byte bug)
     if (patchedCode.length < 100 && originalSource.length > 500) {
         console.error(`[Patch] CRITICAL: Patched code is suspiciously short (${patchedCode.length} chars). Reverting to original.`);
         return originalSource;
     }
 
-    // Step 0: Heuristic Syntax Repair
+    // Step 0: Heuristic Syntax Repair (fast, no AST)
     patchedCode = validateAndFixSyntax(patchedCode);
+    
+    // ⚡ Fast Path: Skip heavy AST validation for large files with small changes
+    const changeSize = Math.abs(patchedCode.length - originalSource.length);
+    const isSmallChange = changeSize < 10000; // Less than 10KB difference
+    
+    if (isLargeFile && isSmallChange) {
+        console.log(`[Patch] ⚡ Fast path: Large file (${Math.round(originalSource.length/1024)}KB) with small change (${changeSize} chars), skipping full AST validation`);
+        
+        // Quick checks only (no AST parsing)
+        // Check 1: Basic HTML structure
+        const hasDoctype = patchedCode.includes('<!DOCTYPE') || patchedCode.includes('<!doctype');
+        const hasHtmlTag = /<html[\s>]/i.test(patchedCode);
+        const isReactComponent = /import\s+.*from|export\s+(default\s+)?(function|const|class)|return\s*\(?\s*<[A-Z]/.test(patchedCode);
+        
+        if (!hasDoctype && !hasHtmlTag && !isReactComponent) {
+            console.error('[Patch] Fast path validation failed: Missing basic structure');
+            return originalSource;
+        }
+        
+        // Check 2: Code length sanity
+        if (patchedCode.length < originalSource.length * 0.5 || patchedCode.length > originalSource.length * 3) {
+            console.error(`[Patch] Fast path validation failed: Suspicious length change`);
+            return originalSource;
+        }
+        
+        console.log(`[Patch] ⚡ Validation completed in ${(performance.now() - startTime).toFixed(0)}ms (fast path)`);
+        return patchedCode;
+    }
 
     // Step 0.5: Deduplicate Top-Level Bindings (Safety Net 1)
     console.log('[Patch] Running AST Dedupe (Safety Net 1)...');
@@ -654,6 +700,7 @@ function validatePatchedCode(originalSource: string, patchedCode: string): strin
         return originalSource;
     }
 
+    console.log(`[Patch] ✅ Validation completed in ${(performance.now() - startTime).toFixed(0)}ms`);
     return patchedCode;
 }
 
