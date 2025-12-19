@@ -15,6 +15,14 @@ mkdir -p /www/wwwroot/spark-vertex
 echo "Unzipping project..."
 unzip -o /root/project.zip -d /www/wwwroot/spark-vertex
 
+# 3.1 Restore Environment Variables
+echo "Restoring environment variables..."
+# Move the separately uploaded .env.local to .env in the app directory
+if [ -f /root/.env.local ]; then
+    mv /root/.env.local /www/wwwroot/spark-vertex/.env
+    echo "✅ Environment variables restored from .env.local"
+fi
+
 # 4. Go to directory
 cd /www/wwwroot/spark-vertex
 

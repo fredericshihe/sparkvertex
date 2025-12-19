@@ -4,8 +4,8 @@ SERVER_IP="8.217.236.183"
 echo "📦 Packaging project..."
 # Clean previous builds to save space
 rm -rf .next node_modules
-# Zip the project
-zip -r project.zip . -x ".git/*" ".next/*" "node_modules/*" "dist-electron/*" "deploy.sh" "server_setup.sh" "project.zip"
+# Zip the project (Exclude sensitive files and logs)
+zip -r project.zip . -x ".git/*" ".next/*" "node_modules/*" "dist-electron/*" "deploy.sh" "server_setup.sh" "project.zip" ".env*" "*.log"
 
 echo "🚀 Uploading files to $SERVER_IP..."
 echo "⚠️  PLEASE NOTE: You will be asked for your server password twice."
@@ -13,8 +13,9 @@ echo "1. For uploading files"
 echo "2. For executing the script"
 echo "----------------------------------------------------------------"
 
-# Upload both the zip and the setup script
-scp project.zip server_setup.sh root@$SERVER_IP:/root/
+# Upload zip, setup script, and local env file (securely transferred separately)
+# Assuming .env.local is your production config. If not, change this to .env
+scp project.zip server_setup.sh .env.local root@$SERVER_IP:/root/
 
 echo "----------------------------------------------------------------"
 echo "🔧 Executing deployment script on server..."

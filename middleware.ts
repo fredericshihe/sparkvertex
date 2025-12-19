@@ -38,11 +38,14 @@ export async function middleware(request: NextRequest) {
 
   // 0. 安全鉴权 (Security Auth) - 防止源站 IP 泄露被直接攻击
   // 配合阿里云 CDN 的 "回源 HTTP 请求头" 功能使用
-  // 在 CDN 控制台设置: X-Source-Auth = spark-vertex-secure-2025
+  // 在 CDN 控制台设置: X-Source-Auth = [你的密钥]
   
-  // 硬编码密钥 (因为环境变量在 PM2 + npm start 场景下传递有问题)
-  // 这对于单一部署环境是可以接受的
-  const CDN_SECRET = 'spark-vertex-secure-2025';
+  // 从环境变量获取密钥，如果未设置则记录警告（生产环境必须设置）
+  const CDN_SECRET = process.env.CDN_SOURCE_SECRET;
+  if (!CDN_SECRET && !isVercel) {
+     console.warn('WARN: CDN_SOURCE_SECRET is not set in environment variables!');
+  }
+  
   const requestSecret = request.headers.get('x-source-auth');
   
   // 检查是否在 Vercel 环境 (Vercel 不需要此鉴权)
