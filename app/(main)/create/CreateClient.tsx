@@ -5133,6 +5133,7 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       return;
     }
 
+    // 前端仅做提示，实际校验在服务端
     if (credits < 10) {
       toastError(language === 'zh' ? '积分不足，需要 10 积分' : 'Insufficient credits, need 10 credits');
       return;
@@ -5165,32 +5166,31 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
 
       const json = await res.json();
       
+      // 处理积分不足错误
+      if (res.status === 402 && json.errorCode === 'INSUFFICIENT_CREDITS') {
+        toastError(language === 'zh' ? `积分不足，需要 ${json.required} 积分，当前 ${json.current} 积分` : `Insufficient credits, need ${json.required}, have ${json.current}`);
+        setCredits(json.current); // 同步服务端积分值
+        return;
+      }
+      
       if (!res.ok || !json.success) {
         throw new Error(json.error || 'Generation failed');
       }
 
       setGeneratedAiImage(json.imageBase64);
       
-      // 扣除积分（手动更新本地状态，Edge Function 不处理积分）
-      const newCredits = credits - 10;
-      setCredits(newCredits);
-      
-      // 调用 API 扣除积分
-      try {
-        await supabase
-          .from('profiles')
-          .update({ credits: newCredits })
-          .eq('id', session.user.id);
-      } catch (creditError) {
-        console.warn('[AI Image] Credit deduction failed:', creditError);
+      // 🔒 从服务端响应更新积分（服务端已完成扣除）
+      if (typeof json.newCredits === 'number') {
+        setCredits(json.newCredits);
+        const formattedNewCredits = Number.isInteger(json.newCredits) ? json.newCredits : json.newCredits.toFixed(1);
+        toastSuccess(
+          language === 'zh' 
+            ? `图片生成成功！已扣除 ${json.creditCost} 积分，剩余 ${formattedNewCredits} 积分` 
+            : `Image generated! Used ${json.creditCost} credits, ${formattedNewCredits} remaining`
+        );
+      } else {
+        toastSuccess(language === 'zh' ? '图片生成成功！' : 'Image generated!');
       }
-
-      const formattedNewCredits = Number.isInteger(newCredits) ? newCredits : newCredits.toFixed(1);
-      toastSuccess(
-        language === 'zh' 
-          ? `图片生成成功！已扣除 10 积分，剩余 ${formattedNewCredits} 积分` 
-          : `Image generated! Used 10 credits, ${formattedNewCredits} remaining`
-      );
 
     } catch (error: any) {
       console.error('[AI Image] Generation failed:', error);

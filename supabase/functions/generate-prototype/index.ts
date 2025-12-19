@@ -48,6 +48,64 @@ serve(async (req: Request) => {
             });
         }
 
+        // 🔒 积分校验和扣除（仅 image 模式需要积分）
+        const CREDIT_COST = 10;
+        let newCredits = 0;
+        
+        if (mode === 'image') {
+            // 使用 service role 进行积分操作（绕过 RLS）
+            const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+            const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+            
+            // 获取当前积分
+            const { data: profile, error: profileError } = await supabaseAdmin
+                .from('profiles')
+                .select('credits')
+                .eq('id', user.id)
+                .single();
+            
+            if (profileError || !profile) {
+                console.error('[Prototype] Failed to get user profile:', profileError);
+                return new Response(JSON.stringify({ success: false, error: 'Failed to verify credits' }), {
+                    status: 500,
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                });
+            }
+            
+            const currentCredits = profile.credits || 0;
+            
+            if (currentCredits < CREDIT_COST) {
+                return new Response(JSON.stringify({ 
+                    success: false, 
+                    error: 'Insufficient credits',
+                    errorCode: 'INSUFFICIENT_CREDITS',
+                    required: CREDIT_COST,
+                    current: currentCredits
+                }), {
+                    status: 402, // Payment Required
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                });
+            }
+            
+            // 🔒 先扣除积分（在调用 AI 之前）
+            newCredits = currentCredits - CREDIT_COST;
+            const { error: updateError } = await supabaseAdmin
+                .from('profiles')
+                .update({ credits: newCredits })
+                .eq('id', user.id)
+                .eq('credits', currentCredits); // 乐观锁：确保积分未被其他请求修改
+            
+            if (updateError) {
+                console.error('[Prototype] Failed to deduct credits:', updateError);
+                return new Response(JSON.stringify({ success: false, error: 'Failed to deduct credits' }), {
+                    status: 500,
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                });
+            }
+            
+            console.log(`[Prototype] Deducted ${CREDIT_COST} credits from user ${user.id}, new balance: ${newCredits}`);
+        }
+
         // 获取 Google API Key
         const googleApiKey = Deno.env.get('GOOGLE_API_KEY');
         if (!googleApiKey) {
@@ -175,6 +233,18 @@ Generate a high-quality UI prototype image showing the app's main interface layo
         if (!geminiResponse.ok) {
             const errorText = await geminiResponse.text();
             console.error('[Prototype] Gemini API error:', errorText);
+            
+            // 🔒 AI 调用失败时回滚积分（仅 image 模式）
+            if (mode === 'image') {
+                const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+                const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+                await supabaseAdmin
+                    .from('profiles')
+                    .update({ credits: newCredits + CREDIT_COST })
+                    .eq('id', user.id);
+                console.log(`[Prototype] Refunded ${CREDIT_COST} credits to user ${user.id} due to API error`);
+            }
+            
             return new Response(JSON.stringify({ 
                 success: false, 
                 error: `Gemini API error: ${geminiResponse.status}` 
@@ -201,6 +271,18 @@ Generate a high-quality UI prototype image showing the app's main interface layo
 
         if (!imageBase64) {
             console.warn('[Prototype] No image generated in response:', JSON.stringify(geminiData));
+            
+            // 🔒 无图片生成时回滚积分（仅 image 模式）
+            if (mode === 'image') {
+                const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+                const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+                await supabaseAdmin
+                    .from('profiles')
+                    .update({ credits: newCredits + CREDIT_COST })
+                    .eq('id', user.id);
+                console.log(`[Prototype] Refunded ${CREDIT_COST} credits to user ${user.id} due to no image generated`);
+            }
+            
             return new Response(JSON.stringify({ 
                 success: false, 
                 error: 'Failed to generate image' 
@@ -214,7 +296,9 @@ Generate a high-quality UI prototype image showing the app's main interface layo
 
         return new Response(JSON.stringify({ 
             success: true, 
-            imageBase64 
+            imageBase64,
+            // 🔒 返回新积分值供前端更新（仅 image 模式）
+            ...(mode === 'image' && { newCredits, creditCost: CREDIT_COST })
         }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
