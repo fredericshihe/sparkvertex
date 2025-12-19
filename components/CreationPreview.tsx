@@ -885,14 +885,14 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                           {language === 'zh' ? 'AI 生成图片' : 'AI Generate Image'}
                         </span>
                         <span className="text-[9px] text-zinc-500 ml-auto">
-                          {language === 'zh' ? `消耗 10 积分 (剩余 ${Number.isInteger(credits) ? credits : credits.toFixed(1)})` : `Cost 10 credits (${Number.isInteger(credits) ? credits : credits.toFixed(1)} left)`}
+                          {language === 'zh' ? `消耗 5 积分 (剩余 ${Number.isInteger(credits) ? credits : credits.toFixed(1)})` : `Cost 5 credits (${Number.isInteger(credits) ? credits : credits.toFixed(1)} left)`}
                         </span>
                       </div>
                       
                       <div className="text-[9px] text-zinc-500 mb-2">
                         {language === 'zh' 
-                          ? '使用 Nano Banana Pro 模型生成，最大 1024×1024 像素' 
-                          : 'Powered by Nano Banana Pro, max 1024×1024 pixels'}
+                          ? '使用 Gemini 2.5 Flash Image 模型生成，最大 1024×1024 像素' 
+                          : 'Powered by Gemini 2.5 Flash Image, max 1024×1024 pixels'}
                       </div>
                       
                       <div className="flex gap-2 mb-2">

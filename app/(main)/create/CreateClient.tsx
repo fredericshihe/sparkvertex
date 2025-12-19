@@ -5127,6 +5127,9 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
   };
 
   // 🆕 AI Image Generation: Generate image from prompt using Supabase Edge Function
+  // 使用 Gemini 2.5 Flash Image，成本 $0.039/张，定价 5 积分
+  const AI_IMAGE_CREDIT_COST = 5;
+  
   const handleGenerateAiImage = async () => {
     if (!aiImagePrompt.trim()) {
       toastError(language === 'zh' ? '请输入图片描述' : 'Please enter image description');
@@ -5134,8 +5137,8 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
     }
 
     // 前端仅做提示，实际校验在服务端
-    if (credits < 10) {
-      toastError(language === 'zh' ? '积分不足，需要 10 积分' : 'Insufficient credits, need 10 credits');
+    if (credits < AI_IMAGE_CREDIT_COST) {
+      toastError(language === 'zh' ? `积分不足，需要 ${AI_IMAGE_CREDIT_COST} 积分` : `Insufficient credits, need ${AI_IMAGE_CREDIT_COST} credits`);
       return;
     }
 

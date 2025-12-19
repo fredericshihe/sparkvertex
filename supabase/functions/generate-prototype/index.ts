@@ -49,7 +49,8 @@ serve(async (req: Request) => {
         }
 
         // 🔒 积分校验和扣除（仅 image 模式需要积分）
-        const CREDIT_COST = 10;
+        // Gemini 2.5 Flash Image 成本：$0.039/张 ≈ ¥0.28，定价 5 积分 ≈ ¥0.50（利润率 ~44%）
+        const CREDIT_COST = 5;
         let newCredits = 0;
         
         if (mode === 'image') {
@@ -152,7 +153,7 @@ Image Requirements:
                 ? `请生成以下图片：\n\n${description}`
                 : `Generate the following image:\n\n${description}`;
 
-            console.log('[Image] Generating image with Gemini 3 Pro Image...');
+            console.log('[Image] Generating image with Gemini 2.5 Flash Image...');
         } else {
             // 原有的应用原型图模式
             const deviceName = device === 'mobile' ? (isZh ? '移动端' : 'mobile') : (isZh ? '桌面端' : 'desktop');
@@ -201,14 +202,14 @@ Generate a high-quality UI prototype image showing the app's main interface layo
                 ? `请为以下应用生成原型设计图：\n\n${description}`
                 : `Generate a prototype design for the following app:\n\n${description}`;
 
-            console.log('[Prototype] Generating image with Gemini 3 Pro Image...');
+            console.log('[Prototype] Generating image with Gemini 2.5 Flash Image...');
         }
 
-        // 使用 Gemini 3 Pro Image Preview API
-        // 参考: https://ai.google.dev/gemini-api/docs/gemini-3
+        // 使用 Gemini 2.5 Flash Image API（速度快、成本低 $0.039/张）
+        // 参考: https://ai.google.dev/gemini-api/docs/image-generation
         
         const geminiResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${googleApiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${googleApiKey}`,
             {
                 method: 'POST',
                 headers: {
@@ -223,8 +224,10 @@ Generate a high-quality UI prototype image showing the app's main interface layo
                         }
                     ],
                     generationConfig: {
-                        // Gemini 3 推荐使用默认温度 1.0
-                        temperature: 1.0
+                        // Gemini 2.5 Flash Image 推荐温度 1.0
+                        temperature: 1.0,
+                        // 启用图片生成响应模态
+                        responseModalities: ['TEXT', 'IMAGE']
                     }
                 })
             }
