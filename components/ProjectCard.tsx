@@ -252,7 +252,7 @@ function ProjectCard({ item, isLiked, onLike, onClick, isOwner, onEdit, onUpdate
             <div className="bg-white p-2 rounded-xl shadow-2xl">
               {isClient && (
                 <QRCodeSVG 
-                  value={`${window.location.origin}/p/${item.id}?mode=app`}
+                  value={`${window.location.origin}/p/${item.share_token || item.id}?mode=app`}
                   size={100}
                   level="M"
                   fgColor="#000000"

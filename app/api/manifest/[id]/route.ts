@@ -14,11 +14,15 @@ export async function GET(
   const isRunPage = referer.includes('/run/');
 
   // Fetch item details
-  const { data: item } = await supabase
+  // Support both numeric ID and share_token
+  const isNumericId = /^\d+$/.test(id);
+  const query = supabase
     .from('items')
-    .select('title, description, icon_url')
-    .eq('id', id)
-    .single();
+    .select('title, description, icon_url');
+    
+  const { data: item } = isNumericId
+    ? await query.eq('id', id).single()
+    : await query.eq('share_token', id).single();
 
   if (!item) {
     return new NextResponse('Item not found', { status: 404 });

@@ -789,6 +789,7 @@ function UploadContent() {
   const [tags, setTags] = useState<string[]>(['HTML5', 'Tool']);
   const [tagInput, setTagInput] = useState('');
   const [publishedId, setPublishedId] = useState<string | null>(null);
+  const [publishedShareToken, setPublishedShareToken] = useState<string | null>(null); // 私密分享 token
   const [user, setUser] = useState<any>(null);
   const [showBackendPanel, setShowBackendPanel] = useState(false);
   
@@ -1327,6 +1328,7 @@ function UploadContent() {
     setTags(['HTML5', 'Tool']);
     setTagInput('');
     setPublishedId(null);
+    setPublishedShareToken(null); // 重置私密分享 token
     setShareImageUrl(''); // Reset share image
     setAnalysisState({ status: 'idle', progress: 0, tasks: [], message: '', data: undefined });
     setIsAnalyzing(false);
@@ -2227,6 +2229,10 @@ function UploadContent() {
       setUploadProgress(100);
       const itemId = isEditing && editId ? editId : data.id;
       setPublishedId(itemId);
+      // 设置私密分享 token（新作品由数据库触发器自动生成）
+      if (data.share_token) {
+        setPublishedShareToken(data.share_token);
+      }
 
       // 触发 AI 评分（后台异步，不阻塞用户）
       if (itemId) {
@@ -2273,8 +2279,9 @@ function UploadContent() {
 
   const copyShareLink = async () => {
     if (!publishedId) return;
-    // Use the same URL as QR code: /p/[id]?mode=app
-    const url = `${window.location.origin}/p/${publishedId}?mode=app`;
+    // 优先使用 share_token（更安全），否则使用 ID
+    const shareId = publishedShareToken || publishedId;
+    const url = `${window.location.origin}/p/${shareId}?mode=app`;
     const success = await copyToClipboard(url);
     if (success) {
       toastSuccess(t.upload.copy_link);
@@ -2285,6 +2292,7 @@ function UploadContent() {
 
   const goToDetail = () => {
     if (publishedId) {
+      // 详情页跳转仍用 ID（方便作者管理）
       router.push(`/p/${publishedId}`);
     }
   };
@@ -3242,7 +3250,7 @@ function UploadContent() {
                 <div className="mt-auto flex flex-col items-center">
                   <div className="bg-white p-3 rounded-2xl shadow-xl mb-4">
                     <QRCodeCanvas 
-                      value={`${typeof window !== 'undefined' ? window.location.origin : 'https://sparkvertex.com'}/p/${publishedId}?mode=app`}
+                      value={`${typeof window !== 'undefined' ? window.location.origin : 'https://sparkvertex.com'}/p/${publishedShareToken || publishedId}?mode=app`}
                       size={140}
                       level={"H"}
                       bgColor="#ffffff"

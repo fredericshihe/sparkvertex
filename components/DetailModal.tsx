@@ -347,14 +347,18 @@ export default function DetailModal() {
 
   const getShareUrl = () => {
     if (typeof window !== 'undefined' && item) {
-      return `${window.location.origin}/p/${item.id}`;
+      // 优先使用 share_token（更安全）
+      const shareId = item.share_token || item.id;
+      return `${window.location.origin}/p/${shareId}`;
     }
     return '';
   };
 
   const getAppUrl = () => {
     if (typeof window !== 'undefined' && item) {
-      return `${window.location.origin}/p/${item.id}?mode=app`;
+      // 优先使用 share_token（更安全）
+      const shareId = item.share_token || item.id;
+      return `${window.location.origin}/p/${shareId}?mode=app`;
     }
     return '';
   };
@@ -715,7 +719,8 @@ export default function DetailModal() {
                     <button 
                         onClick={() => {
                             if (item) {
-                                const url = `${window.location.origin}/p/${item.id}`;
+                                const shareId = item.share_token || item.id;
+                                const url = `${window.location.origin}/p/${shareId}`;
                                 copyToClipboard(url).then(() => alert(t.detail.link_copied));
                             }
                         }}

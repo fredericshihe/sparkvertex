@@ -304,14 +304,18 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
 
   const getDetailUrl = () => {
     if (typeof window !== 'undefined') {
-      return `${window.location.origin}/p/${id}`;
+      // 优先使用 share_token（更安全）
+      const shareId = item?.share_token || id;
+      return `${window.location.origin}/p/${shareId}`;
     }
     return '';
   };
 
   const getAppUrl = () => {
     if (typeof window !== 'undefined') {
-      return `${window.location.origin}/p/${id}?mode=app`;
+      // 优先使用 share_token（更安全）
+      const shareId = item?.share_token || id;
+      return `${window.location.origin}/p/${shareId}?mode=app`;
     }
     return '';
   };
@@ -736,7 +740,8 @@ export default function ProductDetailClient({ initialItem, id, initialMode }: Pr
                     </button>
                     <button 
                         onClick={() => {
-                            const url = `${window.location.origin}/p/${item.id}`;
+                            const shareId = item.share_token || item.id;
+                            const url = `${window.location.origin}/p/${shareId}`;
                             copyToClipboard(url).then(() => alert(t.detail.link_copied));
                         }}
                         className="flex-1 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white py-3.5 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-indigo-500/20"
