@@ -209,7 +209,7 @@ Generate a high-quality UI prototype image showing the app's main interface layo
         // 参考: https://ai.google.dev/gemini-api/docs/image-generation
         
         const geminiResponse = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${googleApiKey}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${googleApiKey}`,
             {
                 method: 'POST',
                 headers: {

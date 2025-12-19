@@ -891,8 +891,8 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                       
                       <div className="text-[9px] text-zinc-500 mb-2">
                         {language === 'zh' 
-                          ? '使用 Gemini 2.5 Flash Image 模型生成，最大 1024×1024 像素' 
-                          : 'Powered by Gemini 2.5 Flash Image, max 1024×1024 pixels'}
+                          ? 'AI 智能生成，最大 1024×1024 像素' 
+                          : 'AI powered, max 1024×1024 pixels'}
                       </div>
                       
                       <div className="flex gap-2 mb-2">
