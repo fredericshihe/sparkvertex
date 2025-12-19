@@ -5138,9 +5138,9 @@ Some components are marked with \`@semantic-compressed\` and \`[IRRELEVANT - DO 
       return;
     }
 
-    // 前端仅做提示，实际校验在服务端
+    // 前端积分不足时弹出充值界面
     if (credits < AI_IMAGE_CREDIT_COST) {
-      toastError(language === 'zh' ? `积分不足，需要 ${AI_IMAGE_CREDIT_COST} 积分` : `Insufficient credits, need ${AI_IMAGE_CREDIT_COST} credits`);
+      openCreditPurchaseModal();
       return;
     }
 
