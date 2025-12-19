@@ -392,18 +392,174 @@ const BABEL_PARSER_OPTIONS: parser.ParserOptions = {
     ]
 };
 
+// ==================== TypeScript 类型定义存储 ====================
+// 用于存储代码中的 Interface/Type 定义，供 AI 参考
+
+export interface TypeDefinition {
+    name: string;
+    type: 'interface' | 'type' | 'enum';
+    code: string;           // 完整的类型定义代码
+    startLine: number;
+    endLine: number;
+    properties: string[];   // 属性名列表
+}
+
+// 类型定义缓存（每次 buildDataFlowGraph 时更新）
+let cachedTypeDefinitions: Map<string, TypeDefinition> = new Map();
+
+/**
+ * 获取缓存的类型定义
+ */
+export function getCachedTypeDefinitions(): Map<string, TypeDefinition> {
+    return cachedTypeDefinitions;
+}
+
+/**
+ * 根据变量名查找相关的类型定义
+ */
+export function findRelatedTypes(variableNames: string[]): TypeDefinition[] {
+    const relatedTypes: TypeDefinition[] = [];
+    const seen = new Set<string>();
+    
+    for (const varName of variableNames) {
+        // 直接匹配类型名
+        if (cachedTypeDefinitions.has(varName) && !seen.has(varName)) {
+            relatedTypes.push(cachedTypeDefinitions.get(varName)!);
+            seen.add(varName);
+        }
+        
+        // 模糊匹配：变量名包含类型名，或类型名包含变量名
+        for (const [typeName, typeDef] of cachedTypeDefinitions) {
+            if (seen.has(typeName)) continue;
+            
+            const varLower = varName.toLowerCase();
+            const typeLower = typeName.toLowerCase();
+            
+            // 例如：userData -> User, orderList -> Order
+            if (varLower.includes(typeLower) || typeLower.includes(varLower)) {
+                relatedTypes.push(typeDef);
+                seen.add(typeName);
+            }
+        }
+    }
+    
+    console.log(`[TypeLookup] 🔍 Found ${relatedTypes.length} related types for [${variableNames.slice(0, 3).join(', ')}...]`);
+    return relatedTypes;
+}
+
 /**
  * 构建数据流图
  * 分析变量的定义和使用关系
+ * 增强版：同时收集 TypeScript 类型定义
  */
 export function buildDataFlowGraph(code: string): Map<string, DataFlowNode> {
     const graph = new Map<string, DataFlowNode>();
+    const lines = code.split('\n');
+    
+    // 重置类型定义缓存
+    cachedTypeDefinitions = new Map();
     
     try {
         const ast = parser.parse(code, BABEL_PARSER_OPTIONS);
         
-        // 第一遍：收集所有定义
+        // 第一遍：收集所有定义（包括类型定义）
         traverse(ast, {
+            // === TypeScript 类型定义收集 ===
+            TSInterfaceDeclaration(path) {
+                const name = path.node.id.name;
+                const startLine = path.node.loc?.start.line || 0;
+                const endLine = path.node.loc?.end.line || 0;
+                
+                // 提取属性名
+                const properties: string[] = [];
+                if (path.node.body && path.node.body.body) {
+                    for (const prop of path.node.body.body) {
+                        if (t.isTSPropertySignature(prop) && t.isIdentifier(prop.key)) {
+                            properties.push(prop.key.name);
+                        }
+                    }
+                }
+                
+                // 提取完整代码
+                const typeCode = lines.slice(startLine - 1, endLine).join('\n');
+                
+                cachedTypeDefinitions.set(name, {
+                    name,
+                    type: 'interface',
+                    code: typeCode,
+                    startLine,
+                    endLine,
+                    properties
+                });
+                
+                // 同时加入数据流图
+                graph.set(name, {
+                    name,
+                    type: 'variable', // 类型也当作一种"变量"
+                    definedAt: startLine,
+                    usedAt: [],
+                    dependsOn: [],
+                    dependedBy: []
+                });
+            },
+            
+            TSTypeAliasDeclaration(path) {
+                const name = path.node.id.name;
+                const startLine = path.node.loc?.start.line || 0;
+                const endLine = path.node.loc?.end.line || 0;
+                
+                const typeCode = lines.slice(startLine - 1, endLine).join('\n');
+                
+                cachedTypeDefinitions.set(name, {
+                    name,
+                    type: 'type',
+                    code: typeCode,
+                    startLine,
+                    endLine,
+                    properties: []
+                });
+                
+                graph.set(name, {
+                    name,
+                    type: 'variable',
+                    definedAt: startLine,
+                    usedAt: [],
+                    dependsOn: [],
+                    dependedBy: []
+                });
+            },
+            
+            TSEnumDeclaration(path) {
+                const name = path.node.id.name;
+                const startLine = path.node.loc?.start.line || 0;
+                const endLine = path.node.loc?.end.line || 0;
+                
+                const members: string[] = path.node.members
+                    .filter(m => t.isIdentifier(m.id))
+                    .map(m => (m.id as t.Identifier).name);
+                
+                const typeCode = lines.slice(startLine - 1, endLine).join('\n');
+                
+                cachedTypeDefinitions.set(name, {
+                    name,
+                    type: 'enum',
+                    code: typeCode,
+                    startLine,
+                    endLine,
+                    properties: members
+                });
+                
+                graph.set(name, {
+                    name,
+                    type: 'variable',
+                    definedAt: startLine,
+                    usedAt: [],
+                    dependsOn: [],
+                    dependedBy: []
+                });
+            },
+            
+            // === 原有的变量/函数收集 ===
             VariableDeclarator(path) {
                 if (t.isIdentifier(path.node.id)) {
                     const name = path.node.id.name;
@@ -460,6 +616,10 @@ export function buildDataFlowGraph(code: string): Map<string, DataFlowNode> {
             }
         });
         
+        if (cachedTypeDefinitions.size > 0) {
+            console.log(`[DataFlowGraph] 📐 Collected ${cachedTypeDefinitions.size} TypeScript type definitions`);
+        }
+        
         // 第二遍：收集使用位置和更新依赖关系
         traverse(ast, {
             Identifier(path) {
@@ -512,20 +672,48 @@ function extractIdentifiers(node: t.Node): string[] {
 }
 
 /**
+ * 程序切片配置
+ */
+export interface SliceOptions {
+    direction?: 'backward' | 'forward' | 'both';  // 切片方向
+    maxDepth?: number;          // 递归深度限制（防止切片爆炸）
+    includeTypes?: boolean;     // 是否包含相关的 TypeScript 类型定义
+    contextLines?: number;      // 每个相关行的上下文行数
+}
+
+const DEFAULT_SLICE_OPTIONS: Required<SliceOptions> = {
+    direction: 'both',
+    maxDepth: 3,                // 默认最多递归 3 层
+    includeTypes: true,         // 默认包含类型定义
+    contextLines: 1             // 默认上下各 1 行上下文
+};
+
+/**
  * 计算程序切片
  * 给定目标变量，提取所有影响它的代码和被它影响的代码
  * 
+ * 增强版：
+ * - 支持递归深度控制（避免切片爆炸）
+ * - 自动抓取相关 TypeScript 类型定义
+ * 
  * @param code - 完整源代码
  * @param targetName - 目标变量/函数名
- * @param direction - 切片方向：backward(影响目标的), forward(被目标影响的), both
- * @returns 代码切片
+ * @param options - 切片选项
+ * @returns 代码切片（包含类型定义）
  */
 export function computeProgramSlice(
     code: string,
     targetName: string,
-    direction: 'backward' | 'forward' | 'both' = 'both'
+    optionsOrDirection: SliceOptions | 'backward' | 'forward' | 'both' = 'both'
 ): ProgramSlice | null {
-    console.log(`[ProgramSlicing] 🔪 Computing slice for "${targetName}" (${direction})`);
+    // 兼容旧版 API
+    const options: Required<SliceOptions> = typeof optionsOrDirection === 'string'
+        ? { ...DEFAULT_SLICE_OPTIONS, direction: optionsOrDirection }
+        : { ...DEFAULT_SLICE_OPTIONS, ...optionsOrDirection };
+    
+    const { direction, maxDepth, includeTypes, contextLines } = options;
+    
+    console.log(`[ProgramSlicing] 🔪 Computing slice for "${targetName}" (${direction}, depth=${maxDepth}, types=${includeTypes})`);
     
     const graph = buildDataFlowGraph(code);
     const targetNode = graph.get(targetName);
@@ -537,31 +725,49 @@ export function computeProgramSlice(
     
     const relevantNames = new Set<string>([targetName]);
     
-    // Backward slice: 所有影响目标的变量
+    // Backward slice: 所有影响目标的变量（带深度限制）
     if (direction === 'backward' || direction === 'both') {
-        const queue = [...targetNode.dependsOn];
+        const queue: Array<{ name: string; depth: number }> = 
+            targetNode.dependsOn.map(name => ({ name, depth: 1 }));
+        
         while (queue.length > 0) {
-            const dep = queue.shift()!;
+            const { name: dep, depth } = queue.shift()!;
+            
             if (!relevantNames.has(dep)) {
                 relevantNames.add(dep);
-                const depNode = graph.get(dep);
-                if (depNode) {
-                    queue.push(...depNode.dependsOn);
+                
+                // 只有在深度限制内才继续递归
+                if (depth < maxDepth) {
+                    const depNode = graph.get(dep);
+                    if (depNode) {
+                        for (const nextDep of depNode.dependsOn) {
+                            queue.push({ name: nextDep, depth: depth + 1 });
+                        }
+                    }
                 }
             }
         }
     }
     
-    // Forward slice: 所有被目标影响的变量
+    // Forward slice: 所有被目标影响的变量（带深度限制）
     if (direction === 'forward' || direction === 'both') {
-        const queue = [...targetNode.dependedBy];
+        const queue: Array<{ name: string; depth: number }> = 
+            targetNode.dependedBy.map(name => ({ name, depth: 1 }));
+        
         while (queue.length > 0) {
-            const dep = queue.shift()!;
+            const { name: dep, depth } = queue.shift()!;
+            
             if (!relevantNames.has(dep)) {
                 relevantNames.add(dep);
-                const depNode = graph.get(dep);
-                if (depNode) {
-                    queue.push(...depNode.dependedBy);
+                
+                // 只有在深度限制内才继续递归
+                if (depth < maxDepth) {
+                    const depNode = graph.get(dep);
+                    if (depNode) {
+                        for (const nextDep of depNode.dependedBy) {
+                            queue.push({ name: nextDep, depth: depth + 1 });
+                        }
+                    }
                 }
             }
         }
@@ -599,10 +805,23 @@ export function computeProgramSlice(
         expandedLines.add(Math.min(lines.length, line + 1));
     }
     
-    const slicedCode = Array.from(expandedLines)
+    let slicedCode = Array.from(expandedLines)
         .sort((a, b) => a - b)
         .map(lineNum => `${lineNum.toString().padStart(4)}: ${lines[lineNum - 1] || ''}`)
         .join('\n');
+    
+    // 如果启用类型抓取，添加相关类型定义
+    let typesCode = '';
+    if (options.includeTypes) {
+        const relatedTypes = findRelatedTypes(Array.from(relevantNames));
+        if (relatedTypes.length > 0) {
+            typesCode = '\n// ========== Related TypeScript Types ==========\n' +
+                relatedTypes.map(t => t.code).join('\n\n') +
+                '\n// ===============================================\n\n';
+            slicedCode = typesCode + slicedCode;
+            console.log(`[ProgramSlicing] 📐 Included ${relatedTypes.length} type definitions`);
+        }
+    }
     
     const compressionRatio = slicedCode.length / code.length;
     
@@ -610,6 +829,7 @@ export function computeProgramSlice(
     console.log(`  - Target: ${targetName}`);
     console.log(`  - Dependencies: ${dependencies.join(', ') || 'none'}`);
     console.log(`  - Dependents: ${dependents.join(', ') || 'none'}`);
+    console.log(`  - Relevant vars: ${relevantNames.size} (depth limit: ${options.maxDepth})`);
     console.log(`  - Compression: ${(compressionRatio * 100).toFixed(1)}% of original`);
     
     return {
@@ -622,34 +842,120 @@ export function computeProgramSlice(
     };
 }
 
+// ==================== 功能模块关键词映射表 ====================
+// 用户通常说"改一下支付流程"而不是"改一下 handlePayment 函数"
+// 这个映射表让 RAG 能"听懂人话"
+
+const MODULE_KEYWORD_MAP: Record<string, string[]> = {
+    // 支付相关
+    '支付': ['handlePayment', 'payment', 'pay', 'order', 'checkout', 'price', 'amount', 'transaction', 'alipay', 'wechat'],
+    'payment': ['handlePayment', 'payment', 'pay', 'order', 'checkout', 'price', 'amount', 'transaction'],
+    '订单': ['order', 'orderData', 'createOrder', 'orderList', 'orderDetail', 'orderStatus'],
+    
+    // 用户/认证相关
+    '登录': ['login', 'signIn', 'auth', 'authenticate', 'handleLogin', 'loginForm', 'credentials'],
+    '注册': ['register', 'signUp', 'signup', 'createUser', 'registerForm', 'handleRegister'],
+    '用户': ['user', 'profile', 'userData', 'userInfo', 'currentUser', 'userState'],
+    '认证': ['auth', 'authentication', 'token', 'session', 'jwt', 'isAuthenticated', 'authState'],
+    'auth': ['auth', 'authentication', 'login', 'logout', 'session', 'token'],
+    
+    // UI 组件相关
+    '侧边栏': ['sidebar', 'sideBar', 'sideNav', 'drawer', 'navigation', 'menu', 'navMenu'],
+    '导航': ['nav', 'navbar', 'navigation', 'header', 'menu', 'breadcrumb', 'tabs'],
+    '弹窗': ['modal', 'dialog', 'popup', 'overlay', 'alert', 'confirm', 'toast'],
+    '表单': ['form', 'formData', 'handleSubmit', 'input', 'validate', 'validation', 'formState'],
+    '表格': ['table', 'dataTable', 'grid', 'list', 'columns', 'rows', 'pagination'],
+    '按钮': ['button', 'btn', 'handleClick', 'onClick', 'submit', 'action'],
+    
+    // 数据相关
+    '列表': ['list', 'items', 'data', 'array', 'collection', 'fetchList', 'listData'],
+    '搜索': ['search', 'query', 'filter', 'handleSearch', 'searchQuery', 'searchResults'],
+    '筛选': ['filter', 'filterData', 'handleFilter', 'filterOptions', 'activeFilters'],
+    '排序': ['sort', 'sortBy', 'orderBy', 'handleSort', 'sortOrder', 'sortConfig'],
+    '分页': ['pagination', 'page', 'pageSize', 'currentPage', 'totalPages', 'paginate'],
+    
+    // 状态管理
+    '状态': ['state', 'useState', 'setState', 'store', 'reducer', 'context', 'globalState'],
+    '加载': ['loading', 'isLoading', 'loader', 'spinner', 'fetching', 'pending'],
+    '错误': ['error', 'errorMessage', 'handleError', 'errorState', 'catch', 'exception'],
+    
+    // API/网络
+    '请求': ['fetch', 'request', 'api', 'axios', 'http', 'get', 'post', 'response'],
+    '接口': ['api', 'endpoint', 'service', 'request', 'fetch', 'handler'],
+    '上传': ['upload', 'handleUpload', 'file', 'fileInput', 'uploadFile', 'formData'],
+    '下载': ['download', 'handleDownload', 'export', 'saveAs', 'blob'],
+    
+    // 图表/可视化
+    '图表': ['chart', 'graph', 'plot', 'visualization', 'echarts', 'recharts', 'chartData'],
+    '统计': ['stats', 'statistics', 'analytics', 'metrics', 'dashboard', 'report'],
+    
+    // 设置/配置
+    '设置': ['settings', 'config', 'configuration', 'preferences', 'options'],
+    '主题': ['theme', 'darkMode', 'lightMode', 'themeConfig', 'colors', 'styles'],
+    
+    // 动画/交互
+    '动画': ['animation', 'animate', 'transition', 'motion', 'framer', 'keyframes'],
+    '拖拽': ['drag', 'drop', 'draggable', 'droppable', 'dnd', 'sortable'],
+};
+
 /**
  * 从用户请求中提取目标变量名
+ * 增强版：支持功能模块关键词识别
  */
 export function extractTargetFromRequest(request: string): string[] {
     const targets: string[] = [];
+    const requestLower = request.toLowerCase();
     
-    // 匹配常见模式
+    // 1. 首先进行模块关键词匹配（优先级最高）
+    for (const [keyword, variables] of Object.entries(MODULE_KEYWORD_MAP)) {
+        if (requestLower.includes(keyword.toLowerCase())) {
+            for (const varName of variables) {
+                if (!targets.includes(varName)) {
+                    targets.push(varName);
+                }
+            }
+            console.log(`[ExtractTarget] 🎯 Module match: "${keyword}" → [${variables.slice(0, 3).join(', ')}...]`);
+        }
+    }
+    
+    // 2. 匹配常见模式（变量名提取）
     const patterns = [
         // "修复 xxx 变量"
-        /(?:修复|fix|修改|change|更新|update)\s+[`'"]?(\w+)[`'"]?\s*(?:变量|variable|函数|function)?/gi,
+        /(?:修复|fix|修改|change|更新|update|改)\s+[`'"]?(\w+)[`'"]?\s*(?:变量|variable|函数|function|组件|component)?/gi,
         // "xxx 未定义"
         /[`'"]?(\w+)[`'"]?\s*(?:未定义|undefined|is not defined)/gi,
         // "xxx 的问题"
-        /[`'"]?(\w+)[`'"]?\s*(?:的问题|有问题|出错|error)/gi,
-        // 直接引用 `xxx`
-        /`(\w{3,})`/g
+        /[`'"]?(\w+)[`'"]?\s*(?:的问题|有问题|出错|error|bug)/gi,
+        // "xxx 不工作/不生效"
+        /[`'"]?(\w+)[`'"]?\s*(?:不工作|不生效|失效|not working)/gi,
+        // 直接引用 `xxx` 或 'xxx' 或 "xxx"
+        /[`'"](\w{3,})[`'"]/g,
+        // camelCase 或 PascalCase 变量名（至少 4 个字符）
+        /\b([A-Z][a-z]+(?:[A-Z][a-z]+)+|[a-z]+(?:[A-Z][a-z]+)+)\b/g
     ];
     
     for (const pattern of patterns) {
         let match;
+        // 重置 lastIndex 避免跳过匹配
+        pattern.lastIndex = 0;
         while ((match = pattern.exec(request)) !== null) {
             const target = match[1];
-            if (target && !targets.includes(target) && target.length > 2) {
+            // 过滤掉常见的非变量名词
+            const skipWords = ['the', 'and', 'for', 'with', 'this', 'that', 'from', 'into', 'when', 'where'];
+            if (target && !targets.includes(target) && target.length > 2 && !skipWords.includes(target.toLowerCase())) {
                 targets.push(target);
             }
         }
     }
     
+    // 3. 限制返回数量，避免过多无关变量
+    const maxTargets = 15;
+    if (targets.length > maxTargets) {
+        console.log(`[ExtractTarget] ⚠️ Too many targets (${targets.length}), limiting to ${maxTargets}`);
+        return targets.slice(0, maxTargets);
+    }
+    
+    console.log(`[ExtractTarget] 📋 Extracted ${targets.length} targets: [${targets.slice(0, 5).join(', ')}${targets.length > 5 ? '...' : ''}]`);
     return targets;
 }
 
