@@ -75,8 +75,8 @@ const STYLES = [
 const CATEGORY_STYLES: Record<string, string[]> = {
   game: ['retro', 'cyberpunk', 'cartoon', 'lowpoly', 'dark_fantasy', 'neobrutalism'],
   tool: ['minimalist', 'neumorphism', 'native', 'industrial', 'swiss', 'dark_mode'],
-  portfolio: ['minimalist', 'swiss', 'editorial', 'glassmorphism', 'neobrutalism', 'dark_mode'], // New
-  appointment: ['business', 'minimalist', 'native', 'material', 'card', 'clean'], // New
+  portfolio: ['minimalist', 'swiss', 'editorial', 'glassmorphism', 'neobrutalism', 'dark_mode'],
+  appointment: ['business', 'minimalist', 'native', 'material', 'card', 'glassmorphism'],
   productivity: ['minimalist', 'dark_mode', 'kanban', 'business', 'swiss', 'neumorphism'],
   devtool: ['dark_mode', 'industrial', 'minimalist', 'swiss', 'neobrutalism', 'retro'],
   education: ['cute', 'business', 'paper', 'gamified', 'minimalist', 'card'],
