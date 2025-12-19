@@ -1556,17 +1556,19 @@ ${wizardData.description}`;
   
     const constructPrompt = (isModification = false, modificationRequest = '', forceFull = false, history: any[] = [], summary = '') => {
     const categoryLabel = t.categories[wizardData.category as keyof typeof t.categories] || 'App';
-    const styleLabel = t.styles[wizardData.style as keyof typeof t.styles] || 'Modern';
+    const styleLabel = wizardData.style ? (t.styles[wizardData.style as keyof typeof t.styles] || '') : '';
     const deviceLabel = t.devices[wizardData.device as keyof typeof t.devices] || 'Mobile';
-    const stylePrompt = STYLE_PROMPTS[wizardData.style] || '';
+    const stylePrompt = wizardData.style ? (STYLE_PROMPTS[wizardData.style] || '') : '';
     const devicePrompt = DEVICE_PROMPTS[wizardData.device] || DEVICE_PROMPTS['mobile'];
     const categoryPrompt = CATEGORY_PROMPTS[wizardData.category] || '';
     
-    // Compact description
-    let description = `Type:${categoryLabel}, Device:${deviceLabel}, Style:${styleLabel}. 
+    // Compact description - style is optional
+    const styleSection = styleLabel ? `, Style:${styleLabel}` : '';
+    const stylePromptSection = stylePrompt ? `\n    ${stylePrompt}` : '';
     
-    ${categoryPrompt}
-    ${stylePrompt}
+    let description = `Type:${categoryLabel}, Device:${deviceLabel}${styleSection}. 
+    
+    ${categoryPrompt}${stylePromptSection}
     ${devicePrompt}
     
     Requirements:${wizardData.description}`;
@@ -1658,7 +1660,7 @@ ${description}
 - Lang: ${targetLang}
 - Stack: React 18 (UMD), Tailwind CSS (CDN), FontAwesome 6 (CDN).
 - Target: ${deviceLabel} (${wizardData.device === 'mobile' ? 'Mobile-first' : 'Desktop'}).
-- Style: ${styleLabel}.
+${styleLabel ? `- Style: ${styleLabel}.` : '- Style: Choose the best visual style based on the app type and requirements.'}
 - Output: Single HTML file. No Markdown.
     `;
   };
@@ -5354,12 +5356,12 @@ Please fix the code to make the app display properly.`;
                 </button>
                 <button 
                   onClick={() => {
-                    setWizardData(prev => ({ ...prev, style: 'minimalist' }));
+                    setWizardData(prev => ({ ...prev, style: '' }));
                     setStep('concept');
                   }}
                   className="text-slate-400 hover:text-white text-xs md:text-sm flex items-center gap-1.5 md:gap-1.5 px-3 md:px-3 py-1.5 md:py-1.5 rounded-lg hover:bg-white/5 transition"
                 >
-                  {language === 'zh' ? '跳过' : 'Skip'} <i className="fa-solid fa-arrow-right text-[10px] md:text-[10px]"></i>
+                  {language === 'zh' ? 'AI 自由发挥' : 'Let AI Decide'} <i className="fa-solid fa-wand-magic-sparkles text-[10px] md:text-[10px]"></i>
                 </button>
               </div>
             </div>
