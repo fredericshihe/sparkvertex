@@ -1000,7 +1000,14 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                             {userUploadedImages.map((img) => (
                               <div
                                 key={img.path}
-                                className="relative rounded-lg overflow-hidden border border-white/5 bg-zinc-900 group"
+                                onClick={() => {
+                                  // 点击图片直接应用替换
+                                  if (!isUploadingImage) {
+                                    const imageUrl = `${img.publicUrl}?t=${Date.now()}`;
+                                    applyQuickImageEdit(imageUrl);
+                                  }
+                                }}
+                                className="relative rounded-lg overflow-hidden border border-white/5 bg-zinc-900 group cursor-pointer hover:border-purple-500/50 hover:ring-2 hover:ring-purple-500/30 transition-all"
                               >
                                 <img
                                   src={`${img.publicUrl}?t=${encodeURIComponent(img.path)}`}
@@ -1011,16 +1018,20 @@ export const CreationPreview: React.FC<CreationPreviewProps> = ({
                                   }}
                                 />
                                 <button
-                                  onClick={() => deleteUserUploadedImage(img.path)}
+                                  onClick={(e) => {
+                                    e.stopPropagation(); // 阻止事件冒泡，避免触发图片选择
+                                    deleteUserUploadedImage(img.path);
+                                  }}
                                   className="absolute top-1 right-1 w-6 h-6 rounded-md bg-black/60 hover:bg-black/80 text-white text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
                                   title={language === 'zh' ? '删除' : 'Delete'}
                                 >
                                   <i className="fa-solid fa-trash"></i>
                                 </button>
-                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-1">
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-1 flex items-center justify-between">
                                   <div className="text-[9px] text-zinc-300 truncate font-mono">
                                     {img.bytes ? formatMB(img.bytes) : ''}
                                   </div>
+                                  <i className="fa-solid fa-check-circle text-[10px] text-purple-400 opacity-0 group-hover:opacity-100 transition"></i>
                                 </div>
                               </div>
                             ))}

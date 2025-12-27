@@ -242,6 +242,7 @@ function CreateContent() {
   // State: Onboarding (操作引导)
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+  const [isNewlyRegisteredUser, setIsNewlyRegisteredUser] = useState(false); // 是否是新注册用户（24小时内）
   
   // State: Quick Edit (direct color/text/image modification without AI)
   const [quickEditMode, setQuickEditMode] = useState<'none' | 'color' | 'text' | 'image'>('none');
@@ -480,21 +481,22 @@ function CreateContent() {
   }, [language]);
 
   // Onboarding Effect - 检测是否需要显示操作引导
+  // 只有新注册用户（24小时内）首次进入创作页面时展示引导，之后不再自动展示
   useEffect(() => {
-    if (step === 'preview' && !hasCompletedOnboarding && !isGenerating) {
+    if (step === 'preview' && !hasCompletedOnboarding && !isGenerating && userId && isNewlyRegisteredUser) {
       // 检查 localStorage 是否已完成过引导
       const hasCompleted = localStorage.getItem('spark_creation_onboarding_completed');
       if (hasCompleted === 'true') {
         setHasCompletedOnboarding(true);
       } else {
-        // 首次进入预览模式，延迟显示引导
-        // const timer = setTimeout(() => {
-        //   setShowOnboarding(true);
-        // }, 1000);
-        // return () => clearTimeout(timer);
+        // 新注册用户首次进入预览模式，延迟显示引导
+        const timer = setTimeout(() => {
+          setShowOnboarding(true);
+        }, 1500);
+        return () => clearTimeout(timer);
       }
     }
-  }, [step, hasCompletedOnboarding, isGenerating]);
+  }, [step, hasCompletedOnboarding, isGenerating, userId, isNewlyRegisteredUser]);
 
   // 完成引导的处理函数
   const handleOnboardingComplete = () => {
@@ -1166,13 +1168,23 @@ function CreateContent() {
 
         const { data } = await supabase
           .from('profiles')
-          .select('credits, full_name, username')
+          .select('credits, full_name, username, created_at')
           .eq('id', session.user.id)
           .maybeSingle();
           
         if (data) {
           setCredits(Number(data.credits ?? 30));
           setUserName(data.full_name || data.username || 'Spark Creator');
+          
+          // 检测是否是新注册用户（24小时内注册）
+          if (data.created_at) {
+            const createdAt = new Date(data.created_at);
+            const now = new Date();
+            const hoursSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+            if (hoursSinceCreation <= 24) {
+              setIsNewlyRegisteredUser(true);
+            }
+          }
         } else {
           setCredits(30);
         }

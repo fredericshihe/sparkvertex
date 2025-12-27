@@ -1070,6 +1070,24 @@ export const getPreviewContent = (content: string | null, options?: {
             var shouldRestore = event.data.shouldRestoreEditMode !== false;
             var wasEditMode = isEditMode && shouldRestore;
             
+            // 🆕 Save current view/page state before update
+            // Try to capture current view state from various common patterns
+            var savedViewState = null;
+            try {
+              // Save hash (common for SPA routing)
+              savedViewState = {
+                hash: window.location.hash,
+                // Try to find common state variables in window
+                currentView: window.__SPARK_CURRENT_VIEW__ || null,
+                currentPage: window.__SPARK_CURRENT_PAGE__ || null,
+                activeTab: window.__SPARK_ACTIVE_TAB__ || null,
+                // Try to get React state from root element data attribute
+                reactState: document.getElementById('root')?.getAttribute('data-current-view') || null
+              };
+            } catch (e) {
+              console.warn('[Spark] Could not save view state:', e);
+            }
+            
             // Clear any highlight
             if (hoveredElement) {
               hoveredElement.classList.remove('__spark_highlight__');
@@ -1164,6 +1182,47 @@ export const getPreviewContent = (content: string | null, options?: {
                 setTimeout(restoreEditMode, 50);
                 setTimeout(restoreEditMode, 150);
                 setTimeout(restoreEditMode, 500);
+              }
+              
+              // 🆕 Restore view state after React re-renders
+              if (savedViewState) {
+                var restoreViewState = function() {
+                  try {
+                    // Restore hash if it was changed
+                    if (savedViewState.hash && savedViewState.hash !== window.location.hash) {
+                      // Use replaceState to avoid adding to history
+                      window.history.replaceState(null, '', savedViewState.hash);
+                      // Dispatch hashchange event for React Router or hash-based routing
+                      window.dispatchEvent(new HashChangeEvent('hashchange'));
+                    }
+                    
+                    // Restore global state variables if they existed
+                    if (savedViewState.currentView) {
+                      window.__SPARK_CURRENT_VIEW__ = savedViewState.currentView;
+                    }
+                    if (savedViewState.currentPage) {
+                      window.__SPARK_CURRENT_PAGE__ = savedViewState.currentPage;
+                    }
+                    if (savedViewState.activeTab) {
+                      window.__SPARK_ACTIVE_TAB__ = savedViewState.activeTab;
+                    }
+                    
+                    // Try to click on any element that has data-view matching saved state
+                    if (savedViewState.reactState) {
+                      var viewElements = document.querySelectorAll('[data-view="' + savedViewState.reactState + '"]');
+                      if (viewElements.length > 0) {
+                        viewElements[0].click();
+                      }
+                    }
+                  } catch (e) {
+                    console.warn('[Spark] Could not restore view state:', e);
+                  }
+                };
+                
+                // Restore view state after React has fully rendered
+                setTimeout(restoreViewState, 100);
+                setTimeout(restoreViewState, 300);
+                setTimeout(restoreViewState, 600);
               }
             }
             
